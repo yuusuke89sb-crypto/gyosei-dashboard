@@ -27,6 +27,9 @@ const App = {
       // 3分ごとに自動同期（他デバイスの変更を取り込む）
       setInterval(() => {
         if (document.hidden) return; // ページが非表示なら省略
+        // モーダルが開いている時は同期をスキップ（入力中のデータが消えるのを防止）
+        const openModal = document.querySelector('.modal[style*="flex"]');
+        if (openModal) return;
         SpreadsheetSync.pull().then(() => this.refreshView()).catch(() => { });
       }, 3 * 60 * 1000);
     }

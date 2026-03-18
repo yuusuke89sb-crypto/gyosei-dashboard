@@ -97,6 +97,14 @@ a {
     margin-left: 0;
     padding: 72px 16px 80px;
   }
+
+  .modal-content {
+    max-height: 85vh;
+    overflow-y: auto;
+    margin: 16px;
+    width: calc(100% - 32px) !important;
+    max-width: 100% !important;
+  }
 }
 
 .sidebar-header {
