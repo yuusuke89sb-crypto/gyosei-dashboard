@@ -208,9 +208,8 @@ const Calendar = {
     const today = new Date().toISOString().slice(0, 10);
 
     return `
-      <div id="eventModal" class="modal" style="display:none">
-        <div class="modal-overlay" onclick="Calendar.closeEventModal()"></div>
-        <div class="modal-content">
+      <div id="eventModal" class="modal" style="display:none" onclick="Calendar.closeEventModal()">
+        <div class="modal-content" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">
           <div class="modal-header">
             <h2 id="eventModalTitle">予定追加</h2>
             <button class="modal-close" onclick="Calendar.closeEventModal()">✕</button>
