@@ -118,6 +118,10 @@ const Store = {
     };
     cases.push(newCase);
     this._set(this.KEYS.CASES, cases);
+    // スプレッドシートへ自動プッシュ
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertCase', newCase);
+    }
     return newCase;
   },
 
@@ -135,8 +139,13 @@ const Store = {
     cases[idx] = { ...cases[idx], ...data, updatedAt: new Date().toISOString() };
     this._set(this.KEYS.CASES, cases);
 
-    // 完了時に報酬があれば仕訳を自動生成
+    // スプレッドシートへ自動プッシュ
     const updatedCase = cases[idx];
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertCase', updatedCase);
+    }
+
+    // 完了時に報酬があれば仕訳を自動生成
     if (data.status === 'done' && oldStatus !== 'done' && updatedCase.fee && Number(updatedCase.fee) > 0) {
       this._autoCreateJournal(updatedCase);
     }
@@ -161,11 +170,19 @@ const Store = {
       createdAt: new Date().toISOString(),
     });
     localStorage.setItem('gyosei_journals', JSON.stringify(journals));
+    // 帳簿もスプレッドシートへプッシュ
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertJournal', journals[journals.length - 1]);
+    }
   },
 
   deleteCase(id) {
     const cases = this.getCases().filter(c => c.id !== id);
     this._set(this.KEYS.CASES, cases);
+    // スプレッドシートからも削除
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('deleteCase', { id });
+    }
   },
 
   // ---- 担当者 ----

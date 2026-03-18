@@ -48,6 +48,16 @@ const SpreadsheetSync = {
                 Store._set(Store.KEYS.STAFF, data.staff);
             }
 
+            // 案件データを localStorage に保存
+            if (data.cases) {
+                Store._set(Store.KEYS.CASES, data.cases);
+            }
+
+            // 帳簿データを localStorage に保存
+            if (data.journals) {
+                localStorage.setItem('gyosei_journals', JSON.stringify(data.journals));
+            }
+
             // 同期日時を記録
             this.saveConfig({
                 ...this.getConfig(),
@@ -57,6 +67,8 @@ const SpreadsheetSync = {
             return {
                 customers: (data.customers || []).length,
                 staff: (data.staff || []).length,
+                cases: (data.cases || []).length,
+                journals: (data.journals || []).length,
                 syncedAt: data.syncedAt,
             };
 
@@ -216,7 +228,7 @@ const SpreadsheetSync = {
         try {
             const result = await this.pull();
             App.refreshView();
-            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件`);
+            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 案件${result.cases}件 / 帳簿${result.journals}件`);
         } catch (err) {
             App.showToast('❌ 同期エラー: ' + err.message);
         }

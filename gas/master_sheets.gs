@@ -26,6 +26,8 @@
 const SHEET_NAMES = {
   CUSTOMER: '顧客マスタ',
   STAFF:    '担当者マスタ',
+  CASES:    '案件マスタ',
+  JOURNALS: '帳簿',
   LOG:      '操作ログ',
 };
 
@@ -40,6 +42,18 @@ const STAFF_HEADERS = [
   '担当者ID', '氏名', 'フリガナ', '役職',
   '電話番号', 'メールアドレス', '担当業務', 'ステータス',
   '登録日', '更新日',
+];
+
+const CASE_HEADERS = [
+  '案件ID', '顧客ID', '案件名', 'カテゴリ',
+  'ステータス', '期限', '報酬', '担当者ID',
+  '備考', '完了日', '登録日', '更新日',
+];
+
+const JOURNAL_HEADERS = [
+  '伝票ID', '日付', '借方', '貸方',
+  '金額', '摘要', '案件ID', '自動',
+  '登録日',
 ];
 
 const LOG_HEADERS = [
@@ -610,6 +624,12 @@ function doGet(e) {
       const daysForward = parseInt((e && e.parameter && e.parameter.daysForward) || '90');
       result.events = getCalendarEvents_(daysBack, daysForward);
     }
+    if (type === 'cases' || type === 'all') {
+      result.cases = getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
+    }
+    if (type === 'journals' || type === 'all') {
+      result.journals = getSheetDataAsJson_(SHEET_NAMES.JOURNALS, JOURNAL_HEADERS);
+    }
     if (type === 'faxLog') {
       result.faxLog = getFaxLog_(50);
     }
@@ -673,6 +693,18 @@ function doPost(e) {
         break;
       case 'checkFax':
         result = checkIncomingFax_();
+        break;
+      case 'upsertCase':
+        result = upsertCase_(data);
+        break;
+      case 'deleteCase':
+        result = deleteRow_(SHEET_NAMES.CASES, data.id);
+        break;
+      case 'upsertJournal':
+        result = upsertJournal_(data);
+        break;
+      case 'deleteJournal':
+        result = deleteRow_(SHEET_NAMES.JOURNALS, data.id);
         break;
       default:
         result = { error: '不明なアクション: ' + action };
@@ -766,6 +798,35 @@ function getKeyMap_(sheetName) {
       'ステータス': 'status',
       '登録日': 'createdAt',
       '更新日': 'updatedAt',
+    };
+  }
+  if (sheetName === SHEET_NAMES.CASES) {
+    return {
+      '案件ID': 'id',
+      '顧客ID': 'clientId',
+      '案件名': 'title',
+      'カテゴリ': 'category',
+      'ステータス': 'status',
+      '期限': 'deadline',
+      '報酬': 'fee',
+      '担当者ID': 'staffId',
+      '備考': 'memo',
+      '完了日': 'completedAt',
+      '登録日': 'createdAt',
+      '更新日': 'updatedAt',
+    };
+  }
+  if (sheetName === SHEET_NAMES.JOURNALS) {
+    return {
+      '伝票ID': 'id',
+      '日付': 'date',
+      '借方': 'debit',
+      '貸方': 'credit',
+      '金額': 'amount',
+      '摘要': 'description',
+      '案件ID': 'caseId',
+      '自動': 'auto',
+      '登録日': 'createdAt',
     };
   }
   return {};
@@ -886,6 +947,100 @@ function deleteRow_(sheetName, id) {
 
   sheet.deleteRow(rowIdx + 2);
   return { success: true, action: 'deleted', id: id };
+}
+
+/**
+ * 案件データの追加/更新（upsert）
+ */
+function upsertCase_(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.CASES);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.CASES);
+    sheet.appendRow(CASE_HEADERS);
+    sheet.getRange('1:1').setFontWeight('bold');
+  }
+
+  const keyMap = getKeyMap_(SHEET_NAMES.CASES);
+  const now = new Date();
+
+  // ID で既存行を検索
+  if (data.id) {
+    const lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
+      const rowIdx = ids.indexOf(data.id);
+      if (rowIdx !== -1) {
+        const row = rowIdx + 2;
+        CASE_HEADERS.forEach(function(header, col) {
+          const key = keyMap[header];
+          if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
+            sheet.getRange(row, col + 1).setValue(data[key]);
+          }
+        });
+        sheet.getRange(row, 12).setValue(now); // 更新日
+        return { success: true, action: 'updated', id: data.id };
+      }
+    }
+  }
+
+  // 新規追加
+  const newId = data.id || ('CASE-' + Date.now());
+  const rowData = CASE_HEADERS.map(function(header) {
+    var key = keyMap[header];
+    if (key === 'id') return newId;
+    if (key === 'createdAt') return data.createdAt || now;
+    if (key === 'updatedAt') return now;
+    return data[key] || '';
+  });
+  sheet.appendRow(rowData);
+  return { success: true, action: 'added', id: newId };
+}
+
+/**
+ * 帳簿データの追加/更新（upsert）
+ */
+function upsertJournal_(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.JOURNALS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.JOURNALS);
+    sheet.appendRow(JOURNAL_HEADERS);
+    sheet.getRange('1:1').setFontWeight('bold');
+  }
+
+  const keyMap = getKeyMap_(SHEET_NAMES.JOURNALS);
+  const now = new Date();
+
+  // ID で既存行を検索
+  if (data.id) {
+    const lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
+      const rowIdx = ids.indexOf(data.id);
+      if (rowIdx !== -1) {
+        const row = rowIdx + 2;
+        JOURNAL_HEADERS.forEach(function(header, col) {
+          var key = keyMap[header];
+          if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
+            sheet.getRange(row, col + 1).setValue(data[key]);
+          }
+        });
+        return { success: true, action: 'updated', id: data.id };
+      }
+    }
+  }
+
+  // 新規追加
+  const newId = data.id || ('J-' + Date.now());
+  const rowData = JOURNAL_HEADERS.map(function(header) {
+    var key = keyMap[header];
+    if (key === 'id') return newId;
+    if (key === 'createdAt') return data.createdAt || now;
+    return data[key] || '';
+  });
+  sheet.appendRow(rowData);
+  return { success: true, action: 'added', id: newId };
 }
 
 
