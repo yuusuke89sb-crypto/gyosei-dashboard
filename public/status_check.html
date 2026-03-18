@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>案件状況確認 | 2号行政書士事務所</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #0f0f23;
+            color: #e4e4ef;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            padding: 20px;
+        }
+
+        .card {
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 32px;
+            border: 1px solid #2a2a4a;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.3rem;
+            margin-bottom: 4px;
+        }
+
+        .office {
+            text-align: center;
+            color: #9ca3af;
+            font-size: 0.8rem;
+            margin-bottom: 24px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 12px 16px;
+            background: #0f0f23;
+            border: 1px solid #3a3a5a;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .search-box input::placeholder {
+            color: #555;
+        }
+
+        .search-box button {
+            padding: 12px 20px;
+            background: #f59e0b;
+            border: none;
+            border-radius: 10px;
+            color: #0f0f23;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .search-box button:hover {
+            background: #d97706;
+        }
+
+        .result {
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result-header {
+            margin-bottom: 20px;
+        }
+
+        .result-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .result-client {
+            color: #9ca3af;
+            font-size: 0.85rem;
+        }
+
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin-bottom: 20px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 0;
+            position: relative;
+        }
+
+        .step::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 40px;
+            width: 2px;
+            height: calc(100% - 26px);
+            background: #2a2a4a;
+        }
+
+        .step:last-child::before {
+            display: none;
+        }
+
+        .step-dot {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+            z-index: 1;
+        }
+
+        .step-dot.done {
+            background: #10b981;
+        }
+
+        .step-dot.current {
+            background: #f59e0b;
+            animation: pulse 2s infinite;
+        }
+
+        .step-dot.pending {
+            background: #2a2a4a;
+            color: #555;
+        }
+
+        .step-info {
+            flex: 1;
+        }
+
+        .step-label {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .step-label.pending {
+            color: #555;
+        }
+
+        .step-date {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+            }
+        }
+
+        .detail-card {
+            background: #0f0f23;
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 0.85rem;
+        }
+
+        .detail-label {
+            color: #9ca3af;
+        }
+
+        .not-found {
+            text-align: center;
+            padding: 20px;
+            color: #9ca3af;
+            display: none;
+        }
+
+        .not-found.show {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.75rem;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📋 案件状況確認</h1>
+            <p class="office">2号行政書士事務所</p>
+
+            <div class="search-box">
+                <input type="text" id="caseIdInput" placeholder="案件IDを入力" autofocus>
+                <button onclick="lookupCase()">検索</button>
+            </div>
+
+            <div class="result" id="resultArea">
+                <div class="result-header">
+                    <div class="result-title" id="resTitle"></div>
+                    <div class="result-client" id="resClient"></div>
+                </div>
+                <div class="steps" id="stepsArea"></div>
+                <div class="detail-card">
+                    <div class="detail-row">
+                        <span class="detail-label">カテゴリ</span>
+                        <span id="resCat"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">登録日</span>
+                        <span id="resDate"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">期限</span>
+                        <span id="resDeadline"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="not-found" id="notFound">
+                <p>😔 案件が見つかりませんでした</p>
+                <p style="font-size:0.8rem;margin-top:8px">案件IDをご確認の上、再度お試しください</p>
+            </div>
+        </div>
+        <p class="footer">※ この画面は案件の進捗確認専用です</p>
+    </div>
+
+    <script>
+        const STEPS = [
+            { key: 'received', label: '受付完了', icon: '📥' },
+            { key: 'hearing', label: 'ヒアリング', icon: '🎤' },
+            { key: 'documents', label: '書類作成中', icon: '📝' },
+            { key: 'applying', label: '申請中', icon: '📤' },
+            { key: 'done', label: '完了', icon: '✅' },
+        ];
+        const CATS = { garage: '🚗 車庫証明', inheritance: '📜 相続', mahjong: '🀄 麻雀関連', construction: '🏗️ 建設業許可', farmland: '🌾 農地転用', liquor: '🍶 酒類販売', visa: '🛂 在留資格', other: '📌 その他' };
+
+        function lookupCase() {
+            const id = document.getElementById('caseIdInput').value.trim();
+            if (!id) return;
+
+            // localStorageからデータ読み込み
+            const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
+            const clients = JSON.parse(localStorage.getItem('gyosei_clients') || '[]');
+            const c = cases.find(x => x.id == id);
+
+            document.getElementById('notFound').classList.remove('show');
+            document.getElementById('resultArea').classList.remove('show');
+
+            if (!c) {
+                document.getElementById('notFound').classList.add('show');
+                return;
+            }
+
+            const client = clients.find(cl => cl.id == c.clientId);
+            document.getElementById('resTitle').textContent = c.title;
+            document.getElementById('resClient').textContent = client ? `👤 ${client.name} 様` : '';
+            document.getElementById('resCat').textContent = CATS[c.category] || c.category;
+            document.getElementById('resDate').textContent = c.createdAt ? c.createdAt.slice(0, 10) : '—';
+            document.getElementById('resDeadline').textContent = c.deadline || '—';
+
+            const currentIdx = STEPS.findIndex(s => s.key === c.status);
+            let stepsHtml = '';
+            STEPS.forEach((s, i) => {
+                let cls = 'pending';
+                if (i < currentIdx) cls = 'done';
+                if (i === currentIdx) cls = 'current';
+                stepsHtml += `
+      <div class="step">
+        <div class="step-dot ${cls}">${s.icon}</div>
+        <div class="step-info">
+          <div class="step-label ${cls === 'pending' ? 'pending' : ''}">${s.label}</div>
+          ${cls === 'current' ? '<div class="step-date">← 現在のステータス</div>' : ''}
+          ${cls === 'done' && s.key === 'received' && c.createdAt ? `<div class="step-date">${c.createdAt.slice(0, 10)}</div>` : ''}
+          ${cls === 'done' && s.key === 'done' && c.completedAt ? `<div class="step-date">${c.completedAt.slice(0, 10)}</div>` : ''}
+        </div>
+      </div>
+    `;
+            });
+            document.getElementById('stepsArea').innerHTML = stepsHtml;
+            document.getElementById('resultArea').classList.add('show');
+        }
+
+        document.getElementById('caseIdInput').addEventListener('keyup', e => { if (e.key === 'Enter') lookupCase(); });
+    </script>
+</body>
+
+</html>

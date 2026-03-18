@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="行政書士事務所の案件・顧客管理ダッシュボード">
+  <title>行政書士 案件管理ダッシュボード</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+</head>
+
+<body>
+  <!-- サイドバー (PC) -->
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <!-- モバイルヘッダー -->
+  <header class="mobile-header">
+    <button class="hamburger" onclick="App.toggleSidebar()" aria-label="メニュー">☰</button>
+    <div class="mobile-logo"><span>⚖️</span> 案件管理</div>
+    <button class="hamburger" onclick="GlobalSearch.show()" aria-label="検索">🔍</button>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main id="content" class="main-content"></main>
+
+  <!-- ボトムナビ (モバイル) -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <button class="bottom-nav-item active" onclick="App.navigate('dashboard')">
+        <span class="nav-icon">📊</span><span>ホーム</span>
+      </button>
+      <button class="bottom-nav-item" onclick="App.navigate('clients')">
+        <span class="nav-icon">👥</span><span>顧客</span>
+      </button>
+      <button class="bottom-nav-item" onclick="App.navigate('cases')">
+        <span class="nav-icon">📋</span><span>案件</span>
+      </button>
+      <button class="bottom-nav-item" onclick="App.navigate('calendar')">
+        <span class="nav-icon">📅</span><span>予定</span>
+      </button>
+      <button class="bottom-nav-item" onclick="App.navigate('accounting')">
+        <span class="nav-icon">💹</span><span>帳簿</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- JS読み込み -->
+  <script src="js/auth.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/clients.js"></script>
+  <script src="js/cases.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/invoice.js"></script>
+  <script src="js/accounting.js"></script>
+  <script src="js/extensions.js"></script>
+  <script src="js/fax.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // 認証ゲート: 未認証ならログイン画面を表示
+    if (!Auth.isAuthenticated()) {
+      document.getElementById('sidebar').style.display = 'none';
+      document.querySelector('.mobile-header').style.display = 'none';
+      document.querySelector('.bottom-nav').style.display = 'none';
+      document.getElementById('content').innerHTML = Auth.renderLoginScreen();
+      document.getElementById('authPassword').focus();
+    }
+  </script>
+</body>
+
+</html>

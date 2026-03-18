@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>料金表 | 2号行政書士事務所</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #0f0f23;
+            color: #e4e4ef;
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #9ca3af;
+            margin-bottom: 40px;
+            font-size: 0.9rem;
+        }
+
+        .category {
+            background: #1a1a2e;
+            border-radius: 14px;
+            padding: 28px;
+            margin-bottom: 20px;
+            border: 1px solid #2a2a4a;
+        }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .category-icon {
+            font-size: 1.6rem;
+        }
+
+        .category-name {
+            font-size: 1.15rem;
+            font-weight: 700;
+        }
+
+        .category-price {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #f59e0b;
+            margin-left: auto;
+        }
+
+        .category-desc {
+            color: #9ca3af;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+        }
+
+        .includes {
+            list-style: none;
+        }
+
+        .includes li {
+            padding: 4px 0;
+            font-size: 0.85rem;
+            color: #c4c4d6;
+        }
+
+        .includes li::before {
+            content: "✅ ";
+        }
+
+        .note-box {
+            background: #1a1a2e;
+            border-radius: 14px;
+            padding: 24px;
+            margin-top: 32px;
+            border: 1px solid #2a2a4a;
+        }
+
+        .note-box h3 {
+            margin-bottom: 12px;
+            font-size: 1rem;
+        }
+
+        .note-box p,
+        .note-box li {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            line-height: 1.8;
+        }
+
+        .note-box ul {
+            padding-left: 20px;
+        }
+
+        .cta {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .cta-btn {
+            display: inline-block;
+            background: #f59e0b;
+            color: #0f0f23;
+            padding: 14px 36px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 1rem;
+            text-decoration: none;
+        }
+
+        .cta-btn:hover {
+            background: #d97706;
+        }
+
+        .cta-note {
+            color: #9ca3af;
+            font-size: 0.8rem;
+            margin-top: 8px;
+        }
+
+        @media print {
+            body {
+                background: #fff;
+                color: #333;
+            }
+
+            .category {
+                border-color: #ddd;
+                background: #f9f9f9;
+            }
+
+            .note-box {
+                background: #f9f9f9;
+                border-color: #ddd;
+            }
+
+            .cta {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>⚖️ 料金表</h1>
+        <p class="subtitle">2号行政書士事務所</p>
+
+        <div class="category">
+            <div class="category-header">
+                <span class="category-icon">🚗</span>
+                <span class="category-name">車庫証明</span>
+                <span class="category-price">¥8,000〜</span>
+            </div>
+            <p class="category-desc">自動車保管場所証明書の申請代行</p>
+            <ul class="includes">
+                <li>申請書類の作成</li>
+                <li>所在図・配置図の作成</li>
+                <li>管轄警察署への提出・受取</li>
+            </ul>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <span class="category-icon">📜</span>
+                <span class="category-name">相続手続き</span>
+                <span class="category-price">¥50,000〜</span>
+            </div>
+            <p class="category-desc">遺産分割協議書の作成から各種名義変更まで</p>
+            <ul class="includes">
+                <li>戸籍謄本等の収集</li>
+                <li>相続関係説明図の作成</li>
+                <li>遺産分割協議書の作成</li>
+                <li>各種名義変更のサポート</li>
+            </ul>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <span class="category-icon">🏗️</span>
+                <span class="category-name">建設業許可</span>
+                <span class="category-price">¥150,000〜</span>
+            </div>
+            <p class="category-desc">新規・更新・業種追加の許可申請</p>
+            <ul class="includes">
+                <li>許可要件の確認・アドバイス</li>
+                <li>申請書類の作成</li>
+                <li>都道府県庁への申請代行</li>
+                <li>決算変更届の作成</li>
+            </ul>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <span class="category-icon">🌾</span>
+                <span class="category-name">農地転用</span>
+                <span class="category-price">¥80,000〜</span>
+            </div>
+            <p class="category-desc">農地法4条・5条の転用許可申請</p>
+            <ul class="includes">
+                <li>農業委員会との事前協議</li>
+                <li>申請書類・添付書類の作成</li>
+                <li>土地利用計画図の作成</li>
+            </ul>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <span class="category-icon">🍶</span>
+                <span class="category-name">酒類販売免許</span>
+                <span class="category-price">¥150,000〜</span>
+            </div>
+            <p class="category-desc">一般・通信販売の酒類小売業免許申請</p>
+            <ul class="includes">
+                <li>免許要件の確認</li>
+                <li>事業計画書の作成</li>
+                <li>申請書類の作成</li>
+                <li>所轄税務署への申請代行</li>
+            </ul>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <span class="category-icon">🛂</span>
+                <span class="category-name">在留資格</span>
+                <span class="category-price">¥100,000〜</span>
+            </div>
+            <p class="category-desc">在留資格認定・変更・更新・永住許可</p>
+            <ul class="includes">
+                <li>申請書類の作成</li>
+                <li>理由書の作成</li>
+                <li>入国管理局への申請代行</li>
+            </ul>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <span class="category-icon">🀄</span>
+                <span class="category-name">麻雀関連許可</span>
+                <span class="category-price">¥50,000〜</span>
+            </div>
+            <p class="category-desc">風俗営業許可・飲食店許可の申請</p>
+            <ul class="includes">
+                <li>許可要件の確認</li>
+                <li>店舗図面の作成</li>
+                <li>申請書類の作成</li>
+                <li>管轄警察署への申請代行</li>
+            </ul>
+        </div>
+
+        <div class="note-box">
+            <h3>📌 ご注意事項</h3>
+            <ul>
+                <li>上記は報酬額（税別）の目安です。案件の内容により変動する場合があります。</li>
+                <li>別途、印紙代・証明書取得費用・交通費等の実費をご負担いただきます。</li>
+                <li>正式なお見積りは、初回ご相談（無料）の際にお出しいたします。</li>
+                <li>お支払いは、業務完了後の銀行振込となります。</li>
+            </ul>
+        </div>
+
+        <div class="cta">
+            <a href="#" class="cta-btn" onclick="alert('LINEまたはお電話でお問い合わせください')">📱 無料相談はこちら</a>
+            <p class="cta-note">初回ご相談は無料です。お気軽にどうぞ。</p>
+        </div>
+    </div>
+</body>
+
+</html>

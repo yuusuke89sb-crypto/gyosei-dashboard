@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>報酬シミュレータ | 2号行政書士事務所</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #0f0f23;
+            color: #e4e4ef;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.4rem;
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #9ca3af;
+            font-size: 0.8rem;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: #1a1a2e;
+            border-radius: 14px;
+            padding: 28px;
+            border: 1px solid #2a2a4a;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #c4c4d6;
+        }
+
+        select,
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            background: #0f0f23;
+            border: 1px solid #3a3a5a;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-family: inherit;
+            margin-bottom: 16px;
+        }
+
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: #f59e0b;
+        }
+
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .option-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: #0f0f23;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid #2a2a4a;
+            transition: 0.2s;
+        }
+
+        .option-row:hover {
+            border-color: #f59e0b;
+        }
+
+        .option-row input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+            accent-color: #f59e0b;
+        }
+
+        .option-label {
+            flex: 1;
+            font-size: 0.85rem;
+        }
+
+        .option-price {
+            font-size: 0.85rem;
+            color: #f59e0b;
+            font-weight: 600;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 14px;
+            padding: 28px;
+            border: 1px solid #f59e0b33;
+            text-align: center;
+        }
+
+        .result-label {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            margin-bottom: 8px;
+        }
+
+        .result-amount {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #f59e0b;
+        }
+
+        .result-tax {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .result-breakdown {
+            margin-top: 16px;
+            text-align: left;
+        }
+
+        .breakdown-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 0.82rem;
+            border-bottom: 1px solid #2a2a4a;
+        }
+
+        .note {
+            text-align: center;
+            color: #555;
+            font-size: 0.75rem;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>💰 報酬シミュレータ</h1>
+        <p class="subtitle">概算のお見積りをシミュレーションできます</p>
+
+        <div class="card">
+            <label>業務の種類</label>
+            <select id="serviceType" onchange="updateOptions()">
+                <option value="">— 選択してください —</option>
+                <option value="garage">🚗 車庫証明</option>
+                <option value="inheritance">📜 相続手続き</option>
+                <option value="construction">🏗️ 建設業許可</option>
+                <option value="farmland">🌾 農地転用</option>
+                <option value="liquor">🍶 酒類販売免許</option>
+                <option value="visa">🛂 在留資格</option>
+                <option value="mahjong">🀄 麻雀関連許可</option>
+            </select>
+
+            <div id="optionsArea"></div>
+        </div>
+
+        <div class="result-card" id="resultCard" style="display:none">
+            <div class="result-label">概算お見積り（税込）</div>
+            <div class="result-amount" id="totalAmount">¥0</div>
+            <div class="result-tax" id="taxInfo"></div>
+            <div class="result-breakdown" id="breakdown"></div>
+        </div>
+
+        <p class="note">※ このシミュレーションは概算です。正式なお見積りは無料相談時にお出しします。</p>
+    </div>
+
+    <script>
+        const SERVICES = {
+            garage: {
+                base: 8000,
+                baseName: '基本報酬',
+                stamps: 2600,
+                options: [
+                    { id: 'g_distance', name: '遠方加算（片道30km以上）', price: 3000 },
+                    { id: 'g_map', name: '所在図・配置図の作成', price: 2000 },
+                    { id: 'g_pickup', name: '書類のお引取り', price: 2000 },
+                ]
+            },
+            inheritance: {
+                base: 50000,
+                baseName: '基本報酬',
+                stamps: 5000,
+                options: [
+                    { id: 'i_koseki', name: '戸籍収集（相続人5名超）', price: 20000 },
+                    { id: 'i_bunkatsu', name: '遺産分割協議書の作成', price: 30000 },
+                    { id: 'i_zumen', name: '相続関係説明図の作成', price: 10000 },
+                    { id: 'i_zaisan', name: '財産調査', price: 20000 },
+                    { id: 'i_meigi', name: '名義変更サポート（1件）', price: 10000 },
+                ]
+            },
+            construction: {
+                base: 150000,
+                baseName: '新規許可申請',
+                stamps: 90000,
+                options: [
+                    { id: 'c_update', name: '更新申請（新規の代わり）の場合 -100,000', price: -100000 },
+                    { id: 'c_add', name: '業種追加', price: 50000 },
+                    { id: 'c_kessanhen', name: '決算変更届（1年分）', price: 30000 },
+                ]
+            },
+            farmland: {
+                base: 80000,
+                baseName: '基本報酬（4条 or 5条）',
+                stamps: 0,
+                options: [
+                    { id: 'f_plan', name: '土地利用計画図の作成', price: 20000 },
+                    { id: 'f_noshin', name: '農振除外申請', price: 50000 },
+                    { id: 'f_survey', name: '現地調査・測量同行', price: 15000 },
+                ]
+            },
+            liquor: {
+                base: 150000,
+                baseName: '免許申請',
+                stamps: 30000,
+                options: [
+                    { id: 'l_plan', name: '事業計画書の作成', price: 30000 },
+                    { id: 'l_online', name: '通信販売免許の追加', price: 50000 },
+                ]
+            },
+            visa: {
+                base: 100000,
+                baseName: '基本報酬',
+                stamps: 4000,
+                options: [
+                    { id: 'v_reason', name: '理由書の作成', price: 20000 },
+                    { id: 'v_translate', name: '書類翻訳（1件）', price: 10000 },
+                    { id: 'v_eiju', name: '永住許可申請の場合 +50,000', price: 50000 },
+                    { id: 'v_family', name: '家族同時申請（1名追加）', price: 30000 },
+                ]
+            },
+            mahjong: {
+                base: 50000,
+                baseName: '風俗営業許可申請',
+                stamps: 24000,
+                options: [
+                    { id: 'm_food', name: '飲食店営業許可', price: 30000 },
+                    { id: 'm_night', name: '深夜酒類提供営業届出', price: 20000 },
+                    { id: 'm_zumen', name: '店舗図面の作成', price: 20000 },
+                ]
+            },
+        };
+
+        function updateOptions() {
+            const type = document.getElementById('serviceType').value;
+            const area = document.getElementById('optionsArea');
+            if (!type || !SERVICES[type]) {
+                area.innerHTML = '';
+                document.getElementById('resultCard').style.display = 'none';
+                return;
+            }
+            const svc = SERVICES[type];
+            area.innerHTML = `
+    <label>オプション（該当するものを選択）</label>
+    <div class="options">
+      ${svc.options.map(o => `
+        <label class="option-row">
+          <input type="checkbox" id="${o.id}" onchange="calculate()">
+          <span class="option-label">${o.name}</span>
+          <span class="option-price">${o.price >= 0 ? '+' : ''}¥${o.price.toLocaleString()}</span>
+        </label>
+      `).join('')}
+    </div>
+  `;
+            calculate();
+        }
+
+        function calculate() {
+            const type = document.getElementById('serviceType').value;
+            if (!type || !SERVICES[type]) return;
+            const svc = SERVICES[type];
+            let subtotal = svc.base;
+            let breakdownHtml = `<div class="breakdown-row"><span>${svc.baseName}</span><span>¥${svc.base.toLocaleString()}</span></div>`;
+
+            svc.options.forEach(o => {
+                const el = document.getElementById(o.id);
+                if (el && el.checked) {
+                    subtotal += o.price;
+                    breakdownHtml += `<div class="breakdown-row"><span>${o.name}</span><span>${o.price >= 0 ? '' : '−'}¥${Math.abs(o.price).toLocaleString()}</span></div>`;
+                }
+            });
+
+            if (subtotal < 0) subtotal = 0;
+            const tax = Math.floor(subtotal * 0.1);
+            const total = subtotal + tax;
+
+            breakdownHtml += `<div class="breakdown-row" style="border-bottom:none"><span>実費（印紙代等見込み）</span><span>¥${svc.stamps.toLocaleString()}</span></div>`;
+
+            document.getElementById('totalAmount').textContent = `¥${total.toLocaleString()}`;
+            document.getElementById('taxInfo').textContent = `報酬 ¥${subtotal.toLocaleString()} + 消費税 ¥${tax.toLocaleString()} + 実費 ¥${svc.stamps.toLocaleString()} = 総額 ¥${(total + svc.stamps).toLocaleString()}`;
+            document.getElementById('breakdown').innerHTML = breakdownHtml;
+            document.getElementById('resultCard').style.display = '';
+        }
+    </script>
+</body>
+
+</html>
