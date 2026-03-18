@@ -23,6 +23,12 @@ const App = {
     // スプレッドシート自動同期
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.pull().then(() => this.refreshView()).catch(() => { });
+
+      // 3分ごとに自動同期（他デバイスの変更を取り込む）
+      setInterval(() => {
+        if (document.hidden) return; // ページが非表示なら省略
+        SpreadsheetSync.pull().then(() => this.refreshView()).catch(() => { });
+      }, 3 * 60 * 1000);
     }
     // 期限リマインダー
     if (typeof Reminders !== 'undefined') Reminders.init();
