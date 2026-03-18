@@ -5,6 +5,17 @@ const App = {
   currentPage: 'dashboard',
 
   init() {
+    // 認証チェック: 未認証ならログイン画面を表示
+    if (typeof Auth !== 'undefined' && !Auth.isAuthenticated()) {
+      document.getElementById('sidebar').style.display = 'none';
+      const mobileHeader = document.querySelector('.mobile-header');
+      const bottomNav = document.querySelector('.bottom-nav');
+      if (mobileHeader) mobileHeader.style.display = 'none';
+      if (bottomNav) bottomNav.style.display = 'none';
+      document.getElementById('content').innerHTML = Auth.renderLoginScreen();
+      setTimeout(() => { const pw = document.getElementById('authPassword'); if (pw) pw.focus(); }, 100);
+      return; // 初期化を中断
+    }
     this.renderSidebar();
     this.renderContent();
     // リサイズ時に再描画
