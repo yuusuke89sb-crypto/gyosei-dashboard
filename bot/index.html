@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="行政書士業務に関するAIチャットボット。許認可申請、相続・遺言、会社設立、在留資格など幅広い分野に対応。根拠法令つきで回答し、書類テンプレートのPDF生成も可能です。">
+  <title>行政書士AIボット | 業務相談アシスタント</title>
+  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+</head>
+
+<body>
+  <div class="app-layout">
+    <!-- サイドバー -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="#" class="sidebar-logo">
+          <div class="logo-icon">⚖️</div>
+          <h1>行政書士AIボット<small>業務相談アシスタント</small></h1>
+        </a>
+      </div>
+      <div class="category-section">
+        <div class="category-section-title">業務カテゴリ</div>
+        <div id="categoryList"></div>
+      </div>
+      <div class="sidebar-templates">
+        <a href="news.html" style="display:block;width:calc(100% - 24px);margin:0 12px 8px;padding:10px 14px;border-radius:10px;font-family:var(--font);font-size:.88rem;font-weight:600;text-decoration:none;text-align:center;transition:all .25s;border:1.5px solid var(--border);color:var(--text);background:var(--bg);" onmouseover="this.style.background='var(--primary-bg)';this.style.borderColor='var(--primary-light)';this.style.color='var(--primary)'" onmouseout="this.style.background='var(--bg)';this.style.borderColor='var(--border)';this.style.color='var(--text)'">📰 今日のニュース</a>
+        <a href="inquiry.html" style="display:block;width:calc(100% - 24px);margin:0 12px 8px;padding:10px 14px;border-radius:10px;font-family:var(--font);font-size:.88rem;font-weight:600;text-decoration:none;text-align:center;transition:all .25s;border:1.5px solid var(--border);color:var(--text);background:var(--bg);" onmouseover="this.style.background='var(--primary-bg)';this.style.borderColor='var(--primary-light)';this.style.color='var(--primary)'" onmouseout="this.style.background='var(--bg)';this.style.borderColor='var(--border)';this.style.color='var(--text)'">📞 問い合わせチェック</a>
+        <a href="../開業/gyosei-dashboard/index.html" style="display:block;width:calc(100% - 24px);margin:0 12px 8px;padding:10px 14px;border-radius:10px;font-family:var(--font);font-size:.88rem;font-weight:600;text-decoration:none;text-align:center;transition:all .25s;border:1.5px solid var(--border);color:var(--text);background:var(--bg);" onmouseover="this.style.background='var(--primary-bg)';this.style.borderColor='var(--primary-light)';this.style.color='var(--primary)'" onmouseout="this.style.background='var(--bg)';this.style.borderColor='var(--border)';this.style.color='var(--text)'">⚖️ 案件管理ダッシュボード</a>
+        <button id="templateGalleryBtn" class="template-gallery-btn">📄 書類テンプレート一覧</button>
+      </div>
+    </aside>
+
+    <!-- オーバーレイ（モバイル用） -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- メインエリア -->
+    <main class="main-area">
+      <header class="main-header">
+        <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+        <h2>チャット</h2>
+        <div class="header-actions">
+          <button id="darkModeBtn" class="dark-mode-btn" aria-label="ダークモード切替">🌙</button>
+          <span class="badge">AI アシスタント</span>
+        </div>
+      </header>
+
+      <div class="chat-area" id="chatMessages"></div>
+
+      <div class="input-area">
+        <div class="input-container">
+          <textarea id="chatInput" placeholder="行政書士業務について質問してください..." rows="1"></textarea>
+          <button id="sendBtn" aria-label="送信">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+        <div class="input-hint">Enter で送信 ・ 左メニューからカテゴリを選択できます</div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/knowledgeBase.js?v=5"></script>
+  <script src="js/chatEngine.js?v=5"></script>
+  <script src="js/pdfGenerator.js?v=5"></script>
+  <script src="js/app.js?v=5"></script>
+</body>
+
+</html>

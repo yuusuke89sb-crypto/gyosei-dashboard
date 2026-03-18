@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="行政書士業務の電話相談で確認すべき項目をチャート形式でステップバイステップに確認できる問い合わせチェックリストツール。建設業許可、相続・遺言、会社設立、飲食店営業許可、在留資格など幅広い分野に対応。">
+  <title>問い合わせチェックリスト | 行政書士AIボット</title>
+  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="stylesheet" href="css/inquiry.css?v=4">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📞</text></svg>">
+</head>
+
+<body>
+  <div class="app-layout">
+    <!-- サイドバー -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="#" class="sidebar-logo">
+          <div class="logo-icon">📞</div>
+          <h1>問い合わせチェック<small>電話相談用確認ツール</small></h1>
+        </a>
+      </div>
+      <div class="category-section">
+        <div class="category-section-title">業務カテゴリ</div>
+        <div id="categoryList"></div>
+      </div>
+      <div class="sidebar-templates">
+        <a href="index.html" class="sidebar-nav-link">💬 チャットに行く</a>
+        <a href="news.html" class="sidebar-nav-link">📰 今日のニュース</a>
+        <a href="../開業/gyosei-dashboard/index.html" class="sidebar-nav-link">⚖️ 案件管理ダッシュボード</a>
+      </div>
+    </aside>
+
+    <!-- オーバーレイ（モバイル用） -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- メインエリア -->
+    <main class="main-area">
+      <header class="main-header">
+        <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+        <h2>問い合わせチェックリスト</h2>
+        <div class="header-actions">
+          <button id="darkModeBtn" class="dark-mode-btn" aria-label="ダークモード切替">🌙</button>
+          <span class="badge">電話相談用</span>
+        </div>
+      </header>
+
+      <div class="chat-area" id="mainContent"></div>
+    </main>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/inquiryFlowData.js?v=1"></script>
+  <script src="js/talkScriptData.js?v=1"></script>
+  <script src="js/feeData.js?v=1"></script>
+  <script src="js/inquiryApp.js?v=3"></script>
+</body>
+
+</html>

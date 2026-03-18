@@ -86,9 +86,9 @@ const App = {
       </div>
       <div class="sidebar-tools" style="border-top:1px solid var(--border-color);padding-top:4px">
         <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">AIツール</div>
-        <a class="btn btn-ghost" href="../../AIボット/index.html" style="text-decoration:none;display:block;text-align:left">💬 AIチャット</a>
-        <a class="btn btn-ghost" href="../../AIボット/inquiry.html" style="text-decoration:none;display:block;text-align:left">📞 問い合わせ</a>
-        <a class="btn btn-ghost" href="../../AIボット/news.html" style="text-decoration:none;display:block;text-align:left">📰 ニュース</a>
+        <a class="btn btn-ghost" href="bot/index.html" style="text-decoration:none;display:block;text-align:left">💬 AIチャット</a>
+        <a class="btn btn-ghost" href="bot/inquiry.html" style="text-decoration:none;display:block;text-align:left">📞 問い合わせ</a>
+        <a class="btn btn-ghost" href="bot/news.html" style="text-decoration:none;display:block;text-align:left">📰 ニュース</a>
       </div>
       <div class="sidebar-footer">
         <button class="btn btn-ghost" onclick="SpreadsheetSync.syncNow()" title="スプレッドシート同期">🔄 同期</button>

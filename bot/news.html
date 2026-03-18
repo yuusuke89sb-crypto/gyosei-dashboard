@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="営業トーク用の毎日のニュース収集ツール。国内3件、地域2件、国際1件のニュースを自動収集し、トークテーマとして活用できます。">
+  <title>今日のニュース | 行政書士AIボット</title>
+  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="stylesheet" href="css/news.css?v=1">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+
+<body>
+  <div class="app-layout">
+    <!-- サイドバー -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <a href="#" class="sidebar-logo">
+          <div class="logo-icon">📰</div>
+          <h1>今日のニュース<small>営業トークテーマ収集</small></h1>
+        </a>
+      </div>
+      <div class="category-section">
+        <div class="category-section-title">収集カテゴリ</div>
+        <div style="padding:8px 10px;">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;color:inherit;font-size:.92rem;">
+            <span style="font-size:1.1rem;">🇯🇵</span> 国内ニュース（3件）
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;color:inherit;font-size:.92rem;">
+            <span style="font-size:1.1rem;">💼</span> 経済・ビジネス（2件）
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;color:inherit;font-size:.92rem;">
+            <span style="font-size:1.1rem;">🌍</span> 国際ニュース（1件）
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-templates">
+        <a href="index.html" class="sidebar-nav-link">💬 チャットに行く</a>
+        <a href="inquiry.html" class="sidebar-nav-link">📞 問い合わせチェック</a>
+        <a href="../開業/gyosei-dashboard/index.html" class="sidebar-nav-link">⚖️ 案件管理ダッシュボード</a>
+      </div>
+    </aside>
+
+    <!-- オーバーレイ（モバイル用） -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- メインエリア -->
+    <main class="main-area">
+      <header class="main-header">
+        <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+        <h2>今日のトークテーマ</h2>
+        <div class="header-actions">
+          <button id="darkModeBtn" class="dark-mode-btn" aria-label="ダークモード切替">🌙</button>
+          <span class="badge">営業ツール</span>
+        </div>
+      </header>
+
+      <div class="chat-area" id="newsContent"></div>
+    </main>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/newsCollector.js?v=3"></script>
+</body>
+
+</html>
