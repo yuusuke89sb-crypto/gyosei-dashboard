@@ -3,7 +3,10 @@
  * Google Apps Script の Web API 経由でスプレッドシートとデータを同期
  */
 const SpreadsheetSync = {
-    CONFIG_KEY: 'gyosei_sync_config',
+    CONFIG_KEY: 'gyosei_sync_settings',
+
+    // デフォルトGAS URL（全デバイスで自動接続）
+    DEFAULT_GAS_URL: 'https://script.google.com/macros/s/AKfycbzdDtMhSmy5tqSWNtNnbnCQ-68PY7emgDhdR_abTCuvxv--WgCjIMO0qTgysE2864MA/exec',
 
     // ---- 設定管理 ----
     getConfig() {
@@ -19,7 +22,7 @@ const SpreadsheetSync = {
     },
 
     getGasUrl() {
-        return this.getConfig().gasUrl || '';
+        return this.getConfig().gasUrl || this.DEFAULT_GAS_URL;
     },
 
     isConfigured() {
