@@ -59,11 +59,12 @@ const App = {
   renderSidebar() {
     const sidebar = document.getElementById('sidebar');
     sidebar.innerHTML = `
-      <div class="sidebar-header">
+      <div class="sidebar-header" style="display:flex;align-items:center;justify-content:space-between">
         <div class="sidebar-logo">
           <span class="logo-icon">⚖️</span>
           <span class="logo-text">2号行政書士<br>事務所</span>
         </div>
+        <button onclick="App.toggleSidebar()" class="sidebar-close-btn" style="display:none;background:none;border:none;color:var(--text-secondary);font-size:1.5rem;cursor:pointer;padding:4px 8px">✕</button>
       </div>
       <nav class="sidebar-nav">
         <a class="nav-item ${this.currentPage === 'dashboard' ? 'active' : ''}" onclick="App.navigate('dashboard')">

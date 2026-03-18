@@ -105,6 +105,10 @@ a {
     width: calc(100% - 32px) !important;
     max-width: 100% !important;
   }
+
+  .sidebar-close-btn {
+    display: block !important;
+  }
 }
 
 .sidebar-header {
