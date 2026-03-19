@@ -6,6 +6,7 @@ const Calendar = {
   currentMonth: new Date().getMonth(),
   filterStaffId: 'all',
   editingEventId: null,
+  showInheritanceDeadlines: false,
 
   EVENT_CATEGORIES: [
     { key: 'meeting', label: '🤝 打ち合わせ', color: '#3b82f6' },
@@ -24,11 +25,14 @@ const Calendar = {
     let cases = Store.getCases().filter(c => c.deadline);
     // 予定
     let events = Store.getEvents();
+    // 相続期限（フィルターON時のみ）
+    let inheritanceItems = this.showInheritanceDeadlines ? this.getInheritanceDeadlineItems() : [];
 
     // 担当者フィルタ
     if (this.filterStaffId !== 'all') {
       cases = cases.filter(c => c.staffId == this.filterStaffId);
       events = events.filter(e => e.staffId == this.filterStaffId);
+      inheritanceItems = inheritanceItems.filter(item => item.staffId == this.filterStaffId);
     }
 
     const firstDay = new Date(year, month, 1).getDay();
@@ -52,7 +56,8 @@ const Calendar = {
 
       const dayCases = cases.filter(c => c.deadline === dateStr);
       const dayEvents = events.filter(e => e.date === dateStr);
-      const totalItems = dayCases.length + dayEvents.length;
+      const dayInheritance = inheritanceItems.filter(item => item.date === dateStr);
+      const totalItems = dayCases.length + dayEvents.length + dayInheritance.length;
 
       let dots = '';
       if (totalItems > 0) {
@@ -67,6 +72,11 @@ const Calendar = {
           const cat = this.EVENT_CATEGORIES.find(ec => ec.key === e.category);
           const icon = cat ? cat.label.split(' ')[0] : '📌';
           items.push(`<div class="cal-event cal-event-custom" title="${e.title}" style="border-left:3px solid ${cat ? cat.color : '#f59e0b'}">${icon} ${e.title.substring(0, 5)}</div>`);
+        });
+        // 相続期限
+        dayInheritance.slice(0, 3 - items.length).forEach(item => {
+          const icon = item.severity === 'critical' ? '🔴' : item.severity === 'important' ? '🟠' : '🟡';
+          items.push(`<div class="cal-event cal-event-custom" title="${item.label} (${item.caseTitle})" style="border-left:3px solid #dc2626">${icon} ${item.label.substring(0, 4)}</div>`);
         });
         const remaining = totalItems - items.length;
         if (remaining > 0) items.push(`<div class="cal-event-more">+${remaining}件</div>`);
@@ -87,13 +97,16 @@ const Calendar = {
       `<option value="${s.id}" ${this.filterStaffId == s.id ? 'selected' : ''}>${s.name}</option>`
     ).join('');
 
-    // 期限リスト（案件 + 予定を統合）
+    // 期限リスト（案件 + 予定 + 相続期限を統合）
     const upcomingItems = [];
     cases.filter(c => c.status !== 'done').forEach(c => {
       upcomingItems.push({ type: 'case', date: c.deadline, data: c });
     });
     events.filter(e => new Date(e.date) >= today).forEach(e => {
       upcomingItems.push({ type: 'event', date: e.date, data: e });
+    });
+    inheritanceItems.filter(item => item.diffDays >= 0).forEach(item => {
+      upcomingItems.push({ type: 'inheritance', date: item.date, data: item });
     });
     upcomingItems.sort((a, b) => new Date(a.date) - new Date(b.date));
     const upcoming = upcomingItems.slice(0, 12);
@@ -128,6 +141,9 @@ const Calendar = {
               <option value="all" ${this.filterStaffId === 'all' ? 'selected' : ''}>全員</option>
               ${staffFilterOptions}
             </select>
+            <button class="btn btn-small ${this.showInheritanceDeadlines ? 'btn-primary' : 'btn-secondary'}" onclick="Calendar.toggleInheritanceDeadlines()" title="相続案件の法定期限を表示">
+              📜 相続期限
+            </button>
           </div>
         </div>
 
@@ -167,7 +183,7 @@ const Calendar = {
                             </div>
                           </div>
                         </div>`;
-          } else {
+          } else if (item.type === 'event') {
             const e = item.data;
             const staffName = Store.getStaffName(e.staffId);
             const cat = this.EVENT_CATEGORIES.find(ec => ec.key === e.category);
@@ -183,6 +199,21 @@ const Calendar = {
                             <div class="timeline-meta">
                               ${e.staffId ? `🏷️ ${staffName}` : ''}
                               ${e.memo ? ` ・ ${e.memo.substring(0, 20)}` : ''}
+                            </div>
+                          </div>
+                        </div>`;
+          } else if (item.type === 'inheritance') {
+            const dl = item.data;
+            const icon = dl.severity === 'critical' ? '🔴' : dl.severity === 'important' ? '🟠' : '🟡';
+            const urgencyLabel = dl.diffDays === 0 ? '本日' : `あと${dl.diffDays}日`;
+            const urgencyClass = dl.diffDays <= 30 ? 'urgent' : '';
+            return `
+                        <div class="timeline-item ${urgencyClass}" onclick="Cases.showEditModal('${dl.caseId}'); App.navigate('cases')" style="border-left:3px solid #dc2626">
+                          <div class="timeline-date">${dl.date}<br><span class="timeline-diff">${urgencyLabel}</span></div>
+                          <div class="timeline-content">
+                            <div class="timeline-title">${icon} ${dl.label}</div>
+                            <div class="timeline-meta">
+                              📜 ${dl.caseTitle}
                             </div>
                           </div>
                         </div>`;
@@ -390,11 +421,13 @@ const Calendar = {
   showDayDetail(dateStr) {
     let cases = Store.getCases().filter(c => c.deadline === dateStr);
     let events = Store.getEvents().filter(e => e.date === dateStr);
+    let inheritanceItems = this.showInheritanceDeadlines ? this.getInheritanceDeadlineItems().filter(item => item.date === dateStr) : [];
     if (this.filterStaffId !== 'all') {
       cases = cases.filter(c => c.staffId == this.filterStaffId);
       events = events.filter(e => e.staffId == this.filterStaffId);
+      inheritanceItems = inheritanceItems.filter(item => item.staffId == this.filterStaffId);
     }
-    if (cases.length === 0 && events.length === 0) {
+    if (cases.length === 0 && events.length === 0 && inheritanceItems.length === 0) {
       // 空の日をクリック → 予定追加
       this.showEventModal(dateStr);
       return;
@@ -445,6 +478,18 @@ const Calendar = {
                 </div>
               </div>`;
     }).join('')}
+          ${inheritanceItems.map(dl => {
+      const icon = dl.severity === 'critical' ? '🔴' : dl.severity === 'important' ? '🟠' : '🟡';
+      const statusLabel = dl.diffDays < 0 ? `${Math.abs(dl.diffDays)}日超過` : dl.diffDays === 0 ? '本日' : `あと${dl.diffDays}日`;
+      return `
+              <div class="day-case-item day-event-item" onclick="document.getElementById('dayDetailModal').remove(); App.navigate('cases'); setTimeout(() => Cases.showEditModal('${dl.caseId}'), 100)" style="border-left:3px solid #dc2626">
+                <div class="day-case-title">${icon} ${dl.label}</div>
+                <div class="day-case-meta">
+                  <span>📜 ${dl.caseTitle}</span>
+                  <span style="color:${dl.diffDays < 0 ? '#ef4444' : dl.diffDays <= 30 ? '#f59e0b' : 'var(--text-secondary)'};font-weight:600">${statusLabel}</span>
+                </div>
+              </div>`;
+    }).join('')}
         </div>
       </div>
     `;
@@ -455,11 +500,13 @@ const Calendar = {
   exportICS() {
     let cases = Store.getCases().filter(c => c.deadline && c.status !== 'done');
     let events = Store.getEvents();
+    let inheritanceItems = this.showInheritanceDeadlines ? this.getInheritanceDeadlineItems() : [];
     if (this.filterStaffId !== 'all') {
       cases = cases.filter(c => c.staffId == this.filterStaffId);
       events = events.filter(e => e.staffId == this.filterStaffId);
+      inheritanceItems = inheritanceItems.filter(item => item.staffId == this.filterStaffId);
     }
-    const total = cases.length + events.length;
+    const total = cases.length + events.length + inheritanceItems.length;
     if (total === 0) {
       App.showToast('エクスポートする予定がありません');
       return;
@@ -505,6 +552,14 @@ const Calendar = {
       } else {
         lines.push('BEGIN:VEVENT', `UID:evt-${ev.id}@gyosei`, `DTSTART;VALUE=DATE:${dateClean}`, `SUMMARY:[${catLabel}] ${ev.title}`, `DESCRIPTION:${ev.staffId ? '担当: ' + staffName + '\\n' : ''}${ev.memo || ''}`, 'END:VEVENT');
       }
+    });
+
+    // 相続期限
+    inheritanceItems.forEach(dl => {
+      const dateClean = dl.date.replace(/-/g, '');
+      const summary = `[相続期限] ${dl.label} - ${dl.caseTitle}`;
+      const desc = `${dl.note}\\n案件: ${dl.caseTitle}`;
+      lines.push('BEGIN:VEVENT', `UID:inh-${dl.caseId}-${dl.key}@gyosei`, `DTSTART;VALUE=DATE:${dateClean}`, `SUMMARY:${summary}`, `DESCRIPTION:${desc}`, 'END:VEVENT');
     });
 
     lines.push('END:VCALENDAR');
@@ -567,5 +622,31 @@ const Calendar = {
     } catch (err) {
       App.showToast('❌ 同期エラー: ' + err.message);
     }
+  },
+
+  // ---- 相続期限フィルタートグル ----
+  toggleInheritanceDeadlines() {
+    this.showInheritanceDeadlines = !this.showInheritanceDeadlines;
+    App.refreshView();
+    App.showToast(this.showInheritanceDeadlines ? '📜 相続期限を表示中' : '📜 相続期限を非表示にしました');
+  },
+
+  // ---- 全相続案件の期限をフラットなリストとして取得 ----
+  getInheritanceDeadlineItems() {
+    if (typeof InheritanceDeadlines === 'undefined') return [];
+    const cases = Store.getCases().filter(c => c.category === 'inheritance' && c.status !== 'done' && c.deathDate);
+    const items = [];
+    cases.forEach(c => {
+      const deadlines = InheritanceDeadlines.calculateDeadlines(c.deathDate);
+      deadlines.forEach(dl => {
+        items.push({
+          ...dl,
+          caseTitle: c.title,
+          caseId: c.id,
+          staffId: c.staffId || '',
+        });
+      });
+    });
+    return items;
   },
 };
