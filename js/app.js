@@ -18,6 +18,8 @@ const App = {
     }
     this.renderSidebar();
     this.renderContent();
+    // セッションタイムアウト監視を開始
+    if (typeof Auth !== 'undefined') Auth.startSessionTimer();
     // リサイズ時に再描画
     window.addEventListener('resize', () => this.refreshView());
     // スプレッドシート自動同期

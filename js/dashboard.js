@@ -171,6 +171,8 @@ function renderDashboard() {
           <div class="urgent-list">${urgentHtml}</div>
         </div>
 
+        ${typeof InheritanceDeadlines !== 'undefined' ? InheritanceDeadlines.renderDashboardWidget() : ''}
+
         <div class="dashboard-section">
           <h2 class="section-title">📅 今後7日間の期限</h2>
           <div class="upcoming-list">${upcomingHtml}</div>

@@ -286,11 +286,11 @@ const CaseTemplates = {
   TEMPLATES: {
     garage: {
       fee: 8000,
-      memo: '【車庫証明】\n□ 申請者情報確認\n□ 車検証コピー\n□ 所在図・配置図作成\n□ 保管場所使用承諾証明書\n□ 申請書作成\n□ 管轄警察署に提出\n□ 交付受取（3〜7営業日）',
+      memo: '【車庫証明】\n\n📋 お客様からの受領書類\n□ 車検証コピー（or 車両情報）\n□ 住民票 or 印鑑証明書\n□ 駐車場の契約書コピー（月極の場合）\n□ 委任状（署名済み）\n\n📝 作成書類\n□ 自動車保管場所証明申請書\n□ 保管場所標章交付申請書\n□ 保管場所の所在図・配置図\n□ 保管場所使用権原疎明書面（自認書）or 使用承諾証明書\n\n🏢 申請・受取\n□ 管轄警察署の確認\n□ 申請書類の最終チェック\n□ 警察署に申請（証紙代 ¥2,100〜¥2,200）\n□ 標章代（¥500〜¥610）\n□ 交付受取（3〜7営業日後）\n□ お客様への納品',
     },
     inheritance: {
       fee: 50000,
-      memo: '【相続】\n□ 被相続人の戸籍謄本\n□ 相続人全員の戸籍謄本\n□ 遺産分割協議書作成\n□ 財産調査\n□ 遺産分割協議\n□ 各種名義変更手続き',
+      memo: '【相続手続き】\n\n📋 基本情報の確認\n□ 被相続人の死亡日確認\n□ 相続人の確定\n\n📄 戸籍収集\n□ 被相続人の出生〜死亡までの戸籍\n□ 相続人全員の現在戸籍\n□ 相続人全員の住民票\n\n💰 財産調査\n□ 不動産（登記簿謄本の取得）\n□ 預貯金（各銀行への残高証明請求）\n□ 有価証券\n□ 生命保険\n□ 自動車（車検証確認）\n□ 負債の確認\n\n📝 書類作成\n□ 相続関係説明図\n□ 財産目録\n□ 遺産分割協議書\n\n✍️ 署名捺印\n□ 相続人への協議書送付\n□ 全員の署名捺印回収\n\n🏦 名義変更手続き\n□ 不動産（司法書士引継ぎ or 自分で対応）\n□ 預貯金\n□ 自動車',
     },
     mahjong: {
       fee: 50000,
@@ -318,13 +318,139 @@ const CaseTemplates = {
     },
   },
 
+  _lastAppliedCategory: null,
+
   applyTemplate(category) {
     const tmpl = this.TEMPLATES[category];
     if (!tmpl) return;
     const feeEl = document.getElementById('csf_fee');
     const memoEl = document.getElementById('csf_memo');
-    if (feeEl && !feeEl.value && tmpl.fee) feeEl.value = tmpl.fee;
-    if (memoEl && !memoEl.value && tmpl.memo) memoEl.value = tmpl.memo;
+
+    // 現在のメモ・報酬が別テンプレートの内容かどうかを判定
+    const currentMemo = memoEl ? memoEl.value : '';
+    const currentFee = feeEl ? feeEl.value : '';
+    const isTemplateMemo = !currentMemo || Object.values(this.TEMPLATES).some(t => t.memo === currentMemo);
+    const isTemplateFee = !currentFee || Object.values(this.TEMPLATES).some(t => String(t.fee) === currentFee);
+
+    // テンプレート由来の値なら新カテゴリのテンプレートで上書き
+    if (feeEl && isTemplateFee && tmpl.fee) feeEl.value = tmpl.fee;
+    if (memoEl && isTemplateMemo) memoEl.value = tmpl.memo || '';
+
+    this._lastAppliedCategory = category;
+
+    // 相続の場合は死亡日フィールドを表示
+    const deathDateGroup = document.getElementById('csf_deathDate_group');
+    if (deathDateGroup) {
+      deathDateGroup.style.display = category === 'inheritance' ? '' : 'none';
+    }
+  },
+};
+
+// ============================================================
+// 4-B. 相続案件 期限自動計算アラート
+// ============================================================
+const InheritanceDeadlines = {
+  // 法定期限の定義
+  DEADLINES: [
+    { key: 'souzokuHouki',      label: '相続放棄',         months: 3,  years: 0, severity: 'critical', note: '相続を知った日から3ヶ月' },
+    { key: 'junKakuteiShinkoku', label: '準確定申告',       months: 4,  years: 0, severity: 'warning',  note: '死亡日から4ヶ月（該当者のみ）' },
+    { key: 'souzokuZei',        label: '相続税申告・納付', months: 10, years: 0, severity: 'critical', note: '死亡日から10ヶ月' },
+    { key: 'iryubun',           label: '遺留分侵害額請求', months: 0,  years: 1, severity: 'warning',  note: '知った日から1年（該当者のみ）' },
+    { key: 'toukiGimu',         label: '相続登記義務化',   months: 0,  years: 3, severity: 'important', note: '知った日から3年（2024年4月〜）' },
+  ],
+
+  // 死亡日から各期限日を計算
+  calculateDeadlines(deathDateStr) {
+    if (!deathDateStr) return [];
+    const d = new Date(deathDateStr);
+    if (isNaN(d.getTime())) return [];
+    return this.DEADLINES.map(def => {
+      const dl = new Date(d);
+      if (def.months) dl.setMonth(dl.getMonth() + def.months);
+      if (def.years) dl.setFullYear(dl.getFullYear() + def.years);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const diffDays = Math.ceil((dl - today) / (1000 * 60 * 60 * 24));
+      return { ...def, date: dl.toISOString().slice(0,10), diffDays };
+    });
+  },
+
+  // 案件モーダル内に期限一覧を表示
+  renderDeadlinePanel(deathDateStr) {
+    const deadlines = this.calculateDeadlines(deathDateStr);
+    if (deadlines.length === 0) return '';
+
+    return `
+      <div class="checklist-widget" style="margin-top:12px">
+        <h4 style="margin:0 0 8px;font-size:0.9rem">⏰ 相続期限アラート</h4>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px">
+          被相続人死亡日: ${deathDateStr}
+        </div>
+        ${deadlines.map(dl => {
+          const icon = dl.severity === 'critical' ? '🔴' : dl.severity === 'important' ? '🟠' : '🟡';
+          let statusClass = '';
+          let statusLabel = '';
+          if (dl.diffDays < 0) {
+            statusClass = 'color:#ef4444;font-weight:700';
+            statusLabel = `${Math.abs(dl.diffDays)}日超過`;
+          } else if (dl.diffDays <= 30) {
+            statusClass = 'color:#f59e0b;font-weight:700';
+            statusLabel = `あと${dl.diffDays}日`;
+          } else {
+            statusClass = 'color:var(--text-secondary)';
+            statusLabel = `あと${dl.diffDays}日`;
+          }
+          return `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-color);font-size:0.82rem">
+              <span>${icon}</span>
+              <span style="flex:1">${dl.label}</span>
+              <span style="min-width:80px">${dl.date}</span>
+              <span style="${statusClass};min-width:70px;text-align:right">${statusLabel}</span>
+            </div>`;
+        }).join('')}
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:8px">
+          ※ 相続放棄・遺留分・登記義務は「知った日」が起算日（ここでは死亡日で仮計算）
+        </div>
+      </div>`;
+  },
+
+  // ダッシュボード用ウィジェット: すべての相続案件の期限を一覧表示
+  renderDashboardWidget() {
+    const cases = Store.getCases().filter(c => c.category === 'inheritance' && c.status !== 'done' && c.deathDate);
+    if (cases.length === 0) return '';
+
+    let alertItems = [];
+    cases.forEach(c => {
+      const deadlines = this.calculateDeadlines(c.deathDate);
+      deadlines.forEach(dl => {
+        if (dl.diffDays <= 90) { // 90日以内の期限のみ表示
+          alertItems.push({ ...dl, caseTitle: c.title, caseId: c.id });
+        }
+      });
+    });
+    alertItems.sort((a, b) => a.diffDays - b.diffDays);
+
+    if (alertItems.length === 0) return '';
+
+    return `
+      <div class="dashboard-section">
+        <h2 class="section-title">⏰ 相続期限アラート</h2>
+        <div class="urgent-list">
+          ${alertItems.map(dl => {
+            const icon = dl.severity === 'critical' ? '🔴' : dl.severity === 'important' ? '🟠' : '🟡';
+            let urgencyClass = dl.diffDays < 0 ? 'overdue' : dl.diffDays <= 30 ? 'warning' : '';
+            let urgencyLabel = dl.diffDays < 0 ? `${Math.abs(dl.diffDays)}日超過` : `あと${dl.diffDays}日`;
+            return `
+              <div class="urgent-item ${urgencyClass}" onclick="App.navigate('cases'); setTimeout(()=>Cases.showEditModal('${dl.caseId}'),100)">
+                <div class="urgent-item-header">
+                  <span class="urgent-badge badge-${urgencyClass || 'info'}">${icon} ${urgencyLabel}</span>
+                  <span class="category-tag category-inheritance">📜 相続</span>
+                </div>
+                <div class="urgent-item-title">${dl.label}</div>
+                <div class="urgent-item-client">${dl.caseTitle} ｜ 期限: ${dl.date}</div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
   },
 };
 
@@ -343,6 +469,28 @@ const DocChecklist = {
         lines[lineIndex] = '□' + lines[lineIndex].slice(1);
       }
       Store.updateCase(caseId, { memo: lines.join('\n') });
+    }
+    // モーダル内のチェックリストだけを再描画（モーダルを閉じない）
+    this.refreshInPlace(caseId);
+  },
+
+  // チェックリストウィジェットだけをその場で更新
+  refreshInPlace(caseId) {
+    const wrapper = document.querySelector('.checklist-widget');
+    if (!wrapper) return;
+    // 新しいチェックリストHTMLを生成して差し替え
+    const newHtml = this.renderChecklist(caseId);
+    const temp = document.createElement('div');
+    temp.innerHTML = newHtml;
+    const newWidget = temp.querySelector('.checklist-widget');
+    if (newWidget) {
+      wrapper.replaceWith(newWidget);
+    }
+    // メモ欄も同期（モーダル内のtextareaがあれば更新）
+    const memoEl = document.getElementById('csf_memo');
+    const c = Store.getCase(caseId);
+    if (memoEl && c) {
+      memoEl.value = c.memo || '';
     }
   },
 
@@ -363,8 +511,8 @@ const DocChecklist = {
         </div>
         <div class="checklist-items">
           ${lines.map((l, i) => {
-      if (l.startsWith('□')) return `<div class="checklist-item" onclick="DocChecklist.toggle('${caseId}',${i}); App.refreshView()"><span class="check-box">☐</span>${l.slice(1).trim()}</div>`;
-      if (l.startsWith('■')) return `<div class="checklist-item done" onclick="DocChecklist.toggle('${caseId}',${i}); App.refreshView()"><span class="check-box">☑</span>${l.slice(1).trim()}</div>`;
+      if (l.startsWith('□')) return `<div class="checklist-item" onclick="DocChecklist.toggle('${caseId}',${i})"><span class="check-box">☐</span>${l.slice(1).trim()}</div>`;
+      if (l.startsWith('■')) return `<div class="checklist-item done" onclick="DocChecklist.toggle('${caseId}',${i})"><span class="check-box">☑</span>${l.slice(1).trim()}</div>`;
       return '';
     }).join('')}
         </div>

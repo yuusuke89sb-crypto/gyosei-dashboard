@@ -231,6 +231,12 @@ const Cases = {
               <label>報酬額（円）</label>
               <input type="number" name="fee" id="csf_fee" placeholder="例：30000">
             </div>
+            <div class="form-row" id="csf_deathDate_group" style="display:none">
+              <div class="form-group">
+                <label>被相続人死亡日 <span style="font-size:0.75rem;color:var(--text-muted)">(期限自動計算用)</span></label>
+                <input type="date" name="deathDate" id="csf_deathDate">
+              </div>
+            </div>
             <div class="form-group">
               <label>メモ</label>
               <textarea name="memo" id="csf_memo" rows="3" placeholder="案件に関するメモ..."></textarea>
@@ -308,10 +314,21 @@ const Cases = {
       document.getElementById('csf_memo').value = c.memo || '';
       document.getElementById('caseDeleteBtn').style.display = 'block';
       document.getElementById('caseModal').style.display = 'flex';
-      // 対応履歴・チェックリストを追加
+      // 死亡日フィールド表示制御
+      const deathDateGroup = document.getElementById('csf_deathDate_group');
+      if (deathDateGroup) {
+        deathDateGroup.style.display = c.category === 'inheritance' ? '' : 'none';
+      }
+      const deathDateEl = document.getElementById('csf_deathDate');
+      if (deathDateEl) deathDateEl.value = c.deathDate || '';
+      // 対応履歴・チェックリスト・期限アラートを追加
       const extArea = document.getElementById('caseExtArea');
       if (extArea) {
-        extArea.innerHTML = DocChecklist.renderChecklist(id) + ActivityLog.renderWidget('case', id);
+        let extHtml = DocChecklist.renderChecklist(id) + ActivityLog.renderWidget('case', id);
+        if (c.category === 'inheritance' && c.deathDate && typeof InheritanceDeadlines !== 'undefined') {
+          extHtml = InheritanceDeadlines.renderDeadlinePanel(c.deathDate) + extHtml;
+        }
+        extArea.innerHTML = extHtml;
       }
     }, 0);
   },
@@ -333,6 +350,7 @@ const Cases = {
       status: form.status.value,
       deadline: form.deadline.value,
       fee: form.fee.value,
+      deathDate: form.deathDate ? form.deathDate.value : '',
       memo: form.memo.value.trim(),
     };
     if (this.editingId) {

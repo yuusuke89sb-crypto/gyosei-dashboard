@@ -7,6 +7,14 @@ const Auth = {
   DEFAULT_PASSWORD: 'gyosei2026',
   STORAGE_KEY: 'gyosei_auth_hash',
   SESSION_KEY: 'gyosei_auth_session',
+  SESSION_TS_KEY: 'gyosei_auth_last_active',
+  SESSION_TIMEOUT_MS: 30 * 60 * 1000, // 30分
+
+  // ログイン試行制限
+  MAX_ATTEMPTS: 5,
+  LOCKOUT_MS: 3 * 60 * 1000, // 3分
+  _failCount: 0,
+  _lockedUntil: 0,
 
   // パスワードの簡易ハッシュ生成
   hashPassword(password) {
@@ -24,15 +32,63 @@ const Auth = {
   },
 
   isAuthenticated() {
-    return sessionStorage.getItem(this.SESSION_KEY) === 'true';
+    if (sessionStorage.getItem(this.SESSION_KEY) !== 'true') return false;
+    // セッションタイムアウト判定
+    const lastActive = parseInt(sessionStorage.getItem(this.SESSION_TS_KEY) || '0', 10);
+    if (lastActive && (Date.now() - lastActive > this.SESSION_TIMEOUT_MS)) {
+      this.logout();
+      return false;
+    }
+    return true;
+  },
+
+  // 最終操作時刻を更新
+  touchSession() {
+    if (sessionStorage.getItem(this.SESSION_KEY) === 'true') {
+      sessionStorage.setItem(this.SESSION_TS_KEY, String(Date.now()));
+    }
+  },
+
+  // セッションタイムアウト監視を開始
+  startSessionTimer() {
+    // ユーザー操作で最終操作時刻をリセット
+    const touch = () => this.touchSession();
+    ['mousemove', 'keydown', 'touchstart', 'click'].forEach(evt =>
+      document.addEventListener(evt, touch, { passive: true })
+    );
+    this.touchSession();
+    // 1分ごとにタイムアウトチェック
+    setInterval(() => {
+      if (!this.isAuthenticated()) return;
+      const lastActive = parseInt(sessionStorage.getItem(this.SESSION_TS_KEY) || '0', 10);
+      if (lastActive && (Date.now() - lastActive > this.SESSION_TIMEOUT_MS)) {
+        this.logout();
+      }
+    }, 60 * 1000);
+  },
+
+  isLockedOut() {
+    return Date.now() < this._lockedUntil;
+  },
+
+  getRemainingLockSeconds() {
+    return Math.ceil(Math.max(0, this._lockedUntil - Date.now()) / 1000);
   },
 
   login(password) {
+    if (this.isLockedOut()) return false;
     const inputHash = this.hashPassword(password);
     const storedHash = this.getStoredHash();
     if (inputHash === storedHash) {
+      this._failCount = 0;
       sessionStorage.setItem(this.SESSION_KEY, 'true');
+      this.touchSession();
       return true;
+    }
+    this._failCount++;
+    if (this._failCount >= this.MAX_ATTEMPTS) {
+      this._lockedUntil = Date.now() + this.LOCKOUT_MS;
+      this._failCount = 0;
     }
     return false;
   },
@@ -81,9 +137,6 @@ const Auth = {
             </button>
           </form>
           <div id="authError" style="color:#f87171;font-size:0.8rem;margin-top:12px;display:none"></div>
-          <p style="color:#475569;font-size:0.7rem;margin-top:24px">
-            初期パスワード: gyosei2026
-          </p>
         </div>
       </div>
     `;
@@ -91,12 +144,23 @@ const Auth = {
 
   onLoginSubmit(e) {
     e.preventDefault();
+    const err = document.getElementById('authError');
+    if (this.isLockedOut()) {
+      const sec = this.getRemainingLockSeconds();
+      err.textContent = `🔒 ログインが一時的にロックされています（残り${sec}秒）`;
+      err.style.display = 'block';
+      return;
+    }
     const password = document.getElementById('authPassword').value;
     if (this.login(password)) {
       location.reload();
     } else {
-      const err = document.getElementById('authError');
-      err.textContent = '❌ パスワードが正しくありません';
+      if (this.isLockedOut()) {
+        err.textContent = `🔒 ${this.MAX_ATTEMPTS}回連続で失敗したため、${this.LOCKOUT_MS / 60000}分間ロックされました`;
+      } else {
+        const remaining = this.MAX_ATTEMPTS - this._failCount;
+        err.textContent = `❌ パスワードが正しくありません（残り${remaining}回）`;
+      }
       err.style.display = 'block';
       document.getElementById('authPassword').value = '';
       document.getElementById('authPassword').focus();
