@@ -284,37 +284,21 @@ const GlobalSearch = {
 // ============================================================
 const CaseTemplates = {
   TEMPLATES: {
-    garage: {
+    garage_oss: {
       fee: 8000,
-      memo: '【車庫証明】\n\n📋 お客様からの受領書類\n□ 車検証コピー（or 車両情報）\n□ 住民票 or 印鑑証明書\n□ 駐車場の契約書コピー（月極の場合）\n□ 委任状（署名済み）\n\n📝 作成書類\n□ 自動車保管場所証明申請書\n□ 保管場所標章交付申請書\n□ 保管場所の所在図・配置図\n□ 保管場所使用権原疎明書面（自認書）or 使用承諾証明書\n\n🏢 申請・受取\n□ 管轄警察署の確認\n□ 申請書類の最終チェック\n□ 警察署に申請（証紙代 ¥2,100〜¥2,200）\n□ 標章代（¥500〜¥610）\n□ 交付受取（3〜7営業日後）\n□ お客様への納品',
+      memo: '【車庫証明（OSS）】\n\n📋 お客様からの受領書類\n□ 車検証コピー（or 車両情報）\n□ 住民票 or 印鑑証明書\n□ 駐車場の契約書コピー（月極の場合）\n□ 委任状（署名済み）\n\n📝 作成書類\n□ 保管場所の所在図・配置図\n□ 保管場所使用権原疎明書面（自認書）or 使用承諾証明書\n\n🏢 申請・受取\n□ 警察署での標章受取',
+    },
+    garage_paper: {
+      fee: 8000,
+      memo: '【車庫証明（紙）】\n\n📋 お客様からの受領書類\n□ 車検証コピー（or 車両情報）\n□ 住民票 or 印鑑証明書\n□ 駐車場の契約書コピー（月極の場合）\n□ 委任状（署名済み）\n\n📝 作成書類\n□ 自動車保管場所証明申請書\n□ 保管場所標章交付申請書\n□ 保管場所の所在図・配置図\n□ 保管場所使用権原疎明書面（自認書）or 使用承諾証明書\n\n🏢 申請・受取\n□ 管轄警察署の確認\n□ 申請書類の最終チェック\n□ 警察署に申請（証紙代 ¥2,100〜¥2,200）\n□ 標章代（¥500〜¥610）\n□ 交付受取（3〜7営業日後）\n□ お客様への納品',
+    },
+    seal: {
+      fee: 12000,
+      memo: '【丁種封印】\n\n📋 確認事項\n□ 確約書の有無\n□ 封印委託書の受領\n□ 車検証原本の受領\n□ ナンバープレートの受領（必要な場合）\n\n📝 作業\n□ 封印の受領\n□ お客様との日程調整\n□ 車両への施封作業\n□ 写真撮影・報告（車台番号と封印状態）',
     },
     inheritance: {
       fee: 50000,
       memo: '【相続手続き】\n\n📋 基本情報の確認\n□ 被相続人の死亡日確認\n□ 相続人の確定\n\n📄 戸籍収集\n□ 被相続人の出生〜死亡までの戸籍\n□ 相続人全員の現在戸籍\n□ 相続人全員の住民票\n\n💰 財産調査\n□ 不動産（登記簿謄本の取得）\n□ 預貯金（各銀行への残高証明請求）\n□ 有価証券\n□ 生命保険\n□ 自動車（車検証確認）\n□ 負債の確認\n\n📝 書類作成\n□ 相続関係説明図\n□ 財産目録\n□ 遺産分割協議書\n\n✍️ 署名捺印\n□ 相続人への協議書送付\n□ 全員の署名捺印回収\n\n🏦 名義変更手続き\n□ 不動産（司法書士引継ぎ or 自分で対応）\n□ 預貯金\n□ 自動車',
-    },
-    mahjong: {
-      fee: 50000,
-      memo: '【麻雀関連】\n□ 営業許可申請書類準備\n□ 店舗図面作成\n□ 消防法確認\n□ 風営法関連確認\n□ 管轄警察署へ申請\n□ 許可証受取',
-    },
-    construction: {
-      fee: 150000,
-      memo: '【建設業許可】\n□ 経営業務管理責任者の確認\n□ 専任技術者の確認\n□ 財産的基礎の確認\n□ 決算変届（直前3年分）\n□ 許可申請書作成\n□ 都道府県庁へ申請',
-    },
-    farmland: {
-      fee: 80000,
-      memo: '【農地転用】\n□ 農地の現況確認\n□ 土地利用計画図作成\n□ 農業委員会事前相談\n□ 転用許可申請書作成\n□ 各添付書類収集\n□ 農業委員会へ提出',
-    },
-    liquor: {
-      fee: 150000,
-      memo: '【酒類販売】\n□ 免許要件の確認\n□ 酒類販売場所の確認\n□ 申請書類作成\n□ 事業計画書作成\n□ 所轄税務署へ申請\n□ 免許交付',
-    },
-    visa: {
-      fee: 100000,
-      memo: '【在留資格】\n□ 在留資格の種類確認\n□ 必要書類の確認・収集\n□ 申請書類作成\n□ 理由書作成\n□ 入国管理局へ申請\n□ 結果受取',
-    },
-    other: {
-      fee: 0,
-      memo: '',
     },
   },
 
@@ -342,6 +326,12 @@ const CaseTemplates = {
     const deathDateGroup = document.getElementById('csf_deathDate_group');
     if (deathDateGroup) {
       deathDateGroup.style.display = category === 'inheritance' ? '' : 'none';
+    }
+
+    // 車庫証明・丁種封印の場合は現地調査・交付予定日を表示
+    const garageDatesGroup = document.getElementById('csf_garageDates_group');
+    if (garageDatesGroup) {
+      garageDatesGroup.style.display = ['garage_oss', 'garage_paper', 'seal'].includes(category) ? '' : 'none';
     }
   },
 };
@@ -1156,6 +1146,9 @@ const GoalTracker = {
 // ============================================================
 const MonthlyReport = {
   show(year, month) {
+    const existing = document.getElementById('monthlyReportModal');
+    if (existing) existing.remove();
+
     const now = new Date();
     year = year || now.getFullYear();
     month = month || now.getMonth() + 1;
@@ -1210,12 +1203,21 @@ const MonthlyReport = {
     const expenseEntries = Object.entries(expenseByAccount).sort((a, b) => b[1] - a[1]);
 
     // カテゴリ別案件
-    const CATS = { garage: '車庫証明', inheritance: '相続', mahjong: '麻雀関連', construction: '建設業', farmland: '農地転用', liquor: '酒類販売', visa: '在留資格', other: 'その他' };
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
     const catCounts = {};
     completedCases.forEach(c => {
       const label = CATS[c.category] || c.category;
       catCounts[label] = (catCounts[label] || 0) + 1;
     });
+
+    // 顧客別の新規案件数
+    const clientCounts = {};
+    monthCases.forEach(c => {
+      const client = Store.getClient(c.clientId);
+      const cName = client ? client.name : '顧客未設定';
+      clientCounts[cName] = (clientCounts[cName] || 0) + 1;
+    });
+    const clientEntries = Object.entries(clientCounts).sort((a, b) => b[1] - a[1]);
 
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -1276,6 +1278,20 @@ const MonthlyReport = {
               <span style="background:var(--bg-input);padding:4px 10px;border-radius:12px;font-size:0.8rem">${label}: ${count}件</span>
             `).join('')}
           </div>
+        </div>
+        ` : ''}
+
+        ${clientEntries.length > 0 ? `
+        <div style="margin-bottom:20px">
+          <h3 style="font-size:0.9rem;margin-bottom:8px;color:var(--text-secondary)">👥 顧客別の新規案件数</h3>
+          <table class="acc-table" style="font-size:0.82rem">
+            ${clientEntries.map(([cName, count]) => `
+              <tr>
+                <td>${cName}</td>
+                <td style="text-align:right;font-weight:600">${count}件</td>
+              </tr>
+            `).join('')}
+          </table>
         </div>
         ` : ''}
 

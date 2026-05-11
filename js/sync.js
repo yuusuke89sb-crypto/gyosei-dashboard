@@ -53,12 +53,49 @@ const SpreadsheetSync = {
 
             // 案件データを localStorage に保存
             if (data.cases) {
-                Store._set(Store.KEYS.CASES, data.cases);
+                // ローカルの案件データから docs 等の失われたくないデータをマージ
+                const localCases = Store.getCases();
+                
+                const mergedCases = data.cases.map(remoteCase => {
+                    const localCase = localCases.find(c => c.id === remoteCase.id);
+                    
+                    // docs のパース（GASから文字列で返ってきた場合）
+                    let parsedDocs = remoteCase.docs;
+                    if (typeof parsedDocs === 'string') {
+                        try { parsedDocs = JSON.parse(parsedDocs); } catch(e) { parsedDocs = null; }
+                    }
+                    // リモートに docs が無い、または空の場合はローカルを優先
+                    if ((!parsedDocs || parsedDocs.length === 0) && localCase && localCase.docs) {
+                        parsedDocs = localCase.docs;
+                    }
+
+                    // advances のパース
+                    let parsedAdvances = remoteCase.advances;
+                    if (typeof parsedAdvances === 'string') {
+                        try { parsedAdvances = JSON.parse(parsedAdvances); } catch(e) { parsedAdvances = null; }
+                    }
+                    if ((!parsedAdvances || parsedAdvances.length === 0) && localCase && localCase.advances) {
+                        parsedAdvances = localCase.advances;
+                    }
+
+                    return {
+                        ...remoteCase,
+                        docs: Array.isArray(parsedDocs) ? parsedDocs : [],
+                        advances: Array.isArray(parsedAdvances) ? parsedAdvances : []
+                    };
+                });
+                
+                Store._set(Store.KEYS.CASES, mergedCases);
             }
 
-            // 帳簿データを localStorage に保存
+            // 帳簿データをマージ（ローカル専用データを保持）
             if (data.journals) {
-                localStorage.setItem('gyosei_journals', JSON.stringify(data.journals));
+                var local = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+                var remoteIds = {};
+                data.journals.forEach(function(j){ remoteIds[j.id] = true; });
+                var localOnly = local.filter(function(j){ return !remoteIds[j.id]; });
+                var merged = data.journals.concat(localOnly);
+                localStorage.setItem('gyosei_journals', JSON.stringify(merged));
             }
 
             // 同期日時を記録

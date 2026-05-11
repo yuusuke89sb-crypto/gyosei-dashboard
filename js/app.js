@@ -37,6 +37,10 @@ const App = {
     }
     // 期限リマインダー
     if (typeof Reminders !== 'undefined') Reminders.init();
+    // 古い完了案件を自動アーカイブ（localStorage 容量管理）
+    if (typeof CaseArchive !== 'undefined') CaseArchive.run();
+    // 今日のブリーフィング（1日1回自動表示）
+    if (typeof Briefing !== 'undefined') Briefing.checkAndShow();
     // Ctrl+K で検索
     document.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -89,6 +93,7 @@ const App = {
         </a>
       </nav>
       <div class="sidebar-tools">
+        <button class="btn btn-ghost briefing-sidebar-btn" onclick="Briefing.show()" title="今日のブリーフィング">☀️ 今日のブリーフィング</button>
         <button class="btn btn-ghost" onclick="GlobalSearch.show()" title="検索 (Ctrl+K)">🔍 検索</button>
         <button class="btn btn-ghost" onclick="Payments.showPaymentList()" title="入金管理">💴 入金管理</button>
         <button class="btn btn-ghost" onclick="AnnualReport.show()" title="年間収支">📊 年間収支</button>
@@ -97,7 +102,8 @@ const App = {
         <button class="btn btn-ghost" onclick="ReferralAnalysis.show()" title="紹介元分析">🤝 紹介元</button>
       </div>
       <div class="sidebar-tools" style="border-top:1px solid var(--border-color);padding-top:4px">
-        <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">AIツール</div>
+        <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">連携ツール</div>
+        <a class="btn btn-ghost" href="map-maker/index.html" target="_blank" style="text-decoration:none;display:block;text-align:left">🗺️ 地図メーカー</a>
         <a class="btn btn-ghost" href="bot/index.html" style="text-decoration:none;display:block;text-align:left">💬 AIチャット</a>
         <a class="btn btn-ghost" href="bot/inquiry.html" style="text-decoration:none;display:block;text-align:left">📞 問い合わせ</a>
         <a class="btn btn-ghost" href="bot/news.html" style="text-decoration:none;display:block;text-align:left">📰 ニュース</a>

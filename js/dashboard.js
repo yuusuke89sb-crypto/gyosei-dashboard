@@ -4,8 +4,8 @@
 function renderDashboard() {
   const stats = Store.getStats();
   const STATUS_LABELS = { received: '受付', hearing: 'ヒアリング', documents: '書類作成', applying: '申請中', done: '完了' };
-  const CATEGORY_LABELS = { garage: '🚗 車庫証明', inheritance: '📜 相続', mahjong: '🀄 麻雀関連', construction: '🏗️ 建設業', farmland: '🌾 農地転用', liquor: '🍶 酒類販売', visa: '🛂 在留資格', other: '📌 その他' };
-  const CATEGORY_COLORS = { garage: '#3b82f6', inheritance: '#8b5cf6', mahjong: '#f59e0b', construction: '#ef4444', farmland: '#10b981', liquor: '#ec4899', visa: '#06b6d4', other: '#6b7280' };
+  const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続' };
+  const CATEGORY_COLORS = { garage_oss: '#3b82f6', garage_paper: '#60a5fa', seal: '#f59e0b', inheritance: '#8b5cf6' };
 
   const maxStatus = Math.max(...Object.values(stats.statusCounts), 1);
   const maxCategory = Math.max(...Object.values(stats.categoryCounts), 1);

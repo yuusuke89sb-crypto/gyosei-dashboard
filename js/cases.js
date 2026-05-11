@@ -5,6 +5,7 @@ const Cases = {
   filterCategory: 'all',
   filterStatus: 'all',
   editingId: null,
+  advanceDraft: [],  // 立替金一時データ [{label, amount}]
 
   STATUSES: [
     { key: 'received', label: '受付', icon: '📥' },
@@ -15,14 +16,10 @@ const Cases = {
   ],
 
   CATEGORIES: [
-    { key: 'garage', label: '🚗 車庫証明' },
+    { key: 'garage_oss', label: '🚗 車庫証明（OSS）' },
+    { key: 'garage_paper', label: '🚗 車庫証明（紙）' },
+    { key: 'seal', label: '🚙 丁種封印' },
     { key: 'inheritance', label: '📜 相続' },
-    { key: 'mahjong', label: '🀄 麻雀関連' },
-    { key: 'construction', label: '🏗️ 建設業許可' },
-    { key: 'farmland', label: '🌾 農地転用' },
-    { key: 'liquor', label: '🍶 酒類販売' },
-    { key: 'visa', label: '🛂 在留資格' },
-    { key: 'other', label: '📌 その他' },
   ],
 
   render() {
@@ -103,6 +100,41 @@ const Cases = {
     `;
   },
 
+  // 立替金行を再描画
+  renderAdvanceRows() {
+    const container = document.getElementById('csf_advance_rows');
+    if (!container) return;
+    container.innerHTML = this.advanceDraft.map((adv, i) => `
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" placeholder="内容（例：申請手数料）" value="${adv.label || ''}"
+          style="flex:2" data-adv-idx="${i}" data-adv-field="label"
+          oninput="Cases.onAdvInput(this)">
+        <input type="number" placeholder="金額" value="${adv.amount || ''}"
+          style="flex:1" data-adv-idx="${i}" data-adv-field="amount"
+          oninput="Cases.onAdvInput(this)">
+        <button type="button" style="flex-shrink:0;background:none;border:1px solid #e5e7eb;border-radius:4px;padding:2px 8px;cursor:pointer;color:#ef4444"
+          onclick="Cases.removeAdvanceRow(${i})">✕</button>
+      </div>
+    `).join('');
+  },
+
+  addAdvanceRow() {
+    this.advanceDraft.push({ label: '', amount: 0 });
+    this.renderAdvanceRows();
+  },
+
+  removeAdvanceRow(i) {
+    this.advanceDraft.splice(i, 1);
+    this.renderAdvanceRows();
+  },
+
+  onAdvInput(el) {
+    const i = parseInt(el.dataset.advIdx);
+    const field = el.dataset.advField;
+    if (!this.advanceDraft[i]) this.advanceDraft[i] = { label: '', amount: 0 };
+    this.advanceDraft[i][field] = field === 'amount' ? Number(el.value) : el.value;
+  },
+
   renderKanbanCard(c) {
     const client = Store.getClient(c.clientId);
     const catLabel = this.CATEGORIES.find(cat => cat.key === c.category);
@@ -120,9 +152,11 @@ const Cases = {
           ${client ? `<span>👤 ${client.name}</span>` : ''}
           ${c.staffId ? `<span>🏷️ ${staffName}</span>` : ''}
           ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
+          ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
+          ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
         </div>
         ${c.createdAt ? `<div class="kanban-card-date">📋 ${c.createdAt.slice(0, 10)}</div>` : ''}
-        ${c.fee ? `<div class="kanban-card-fee">💰 ${Number(c.fee).toLocaleString()}円</div>` : ''}
+        ${c.fee ? `<div class="kanban-card-fee">💰 報酬 ${Number(c.fee).toLocaleString()}円${(c.advances||[]).length > 0 ? ` + 立替 ${(c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0).toLocaleString()}円` : ''}</div>` : ''}
       </div>
     `;
   },
@@ -153,6 +187,8 @@ const Cases = {
                      ${c.staffId ? `<span>🏷️ ${Store.getStaffName(c.staffId)}</span>` : ''}
                      ${c.createdAt ? `<span>📋 ${c.createdAt.slice(0, 10)}</span>` : ''}
                      ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
+                     ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
+                     ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
                      ${c.fee ? `<span>💰 ${Number(c.fee).toLocaleString()}円</span>` : ''}
                    </div>
                   <div class="case-list-status-controls">
@@ -231,10 +267,54 @@ const Cases = {
               <label>報酬額（円）</label>
               <input type="number" name="fee" id="csf_fee" placeholder="例：30000">
             </div>
+            <div class="form-group" id="csf_advances_section">
+              <label>立替金</label>
+              <div id="csf_advance_rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+              <button type="button" class="btn btn-secondary" style="font-size:0.8rem;padding:4px 10px"
+                onclick="Cases.addAdvanceRow()">＋ 立替金を追加</button>
+            </div>
             <div class="form-row" id="csf_deathDate_group" style="display:none">
               <div class="form-group">
                 <label>被相続人死亡日 <span style="font-size:0.75rem;color:var(--text-muted)">(期限自動計算用)</span></label>
                 <input type="date" name="deathDate" id="csf_deathDate">
+              </div>
+            </div>
+            <div class="form-row" id="csf_garageDates_group" style="display:none">
+              <div class="form-group">
+                <label>現地調査予定日</label>
+                <input type="date" name="surveyDate" id="csf_surveyDate">
+              </div>
+              <div class="form-group">
+                <label>警察署交付（予定）日</label>
+                <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
+              </div>
+            </div>
+            <div class="form-section" style="background:#f9fafb;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #e5e7eb;">
+              <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px;color:#6b7280;">🚗 車両・申請情報（車庫証明・登録等用）</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>名前（申請者・使用者）</label>
+                  <input type="text" name="carName" id="csf_carName" placeholder="例：山田 太郎">
+                </div>
+                <div class="form-group">
+                  <label>住所</label>
+                  <input type="text" name="carAddress" id="csf_carAddress" placeholder="例：東京都港区...">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>車台番号</label>
+                  <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：ABC-1234567">
+                </div>
+                <div class="form-group">
+                  <label>所轄警察署</label>
+                  <select name="carPolice" id="csf_carPolice" class="form-select">
+                    <option value="">— 選択（任意） —</option>
+                    ${typeof Briefing !== 'undefined' 
+                      ? Briefing.PRESETS.filter(p => p.group === '警察署').map(p => `<option value="${p.label}">${p.label}</option>`).join('') 
+                      : ''}
+                  </select>
+                </div>
               </div>
             </div>
             <div class="form-group">
@@ -293,6 +373,8 @@ const Cases = {
       document.getElementById('caseForm').reset();
       document.getElementById('caseDeleteBtn').style.display = 'none';
       document.getElementById('caseModal').style.display = 'flex';
+      this.advanceDraft = [];
+      this.renderAdvanceRows();
     }, 0);
   },
 
@@ -312,8 +394,15 @@ const Cases = {
       document.getElementById('csf_deadline').value = c.deadline || '';
       document.getElementById('csf_fee').value = c.fee || '';
       document.getElementById('csf_memo').value = c.memo || '';
+      document.getElementById('csf_carName').value = c.carName || '';
+      document.getElementById('csf_carAddress').value = c.carAddress || '';
+      document.getElementById('csf_carNumber').value = c.carNumber || '';
+      document.getElementById('csf_carPolice').value = c.carPolice || '';
       document.getElementById('caseDeleteBtn').style.display = 'block';
       document.getElementById('caseModal').style.display = 'flex';
+      // 立替金を読み込み
+      this.advanceDraft = Array.isArray(c.advances) ? JSON.parse(JSON.stringify(c.advances)) : [];
+      this.renderAdvanceRows();
       // 死亡日フィールド表示制御
       const deathDateGroup = document.getElementById('csf_deathDate_group');
       if (deathDateGroup) {
@@ -321,10 +410,25 @@ const Cases = {
       }
       const deathDateEl = document.getElementById('csf_deathDate');
       if (deathDateEl) deathDateEl.value = c.deathDate || '';
+
+      // 車庫関係フィールド表示制御
+      const garageDatesGroup = document.getElementById('csf_garageDates_group');
+      if (garageDatesGroup) {
+        garageDatesGroup.style.display = ['garage_oss', 'garage_paper', 'seal'].includes(c.category) ? '' : 'none';
+      }
+      const surveyDateEl = document.getElementById('csf_surveyDate');
+      if (surveyDateEl) surveyDateEl.value = c.surveyDate || '';
+      const policeDeliveryDateEl = document.getElementById('csf_policeDeliveryDate');
+      if (policeDeliveryDateEl) policeDeliveryDateEl.value = c.policeDeliveryDate || '';
       // 対応履歴・チェックリスト・期限アラートを追加
       const extArea = document.getElementById('caseExtArea');
       if (extArea) {
-        let extHtml = DocChecklist.renderChecklist(id) + ActivityLog.renderWidget('case', id);
+        let extHtml = '';
+        // 書類添付パネル
+        if (typeof CaseDocs !== 'undefined') {
+          extHtml += CaseDocs.renderPanel(id);
+        }
+        extHtml += DocChecklist.renderChecklist(id) + ActivityLog.renderWidget('case', id);
         if (c.category === 'inheritance' && c.deathDate && typeof InheritanceDeadlines !== 'undefined') {
           extHtml = InheritanceDeadlines.renderDeadlinePanel(c.deathDate) + extHtml;
         }
@@ -350,7 +454,14 @@ const Cases = {
       status: form.status.value,
       deadline: form.deadline.value,
       fee: form.fee.value,
+      advances: this.advanceDraft.filter(a => a.label || Number(a.amount) > 0),
       deathDate: form.deathDate ? form.deathDate.value : '',
+      surveyDate: form.surveyDate ? form.surveyDate.value : '',
+      policeDeliveryDate: form.policeDeliveryDate ? form.policeDeliveryDate.value : '',
+      carName: form.carName ? form.carName.value.trim() : '',
+      carAddress: form.carAddress ? form.carAddress.value.trim() : '',
+      carNumber: form.carNumber ? form.carNumber.value.trim() : '',
+      carPolice: form.carPolice ? form.carPolice.value.trim() : '',
       memo: form.memo.value.trim(),
     };
     if (this.editingId) {

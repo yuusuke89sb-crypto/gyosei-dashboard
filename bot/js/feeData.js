@@ -674,5 +674,84 @@ const FEE_DATA = {
 
       return results;
     }
+  },
+
+  // ============================================================
+  // 補助金・助成金
+  // ============================================================
+  subsidy: {
+    title: '補助金・助成金 報酬シミュレーター',
+    icon: '💰',
+    steps: [
+      {
+        id: 'type',
+        question: '補助金の種類は？',
+        type: 'select',
+        options: [
+          { label: '小規模事業者持続化補助金', value: 'jizokuka' },
+          { label: 'ものづくり補助金', value: 'monozukuri' },
+          { label: 'IT導入補助金', value: 'it' },
+          { label: '事業再構築補助金', value: 'saikouchiku' },
+          { label: 'その他の補助金', value: 'other' }
+        ]
+      },
+      {
+        id: 'service',
+        question: '依頼内容は？',
+        type: 'select',
+        options: [
+          { label: '事業計画書の作成支援 + 申請', value: 'full' },
+          { label: '事業計画書の作成支援のみ', value: 'plan_only' },
+          { label: '交付申請・実績報告のみ', value: 'report' }
+        ]
+      }
+    ],
+    calculate: (answers) => {
+      const results = { items: [], officialFee: 0, reward: 0, notes: [] };
+
+      const baseRewards = {
+        jizokuka: { full: 80000, plan_only: 50000, report: 40000 },
+        monozukuri: { full: 150000, plan_only: 100000, report: 60000 },
+        it: { full: 80000, plan_only: 50000, report: 30000 },
+        saikouchiku: { full: 200000, plan_only: 150000, report: 80000 },
+        other: { full: 100000, plan_only: 70000, report: 50000 }
+      };
+
+      const typeLabels = {
+        jizokuka: '小規模事業者持続化補助金',
+        monozukuri: 'ものづくり補助金',
+        it: 'IT導入補助金',
+        saikouchiku: '事業再構築補助金',
+        other: 'その他の補助金'
+      };
+
+      const serviceLabels = {
+        full: '計画作成＋申請代行',
+        plan_only: '計画書作成支援',
+        report: '交付申請・実績報告'
+      };
+
+      const base = baseRewards[answers.type]?.[answers.service] || 100000;
+      results.reward = base;
+      results.items.push({
+        label: `${typeLabels[answers.type]} ${serviceLabels[answers.service]}`,
+        amount: base
+      });
+
+      // 成功報酬の説明
+      if (answers.service === 'full') {
+        const successFeeRate = answers.type === 'jizokuka' ? '5〜10%' : '5〜8%';
+        results.notes.push(`採択時の成功報酬：補助金額の${successFeeRate}（別途）`);
+      }
+
+      results.notes.push('gBizIDプライムの取得がまだの方は、早めの申請を推奨');
+      results.notes.push('補助金は後払い（精算払い）です。先に自己資金での支出が必要');
+
+      if (answers.type === 'monozukuri' || answers.type === 'saikouchiku') {
+        results.notes.push('認定経営革新等支援機関の確認書が必要です');
+      }
+
+      return results;
+    }
   }
 };

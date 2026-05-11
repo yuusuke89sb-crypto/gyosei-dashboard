@@ -8,6 +8,7 @@ const Store = {
     STAFF: 'gyosei_staff',
     EVENTS: 'gyosei_events',
     JOURNALS: 'gyosei_journals',
+    TODOS: 'gyosei_todos',
   },
 
   // ---- ユーティリティ ----
@@ -108,10 +109,17 @@ const Store = {
       id: this._generateId(),
       clientId: data.clientId || '',
       title: data.title || '',
-      category: data.category || 'garage',      // garage | inheritance | mahjong
+      category: data.category || 'garage_oss',      // garage_oss | garage_paper | seal | inheritance
       status: data.status || 'received',         // received | hearing | documents | applying | done
       deadline: data.deadline || '',
       fee: data.fee || '',
+      advances: data.advances || [],             // [{label, amount}] 立替金
+      docs: data.docs || [],                     // [{id, name, driveUrl, ...}] 添付書類
+      deathDate: data.deathDate || '',
+      carName: data.carName || '',               // 名前（申請者等）
+      carAddress: data.carAddress || '',         // 住所
+      carNumber: data.carNumber || '',           // 車台番号
+      carPolice: data.carPolice || '',           // 所轄警察署
       memo: data.memo || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -157,7 +165,7 @@ const Store = {
     // 同一案件の重複チェック
     if (journals.some(j => j.caseId === c.id)) return;
     const client = this.getClient(c.clientId);
-    const CATS = { garage: '車庫証明', inheritance: '相続', mahjong: '麻雀関連', construction: '建設業', farmland: '農地転用', liquor: '酒類販売', visa: '在留資格', other: 'その他' };
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
     journals.push({
       id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       date: new Date().toISOString().slice(0, 10),
@@ -245,6 +253,43 @@ const Store = {
     this._set(this.KEYS.EVENTS, events);
   },
 
+  // ---- TODO CRUD ----
+  getTodos() {
+    return this._get(this.KEYS.TODOS);
+  },
+
+  getTodosByDate(dateStr) {
+    return this.getTodos().filter(t => t.date === dateStr);
+  },
+
+  addTodo(data) {
+    const todos = this.getTodos();
+    const todo = {
+      id: 'todo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      date: data.date,
+      text: data.text || '',
+      done: false,
+      createdAt: new Date().toISOString(),
+    };
+    todos.push(todo);
+    this._set(this.KEYS.TODOS, todos);
+    return todo;
+  },
+
+  toggleTodo(id) {
+    const todos = this.getTodos();
+    const todo = todos.find(t => t.id === id);
+    if (todo) {
+      todo.done = !todo.done;
+      this._set(this.KEYS.TODOS, todos);
+    }
+  },
+
+  deleteTodo(id) {
+    const todos = this.getTodos().filter(t => t.id !== id);
+    this._set(this.KEYS.TODOS, todos);
+  },
+
   // ---- エクスポート / インポート ----
   exportData() {
     const data = {
@@ -252,6 +297,7 @@ const Store = {
       cases: this.getCases(),
       staff: this.getAllStaff(),
       events: this.getEvents(),
+      todos: this.getTodos(),
       journals: JSON.parse(localStorage.getItem('gyosei_journals') || '[]'),
       payments: JSON.parse(localStorage.getItem('gyosei_payments') || '[]'),
       activityLog: JSON.parse(localStorage.getItem('gyosei_activity_log') || '[]'),
@@ -282,6 +328,7 @@ const Store = {
       if (data.cases) this._set(this.KEYS.CASES, data.cases);
       if (data.staff) this._set(this.KEYS.STAFF, data.staff);
       if (data.events) this._set(this.KEYS.EVENTS, data.events);
+      if (data.todos) this._set(this.KEYS.TODOS, data.todos);
       if (data.journals) localStorage.setItem('gyosei_journals', JSON.stringify(data.journals));
       if (data.payments) localStorage.setItem('gyosei_payments', JSON.stringify(data.payments));
       if (data.activityLog) localStorage.setItem('gyosei_activity_log', JSON.stringify(data.activityLog));
@@ -328,7 +375,7 @@ const Store = {
     };
 
     const categoryCounts = {};
-    const cats = ['garage', 'inheritance', 'mahjong', 'construction', 'farmland', 'liquor', 'visa', 'other'];
+    const cats = ['garage_oss', 'garage_paper', 'seal', 'inheritance'];
     cats.forEach(cat => {
       const count = cases.filter(c => c.category === cat).length;
       if (count > 0) categoryCounts[cat] = count;

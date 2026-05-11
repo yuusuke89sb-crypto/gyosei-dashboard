@@ -1,0 +1,64 @@
+
+/* ==========================================
+   印刷用スタイル
+   ========================================== */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  .modal, .modal * {
+    visibility: visible;
+  }
+  
+  .modal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+  }
+
+  .modal-overlay {
+    display: none !important;
+  }
+
+  .modal-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 100% !important;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* 印刷時に不要なボタンやスクロールを隠す */
+  .modal-header .btn,
+  .modal-close,
+  .form-actions {
+    display: none !important;
+  }
+
+  /* 背景色や文字色を印刷向けにリセット */
+  .acc-table {
+    color: black !important;
+  }
+  
+  .acc-table th {
+    background: #f3f4f6 !important;
+    color: #111827 !important;
+    border-bottom: 2px solid #ddd !important;
+  }
+
+  .acc-table td {
+    border-bottom: 1px solid #eee !important;
+  }
+}

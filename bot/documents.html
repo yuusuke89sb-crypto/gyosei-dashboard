@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>見積書・請求書作成 | 行政書士AIボット</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ===== 書類作成ツール専用スタイル ===== */
+    body { display: block; overflow-y: auto; background: var(--bg); }
+
+    .doc-tool-header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .doc-tool-header h1 { font-size: 1.1rem; font-weight: 700; }
+    .doc-tool-header .badge { font-size: .65rem; background: linear-gradient(135deg, #059669, #10B981); color: white; padding: 3px 10px; border-radius: 20px; }
+
+    .doc-back-btn {
+      padding: 8px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: .85rem;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+      margin-left: auto;
+      text-decoration: none;
+    }
+    .doc-back-btn:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary-light); }
+
+    .doc-container { max-width: 900px; margin: 24px auto; padding: 0 20px; }
+
+    /* タブ */
+    .doc-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4px;
+      margin-bottom: 24px;
+    }
+
+    .doc-tab {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: .95rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+    }
+    .doc-tab:hover { color: var(--text); background: var(--bg); }
+    .doc-tab.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(79,70,229,.25); }
+
+    /* フォーム */
+    .doc-form {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .doc-form-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { font-size: .82rem; font-weight: 600; color: var(--text-secondary); }
+    .form-group input, .form-group textarea, .form-group select {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      font-family: var(--font);
+      font-size: .92rem;
+      background: var(--bg-input);
+      transition: all var(--transition);
+      color: var(--text);
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79,70,229,.1);
+      background: white;
+    }
+
+    /* 明細行 */
+    .line-items-header {
+      display: grid;
+      grid-template-columns: 3fr 1fr 1fr 1fr 40px;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 2px solid var(--border);
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .line-item-row {
+      display: grid;
+      grid-template-columns: 3fr 1fr 1fr 1fr 40px;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+
+    .line-item-row input {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      font-family: var(--font);
+      font-size: .88rem;
+      background: var(--bg-input);
+      color: var(--text);
+    }
+    .line-item-row input:focus { outline: none; border-color: var(--primary); background: white; }
+
+    .line-item-row .subtotal {
+      font-weight: 600;
+      font-size: .88rem;
+      color: var(--primary);
+      text-align: right;
+      padding-right: 8px;
+    }
+
+    .remove-line-btn {
+      width: 32px; height: 32px;
+      border: none; border-radius: 50%;
+      background: transparent;
+      color: var(--text-light);
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all var(--transition);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .remove-line-btn:hover { background: #FEF2F2; color: #DC2626; }
+
+    .add-line-btn {
+      display: flex; align-items: center; gap: 6px;
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: var(--primary-bg);
+      border: 1px dashed var(--primary-light);
+      border-radius: var(--radius-xs);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: .85rem;
+      color: var(--primary);
+      font-weight: 600;
+      transition: all var(--transition);
+    }
+    .add-line-btn:hover { background: #E0E7FF; border-style: solid; }
+
+    /* 合計 */
+    .totals-section {
+      display: flex; flex-direction: column; gap: 8px;
+      margin-top: 20px;
+      padding: 16px 0 0;
+      border-top: 2px solid var(--border);
+      max-width: 320px;
+      margin-left: auto;
+    }
+
+    .total-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .92rem;
+    }
+    .total-row.grand {
+      font-size: 1.1rem; font-weight: 700;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, var(--primary), #6366F1);
+      color: white;
+      border-radius: var(--radius-sm);
+      margin-top: 4px;
+    }
+
+    /* 備考 */
+    .notes-section { margin-top: 20px; }
+    .notes-section textarea { width: 100%; resize: vertical; min-height: 80px; }
+
+    /* アクション */
+    .doc-actions {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .doc-action-btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: .95rem;
+      font-weight: 600;
+      transition: all var(--transition);
+      flex: 1;
+      min-width: 140px;
+    }
+    .doc-action-btn.primary { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white; }
+    .doc-action-btn.primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(79,70,229,.3); }
+    .doc-action-btn.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+    .doc-action-btn.secondary:hover { background: var(--primary-bg); border-color: var(--primary-light); }
+
+    @media (max-width: 640px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .line-items-header, .line-item-row { grid-template-columns: 2fr 1fr 1fr 40px; }
+      .line-items-header > :nth-child(3), .line-item-row > :nth-child(3) { display: none; }
+    }
+
+    /* 印刷時 */
+    @media print {
+      .doc-tool-header, .doc-tabs, .doc-actions, .add-line-btn, .remove-line-btn, .doc-back-btn { display: none !important; }
+      body { background: white; }
+      .doc-form { border: none; box-shadow: none; padding: 0; }
+      .doc-container { max-width: 100%; padding: 20px; }
+      .form-group input, .form-group textarea, .form-group select, .line-item-row input {
+        border: none; background: transparent; padding: 4px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-tool-header">
+    <span style="font-size:1.4rem;">📄</span>
+    <h1>見積書・請求書作成</h1>
+    <span class="badge">書類テンプレート</span>
+    <a href="inquiry.html" class="doc-back-btn">← 問い合わせチェックに戻る</a>
+  </div>
+
+  <div class="doc-container">
+    <div class="doc-tabs">
+      <button class="doc-tab active" data-type="estimate">📋 見積書</button>
+      <button class="doc-tab" data-type="invoice">💴 請求書</button>
+    </div>
+
+    <div class="doc-form" id="docForm">
+      <div class="doc-form-title" id="formTitle">📋 見積書</div>
+
+      <!-- 基本情報 -->
+      <div class="form-grid">
+        <div class="form-group">
+          <label>書類番号</label>
+          <input type="text" id="docNumber" placeholder="EST-2026-001">
+        </div>
+        <div class="form-group">
+          <label>発行日</label>
+          <input type="date" id="docDate">
+        </div>
+        <div class="form-group">
+          <label id="deadlineLabel">有効期限</label>
+          <input type="date" id="docDeadline">
+        </div>
+        <div class="form-group">
+          <label>件名</label>
+          <input type="text" id="docSubject" placeholder="建設業許可申請に関する業務">
+        </div>
+      </div>
+
+      <!-- 宛先 -->
+      <div class="form-grid" style="margin-top: 8px;">
+        <div class="form-group">
+          <label>宛先（お客様名）</label>
+          <input type="text" id="clientName" placeholder="株式会社○○ 御中">
+        </div>
+        <div class="form-group">
+          <label>お客様住所</label>
+          <input type="text" id="clientAddress" placeholder="〒000-0000 ○○県○○市…">
+        </div>
+        <div class="form-group">
+          <label>事務所名</label>
+          <input type="text" id="officeName" value="○○行政書士事務所" placeholder="○○行政書士事務所">
+        </div>
+        <div class="form-group">
+          <label>事務所住所・連絡先</label>
+          <input type="text" id="officeInfo" placeholder="〒000-0000 ○○市… TEL: 000-0000-0000">
+        </div>
+      </div>
+
+      <!-- 明細 -->
+      <div style="margin-top: 24px;">
+        <label style="font-size: .82rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; display: block;">明細項目</label>
+        <div class="line-items-header">
+          <span>項目名</span>
+          <span>数量</span>
+          <span>単価（税抜）</span>
+          <span style="text-align: right;">小計</span>
+          <span></span>
+        </div>
+        <div id="lineItems"></div>
+        <button class="add-line-btn" id="addLineBtn">＋ 行を追加</button>
+      </div>
+
+      <!-- 合計 -->
+      <div class="totals-section" id="totalsSection">
+        <div class="total-row"><span>小計</span><span id="subtotalDisplay">¥0</span></div>
+        <div class="total-row"><span>消費税（10%）</span><span id="taxDisplay">¥0</span></div>
+        <div class="total-row grand"><span>合計（税込）</span><span id="grandTotalDisplay">¥0</span></div>
+      </div>
+
+      <!-- 備考 -->
+      <div class="notes-section">
+        <div class="form-group full">
+          <label>備考</label>
+          <textarea id="docNotes" placeholder="・振込先：○○銀行 ○○支店 普通 0000000&#10;・お支払い期限：発行日より30日以内&#10;・上記は概算です。正式な金額は面談後に確定します。"></textarea>
+        </div>
+      </div>
+
+      <!-- アクション -->
+      <div class="doc-actions">
+        <button class="doc-action-btn primary" id="printBtn">🖨️ 印刷 / PDF保存</button>
+        <button class="doc-action-btn secondary" id="saveLocalBtn">💾 ブラウザに保存</button>
+        <button class="doc-action-btn secondary" id="clearBtn">🗑️ クリア</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const state = { type: 'estimate', lines: [] };
+
+    // 初期化
+    initDate();
+    addLine('報酬', 1, 0);
+    addLine('実費（印紙代等）', 1, 0);
+    updateTotals();
+
+    function initDate() {
+      const today = new Date();
+      document.getElementById('docDate').value = today.toISOString().split('T')[0];
+      const deadline = new Date(today);
+      deadline.setDate(deadline.getDate() + 30);
+      document.getElementById('docDeadline').value = deadline.toISOString().split('T')[0];
+
+      // 書類番号の自動生成
+      const prefix = state.type === 'estimate' ? 'EST' : 'INV';
+      const y = today.getFullYear();
+      const num = String(Math.floor(Math.random() * 900) + 100);
+      document.getElementById('docNumber').value = `${prefix}-${y}-${num}`;
+    }
+
+    // タブ切り替え
+    document.querySelectorAll('.doc-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.doc-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        state.type = tab.dataset.type;
+
+        const isEstimate = state.type === 'estimate';
+        document.getElementById('formTitle').textContent = isEstimate ? '📋 見積書' : '💴 請求書';
+        document.getElementById('deadlineLabel').textContent = isEstimate ? '有効期限' : '支払期限';
+
+        // 番号更新
+        const prefix = isEstimate ? 'EST' : 'INV';
+        const num = document.getElementById('docNumber').value;
+        document.getElementById('docNumber').value = num.replace(/^(EST|INV)/, prefix);
+      });
+    });
+
+    // 明細行追加
+    function addLine(name = '', qty = 1, price = 0) {
+      const container = document.getElementById('lineItems');
+      const row = document.createElement('div');
+      row.className = 'line-item-row';
+      row.innerHTML = `
+        <input type="text" class="line-name" value="${name}" placeholder="項目名">
+        <input type="number" class="line-qty" value="${qty}" min="1" style="text-align:center;">
+        <input type="number" class="line-price" value="${price}" min="0" placeholder="0">
+        <div class="subtotal">¥0</div>
+        <button class="remove-line-btn" title="削除">✕</button>
+      `;
+      container.appendChild(row);
+
+      // イベント
+      row.querySelector('.line-qty').addEventListener('input', updateTotals);
+      row.querySelector('.line-price').addEventListener('input', updateTotals);
+      row.querySelector('.remove-line-btn').addEventListener('click', () => {
+        if (container.children.length > 1) {
+          row.remove();
+          updateTotals();
+        }
+      });
+
+      updateTotals();
+    }
+
+    document.getElementById('addLineBtn').addEventListener('click', () => addLine());
+
+    function updateTotals() {
+      let subtotal = 0;
+      document.querySelectorAll('.line-item-row').forEach(row => {
+        const qty = parseInt(row.querySelector('.line-qty').value) || 0;
+        const price = parseInt(row.querySelector('.line-price').value) || 0;
+        const sub = qty * price;
+        row.querySelector('.subtotal').textContent = `¥${sub.toLocaleString()}`;
+        subtotal += sub;
+      });
+
+      const tax = Math.floor(subtotal * 0.1);
+      const grand = subtotal + tax;
+
+      document.getElementById('subtotalDisplay').textContent = `¥${subtotal.toLocaleString()}`;
+      document.getElementById('taxDisplay').textContent = `¥${tax.toLocaleString()}`;
+      document.getElementById('grandTotalDisplay').textContent = `¥${grand.toLocaleString()}`;
+    }
+
+    // 印刷
+    document.getElementById('printBtn').addEventListener('click', () => {
+      const docType = state.type === 'estimate' ? '見積書' : '請求書';
+      const number = document.getElementById('docNumber').value;
+      const date = document.getElementById('docDate').value;
+      const deadline = document.getElementById('docDeadline').value;
+      const subject = document.getElementById('docSubject').value;
+      const client = document.getElementById('clientName').value;
+      const clientAddr = document.getElementById('clientAddress').value;
+      const office = document.getElementById('officeName').value;
+      const officeInfo = document.getElementById('officeInfo').value;
+      const notes = document.getElementById('docNotes').value;
+
+      // 明細行を収集
+      const items = [];
+      document.querySelectorAll('.line-item-row').forEach(row => {
+        const name = row.querySelector('.line-name').value;
+        const qty = parseInt(row.querySelector('.line-qty').value) || 0;
+        const price = parseInt(row.querySelector('.line-price').value) || 0;
+        if (name) items.push({ name, qty, price, sub: qty * price });
+      });
+
+      const subtotal = items.reduce((s, i) => s + i.sub, 0);
+      const tax = Math.floor(subtotal * 0.1);
+      const grand = subtotal + tax;
+
+      const deadlineLabel = state.type === 'estimate' ? '有効期限' : 'お支払期限';
+
+      const pw = window.open('', '_blank');
+      if (!pw) { alert('ポップアップがブロックされました。'); return; }
+      pw.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+        <title>${docType} - ${client || '名前未入力'}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Noto Sans JP', sans-serif; padding: 40px; color: #1E293B; font-size: 13px; line-height: 1.7; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
+          .header h1 { font-size: 28px; color: #4F46E5; border-bottom: 3px solid #4F46E5; padding-bottom: 8px; }
+          .header-right { text-align: right; font-size: 12px; color: #64748B; }
+          .header-right .number { font-size: 14px; font-weight: 700; color: #1E293B; }
+          .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 30px; }
+          .party h3 { font-size: 11px; color: #64748B; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; }
+          .party .name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+          .party .address { font-size: 12px; color: #64748B; }
+          .subject { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 12px 16px; margin-bottom: 24px; }
+          .subject-label { font-size: 11px; color: #64748B; font-weight: 600; }
+          .subject-value { font-size: 14px; font-weight: 600; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          thead th { background: #4F46E5; color: white; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; }
+          thead th:last-child, thead th:nth-child(2), thead th:nth-child(3) { text-align: right; }
+          tbody td { padding: 10px 14px; border-bottom: 1px solid #E2E8F0; font-size: 13px; }
+          tbody td:last-child, tbody td:nth-child(2), tbody td:nth-child(3) { text-align: right; }
+          tbody tr:nth-child(even) { background: #F8FAFC; }
+          .totals { width: 280px; margin-left: auto; }
+          .totals .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+          .totals .grand { font-size: 16px; font-weight: 700; background: #4F46E5; color: white; padding: 10px 14px; border-radius: 6px; margin-top: 6px; }
+          .notes { margin-top: 30px; padding: 14px 16px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; }
+          .notes h4 { font-size: 11px; color: #64748B; margin-bottom: 6px; }
+          .notes p { font-size: 12px; white-space: pre-wrap; }
+          .stamp { width: 80px; height: 80px; border: 2px solid #DC2626; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #DC2626; font-size: 11px; font-weight: 700; text-align: center; margin-top: 10px; opacity: .7; }
+          .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #CBD5E1; font-size: 9px; color: #94A3B8; text-align: center; }
+        </style>
+      </head><body>
+        <div class="header">
+          <h1>${docType}</h1>
+          <div class="header-right">
+            <div class="number">${number}</div>
+            <div>発行日: ${date}</div>
+            <div>${deadlineLabel}: ${deadline}</div>
+          </div>
+        </div>
+        <div class="parties">
+          <div class="party">
+            <h3>宛先</h3>
+            <div class="name">${client || '—'}</div>
+            <div class="address">${clientAddr || ''}</div>
+          </div>
+          <div class="party" style="text-align: right;">
+            <h3>発行者</h3>
+            <div class="name">${office}</div>
+            <div class="address">${officeInfo || ''}</div>
+            <div class="stamp">印</div>
+          </div>
+        </div>
+        ${subject ? `<div class="subject"><div class="subject-label">件名</div><div class="subject-value">${subject}</div></div>` : ''}
+        <table>
+          <thead><tr><th>項目</th><th>数量</th><th>単価</th><th>金額</th></tr></thead>
+          <tbody>${items.map(i => `<tr><td>${i.name}</td><td>${i.qty}</td><td>¥${i.price.toLocaleString()}</td><td>¥${i.sub.toLocaleString()}</td></tr>`).join('')}</tbody>
+        </table>
+        <div class="totals">
+          <div class="row"><span>小計</span><span>¥${subtotal.toLocaleString()}</span></div>
+          <div class="row"><span>消費税（10%）</span><span>¥${tax.toLocaleString()}</span></div>
+          <div class="row grand"><span>合計（税込）</span><span>¥${grand.toLocaleString()}</span></div>
+        </div>
+        ${notes ? `<div class="notes"><h4>備考</h4><p>${notes}</p></div>` : ''}
+        <div class="footer">${office} - ${docType}</div>
+      </body></html>`);
+      pw.document.close();
+      pw.focus();
+      setTimeout(() => pw.print(), 500);
+    });
+
+    // ローカル保存
+    document.getElementById('saveLocalBtn').addEventListener('click', () => {
+      const data = {
+        type: state.type,
+        number: document.getElementById('docNumber').value,
+        date: document.getElementById('docDate').value,
+        deadline: document.getElementById('docDeadline').value,
+        subject: document.getElementById('docSubject').value,
+        client: document.getElementById('clientName').value,
+        clientAddr: document.getElementById('clientAddress').value,
+        office: document.getElementById('officeName').value,
+        officeInfo: document.getElementById('officeInfo').value,
+        notes: document.getElementById('docNotes').value,
+        items: []
+      };
+      document.querySelectorAll('.line-item-row').forEach(row => {
+        data.items.push({
+          name: row.querySelector('.line-name').value,
+          qty: row.querySelector('.line-qty').value,
+          price: row.querySelector('.line-price').value
+        });
+      });
+      const docs = JSON.parse(localStorage.getItem('gyosei_docs') || '[]');
+      docs.unshift({ ...data, savedAt: new Date().toLocaleString('ja-JP') });
+      localStorage.setItem('gyosei_docs', JSON.stringify(docs));
+      alert('保存しました！');
+    });
+
+    // クリア
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      if (!confirm('入力内容をクリアしますか？')) return;
+      document.getElementById('clientName').value = '';
+      document.getElementById('clientAddress').value = '';
+      document.getElementById('docSubject').value = '';
+      document.getElementById('docNotes').value = '';
+      document.getElementById('lineItems').innerHTML = '';
+      addLine('報酬', 1, 0);
+      addLine('実費（印紙代等）', 1, 0);
+      initDate();
+    });
+  });
+  </script>
+</body>
+</html>

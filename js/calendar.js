@@ -7,6 +7,8 @@ const Calendar = {
   filterStaffId: 'all',
   editingEventId: null,
   showInheritanceDeadlines: false,
+  viewMode: 'month',
+  selectedDate: null,
 
   EVENT_CATEGORIES: [
     { key: 'meeting', label: '🤝 打ち合わせ', color: '#3b82f6' },
@@ -17,6 +19,13 @@ const Calendar = {
   ],
 
   render() {
+    if (this.viewMode === 'day' && this.selectedDate) {
+      return this.renderDayView();
+    }
+    return this.renderMonthView();
+  },
+
+  renderMonthView() {
     const year = this.currentYear;
     const month = this.currentMonth;
     const monthName = `${year}年${month + 1}月`;
@@ -40,7 +49,7 @@ const Calendar = {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const CASE_ICONS = { garage: '🚗', inheritance: '📜', mahjong: '🀄' };
+    const CASE_ICONS = { garage_oss: '🚗', garage_paper: '🚗', seal: '🚙', inheritance: '📜' };
 
     let calendarDays = '';
 
@@ -417,83 +426,356 @@ const Calendar = {
     App.refreshView();
   },
 
-  // ---- 日付詳細モーダル ----
+  // ---- 日付詳細（1日表示への遷移） ----
   showDayDetail(dateStr) {
-    let cases = Store.getCases().filter(c => c.deadline === dateStr);
-    let events = Store.getEvents().filter(e => e.date === dateStr);
-    let inheritanceItems = this.showInheritanceDeadlines ? this.getInheritanceDeadlineItems().filter(item => item.date === dateStr) : [];
+    this.viewMode = 'day';
+    this.selectedDate = dateStr;
+    App.refreshView();
+  },
+
+  // ---- 1日のTODO管理 ----
+  addTodo(dateStr) {
+    const input = document.getElementById('newTodoInput');
+    const text = input ? input.value.trim() : '';
+    if (!text) return;
+    if (typeof Store.addTodo === 'function') {
+      Store.addTodo({ date: dateStr, text });
+      App.refreshView();
+    }
+  },
+
+  toggleTodo(id) {
+    if (typeof Store.toggleTodo === 'function') {
+      Store.toggleTodo(id);
+      App.refreshView();
+    }
+  },
+
+  deleteTodo(id) {
+    if (typeof Store.deleteTodo === 'function') {
+      Store.deleteTodo(id);
+      App.refreshView();
+    }
+  },
+
+  // ---- 日報の自動生成 ----
+  generateDailyReport(dateStr) {
+    const todayCases = Store.getCases().filter(c => c.deadline === dateStr);
+    const todayEvents = Store.getEvents().filter(e => e.date === dateStr);
+    const todayTodos = (typeof Store.getTodosByDate === 'function') ? Store.getTodosByDate(dateStr) : [];
+    const doneTodos = todayTodos.filter(t => t.done);
+    
+    // 翌日の取得
+    const dateObj = new Date(dateStr);
+    dateObj.setDate(dateObj.getDate() + 1);
+    const tomorrow = dateObj.toISOString().slice(0, 10);
+    const tomorrowCases = Store.getCases().filter(c => c.deadline === tomorrow);
+    const tomorrowEvents = Store.getEvents().filter(e => e.date === tomorrow);
+    
+    let report = `業務日報：${dateStr}\n\n`;
+    
+    report += `■ 本日の予定（打ち合わせ・外出など）\n`;
+    if(todayEvents.length > 0) {
+      report += todayEvents.map(e => `・${e.time ? e.time : '終日'}${e.endTime ? '〜'+e.endTime : ''} ${e.title}`).join('\n') + '\n';
+    } else {
+      report += `・特になし\n`;
+    }
+    
+    report += `\n■ 本日期限の案件\n`;
+    if(todayCases.length > 0) {
+      const doneCases = todayCases.filter(c => c.status === 'done');
+      const notDoneCases = todayCases.filter(c => c.status !== 'done');
+      
+      if (doneCases.length > 0) {
+        report += `【完了】\n` + doneCases.map(c => {
+          const client = Store.getClient(c.clientId);
+          return `・${c.title} ${client ? client.name + '様' : ''}`;
+        }).join('\n') + '\n';
+      }
+      if (notDoneCases.length > 0) {
+        report += `【未完了】\n` + notDoneCases.map(c => {
+          const client = Store.getClient(c.clientId);
+          return `・${c.title} ${client ? client.name + '様' : ''}`;
+        }).join('\n') + '\n';
+      }
+    } else {
+      report += `・特になし\n`;
+    }
+    
+    report += `\n■ 本日の完了TODO\n`;
+    if(doneTodos.length > 0) {
+      report += doneTodos.map(t => `・${t.text}`).join('\n') + '\n';
+    } else {
+      report += `・特になし\n`;
+    }
+    
+    report += `\n■ 明日の予定・期限\n`;
+    let tomorrowItems = [];
+    tomorrowEvents.forEach(e => tomorrowItems.push(`・[予定] ${e.time ? e.time : '終日'}${e.endTime ? '〜'+e.endTime : ''} ${e.title}`));
+    tomorrowCases.forEach(c => {
+      const client = Store.getClient(c.clientId);
+      tomorrowItems.push(`・[期限] ${c.title} ${client ? client.name + '様' : ''}`);
+    });
+    if(tomorrowItems.length > 0) {
+      report += tomorrowItems.join('\n') + '\n';
+    } else {
+      report += `・特になし\n`;
+    }
+    
+    report += `\n■ 備考・所感\n（空欄）\n`;
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'dailyReportModal';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-overlay" onclick="document.getElementById('dailyReportModal').remove()"></div>
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>📄 業務日報 (${dateStr})</h2>
+          <button class="modal-close" onclick="document.getElementById('dailyReportModal').remove()">✕</button>
+        </div>
+        <textarea class="daily-report-textarea" id="dailyReportTextarea">${report}</textarea>
+        <div class="form-actions" style="margin-top:16px;">
+          <button class="btn btn-secondary" onclick="document.getElementById('dailyReportModal').remove()">閉じる</button>
+          <button class="btn btn-primary" onclick="
+            const textarea = document.getElementById('dailyReportTextarea');
+            textarea.select();
+            document.execCommand('copy');
+            App.showToast('クリップボードにコピーしました');
+          ">📋 コピー</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  },
+
+  // ---- 1日（デイ）表示 ----
+  renderDayView() {
+    let cases = Store.getCases().filter(c => c.deadline === this.selectedDate);
+    let events = Store.getEvents().filter(e => e.date === this.selectedDate);
+    let inheritanceItems = this.showInheritanceDeadlines ? this.getInheritanceDeadlineItems().filter(item => item.date === this.selectedDate) : [];
+
     if (this.filterStaffId !== 'all') {
       cases = cases.filter(c => c.staffId == this.filterStaffId);
       events = events.filter(e => e.staffId == this.filterStaffId);
       inheritanceItems = inheritanceItems.filter(item => item.staffId == this.filterStaffId);
     }
-    if (cases.length === 0 && events.length === 0 && inheritanceItems.length === 0) {
-      // 空の日をクリック → 予定追加
-      this.showEventModal(dateStr);
-      return;
-    }
 
     const STATUS_LABELS = { received: '受付', hearing: 'ヒアリング', documents: '書類作成', applying: '申請中', done: '完了' };
-    const CATEGORY_LABELS = { garage: '🚗 車庫証明', inheritance: '📜 相続', mahjong: '🀄 麻雀関連' };
+    const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続' };
 
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.id = 'dayDetailModal';
-    modal.style.display = 'flex';
-    modal.innerHTML = `
-      <div class="modal-overlay" onclick="document.getElementById('dayDetailModal').remove()"></div>
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>${dateStr}</h2>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-primary btn-small" onclick="document.getElementById('dayDetailModal').remove(); Calendar.showEventModal('${dateStr}')">＋ 予定追加</button>
-            <button class="modal-close" onclick="document.getElementById('dayDetailModal').remove()">✕</button>
+    // 終日アイテム（時間指定なし）
+    let allDayHtml = '';
+    const allDayItems = [];
+    cases.forEach(c => allDayItems.push({ title: c.title, category: c.category, label: CATEGORY_LABELS[c.category] || '📋', staffId: c.staffId, type: 'case', id: c.id, status: c.status }));
+    events.filter(e => !e.time).forEach(e => allDayItems.push({ title: e.title, category: e.category, staffId: e.staffId, type: 'event', id: e.id }));
+    inheritanceItems.forEach(dl => {
+      const icon = dl.severity === 'critical' ? '🔴' : dl.severity === 'important' ? '🟠' : '🟡';
+      allDayItems.push({ title: dl.label + ' (' + dl.caseTitle + ')', category: 'inheritance', label: icon, staffId: dl.staffId, type: 'inheritance', id: dl.caseId });
+    });
+
+    if (allDayItems.length > 0) {
+      allDayHtml = allDayItems.map(item => {
+        const staffName = Store.getStaffName(item.staffId);
+        const clickAction = item.type === 'event' ? `Calendar.showEventEditModal('${item.id}')` : `App.navigate('cases'); setTimeout(() => Cases.showEditModal('${item.id}'), 100)`;
+        const icon = item.type === 'event' ? (this.EVENT_CATEGORIES.find(ec => ec.key === item.category)?.label.split(' ')[0] || '📌') : item.label;
+        return `
+          <div class="allday-item" onclick="${clickAction}">
+            <div class="allday-item-title">${icon} ${item.title}</div>
+            <div class="allday-item-meta">${staffName ? '🏷️ ' + staffName : ''}</div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      allDayHtml = '<p class="empty-message" style="margin:0">終日の予定・期限はありません</p>';
+    }
+
+    // 時間枠タイムライン（8:00 〜 20:00）
+    let timelineHtml = '';
+    const timedEvents = events.filter(e => e.time).sort((a, b) => a.time.localeCompare(b.time));
+    for (let h = 8; h <= 20; h++) {
+      const hourStr = String(h).padStart(2, '0');
+      
+      const hourEvents = timedEvents.filter(e => e.time.startsWith(hourStr + ':'));
+      
+      let hourEventsHtml = '';
+      if (hourEvents.length > 0) {
+        hourEventsHtml = hourEvents.map(e => {
+          const staffName = Store.getStaffName(e.staffId);
+          const cat = this.EVENT_CATEGORIES.find(ec => ec.key === e.category);
+          const icon = cat ? cat.label.split(' ')[0] : '📌';
+          return `
+            <div class="timeline-event-item" onclick="Calendar.showEventEditModal('${e.id}')" style="border-left-color:${cat ? cat.color : '#3b82f6'}">
+              <div class="timeline-event-header">
+                <span class="timeline-event-time">${e.time}${e.endTime ? ' 〜 ' + e.endTime : ''}</span>
+              </div>
+              <div class="timeline-event-title">${icon} ${e.title}</div>
+              <div class="timeline-event-meta">
+                ${staffName ? '<span>🏷️ ' + staffName + '</span>' : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        hourEventsHtml = `<div class="empty-hour"></div>`;
+      }
+
+      timelineHtml += `
+        <div class="timeline-hour-block">
+          <div class="timeline-hour-label">${hourStr}:00</div>
+          <div class="timeline-hour-content">
+            ${hourEventsHtml}
           </div>
         </div>
-        <div class="day-cases-list">
-          ${cases.map(c => {
-      const client = Store.getClient(c.clientId);
-      const staffName = Store.getStaffName(c.staffId);
-      return `
-              <div class="day-case-item" onclick="document.getElementById('dayDetailModal').remove(); App.navigate('cases'); setTimeout(() => Cases.showEditModal('${c.id}'), 100)">
-                <span class="category-tag category-${c.category}">${CATEGORY_LABELS[c.category]}</span>
-                <div class="day-case-title">${c.title}</div>
-                <div class="day-case-meta">
-                  <span class="status-badge status-${c.status}">${STATUS_LABELS[c.status]}</span>
-                  ${client ? `<span>👤 ${client.name}</span>` : ''}
-                  ${c.staffId ? `<span>🏷️ ${staffName}</span>` : ''}
+      `;
+    }
+
+    // 時間枠外の予定（もしあれば下に追加）
+    const outsideEvents = timedEvents.filter(e => {
+      const h = parseInt(e.time.split(':')[0], 10);
+      return h < 8 || h > 20;
+    });
+    if (outsideEvents.length > 0) {
+      timelineHtml += `
+        <div class="timeline-hour-block">
+          <div class="timeline-hour-label">その他</div>
+          <div class="timeline-hour-content">
+            ` + outsideEvents.map(e => {
+              const staffName = Store.getStaffName(e.staffId);
+              const cat = this.EVENT_CATEGORIES.find(ec => ec.key === e.category);
+              const icon = cat ? cat.label.split(' ')[0] : '📌';
+              return `
+                <div class="timeline-event-item" onclick="Calendar.showEventEditModal('${e.id}')" style="border-left-color:${cat ? cat.color : '#3b82f6'}">
+                  <div class="timeline-event-header">
+                    <span class="timeline-event-time">${e.time}${e.endTime ? ' 〜 ' + e.endTime : ''}</span>
+                  </div>
+                  <div class="timeline-event-title">${icon} ${e.title}</div>
+                  <div class="timeline-event-meta">${staffName ? '<span>🏷️ ' + staffName + '</span>' : ''}</div>
                 </div>
-              </div>`;
-    }).join('')}
-          ${events.map(ev => {
-      const cat = this.EVENT_CATEGORIES.find(ec => ec.key === ev.category);
-      const icon = cat ? cat.label.split(' ')[0] : '📌';
-      const staffName = Store.getStaffName(ev.staffId);
-      return `
-              <div class="day-case-item day-event-item" onclick="document.getElementById('dayDetailModal').remove(); Calendar.showEventEditModal('${ev.id}')" style="border-left:3px solid ${cat ? cat.color : '#f59e0b'}">
-                <div class="day-case-title">${icon} ${ev.title}</div>
-                <div class="day-case-meta">
-                  ${ev.time ? `<span>🕐 ${ev.time}${ev.endTime ? '〜' + ev.endTime : ''}</span>` : ''}
-                  ${ev.staffId ? `<span>🏷️ ${staffName}</span>` : ''}
-                </div>
-              </div>`;
-    }).join('')}
-          ${inheritanceItems.map(dl => {
-      const icon = dl.severity === 'critical' ? '🔴' : dl.severity === 'important' ? '🟠' : '🟡';
-      const statusLabel = dl.diffDays < 0 ? `${Math.abs(dl.diffDays)}日超過` : dl.diffDays === 0 ? '本日' : `あと${dl.diffDays}日`;
-      return `
-              <div class="day-case-item day-event-item" onclick="document.getElementById('dayDetailModal').remove(); App.navigate('cases'); setTimeout(() => Cases.showEditModal('${dl.caseId}'), 100)" style="border-left:3px solid #dc2626">
-                <div class="day-case-title">${icon} ${dl.label}</div>
-                <div class="day-case-meta">
-                  <span>📜 ${dl.caseTitle}</span>
-                  <span style="color:${dl.diffDays < 0 ? '#ef4444' : dl.diffDays <= 30 ? '#f59e0b' : 'var(--text-secondary)'};font-weight:600">${statusLabel}</span>
-                </div>
-              </div>`;
-    }).join('')}
+              `;
+            }).join('') + `
+          </div>
+        </div>
+      `;
+    }
+
+    const dateObj = new Date(this.selectedDate);
+    const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+
+    const staffList = Store.getStaff();
+    const staffFilterOptions = staffList.map(s =>
+      `<option value="${s.id}" ${this.filterStaffId == s.id ? 'selected' : ''}>${s.name}</option>`
+    ).join('');
+
+    // TODOリストの生成
+    const todos = (typeof Store.getTodosByDate === 'function') ? Store.getTodosByDate(this.selectedDate) : [];
+    let todoHtml = '';
+    if (todos.length > 0) {
+      todoHtml = todos.map(t => `
+        <div class="todo-item ${t.done ? 'done' : ''}">
+          <div class="todo-checkbox" onclick="Calendar.toggleTodo('${t.id}')">
+            ${t.done ? '☑' : '☐'}
+          </div>
+          <div class="todo-text">${t.text}</div>
+          <div class="todo-delete" onclick="Calendar.deleteTodo('${t.id}')">✕</div>
+        </div>
+      `).join('');
+    } else {
+      todoHtml = '<p class="empty-message" style="margin:0;font-size:0.85rem">今日のTODOはありません</p>';
+    }
+
+    return `
+      <div class="calendar-page">
+        <div class="page-header">
+          <div style="display:flex;align-items:center;gap:16px;">
+            <button class="btn btn-secondary" onclick="Calendar.goBackToMonth()" style="padding:6px 12px;font-size:1.1rem" title="月表示に戻る">◀</button>
+            <h1 style="margin:0">スケジュール</h1>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="Calendar.showEventModal('${this.selectedDate}')">
+              ＋ 予定追加
+            </button>
+          </div>
+        </div>
+
+        <div class="cal-controls">
+          <div class="cal-nav">
+            <button class="btn btn-icon" onclick="Calendar.prevDay()">◀</button>
+            <h2 class="cal-month-name" style="min-width:180px;text-align:center;">${this.selectedDate}（${dayOfWeek}）</h2>
+            <button class="btn btn-icon" onclick="Calendar.nextDay()">▶</button>
+            <button class="btn btn-secondary btn-small" onclick="Calendar.goTodayDay()">今日</button>
+          </div>
+          <div class="cal-staff-filter">
+            <label>👤 担当者:</label>
+            <select class="filter-select" onchange="Calendar.onStaffFilter(this.value)">
+              <option value="all" ${this.filterStaffId === 'all' ? 'selected' : ''}>全員</option>
+              ${staffFilterOptions}
+            </select>
+          </div>
+        </div>
+
+        <div class="cal-day-view">
+          <div class="day-view-allday">
+            <div class="day-view-allday-title">終日の予定・期限</div>
+            <div class="day-view-allday-grid">
+              ${allDayHtml}
+            </div>
+          </div>
+          <div class="day-todo-section">
+            <div class="day-todo-header">
+              <div class="day-todo-title">☑️ 今日のTODO</div>
+              <button class="btn btn-secondary btn-small" onclick="Calendar.generateDailyReport('${this.selectedDate}')">📄 日報生成</button>
+            </div>
+            <div class="todo-add-row">
+              <input type="text" id="newTodoInput" placeholder="新しいTODOを追加... (Enterで追加)" onkeydown="if(event.key==='Enter') Calendar.addTodo('${this.selectedDate}')">
+              <button class="btn btn-primary btn-small" onclick="Calendar.addTodo('${this.selectedDate}')">追加</button>
+            </div>
+            <div class="todo-list">
+              ${todoHtml}
+            </div>
+          </div>
+          <div class="day-view-timeline">
+            ${timelineHtml}
+          </div>
         </div>
       </div>
+      ${this.renderEventModal()}
     `;
-    document.body.appendChild(modal);
+  },
+
+  goBackToMonth() {
+    this.viewMode = 'month';
+    App.refreshView();
+  },
+
+  prevDay() {
+    const d = new Date(this.selectedDate);
+    d.setDate(d.getDate() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    this.selectedDate = `${y}-${m}-${day}`;
+    App.refreshView();
+  },
+
+  nextDay() {
+    const d = new Date(this.selectedDate);
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    this.selectedDate = `${y}-${m}-${day}`;
+    App.refreshView();
+  },
+
+  goTodayDay() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    this.selectedDate = `${y}-${m}-${day}`;
+    App.refreshView();
   },
 
   // ---- iCalendar (.ics) エクスポート ----
@@ -521,7 +803,7 @@ const Calendar = {
       'X-WR-CALNAME:行政書士スケジュール',
     ];
 
-    const CASE_LABELS = { garage: '車庫証明', inheritance: '相続', mahjong: '麻雀関連' };
+    const CASE_LABELS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
 
     cases.forEach(c => {
       const client = Store.getClient(c.clientId);

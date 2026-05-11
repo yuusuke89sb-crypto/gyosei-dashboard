@@ -120,6 +120,14 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <span class="mode-card-arrow">→</span>
         </button>
+        <button class="mode-card knowledge" id="modeKnowledge">
+          <div class="mode-card-icon">📚</div>
+          <div class="mode-card-body">
+            <h3>実務知識</h3>
+            <p>業務範囲・法改正・報酬相場・想定Q&Aをすぐ確認。電話中の即答に。</p>
+          </div>
+          <span class="mode-card-arrow">→</span>
+        </button>
       </div>
     `;
     mainContent.appendChild(container);
@@ -129,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('modeChecklist').addEventListener('click', () => startFlow(categoryId));
     document.getElementById('modeTalkScript').addEventListener('click', () => startTalkScript(categoryId));
     document.getElementById('modeFeeSimulator').addEventListener('click', () => startFeeSimulator(categoryId));
+    document.getElementById('modeKnowledge').addEventListener('click', () => startKnowledgeRef(categoryId));
   }
 
   function highlightSidebarCategory(categoryId) {
@@ -1107,5 +1116,130 @@ document.addEventListener('DOMContentLoaded', () => {
     printWin.document.close();
     printWin.focus();
     setTimeout(() => printWin.print(), 500);
+  }
+
+  // ============================================================
+  // 実務知識レファレンス
+  // ============================================================
+  function startKnowledgeRef(categoryId) {
+    const refData = typeof KNOWLEDGE_REF !== 'undefined' && KNOWLEDGE_REF[categoryId];
+    if (!refData) { alert('このカテゴリの実務知識は準備中です。'); return; }
+    highlightSidebarCategory(categoryId);
+    renderKnowledgeRef(categoryId, refData);
+  }
+
+  function renderKnowledgeRef(categoryId, refData) {
+    const cat = INQUIRY_FLOWS.categories.find(c => c.id === categoryId);
+    mainContent.innerHTML = '';
+    const container = document.createElement('div');
+    container.className = 'knowledge-ref-container';
+
+    // ヘッダー
+    container.innerHTML = `
+      <div class="ts-header">
+        <div class="ts-header-left">
+          <button class="flow-home-btn" id="krHomeBtn" title="最初に戻る">🏠</button>
+          <span class="flow-cat-badge" style="background: ${cat.color}">${cat.icon} ${cat.name}</span>
+          <span class="ts-mode-badge" style="background: linear-gradient(135deg, #6366F1, #8B5CF6)">📚 実務知識</span>
+        </div>
+      </div>
+    `;
+
+    // セクション描画
+    const body = document.createElement('div');
+    body.className = 'kr-body';
+
+    refData.sections.forEach(section => {
+      const sec = document.createElement('div');
+      sec.className = 'kr-section';
+      sec.innerHTML = `<h3 class="kr-section-title">${section.heading}</h3>`;
+
+      const content = document.createElement('div');
+      content.className = 'kr-section-content';
+
+      if (section.type === 'table') {
+        let html = '<div class="kr-table-wrap"><table class="kr-table"><thead><tr>';
+        section.headers.forEach(h => html += `<th>${h}</th>`);
+        html += '</tr></thead><tbody>';
+        section.rows.forEach(row => {
+          html += '<tr>';
+          row.forEach(cell => html += `<td>${cell}</td>`);
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        content.innerHTML = html;
+      } else if (section.type === 'list') {
+        content.innerHTML = '<ul class="kr-list">' + section.items.map(i => `<li>${i}</li>`).join('') + '</ul>';
+      } else if (section.type === 'alert') {
+        content.innerHTML = '<div class="kr-alert"><ul>' + section.items.map(i => `<li>${i}</li>`).join('') + '</ul></div>';
+      } else if (section.type === 'split') {
+        let html = '<div class="kr-split">';
+        html += '<div class="kr-split-ok"><div class="kr-split-label">✅ できる業務</div><ul>' + section.ok.map(i => `<li>${i}</li>`).join('') + '</ul></div>';
+        html += '<div class="kr-split-ng"><div class="kr-split-label">❌ できない業務</div><ul>' + section.ng.map(i => `<li>${i}</li>`).join('') + '</ul></div>';
+        html += '</div>';
+        content.innerHTML = html;
+      } else if (section.type === 'qa') {
+        let html = '<div class="kr-qa-list">';
+        section.items.forEach(item => {
+          html += `<div class="kr-qa-item">`;
+          html += `<div class="kr-qa-q"><span class="kr-qa-badge">Q</span>${item.q}</div>`;
+          html += `<div class="kr-qa-a"><span class="kr-qa-badge a">A</span>${item.a}</div>`;
+          html += `</div>`;
+        });
+        html += '</div>';
+        content.innerHTML = html;
+      }
+
+      sec.appendChild(content);
+      body.appendChild(sec);
+    });
+
+    container.appendChild(body);
+
+    // クロスセル提案
+    const crossSells = typeof CROSS_SELL_MAP !== 'undefined' && CROSS_SELL_MAP[categoryId];
+    if (crossSells && crossSells.length > 0) {
+      const csSection = document.createElement('div');
+      csSection.className = 'kr-section kr-cross-sell';
+      csSection.innerHTML = `<h3 class="kr-section-title">🔗 関連サービスの提案（クロスセル）</h3>`;
+      const csContent = document.createElement('div');
+      csContent.className = 'kr-cross-sell-list';
+
+      crossSells.forEach(cs => {
+        const targetCat = INQUIRY_FLOWS.categories.find(c => c.id === cs.to);
+        if (!targetCat) return;
+        const card = document.createElement('button');
+        card.className = 'kr-cross-sell-card';
+        card.innerHTML = `
+          <div class="kr-cs-icon" style="background: ${targetCat.color}">${targetCat.icon}</div>
+          <div class="kr-cs-body">
+            <div class="kr-cs-name">${targetCat.name}</div>
+            <div class="kr-cs-reason">${cs.reason}</div>
+          </div>
+          <span class="kr-cs-arrow">→</span>
+        `;
+        card.addEventListener('click', () => showModeSelector(cs.to));
+        csContent.appendChild(card);
+      });
+
+      csSection.appendChild(csContent);
+      body.appendChild(csSection);
+    }
+
+    // フッター
+    const footer = document.createElement('div');
+    footer.className = 'ts-footer';
+    footer.innerHTML = `
+      <button class="summary-btn restart" id="krBackToMode">📋 チェックリストに切替</button>
+      <button class="summary-btn home" id="krFooterHome">🏠 カテゴリ選択に戻る</button>
+    `;
+    container.appendChild(footer);
+
+    mainContent.appendChild(container);
+    requestAnimationFrame(() => container.classList.add('visible'));
+
+    document.getElementById('krHomeBtn').addEventListener('click', showWelcome);
+    document.getElementById('krBackToMode').addEventListener('click', () => startFlow(categoryId));
+    document.getElementById('krFooterHome').addEventListener('click', showWelcome);
   }
 });

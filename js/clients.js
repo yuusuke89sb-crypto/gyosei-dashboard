@@ -246,7 +246,7 @@ const Clients = {
     const client = Store.getClient(id);
     if (!client) return;
     const cases = Store.getCasesByClient(id);
-    const CATEGORY_LABELS = { garage: '🚗 車庫証明', inheritance: '📜 相続', mahjong: '🀄 麻雀関連' };
+    const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続' };
     const STATUS_LABELS = { received: '受付', hearing: 'ヒアリング', documents: '書類作成', applying: '申請中', done: '完了' };
     const staffName = Store.getStaffName(client.staffId);
     const typeBadge = client.type === '法人'

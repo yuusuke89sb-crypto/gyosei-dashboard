@@ -10,7 +10,8 @@ const INQUIRY_FLOWS = {
     { id: 'contract', name: '契約書・内容証明', icon: '📝', color: '#0891B2' },
     { id: 'waste', name: '産業廃棄物', icon: '♻️', color: '#65A30D' },
     { id: 'transport', name: '運送業許可', icon: '🚛', color: '#BE185D' },
-    { id: 'agriculture', name: '農地転用', icon: '🌾', color: '#854D0E' }
+    { id: 'agriculture', name: '農地転用', icon: '🌾', color: '#854D0E' },
+    { id: 'subsidy', name: '補助金・助成金', icon: '💰', color: '#7C3AED' }
   ],
 
   flows: {
@@ -847,6 +848,96 @@ const INQUIRY_FLOWS = {
           '土地利用計画図'
         ],
         processing: '許可まで約1〜3ヶ月（農業委員会の総会日程による）'
+      }
+    },
+
+    // ===== 補助金・助成金 =====
+    subsidy: {
+      title: '補助金・助成金 確認フロー',
+      steps: [
+        {
+          id: 'type',
+          question: 'どの補助金に興味がありますか？',
+          type: 'choice',
+          choices: [
+            { label: '小規模事業者持続化補助金', value: 'jizokuka', next: 'scale_check', icon: '🏪' },
+            { label: 'ものづくり補助金', value: 'monozukuri', next: 'scale_check', icon: '🏭' },
+            { label: 'IT導入補助金', value: 'it', next: 'it_check', icon: '💻' },
+            { label: '事業再構築補助金', value: 'saikouchiku', next: 'scale_check', icon: '🔄' },
+            { label: 'その他・わからない', value: 'other', next: 'scale_check', icon: '❓' }
+          ]
+        },
+        {
+          id: 'scale_check',
+          question: '事業の規模を教えてください',
+          type: 'choice',
+          info: '小規模事業者持続化補助金は従業員20名以下（商業・サービス業は5名以下）が対象です',
+          choices: [
+            { label: '個人事業主', value: 'individual', next: 'plan_check', icon: '👤' },
+            { label: '法人（従業員5名以下）', value: 'micro', next: 'plan_check', icon: '🏠' },
+            { label: '法人（従業員6〜20名）', value: 'small', next: 'plan_check', icon: '🏢' },
+            { label: '法人（従業員21名以上）', value: 'medium', next: 'plan_check', note: '⚠️ 小規模事業者持続化補助金は対象外の可能性', icon: '🏭' }
+          ]
+        },
+        {
+          id: 'it_check',
+          question: 'IT導入補助金の確認事項です',
+          type: 'checklist',
+          items: [
+            { label: '導入したいITツールが決まっている', key: 'tool' },
+            { label: 'IT導入支援事業者が決まっている', key: 'vendor' },
+            { label: 'gBizIDプライムを取得済み', key: 'gbizid' },
+            { label: 'SECURITY ACTIONを宣言済み', key: 'security' }
+          ],
+          next: 'plan_check'
+        },
+        {
+          id: 'plan_check',
+          question: '事業計画の準備状況を確認します',
+          type: 'checklist',
+          items: [
+            { label: '事業計画書（経営計画書）を作成済み', key: 'plan' },
+            { label: '補助事業の具体的内容が決まっている', key: 'content' },
+            { label: '見積書を取得済み', key: 'estimate' },
+            { label: '経費の区分を整理できている', key: 'expense' },
+            { label: 'gBizIDプライムを取得済み', key: 'gbizid' }
+          ],
+          next: 'support_check'
+        },
+        {
+          id: 'support_check',
+          question: '認定経営革新等支援機関の確認書は取得済みですか？',
+          type: 'yesno',
+          info: 'ものづくり補助金・事業再構築補助金等では認定支援機関の確認書が必要です',
+          yes: { next: 'bonus_check', note: '✅ 認定支援機関の確認書あり' },
+          no: { next: 'bonus_check', note: '⚠️ 認定支援機関への相談が必要 → 商工会議所、金融機関、税理士等' }
+        },
+        {
+          id: 'bonus_check',
+          question: '加点要件に該当するものはありますか？',
+          type: 'checklist',
+          items: [
+            { label: '経営力向上計画の認定', key: 'keiei' },
+            { label: '事業継続力強化計画の認定', key: 'bcp' },
+            { label: '賃上げ表明', key: 'wage' },
+            { label: '被災事業者', key: 'disaster' },
+            { label: 'デジタル化基盤導入', key: 'digital' }
+          ],
+          next: null
+        }
+      ],
+      summary: {
+        title: '補助金・助成金 確認結果',
+        documents: [
+          '事業計画書（経営計画書）',
+          '補助事業計画書',
+          '経費明細書・見積書',
+          '確定申告書 又は 決算書（直近1〜2期分）',
+          '認定経営革新等支援機関の確認書',
+          'gBizIDプライムアカウント',
+          '商業登記簿謄本（法人の場合）'
+        ],
+        processing: '公募期間→審査→採択通知まで約2〜4ヶ月'
       }
     }
   }

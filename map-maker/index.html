@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>所在図メーカー - 車庫証明用地図作成ツール</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>📍 所在図メーカー</h1>
+      <p class="subtitle">車庫証明用</p>
+    </div>
+
+    <div class="tool-section">
+      <h3>ツール</h3>
+      <div class="tool-grid">
+        <button class="tool-btn active" data-tool="select" title="選択・移動">
+          <span class="tool-icon">🖱️</span><span class="tool-label">選択</span>
+        </button>
+        <button class="tool-btn" data-tool="road" title="道路を描画">
+          <span class="tool-icon">━</span><span class="tool-label">道路</span>
+        </button>
+        <button class="tool-btn" data-tool="building" title="建物を描画">
+          <span class="tool-icon">▢</span><span class="tool-label">建物</span>
+        </button>
+        <button class="tool-btn" data-tool="text" title="テキスト追加">
+          <span class="tool-icon">A</span><span class="tool-label">テキスト</span>
+        </button>
+        <button class="tool-btn" data-tool="marker" title="マーカー配置">
+          <span class="tool-icon">📌</span><span class="tool-label">マーカー</span>
+        </button>
+        <button class="tool-btn" data-tool="distance" title="距離を測定">
+          <span class="tool-icon">↔</span><span class="tool-label">距離</span>
+        </button>
+        <button class="tool-btn" data-tool="symbol" title="地図記号を配置">
+          <span class="tool-icon">🚦</span><span class="tool-label">地図記号</span>
+        </button>
+        <button class="tool-btn" data-tool="railroad" title="踏切線を描画">
+          <span class="tool-icon">🚉</span><span class="tool-label">踏切線</span>
+        </button>
+        <button class="tool-btn" data-tool="boundary" title="申請地境界線（配置図）" style="border-color:#b91c1c">
+          <span class="tool-icon">□</span><span class="tool-label">境界線</span>
+        </button>
+        <button class="tool-btn" data-tool="scalebar" title="縮尺バー（配置図）" style="border-color:#0f766e">
+          <span class="tool-icon">↔</span><span class="tool-label">縮尺バー</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="tool-section" id="road-options" style="display:none">
+      <h3>道路設定</h3>
+      <label>太さ <input type="range" id="road-width" min="4" max="24" value="10"><span id="road-width-val">10</span></label>
+      <label>色
+        <select id="road-color">
+          <option value="#ffffff">白（主要道路）</option>
+          <option value="#fffde7">黄（国道）</option>
+          <option value="#e8f5e9">緑（高速）</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="tool-section" id="marker-options" style="display:none">
+      <h3>マーカー種類</h3>
+      <div class="marker-types">
+        <button class="marker-type-btn active" data-marker="parking">🅿️ 保管場所</button>
+        <button class="marker-type-btn" data-marker="residence">🏠 使用の本拠</button>
+        <button class="marker-type-btn" data-marker="landmark">⭐ 目印</button>
+        <button class="marker-type-btn" data-marker="pin">● 位置ピン</button>
+        <button class="marker-type-btn" data-marker="arrow">➤ 矢印</button>
+      </div>
+    </div>
+
+    <div class="tool-section" id="symbol-options" style="display:none">
+      <h3>地図記号</h3>
+      <div class="symbol-grid">
+        <button class="symbol-btn active" data-sym="signal">🚦<span>信号</span></button>
+        <button class="symbol-btn" data-sym="crossing">✕<span>踏切</span></button>
+        <button class="symbol-btn" data-sym="school">文<span>学校</span></button>
+        <button class="symbol-btn" data-sym="post">〒<span>郵便局</span></button>
+        <button class="symbol-btn" data-sym="gas">⛽<span>GS</span></button>
+        <button class="symbol-btn" data-sym="park">🌳<span>公園</span></button>
+        <button class="symbol-btn" data-sym="store">🏪<span>コンビニ</span></button>
+        <button class="symbol-btn" data-sym="police">🚔<span>警察</span></button>
+        <button class="symbol-btn" data-sym="hospital">🏥<span>病院</span></button>
+        <button class="symbol-btn" data-sym="shrine">⛩<span>神社</span></button>
+      </div>
+    </div>
+
+    <div class="tool-section">
+      <h3>参照画像</h3>
+      <button class="action-btn" id="btn-load-ref">📂 画像を読み込む</button>
+      <input type="file" id="file-input" accept="image/*" style="display:none">
+      <label class="opacity-label">
+        透過度 <input type="range" id="ref-opacity" min="0" max="100" value="30">
+        <span id="ref-opacity-val">30%</span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="ref-visible" checked> 参照画像を表示
+      </label>
+    </div>
+
+    <div class="tool-section" style="border:2px solid #0f766e;border-radius:8px;padding:8px;margin-top:4px">
+      <h3 style="color:#0f766e;margin:0 0 4px">📐 配置図トレース</h3>
+      <p style="font-size:10px;color:var(--text-muted);margin:0 0 6px">Googleマップ高ズームから<br>道路外形・建物輪郭を抽出</p>
+      <button class="action-btn primary" onclick="autoSimplify('haichizu')" style="background:#0f766e">📐 配置図トレース実行</button>
+    </div>
+
+    <!-- 道路結合パネル（複数選択時のみ表示） -->
+    <div class="tool-section" id="merge-panel" style="display:none;border:2px solid #f97316;border-radius:8px;padding:8px;">
+      <p style="font-size:11px;color:#f97316;margin:0 0 4px;font-weight:bold;">🔗 道路結合モード</p>
+      <span id="merge-count" style="font-size:10px;color:#1e293b;display:block;margin-bottom:6px;"></span>
+      <button class="action-btn primary" id="btn-merge-roads" style="background:#f97316;">🔗 結合する</button>
+    </div>
+
+    <div class="tool-section" id="vectorize-section">
+      <h3>🛣️ ベクタートレース</h3>
+      <p style="font-size:10px;color:var(--text-muted);margin:0 0 6px">道路・河川を綺麗なベクターで抽出<br>建物・文字は除去します</p>
+      <button class="action-btn primary" id="btn-vectorize" onclick="autoVectorize()">🛣️ ベクタートレース実行</button>
+      <div id="vec-status" style="font-size:10px;color:#16a34a;min-height:16px;margin:4px 0"></div>
+      <label class="opacity-label" title="大きいほど道路領域を広く検出">
+        感度 <input type="range" id="vec-sensitivity" min="1" max="12" step="0.5" value="4">
+        <span id="vec-sensitivity-val">4</span>
+      </label>
+      <label class="opacity-label" title="文字を消すためのブラー（大きいほど文字が消えるが細い道も消える）">
+        文字除去 <input type="range" id="vec-blur" min="0" max="5" step="0.5" value="2">
+        <span id="vec-blur-val">2px</span>
+      </label>
+      <label class="opacity-label" title="線の滑らかさ（大きいほど少ない点で直線的）">
+        簡略化 <input type="range" id="vec-epsilon" min="1" max="10" step="0.5" value="3">
+        <span id="vec-epsilon-val">3</span>
+      </label>
+      <label class="opacity-label" title="これより短いパスは除去（ノイズ削減）">
+        最小路線長 <input type="range" id="vec-minlen" min="5" max="80" step="5" value="15">
+        <span id="vec-minlen-val">15px</span>
+      </label>
+      <label class="opacity-label" title="この距離以内の端点同士を自動接続（道路の分断を改善）">
+        接続半径 <input type="range" id="vec-snap" min="0" max="40" step="1" value="25">
+        <span id="vec-snap-val">25px</span>
+      </label>
+      <details style="margin-top:6px">
+        <summary style="font-size:10px;color:var(--text-muted);cursor:pointer">▶ 旧ピクセルトレース</summary>
+        <div style="margin-top:6px">
+          <label style="display:block;margin:0 0 4px;font-size:11px;color:var(--text-muted)">地図の種類</label>
+          <div class="map-type-toggle" style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+            <button class="map-type-btn" data-maptype="google" style="font-size:11px">Google<br>全体</button>
+            <button class="map-type-btn" data-maptype="gsi" style="font-size:11px">地理院<br>地図</button>
+            <button class="map-type-btn" data-maptype="road" style="font-size:11px">Google<br>道路のみ</button>
+            <button class="map-type-btn" data-maptype="building" style="font-size:11px">Google<br>建物のみ</button>
+            <button class="map-type-btn active" data-maptype="itsumonavi" style="font-size:11px;border-top:2px solid #0066cc;grid-column:span 2">いつもNAVI<br>道路＋河川</button>
+            <button class="map-type-btn" data-maptype="itsumonavi_road" style="font-size:11px;border-color:#0066cc">いつも<br>道路のみ</button>
+            <button class="map-type-btn" data-maptype="itsumonavi_river" style="font-size:11px;border-color:#0066cc">いつも<br>河川のみ</button>
+          </div>
+          <button class="action-btn" id="btn-simplify" onclick="autoSimplify()" style="margin-top:6px">✏️ ピクセルトレース</button>
+          <label class="opacity-label">
+            スムーズ <input type="range" id="smooth-level" min="0" max="4" step="0.5" value="0">
+            <span id="smooth-level-val">0px</span>
+          </label>
+        </div>
+      </details>
+    </div>
+
+    <div class="tool-section">
+      <h3>表示</h3>
+      <label class="checkbox-label">
+        <input type="checkbox" id="show-grid" checked> グリッド表示
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="show-compass"> 方位記号
+      </label>
+      <div id="compass-controls" style="display:none">
+        <label class="opacity-label">
+          角度 <input type="range" id="compass-angle" min="0" max="359" value="0">
+          <span id="compass-angle-val">0°</span>
+        </label>
+        <button class="action-btn" id="btn-compass-reset" style="margin-top:4px;font-size:11px;padding:4px 6px">位置リセット</button>
+        <div style="font-size:10px;color:#64748b;margin-top:3px">🖱️ ドラッグで移動</div>
+      </div>
+    </div>
+
+    <div class="tool-section actions">
+      <div class="zoom-btns">
+        <button class="action-btn" id="btn-zoom-in">🔍＋</button>
+        <button class="action-btn" id="btn-zoom-reset">1:1</button>
+        <button class="action-btn" id="btn-zoom-out">🔍－</button>
+      </div>
+      <button class="action-btn" id="btn-undo">↩ 元に戻す</button>
+      <button class="action-btn" id="btn-redo">↪ やり直し</button>
+      <button class="action-btn" id="btn-crop">✂️ トリミング</button>
+      <button class="action-btn danger" id="btn-clear">🗑 全消去</button>
+      <button class="action-btn primary" id="btn-export">💾 PNG出力</button>
+    </div>
+  </aside>
+
+  <!-- Main Canvas Area -->
+  <main class="main">
+    <div class="canvas-container" id="canvas-container">
+      <canvas id="canvas"></canvas>
+      <!-- Drop zone overlay -->
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-zone-content">
+          <div class="drop-icon">📋</div>
+          <h2>Googleマップのスクリーンショットを<br>ここにペースト または ドロップ</h2>
+          <p>Ctrl+V でクリップボードから貼り付け</p>
+          <button class="action-btn primary" id="btn-browse">画像ファイルを選択</button>
+          <button class="action-btn" id="btn-skip">参照画像なしで開始 →</button>
+        </div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span id="status-tool">ツール: 選択</span>
+      <span id="status-pos">X: 0, Y: 0</span>
+      <span id="status-hint">Ctrl+V: 画像貼付 | Ctrl+Z: 戻す | Enter: 道路確定 | Del: 削除</span>
+    </div>
+  </main>
+</div>
+
+<!-- Text input modal -->
+<div class="modal-overlay" id="text-modal" style="display:none">
+  <div class="modal">
+    <h3>テキスト入力</h3>
+    <input type="text" id="text-input" placeholder="例: 国道22号線" autofocus>
+    <div class="modal-actions">
+      <button class="action-btn" id="text-cancel">キャンセル</button>
+      <button class="action-btn primary" id="text-ok">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- Road label modal -->
+<div class="modal-overlay" id="road-modal" style="display:none">
+  <div class="modal">
+    <h3>道路名（任意）</h3>
+    <input type="text" id="road-label-input" placeholder="例: 県道○○号">
+    <div class="modal-actions">
+      <button class="action-btn" id="road-label-skip">なし</button>
+      <button class="action-btn primary" id="road-label-ok">設定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Crop confirmation bar -->
+<div id="crop-bar" style="display:none">
+  <span>✂️ トリミング範囲をドラッグで選択してください</span>
+  <button class="action-btn primary" id="crop-apply" style="width:auto;margin:0;padding:6px 16px">適用</button>
+  <button class="action-btn" id="crop-cancel" style="width:auto;margin:0;padding:6px 16px">キャンセル</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
