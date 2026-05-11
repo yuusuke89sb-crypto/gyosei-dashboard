@@ -473,11 +473,31 @@ const Cases = {
       carPolice: form.carPolice ? form.carPolice.value.trim() : '',
       memo: form.memo.value.trim(),
     };
+    let savedCase;
     if (this.editingId) {
-      Store.updateCase(this.editingId, data);
+      savedCase = Store.updateCase(this.editingId, data);
     } else {
-      Store.addCase(data);
+      savedCase = Store.addCase(data);
     }
+
+    // フォルダ未作成の場合は裏側でGAS連携してフォルダ作成
+    if (!data.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      const client = Store.getClient(savedCase.clientId);
+      const clientName = client ? (client.companyName || client.name) : 'お客様';
+      const folderData = {
+        ...savedCase,
+        clientName: clientName
+      };
+      
+      // 非同期で実行（UIはブロックしない）
+      SpreadsheetSync.push('createCaseFolder', folderData).then(res => {
+        if (res && res.success && res.folderUrl) {
+          Store.updateCase(savedCase.id, { driveFolderUrl: res.folderUrl });
+          App.refreshView();
+        }
+      });
+    }
+
     this.closeModal();
     App.refreshView();
     App.showToast(this.editingId ? '案件を更新しました' : '案件を登録しました');

@@ -377,6 +377,18 @@ const CaseDocs = {
     const win = window.open('', '_blank');
     win.document.write(html);
     win.document.close();
+
+    // 案件フォルダURLがあればDriveへ自動バックアップ
+    if (c.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      App.showToast(`🔄 Driveへ${docTitle}を自動保存中...`);
+      SpreadsheetSync.push('saveGeneratedPdf', {
+        html: html,
+        fileName: docTitle + '.pdf',
+        folderUrl: c.driveFolderUrl
+      }).then(res => {
+        if (res && res.success) App.showToast(`✅ ${docTitle}をDriveに保存しました`);
+      });
+    }
   },
 
   // ─── 委任状専用ジェネレーター ──────────────────────────
@@ -496,6 +508,18 @@ const CaseDocs = {
     const win = window.open('', '_blank');
     win.document.write(html);
     win.document.close();
+
+    // 案件フォルダURLがあればDriveへ自動バックアップ
+    if (c.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      App.showToast(`🔄 Driveへ委任状を自動保存中...`);
+      SpreadsheetSync.push('saveGeneratedPdf', {
+        html: html,
+        fileName: '委任状.pdf',
+        folderUrl: c.driveFolderUrl
+      }).then(res => {
+        if (res && res.success) App.showToast(`✅ 委任状をDriveに保存しました`);
+      });
+    }
   },
 };
 

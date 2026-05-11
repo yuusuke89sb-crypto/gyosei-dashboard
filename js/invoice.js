@@ -236,13 +236,22 @@ const Invoice = {
     // Google Drive に自動保存（新規・再印刷とも上書き保存）
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       const clientDisplayName = client.type === '法人' ? (client.companyName || client.name) : client.name;
+      
+      // 1. 顧客別の請求書フォルダへ保存（従来通り）
       SpreadsheetSync.pushInvoice(html, invoiceNo, clientDisplayName, '請求書').then(result => {
         if (result && result.success) {
           App.showToast(`📁 Driveに保存しました: ${result.folderPath}`);
-        } else if (result === null) {
-          // 通信エラー
         }
       });
+
+      // 2. もし単一案件の請求書で、かつ案件フォルダURLが存在する場合は、その案件フォルダにもコピーを保存
+      if (cases.length === 1 && cases[0].driveFolderUrl) {
+        SpreadsheetSync.push('saveGeneratedPdf', {
+          html: html,
+          fileName: `請求書_${invoiceNo}.pdf`,
+          folderUrl: cases[0].driveFolderUrl
+        });
+      }
     }
   },
 
