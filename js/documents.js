@@ -158,6 +158,7 @@ const CaseDocs = {
         <div class="docs-export-area" style="margin-top:12px; display:flex; gap:8px;">
           <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'receipt')">📥 お預かり証</button>
           <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'transmittal')">📤 送付状</button>
+          <button type="button" class="btn btn-primary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'poa')">📝 委任状</button>
         </div>
       </div>
     `;
@@ -262,8 +263,12 @@ const CaseDocs = {
     let message = '';
     if (type === 'receipt') {
       message = '平素は格別のお引き立てを賜り、厚く御礼申し上げます。<br>以下の書類を確かにお預かりいたしました。';
-    } else {
+    } else if (type === 'transmittal') {
       message = '平素は格別のお引き立てを賜り、厚く御礼申し上げます。<br>以下の書類をご送付いたしますので、ご査収のほどよろしくお願い申し上げます。';
+    }
+
+    if (type === 'poa') {
+      return this.generatePOA(c, clientName, clientAddress, officeName, officeInfo);
     }
 
     let docListHtml = docs.map((d, i) => `
@@ -360,12 +365,131 @@ const CaseDocs = {
   
   <div style="text-align:center; font-weight:700; margin-top: 20px;">以上</div>
   
-  ${type === 'receipt' ? \`
+  ${type === 'receipt' ? `
   <div class="signature-area">
     <div class="signature-box">
       受領者ご署名
     </div>
-  </div>\` : ''}
+  </div>` : ''}
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+  },
+
+  // ─── 委任状専用ジェネレーター ──────────────────────────
+  generatePOA(c, clientName, clientAddress, officeName, officeInfo) {
+    const isGarage = ['garage_oss', 'garage_paper'].includes(c.category);
+    
+    let delegatedMatters = '';
+    let carDetails = '';
+    
+    if (isGarage) {
+      delegatedMatters = `
+        <div style="margin-left: 20px; line-height: 2;">
+          自動車保管場所証明の申請および受領に関する一切の件<br>
+          （保管場所標章の交付申請および受領に関する一切の件を含む）
+        </div>
+      `;
+      carDetails = `
+        <div style="margin-top: 30px;">
+          <strong>２．自動車の表示</strong>
+          <table style="width: 100%; margin-top: 10px; margin-left: 20px; border-spacing: 0; line-height: 2;">
+            <tr><td style="width: 220px;">車名</td><td>： ${c.carName || ''}</td></tr>
+            <tr><td>型式</td><td>： </td></tr>
+            <tr><td>車台番号</td><td>： ${c.carNumber || ''}</td></tr>
+            <tr><td>自動車の使用の本拠の位置</td><td>： ${c.carAddress || ''}</td></tr>
+            <tr><td>自動車の保管場所の位置</td><td>： </td></tr>
+          </table>
+        </div>
+      `;
+    } else {
+      delegatedMatters = `
+        <div style="margin-left: 20px; line-height: 2; margin-top: 10px;">
+          <div style="border-bottom: 1px solid #1a1a2e; width: 90%; height: 30px;"></div>
+          <div style="border-bottom: 1px solid #1a1a2e; width: 90%; height: 30px;"></div>
+          <div style="border-bottom: 1px solid #1a1a2e; width: 90%; height: 30px;"></div>
+        </div>
+      `;
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>委任状 - ${c.title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Noto Serif JP', serif; color: #111; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+  @media print { body { padding: 20px; } .no-print { display: none !important; } @page { margin: 20mm; size: A4; } }
+  .print-bar { display: flex; gap: 10px; margin-bottom: 30px; justify-content: flex-end; font-family: sans-serif; }
+  .print-bar button { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .btn-print { background: #3b82f6; color: #fff; }
+  .btn-close { background: #e5e7eb; color: #374151; }
+  .title { text-align: center; font-size: 28px; font-weight: 700; letter-spacing: 12px; margin-top: 20px; margin-bottom: 50px; }
+  .lead { font-size: 16px; margin-bottom: 40px; }
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+  .signature-block { display: flex; justify-content: space-between; margin-top: 60px; font-size: 16px; }
+  .signature-left { width: 50%; }
+  .signature-right { width: 50%; }
+  .sig-row { margin-bottom: 20px; display: flex; }
+  .sig-label { width: 80px; }
+  .sig-value { flex: 1; border-bottom: 1px dotted #ccc; position: relative; }
+  .inkan { position: absolute; right: 10px; top: -5px; font-size: 24px; color: #ccc; }
+</style>
+</head>
+<body>
+  <div class="print-bar no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+    <button class="btn-close" onclick="window.close()">✕ 閉じる</button>
+  </div>
+  
+  <div class="title">委 任 状</div>
+  
+  <div class="lead">
+    私は、下記の者を代理人と定め、次の権限を委任します。
+  </div>
+  
+  <div>
+    <strong class="section-title">１．委任事項</strong>
+    ${delegatedMatters}
+  </div>
+  
+  ${carDetails}
+  
+  <div style="margin-top: 60px; text-align: right; padding-right: 20px;">
+    令和　　　年　　　月　　　日
+  </div>
+  
+  <div class="signature-block">
+    <div class="signature-left">
+      <div style="font-weight: 700; margin-bottom: 16px;">（受任者）</div>
+      <div style="margin-left: 20px; line-height: 2;">
+        住所： ${officeInfo.address || ''}<br>
+        氏名： 行政書士 ${officeInfo.representative || ''}<br>
+        電話： ${officeInfo.tel || ''}
+      </div>
+    </div>
+    <div class="signature-right">
+      <div style="font-weight: 700; margin-bottom: 16px;">（委任者）</div>
+      <div class="sig-row" style="margin-top: 20px;">
+        <div class="sig-label">住所</div>
+        <div class="sig-value">${clientAddress || ''}</div>
+      </div>
+      <div class="sig-row" style="margin-top: 30px;">
+        <div class="sig-label">氏名</div>
+        <div class="sig-value">${clientName !== 'お客様' ? clientName : ''}<span class="inkan">㊞</span></div>
+      </div>
+      <div class="sig-row" style="margin-top: 30px;">
+        <div class="sig-label">電話番号</div>
+        <div class="sig-value"></div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>`;
 

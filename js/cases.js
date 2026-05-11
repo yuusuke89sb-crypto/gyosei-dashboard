@@ -251,6 +251,13 @@ const Cases = {
                 <input type="date" name="registeredAt" id="csf_registeredAt" value="${today}">
               </div>
             </div>
+            <div class="form-group">
+              <label>📁 Google Drive 案件フォルダURL</label>
+              <div style="display:flex;gap:8px">
+                <input type="url" name="driveFolderUrl" id="csf_driveFolderUrl" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">
+                <button type="button" class="btn btn-secondary" onclick="const url=document.getElementById('csf_driveFolderUrl').value; if(url) window.open(url, '_blank'); else alert('URLが入力されていません');">🔗 開く</button>
+              </div>
+            </div>
             <div class="form-row">
               <div class="form-group">
                 <label>ステータス</label>
@@ -392,6 +399,7 @@ const Cases = {
       document.getElementById('csf_category').value = c.category;
       document.getElementById('csf_status').value = c.status;
       document.getElementById('csf_deadline').value = c.deadline || '';
+      document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
       document.getElementById('csf_fee').value = c.fee || '';
       document.getElementById('csf_memo').value = c.memo || '';
       document.getElementById('csf_carName').value = c.carName || '';
@@ -453,6 +461,7 @@ const Cases = {
       category: form.category.value,
       status: form.status.value,
       deadline: form.deadline.value,
+      driveFolderUrl: form.driveFolderUrl.value.trim(),
       fee: form.fee.value,
       advances: this.advanceDraft.filter(a => a.label || Number(a.amount) > 0),
       deathDate: form.deathDate ? form.deathDate.value : '',
