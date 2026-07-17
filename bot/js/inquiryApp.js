@@ -305,11 +305,16 @@ document.addEventListener('DOMContentLoaded', () => {
       </style></head><body>
       <div class="header">
         <h1>🎤 トークスクリプト - ${cat.name}</h1>
-        <div class="office">○○行政書士事務所<br>TEL: 000-0000-0000</div>
+        <div class="office">
+          <script>
+            var o=JSON.parse(localStorage.getItem('gyosei_office_info')||'{}');
+            document.write((o.name||'行政書士法人Felis')+'<br>TEL: '+(o.tel||'0586-50-2896')+'<br>FAX: '+(o.fax||'0586-22-9096'));
+          </script>
+        </div>
       </div>
       <div class="meta">出力日: ${new Date().toLocaleDateString('ja-JP')}</div>
       ${stepsHtml}
-      <div class="footer">このドキュメントは行政書士AIボットにより自動生成されました。</div>
+      <div class="footer"></div>
     </body></html>`);
     printWin.document.close();
     printWin.focus();
@@ -722,13 +727,18 @@ document.addEventListener('DOMContentLoaded', () => {
       </style></head><body>
       <div class="header">
         <h1>⚖️ 行政書士AIボット - 問い合わせチェック</h1>
-        <div class="office">○○行政書士事務所<br>TEL: 000-0000-0000</div>
+        <div class="office">
+          <script>
+            var o=JSON.parse(localStorage.getItem('gyosei_office_info')||'{}');
+            document.write((o.name||'行政書士法人Felis')+'<br>TEL: '+(o.tel||'0586-50-2896')+'<br>FAX: '+(o.fax||'0586-22-9096'));
+          </script>
+        </div>
       </div>
       <div class="meta">出力日: ${new Date().toLocaleDateString('ja-JP')} ${new Date().toLocaleTimeString('ja-JP')}</div>
       <h2>${cat.icon} ${flow.summary.title}</h2>
       ${resultsHtml}
       ${docsHtml}
-      <div class="footer">このドキュメントは行政書士AIボットにより自動生成されました。</div>
+      <div class="footer"></div>
     </body></html>`);
     printWin.document.close();
     printWin.focus();
@@ -1102,7 +1112,12 @@ document.addEventListener('DOMContentLoaded', () => {
       </style></head><body>
       <div class="header">
         <h1>📝 相談メモ</h1>
-        <div class="office">○○行政書士事務所<br>TEL: 000-0000-0000</div>
+        <div class="office">
+          <script>
+            var o=JSON.parse(localStorage.getItem('gyosei_office_info')||'{}');
+            document.write((o.name||'行政書士法人Felis')+'<br>TEL: '+(o.tel||'0586-50-2896')+'<br>FAX: '+(o.fax||'0586-22-9096'));
+          </script>
+        </div>
       </div>
       <div class="meta">
         <div class="meta-item"><div class="meta-label">📅 日時</div><div class="meta-value">${date}</div></div>

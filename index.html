@@ -57,9 +57,10 @@
   <script src="js/invoice.js"></script>
   <script src="js/accounting.js"></script>
   <script src="js/extensions.js"></script>
-  <script src="js/fax.js"></script>
+  <script src="js/inbox.js"></script>
   <script src="js/documents.js"></script>
   <script src="js/briefing.js"></script>
+  <script src="js/locations.js"></script>
   <!-- 仕訳データ投入（IDベースで重複防止） -->
   <script>
   (function(){
@@ -76,6 +77,7 @@
     if(added>0){localStorage.setItem('gyosei_journals',JSON.stringify(journals));console.log('✅ 仕訳データ投入: '+added+'件')}
   })();
   </script>
+  <script src="js/salary_simulator.js"></script>
   <script src="js/app.js"></script>
 </body>
 

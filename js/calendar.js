@@ -30,8 +30,8 @@ const Calendar = {
     const month = this.currentMonth;
     const monthName = `${year}年${month + 1}月`;
 
-    // 案件（期限あり）
-    let cases = Store.getCases().filter(c => c.deadline);
+    // 案件の予定日（締切・現調・申請・交付・店届）
+    let caseEvents = this.getCaseEvents();
     // 予定
     let events = Store.getEvents();
     // 相続期限（フィルターON時のみ）
@@ -39,7 +39,7 @@ const Calendar = {
 
     // 担当者フィルタ
     if (this.filterStaffId !== 'all') {
-      cases = cases.filter(c => c.staffId == this.filterStaffId);
+      caseEvents = caseEvents.filter(ce => ce.staffId == this.filterStaffId);
       events = events.filter(e => e.staffId == this.filterStaffId);
       inheritanceItems = inheritanceItems.filter(item => item.staffId == this.filterStaffId);
     }
@@ -48,8 +48,6 @@ const Calendar = {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    const CASE_ICONS = { garage_oss: '🚗', garage_paper: '🚗', seal: '🚙', inheritance: '📜' };
 
     let calendarDays = '';
 
@@ -63,18 +61,18 @@ const Calendar = {
       const isToday = dayDate.getTime() === today.getTime();
       const isPast = dayDate < today;
 
-      const dayCases = cases.filter(c => c.deadline === dateStr);
+      const dayCaseEvents = caseEvents.filter(ce => ce.date === dateStr);
       const dayEvents = events.filter(e => e.date === dateStr);
       const dayInheritance = inheritanceItems.filter(item => item.date === dateStr);
-      const totalItems = dayCases.length + dayEvents.length + dayInheritance.length;
+      const totalItems = dayCaseEvents.length + dayEvents.length + dayInheritance.length;
 
       let dots = '';
       if (totalItems > 0) {
         const items = [];
-        // 案件
-        dayCases.slice(0, 2).forEach(c => {
-          const statusClass = c.status === 'done' ? 'done' : (isPast ? 'overdue' : '');
-          items.push(`<div class="cal-event ${statusClass} category-${c.category}" title="${c.title}">${CASE_ICONS[c.category] || '📋'} ${c.title.substring(0, 5)}</div>`);
+        // 案件（現調・申請・交付など）
+        dayCaseEvents.slice(0, 2).forEach(ce => {
+          const statusClass = ce.status === 'done' ? 'done' : (isPast ? 'overdue' : '');
+          items.push(`<div class="cal-event ${statusClass} category-${ce.category}" title="${ce.title}" onclick="event.stopPropagation(); Cases.showEditModal('${ce.caseId}'); App.navigate('cases')">${ce.title.substring(0, 8)}</div>`);
         });
         // 予定
         dayEvents.slice(0, 3 - items.length).forEach(e => {
@@ -106,10 +104,10 @@ const Calendar = {
       `<option value="${s.id}" ${this.filterStaffId == s.id ? 'selected' : ''}>${s.name}</option>`
     ).join('');
 
-    // 期限リスト（案件 + 予定 + 相続期限を統合）
+    // 期限リスト（案件イベント + 予定 + 相続期限を統合）
     const upcomingItems = [];
-    cases.filter(c => c.status !== 'done').forEach(c => {
-      upcomingItems.push({ type: 'case', date: c.deadline, data: c });
+    caseEvents.filter(ce => ce.status !== 'done').forEach(ce => {
+      upcomingItems.push({ type: 'case-event', date: ce.date, data: ce });
     });
     events.filter(e => new Date(e.date) >= today).forEach(e => {
       upcomingItems.push({ type: 'event', date: e.date, data: e });
@@ -173,22 +171,22 @@ const Calendar = {
             ${upcoming.length === 0
         ? '<p class="empty-message">今後の予定はありません</p>'
         : upcoming.map(item => {
-          if (item.type === 'case') {
-            const c = item.data;
-            const client = Store.getClient(c.clientId);
-            const staffName = Store.getStaffName(c.staffId);
-            const dl = new Date(c.deadline);
+          if (item.type === 'case-event') {
+            const ce = item.data;
+            const client = Store.getClient(Store.getCase(ce.caseId)?.clientId);
+            const staffName = Store.getStaffName(ce.staffId);
+            const dl = new Date(ce.date);
             const diff = Math.ceil((dl - today) / (1000 * 60 * 60 * 24));
             const urgencyClass = diff < 0 ? 'overdue' : diff <= 3 ? 'urgent' : diff <= 7 ? 'soon' : '';
             const urgencyLabel = diff < 0 ? `${Math.abs(diff)}日超過` : diff === 0 ? '本日' : `あと${diff}日`;
             return `
-                        <div class="timeline-item ${urgencyClass}" onclick="Cases.showEditModal('${c.id}'); App.navigate('cases')">
-                          <div class="timeline-date">${c.deadline}<br><span class="timeline-diff">${urgencyLabel}</span></div>
+                        <div class="timeline-item ${urgencyClass}" onclick="Cases.showEditModal('${ce.caseId}'); App.navigate('cases')">
+                          <div class="timeline-date">${ce.date}<br><span class="timeline-diff">${urgencyLabel}</span></div>
                           <div class="timeline-content">
-                            <div class="timeline-title">📋 ${c.title}</div>
+                            <div class="timeline-title">${ce.icon} ${ce.title}</div>
                             <div class="timeline-meta">
                               ${client ? `👤 ${client.name}` : '—'}
-                              ${c.staffId ? ` ・ 🏷️ ${staffName}` : ''}
+                              ${ce.staffId ? ` ・ 🏷️ ${staffName}` : ''}
                             </div>
                           </div>
                         </div>`;
@@ -289,6 +287,13 @@ const Calendar = {
               </select>
             </div>
             <div class="form-group">
+              <label>📍 場所</label>
+              <select name="locationId" id="evf_locationId" class="form-select">
+                <option value="">— 未選択 —</option>
+                ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
               <label>メモ</label>
               <textarea name="memo" id="evf_memo" rows="2" placeholder="メモ..."></textarea>
             </div>
@@ -334,6 +339,8 @@ const Calendar = {
       document.getElementById('evf_time').value = ev.time || '';
       document.getElementById('evf_endTime').value = ev.endTime || '';
       document.getElementById('evf_staffId').value = ev.staffId || '';
+      const evLocSel = document.getElementById('evf_locationId');
+      if (evLocSel) evLocSel.value = ev.locationId || '';
       document.getElementById('evf_memo').value = ev.memo || '';
       document.getElementById('eventDeleteBtn').style.display = 'block';
       document.getElementById('eventModal').style.display = 'flex';
@@ -355,6 +362,7 @@ const Calendar = {
       time: form.time.value,
       endTime: form.endTime.value,
       staffId: form.staffId.value,
+      locationId: form.locationId ? form.locationId.value : '',
       memo: form.memo.value.trim(),
     };
     if (this.editingEventId) {
@@ -552,12 +560,12 @@ const Calendar = {
 
   // ---- 1日（デイ）表示 ----
   renderDayView() {
-    let cases = Store.getCases().filter(c => c.deadline === this.selectedDate);
+    let caseEvents = this.getCaseEvents().filter(ce => ce.date === this.selectedDate);
     let events = Store.getEvents().filter(e => e.date === this.selectedDate);
     let inheritanceItems = this.showInheritanceDeadlines ? this.getInheritanceDeadlineItems().filter(item => item.date === this.selectedDate) : [];
 
     if (this.filterStaffId !== 'all') {
-      cases = cases.filter(c => c.staffId == this.filterStaffId);
+      caseEvents = caseEvents.filter(ce => ce.staffId == this.filterStaffId);
       events = events.filter(e => e.staffId == this.filterStaffId);
       inheritanceItems = inheritanceItems.filter(item => item.staffId == this.filterStaffId);
     }
@@ -568,25 +576,107 @@ const Calendar = {
     // 終日アイテム（時間指定なし）
     let allDayHtml = '';
     const allDayItems = [];
-    cases.forEach(c => allDayItems.push({ title: c.title, category: c.category, label: CATEGORY_LABELS[c.category] || '📋', staffId: c.staffId, type: 'case', id: c.id, status: c.status }));
-    events.filter(e => !e.time).forEach(e => allDayItems.push({ title: e.title, category: e.category, staffId: e.staffId, type: 'event', id: e.id }));
+    caseEvents.forEach(ce => {
+      const c = Store.getCase(ce.caseId);
+      if (c) {
+        allDayItems.push({
+          title: ce.title,
+          caseTitle: c.title,
+          category: ce.category,
+          label: ce.icon,
+          staffId: ce.staffId,
+          locationId: ce.locationId || '',
+          type: 'case',
+          id: c.id,
+          status: c.status,
+          timeLabel: c.storeDeliveryTime ? ` (${c.storeDeliveryTime})` : ''
+        });
+      }
+    });
+    events.filter(e => !e.time).forEach(e => allDayItems.push({ title: e.title, category: e.category, staffId: e.staffId, locationId: e.locationId || '', type: 'event', id: e.id }));
     inheritanceItems.forEach(dl => {
       const icon = dl.severity === 'critical' ? '🔴' : dl.severity === 'important' ? '🟠' : '🟡';
-      allDayItems.push({ title: dl.label + ' (' + dl.caseTitle + ')', category: 'inheritance', label: icon, staffId: dl.staffId, type: 'inheritance', id: dl.caseId });
+      allDayItems.push({ title: dl.label + ' (' + dl.caseTitle + ')', category: 'inheritance', label: icon, staffId: dl.staffId, locationId: '', type: 'inheritance', id: dl.caseId });
     });
 
     if (allDayItems.length > 0) {
-      allDayHtml = allDayItems.map(item => {
+      // 場所・お届け先別にグループ化
+      const locations = Store.getLocations();
+      const clients = Store.getClients();
+      const groups = {}; // locationId/clientKey -> items[]
+      allDayItems.forEach(item => {
+        const key = item.locationId || '__none__';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(item);
+      });
+
+      const renderItem = (item) => {
         const staffName = Store.getStaffName(item.staffId);
-        const clickAction = item.type === 'event' ? `Calendar.showEventEditModal('${item.id}')` : `App.navigate('cases'); setTimeout(() => Cases.showEditModal('${item.id}'), 100)`;
-        const icon = item.type === 'event' ? (this.EVENT_CATEGORIES.find(ec => ec.key === item.category)?.label.split(' ')[0] || '📌') : item.label;
+        const clickAction = item.type === 'event'
+          ? `Calendar.showEventEditModal('${item.id}')`
+          : `App.navigate('cases'); setTimeout(() => Cases.showEditModal('${item.id}'), 100)`;
+        const icon = item.type === 'event'
+          ? (this.EVENT_CATEGORIES.find(ec => ec.key === item.category)?.label.split(' ')[0] || '📌')
+          : item.label;
+        
+        // 店舗お届けの場合はヘッダーの店舗名と重複するため、カード内は案件名＋時間指定にする
+        const displayTitle = (item.type === 'case' && item.label === '🚚')
+          ? `🚚店届: ${item.caseTitle}${item.timeLabel || ''}`
+          : `${icon} ${item.title}`;
+
         return `
           <div class="allday-item" onclick="${clickAction}">
-            <div class="allday-item-title">${icon} ${item.title}</div>
+            <div class="allday-item-title">${displayTitle}</div>
             <div class="allday-item-meta">${staffName ? '🏷️ ' + staffName : ''}</div>
           </div>
         `;
-      }).join('');
+      };
+
+      // 1. 訪問場所マスタにあるグループ
+      const locationGroups = [];
+      locations.forEach(l => {
+        if (groups[l.id]) {
+          locationGroups.push({
+            label: `📍 訪問先: ${l.name}`,
+            items: groups[l.id]
+          });
+        }
+      });
+
+      // 2. 店舗お届け先グループ
+      clients.forEach(c => {
+        const key = `client-${c.id}`;
+        if (groups[key]) {
+          locationGroups.push({
+            label: `🏢 届け先: ${c.name}`,
+            items: groups[key]
+          });
+        }
+      });
+
+      // 3. その他・場所未指定
+      let noneItems = groups['__none__'] || [];
+      Object.keys(groups).forEach(key => {
+        if (key !== '__none__' && !locations.some(l => l.id === key) && !clients.some(c => `client-${c.id}` === key)) {
+          noneItems = noneItems.concat(groups[key]);
+        }
+      });
+
+      if (noneItems.length > 0) {
+        locationGroups.push({
+          label: '📋 その他・場所未設定',
+          items: noneItems
+        });
+      }
+
+      allDayHtml = locationGroups.map(g => `
+        <div style="margin-bottom:10px">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text-muted);letter-spacing:0.5px;margin-bottom:4px;padding:2px 6px;background:var(--bg-secondary);border-radius:4px;display:inline-block">${g.label}</div>
+          <div class="day-view-allday-grid" style="margin-top:4px">
+            ${g.items.map(renderItem).join('')}
+          </div>
+        </div>
+      `).join('');
     } else {
       allDayHtml = '<p class="empty-message" style="margin:0">終日の予定・期限はありません</p>';
     }
@@ -930,5 +1020,95 @@ const Calendar = {
       });
     });
     return items;
+  },
+
+  // ---- 案件から日付イベント（締切・現調・申請・交付・店届）を切り出し ----
+  getCaseEvents() {
+    const cases = Store.getCases();
+    const caseEvents = [];
+    const CATEGORY_LABELS = { garage_oss: '車庫(OSS)', garage_paper: '車庫(紙)', seal: '封印', inheritance: '相続' };
+
+    cases.forEach(c => {
+      const catLabel = CATEGORY_LABELS[c.category] || '案件';
+      // 1. 期限 (Deadline)
+      if (c.deadline) {
+        caseEvents.push({
+          id: `${c.id}-deadline`,
+          caseId: c.id,
+          date: c.deadline,
+          title: `⏰締切: ${c.title}`,
+          category: c.category,
+          status: c.status,
+          staffId: c.staffId || '',
+          locationId: c.landTransportLocationId || c.locationId || '',
+          icon: '⏰',
+          type: 'case-deadline'
+        });
+      }
+      // 2. 現地調査 (Survey)
+      if (c.surveyDate) {
+        caseEvents.push({
+          id: `${c.id}-survey`,
+          caseId: c.id,
+          date: c.surveyDate,
+          title: `🔍現調: ${c.title}`,
+          category: c.category,
+          status: c.status,
+          staffId: c.staffId || '',
+          locationId: c.surveyLocationId || c.locationId || '',
+          icon: '🔍',
+          type: 'case-survey'
+        });
+      }
+      // 3. 申請 (Apply)
+      if (c.applyDate) {
+        caseEvents.push({
+          id: `${c.id}-apply`,
+          caseId: c.id,
+          date: c.applyDate,
+          title: `📝申請: ${c.title}`,
+          category: c.category,
+          status: c.status,
+          staffId: c.staffId || '',
+          locationId: c.policeLocationId || c.locationId || '',
+          icon: '📝',
+          type: 'case-apply'
+        });
+      }
+      // 4. 交付 (Police Delivery)
+      if (c.policeDeliveryDate) {
+        caseEvents.push({
+          id: `${c.id}-delivery`,
+          caseId: c.id,
+          date: c.policeDeliveryDate,
+          title: `📄交付: ${c.title}`,
+          category: c.category,
+          status: c.status,
+          staffId: c.staffId || '',
+          locationId: c.policeLocationId || c.locationId || '',
+          icon: '📄',
+          type: 'case-delivery'
+        });
+      }
+      // 5. 店舗届ける (Store Delivery)
+      if (c.storeDeliveryDate) {
+        const client = Store.getClient(c.clientId);
+        const storeName = client ? client.name : '店舗未選択';
+        const timeLabel = c.storeDeliveryTime ? ` (${c.storeDeliveryTime})` : '';
+        caseEvents.push({
+          id: `${c.id}-store`,
+          caseId: c.id,
+          date: c.storeDeliveryDate,
+          title: `🚚店届: ${storeName} (${c.title})${timeLabel}`,
+          category: c.category,
+          status: c.status,
+          staffId: c.staffId || '',
+          locationId: `client-${c.clientId}`,
+          icon: '🚚',
+          type: 'case-store'
+        });
+      }
+    });
+    return caseEvents;
   },
 };

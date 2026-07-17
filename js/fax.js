@@ -206,12 +206,16 @@ const FaxManager = {
       }
 
       const logs = data.faxLog || [];
+      // ローカルストレージにキャッシュして他画面でも参照可能に
+      localStorage.setItem('gyosei_fax_logs', JSON.stringify(logs));
       const logEl = document.getElementById('faxLog');
 
       if (logs.length === 0) {
         logEl.innerHTML = '<p class="empty-message">送受信履歴はありません</p>';
         return;
       }
+
+      const cases = Store.getCases();
 
       logEl.innerHTML = `
         <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
@@ -222,23 +226,41 @@ const FaxManager = {
               <th style="padding:10px 12px">番号/送信元</th>
               <th style="padding:10px 12px">件名</th>
               <th style="padding:10px 12px">顧客</th>
+              <th style="padding:10px 12px;text-align:center">対応ステータス</th>
             </tr>
           </thead>
           <tbody>
-            ${logs.map(l => `
-              <tr style="border-bottom:1px solid var(--border-color)">
-                <td style="padding:8px 12px;white-space:nowrap">${l.date}</td>
-                <td style="padding:8px 12px">
-                  <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;
-                    ${l.direction === '送信' ? 'background:#dbeafe;color:#2563eb' : 'background:#dcfce7;color:#16a34a'}">
-                    ${l.direction === '送信' ? '📤 送信' : '📥 受信'}
-                  </span>
-                </td>
-                <td style="padding:8px 12px">${l.number}</td>
-                <td style="padding:8px 12px">${l.subject}</td>
-                <td style="padding:8px 12px">${l.clientName || '—'}</td>
-              </tr>
-            `).join('')}
+            ${logs.map(l => {
+              const faxId = l.id || (l.date + '_' + l.number);
+              const linkedCase = cases.find(c => c.faxId === faxId);
+              
+              let actionHtml = '';
+              if (l.direction === '受信') {
+                if (linkedCase) {
+                  actionHtml = `<span style="color:var(--accent-green);font-weight:600;cursor:pointer" onclick="App.navigate('cases'); setTimeout(() => Cases.showEditModal('${linkedCase.id}'), 100)">✅ 案件登録済</span>`;
+                } else {
+                  actionHtml = `<button class="btn btn-secondary btn-small" onclick="FaxManager.createCase('${l.date}', '${l.number}', '${l.subject}', '${l.clientName || ''}')">➕ 案件登録</button>`;
+                }
+              } else {
+                actionHtml = '<span style="color:var(--text-muted)">—</span>';
+              }
+
+              return `
+                <tr style="border-bottom:1px solid var(--border-color)">
+                  <td style="padding:8px 12px;white-space:nowrap">${l.date}</td>
+                  <td style="padding:8px 12px">
+                    <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;
+                      ${l.direction === '送信' ? 'background:#dbeafe;color:#2563eb' : 'background:#dcfce7;color:#16a34a'}">
+                      ${l.direction === '送信' ? '📤 送信' : '📥 受信'}
+                    </span>
+                  </td>
+                  <td style="padding:8px 12px">${l.number}</td>
+                  <td style="padding:8px 12px">${l.subject}</td>
+                  <td style="padding:8px 12px">${l.clientName || '—'}</td>
+                  <td style="padding:8px 12px;text-align:center">${actionHtml}</td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       `;
@@ -248,5 +270,38 @@ const FaxManager = {
     } catch (err) {
       App.showToast('❌ 通信エラー: ' + err.message);
     }
+  },
+
+  // 受信FAXから案件を登録し、自動で紐付ける
+  createCase(date, number, subject, clientName) {
+    const faxId = date + '_' + number;
+    const clients = Store.getClients();
+    const client = clients.find(c => c.name === clientName || c.companyName === clientName);
+    
+    const prefills = {
+      title: `${clientName ? clientName + '様' : ''} FAX依頼件（${date}）`,
+      clientId: client ? client.id : '',
+      category: 'garage_paper',
+      memo: `FAX受信日時: ${date}\n送信元番号: ${number}\n件名: ${subject}`,
+      faxId: faxId
+    };
+    
+    App.navigate('cases');
+    setTimeout(() => {
+      Cases.showAddModal(prefills);
+    }, 100);
+  },
+
+  // 未対応の受信FAXを抽出する
+  getUnprocessedFaxes() {
+    const logs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
+    const cases = Store.getCases();
+    
+    return logs.filter(l => {
+      if (l.direction !== '受信') return false;
+      const faxId = l.id || (l.date + '_' + l.number);
+      const linked = cases.some(c => c.faxId === faxId);
+      return !linked;
+    });
   },
 };

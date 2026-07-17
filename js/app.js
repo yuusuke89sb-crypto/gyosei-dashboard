@@ -60,6 +60,7 @@ const App = {
 
   refreshView() {
     this.renderContent();
+    this.renderSidebar();
   },
 
   renderSidebar() {
@@ -68,7 +69,7 @@ const App = {
       <div class="sidebar-header" style="display:flex;align-items:center;justify-content:space-between">
         <div class="sidebar-logo">
           <span class="logo-icon">⚖️</span>
-          <span class="logo-text">2号行政書士<br>事務所</span>
+          <span class="logo-text">行政書士法人<br>Felis</span>
         </div>
         <button onclick="App.toggleSidebar()" class="sidebar-close-btn" style="display:none;background:none;border:none;color:var(--text-secondary);font-size:1.5rem;cursor:pointer;padding:4px 8px">✕</button>
       </div>
@@ -88,8 +89,9 @@ const App = {
         <a class="nav-item ${this.currentPage === 'accounting' ? 'active' : ''}" onclick="App.navigate('accounting')">
           <span class="nav-icon">💹</span><span class="nav-label">帳簿</span>
         </a>
-        <a class="nav-item ${this.currentPage === 'fax' ? 'active' : ''}" onclick="App.navigate('fax')">
-          <span class="nav-icon">📠</span><span class="nav-label">FAX</span>
+        <a class="nav-item ${this.currentPage === 'inbox' ? 'active' : ''}" onclick="App.navigate('inbox')" style="position:relative">
+          <span class="nav-icon">📥</span><span class="nav-label">登録前BOX</span>
+          ${this.getInboxBadgeHtml()}
         </a>
       </nav>
       <div class="sidebar-tools">
@@ -97,9 +99,13 @@ const App = {
         <button class="btn btn-ghost" onclick="GlobalSearch.show()" title="検索 (Ctrl+K)">🔍 検索</button>
         <button class="btn btn-ghost" onclick="Payments.showPaymentList()" title="入金管理">💴 入金管理</button>
         <button class="btn btn-ghost" onclick="AnnualReport.show()" title="年間収支">📊 年間収支</button>
+        <button class="btn btn-ghost" onclick="TaxHelper.show()" title="確定申告集計">📊 確定申告集計</button>
+        <button class="btn btn-ghost" onclick="SalarySimulator.show()" title="役員報酬シミュレーション">⚖️ 役員報酬シミュレーター</button>
         <button class="btn btn-ghost" onclick="MonthlyReport.show()" title="月次レポート">📄 月次レポート</button>
         <button class="btn btn-ghost" onclick="RecurringExpenses.show()" title="定型仕訳">🔄 定型仕訳</button>
         <button class="btn btn-ghost" onclick="ReferralAnalysis.show()" title="紹介元分析">🤝 紹介元</button>
+        <button class="btn btn-ghost" onclick="StaffManager.show()" title="担当者管理">👥 担当者管理</button>
+        <button class="btn btn-ghost" onclick="LocationManager.show()" title="場所マスター管理">📍 場所管理</button>
       </div>
       <div class="sidebar-tools" style="border-top:1px solid var(--border-color);padding-top:4px">
         <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">連携ツール</div>
@@ -130,7 +136,7 @@ const App = {
       case 'cases': content.innerHTML = Cases.render(); break;
       case 'calendar': content.innerHTML = Calendar.render(); break;
       case 'accounting': content.innerHTML = Accounting.render(); break;
-      case 'fax': content.innerHTML = FaxManager.render(); break;
+      case 'inbox': content.innerHTML = InboxManager.render(); break;
     }
   },
 
@@ -138,11 +144,21 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
     const navItems = document.querySelectorAll('.nav-item');
-    const pages = ['dashboard', 'clients', 'cases', 'calendar', 'accounting'];
+    const pages = ['dashboard', 'clients', 'cases', 'calendar', 'accounting', 'inbox'];
     const idx = pages.indexOf(this.currentPage);
     if (navItems[idx]) navItems[idx].classList.add('active');
     const bottomItems = document.querySelectorAll('.bottom-nav-item');
     if (bottomItems[idx]) bottomItems[idx].classList.add('active');
+  },
+
+  getInboxBadgeHtml() {
+    if (typeof Store === 'undefined' || !Store.getInbox) return '';
+    const inbox = Store.getInbox();
+    const count = inbox.filter(item => item.status === '未対応').length;
+    if (count > 0) {
+      return `<span class="badge badge-danger sidebar-badge" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:#ef4444;color:white;font-size:0.7rem;padding:2px 6px;border-radius:10px;font-weight:bold;line-height:1">${count}</span>`;
+    }
+    return '';
   },
 
   showToast(message) {

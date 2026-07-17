@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【印刷用】設立準備書類チェックリスト（日栄先生用） | 行政書士法人Felis</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #0f0f23;
+            color: #e4e4ef;
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            position: relative;
+        }
+
+        /* 印刷ボタン */
+        .print-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+            gap: 12px;
+        }
+
+        .btn-print {
+            background: #f59e0b;
+            color: #0f0f23;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .btn-print:hover {
+            background: #d97706;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px dashed #2a2a4a;
+            padding-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+
+        .section {
+            background: #1a1a2e;
+            border-radius: 14px;
+            padding: 28px;
+            margin-bottom: 24px;
+            border: 1px solid #2a2a4a;
+        }
+
+        .section-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #f59e0b;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #2a2a4a;
+            padding-bottom: 8px;
+        }
+
+        .checklist {
+            list-style: none;
+        }
+
+        .checklist-item {
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #25253d;
+        }
+
+        .checklist-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .custom-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f59e0b;
+            border-radius: 4px;
+            margin-top: 3px;
+            flex-shrink: 0;
+            display: inline-block;
+            position: relative;
+        }
+
+        /* 画面上でのクリックトグル用のスタイル（擬似的にチェック状態を表現できるように） */
+        .checklist-item.checked .custom-checkbox::after {
+            content: "✓";
+            position: absolute;
+            top: -2px;
+            left: 2px;
+            color: #f59e0b;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .checklist-item.checked .checkbox-label {
+            color: #9ca3af;
+            text-decoration: line-through;
+        }
+
+        .details {
+            margin-left: 32px;
+            margin-top: 6px;
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+
+        .badge-warning {
+            background: #ef4444;
+            color: #fff;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+            font-weight: normal;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .badge-info {
+            background: #3b82f6;
+            color: #fff;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+            font-weight: normal;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .memo-area {
+            background: #1a1a2e;
+            border-radius: 14px;
+            padding: 28px;
+            border: 1px solid #2a2a4a;
+            margin-top: 32px;
+        }
+
+        .memo-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        .memo-lines {
+            border: 1px dashed #2a2a4a;
+            height: 120px;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.85rem;
+            color: #4b5563;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #6b7280;
+            font-size: 0.8rem;
+            border-top: 1px solid #2a2a4a;
+            padding-top: 20px;
+        }
+
+        /* 印刷用のスタイル調整 */
+        @media print {
+            body {
+                background: #fff;
+                color: #000;
+            }
+
+            .container {
+                max-width: 100%;
+                padding: 10px 0;
+            }
+
+            .print-actions {
+                display: none; /* 印刷時は印刷ボタンを隠す */
+            }
+
+            header {
+                border-bottom-color: #000;
+                padding-bottom: 16px;
+                margin-bottom: 24px;
+            }
+
+            h1 {
+                color: #000;
+                font-size: 1.5rem;
+            }
+
+            .subtitle {
+                color: #4b5563;
+            }
+
+            .section {
+                background: #fff;
+                border: 1px solid #000;
+                border-radius: 0;
+                padding: 20px;
+                margin-bottom: 20px;
+                page-break-inside: avoid; /* セクション途中の改ページを防ぐ */
+            }
+
+            .section-title {
+                color: #000;
+                border-bottom: 2px solid #000;
+                padding-bottom: 4px;
+                font-size: 1.1rem;
+            }
+
+            .checkbox-label {
+                color: #000;
+            }
+
+            .custom-checkbox {
+                border: 2px solid #000;
+            }
+
+            .checklist-item {
+                border-bottom: 1px solid #ccc;
+            }
+
+            .checklist-item.checked .custom-checkbox::after {
+                color: #000;
+            }
+
+            .checklist-item.checked .checkbox-label {
+                color: #000;
+                text-decoration: none; /* 印刷時は打ち消し線を消す */
+            }
+
+            .details {
+                color: #374151;
+            }
+
+            .badge-warning {
+                border: 1px solid #000;
+                background: #fff;
+                color: #000;
+                font-weight: bold;
+            }
+
+            .badge-info {
+                border: 1px solid #000;
+                background: #fff;
+                color: #000;
+            }
+
+            .memo-area {
+                background: #fff;
+                border: 1px solid #000;
+                border-radius: 0;
+                padding: 20px;
+                page-break-inside: avoid;
+            }
+
+            .memo-title {
+                color: #000;
+            }
+
+            .memo-lines {
+                border: 1px solid #000;
+                border-style: solid none none none; /* 横線だけのメモ帳風にする */
+                height: 100px;
+                margin-top: 16px;
+                background-image: linear-gradient(to bottom, transparent 95%, #ccc 95%);
+                background-size: 100% 24px;
+                line-height: 24px;
+            }
+
+            footer {
+                border-top-color: #000;
+                color: #374151;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- 印刷ボタンエリア -->
+        <div class="print-actions">
+            <button class="btn-print" onclick="window.print()">
+                <span>🖨️ ページを印刷する</span>
+            </button>
+        </div>
+
+        <header>
+            <h1>⚖️ 行政書士法人設立に伴う準備書類等一覧</h1>
+            <p class="subtitle">行政書士法人Felis 設立準備用（日栄先生宛）</p>
+        </header>
+
+        <!-- セクション1: 事前手配 -->
+        <div class="section">
+            <h2 class="section-title">1. 最優先で手配・取得いただくもの</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="item-1-1">
+                    <label class="checkbox-label" onclick="toggleItem('item-1-1')">
+                        <span class="custom-checkbox"></span>
+                        行政書士法人の社員資格証明書（原本） 1通
+                        <span class="badge-warning">要申請</span>
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li><strong>取得先:</strong> 現在所属する都道府県の行政書士会を経由し、日本行政書士会連合会（日行連）へ申請。</li>
+                            <li><strong>取得日数:</strong> 手元に届くまで<strong>約2週間〜1ヶ月</strong>要するため、直ちに申請をお願いします。</li>
+                            <li><strong>費用:</strong> 発行手数料 2,000円。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-1-2">
+                    <label class="checkbox-label" onclick="toggleItem('item-1-2')">
+                        <span class="custom-checkbox"></span>
+                        個人の印鑑登録証明書（原本） 3通
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li><strong>取得先:</strong> 住民登録をしている市区町村役場。</li>
+                            <li><strong>有効期限:</strong> 法務局および行政書士会提出のため、<strong>発行から3ヶ月以内</strong>のもの。</li>
+                            <li>定款認証用、設立登記申請用、行政書士会提出用として複数用意します。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- セクション2: 定款・設立登記 -->
+        <div class="section">
+            <h2 class="section-title">2. 定款作成・設立登記（設立手続き）時に必要なもの</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="item-2-1">
+                    <label class="checkbox-label" onclick="toggleItem('item-2-1')">
+                        <span class="custom-checkbox"></span>
+                        個人の実印（登録している印鑑）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>定款（法人の基本規則）への署名捺印、および設立登記申請書関連の委任状等への押印に使用します。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-2-2">
+                    <label class="checkbox-label" onclick="toggleItem('item-2-2')">
+                        <span class="custom-checkbox"></span>
+                        出資金（資本金）の払い込み
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>決定した出資額を、指定する代表者（ユーザー様）の個人銀行口座へお振り込みください。</li>
+                            <li>振込完了後、通帳のコピーまたはネットバンキングの取引明細画面等のスクリーンショットをご共有ください（払込証明書の添付書類として使用します）。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- セクション3: 行政書士会手続き -->
+        <div class="section">
+            <h2 class="section-title">3. 登記完了後、行政書士会への届出・登録事項変更に必要なもの</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="item-3-1">
+                    <label class="checkbox-label" onclick="toggleItem('item-3-1')">
+                        <span class="custom-checkbox"></span>
+                        行政書士変更登録申請書（属性の変更） 2部
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>個人の属性を「個人」または「使用人」から、「行政書士法人の社員」へと切り替えるための申請です。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-3-2">
+                    <label class="checkbox-label" onclick="toggleItem('item-3-2')">
+                        <span class="custom-checkbox"></span>
+                        現在お持ちの「行政書士証票」（原本）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>新しい法人社員用の証票を発行するにあたり、行政書士会へ返納する必要があります。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-3-3">
+                    <label class="checkbox-label" onclick="toggleItem('item-3-3')">
+                        <span class="custom-checkbox"></span>
+                        新しい証票用の顔写真 2枚
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>サイズ: 縦3.0cm × 横2.4cm（裏面に「登録番号」「氏名」を明記）。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-3-4">
+                    <label class="checkbox-label" onclick="toggleItem('item-3-4')">
+                        <span class="custom-checkbox"></span>
+                        個人事務所の廃止届
+                        <span class="badge-info">該当者のみ</span>
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>現在、個人事務所を開設されている場合のみ。法人の社員との二重登録を避けるため、個人事務所の廃止手続きを行います。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-3-5">
+                    <label class="checkbox-label" onclick="toggleItem('item-3-5')">
+                        <span class="custom-checkbox"></span>
+                        履歴書（指定様式）および誓約書（指定様式）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>行政書士会が指定する所定の様式（履歴書、誓約書）に記入・捺印をいただきます（別途様式を送付します）。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-3-6">
+                    <label class="checkbox-label" onclick="toggleItem('item-3-6')">
+                        <span class="custom-checkbox"></span>
+                        住民票の写し（原本） 1通
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>マイナンバーの記載がなく、本籍地が記載されているもの。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- セクション4: 状況に応じた対応 -->
+        <div class="section">
+            <h2 class="section-title">4. 【状況に応じて】別事務所（支店）を担当される場合に必要なもの</h2>
+            <p style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 12px; margin-top: -8px;">※日栄先生が従たる事務所（支店）に常駐して管轄される場合に限り必要となります。同じ一宮の事務所に常駐される場合は不要です。</p>
+            <ul class="checklist">
+                <li class="checklist-item" id="item-4-1">
+                    <label class="checkbox-label" onclick="toggleItem('item-4-1')">
+                        <span class="custom-checkbox"></span>
+                        従たる事務所の使用権原を証する書面（コピー）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>事務所用の賃貸借契約書（使用目的が「事務所」であるもの）、または自己所有の場合は建物登記事項証明書、親族所有等の場合は使用承諾書。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-4-2">
+                    <label class="checkbox-label" onclick="toggleItem('item-4-2')">
+                        <span class="custom-checkbox"></span>
+                        事務所付近の見取り図・平面図（レイアウト図）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>最寄駅からの略図、および机・応接セット・金庫などの配置を示した平面レイアウト図面。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-4-3">
+                    <label class="checkbox-label" onclick="toggleItem('item-4-3')">
+                        <span class="custom-checkbox"></span>
+                        事務所の写真一式
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>建物の外観全体、建物入口の看板（郵便受け含む）、事務所の入口ドア、室内の全景（接客スペースや事務デスク、施錠可能な書類保管用金庫などが映っているもの）など。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- セクション5: 補助者（1名）に関する手続きに必要なもの -->
+        <div class="section">
+            <h2 class="section-title">5. 補助者（1名）に関する手続きに必要なもの</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="item-5-1">
+                    <label class="checkbox-label" onclick="toggleItem('item-5-1')">
+                        <span class="custom-checkbox"></span>
+                        補助者様の住民票の写し（原本） 1通
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li><strong>取得先:</strong> 補助者様の住民登録がある市区町村役場。</li>
+                            <li><strong>要件:</strong> 本籍地（外国籍の場合は国籍等）記載あり、マイナンバー記載なしのもの。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-5-2">
+                    <label class="checkbox-label" onclick="toggleItem('item-5-2')">
+                        <span class="custom-checkbox"></span>
+                        補助者様の顔写真 1枚（愛知県行政書士会用）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li><strong>サイズ:</strong> 縦3.0cm × 横2.5cm。新しい「法人用」の補助者証に使用します。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-5-3">
+                    <label class="checkbox-label" onclick="toggleItem('item-5-3')">
+                        <span class="custom-checkbox"></span>
+                        現在お持ちの個人事務所の「補助者証」（原本）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>個人事務所の廃止（廃業）届出と同時に、行政書士会へ返納する必要があります。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="item-5-4">
+                    <label class="checkbox-label" onclick="toggleItem('item-5-4')">
+                        <span class="custom-checkbox"></span>
+                        補助者誓約書（指定様式）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>補助者様ご本人に署名・捺印いただく誓約書です（行政書士会の指定様式を使用します）。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- メモ欄（印刷した際にメモ書きできるように） -->
+        <div class="memo-area">
+            <div class="memo-title">📋 連絡・調整メモ</div>
+            <div class="memo-lines"></div>
+        </div>
+
+        <footer>
+            <p>行政書士法人Felis 開業準備プロジェクト (2026)</p>
+        </footer>
+    </div>
+
+    <script>
+        function toggleItem(id) {
+            const item = document.getElementById(id);
+            if (item) {
+                item.classList.toggle('checked');
+            }
+        }
+    </script>
+</body>
+
+</html>

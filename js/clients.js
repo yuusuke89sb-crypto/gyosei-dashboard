@@ -22,9 +22,12 @@ const Clients = {
       <div class="clients-page">
         <div class="page-header">
           <h1>顧客管理</h1>
-          <button class="btn btn-primary" onclick="Clients.showAddModal()">
-            <span class="btn-icon">＋</span> 新規登録
-          </button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-small" onclick="Clients.exportCSV()">📥 CSV出力</button>
+            <button class="btn btn-primary" onclick="Clients.showAddModal()">
+              <span class="btn-icon">＋</span> 新規登録
+            </button>
+          </div>
         </div>
 
         <div class="search-bar">
@@ -89,6 +92,7 @@ const Clients = {
         </div>
         <div class="client-card-body">
           ${client.phone ? `<div class="client-detail"><span class="detail-icon">📞</span> ${client.phone}</div>` : ''}
+          ${client.fax ? `<div class="client-detail"><span class="detail-icon">📠</span> ${client.fax}</div>` : ''}
           ${client.email ? `<div class="client-detail"><span class="detail-icon">✉️</span> ${client.email}</div>` : ''}
           ${client.address ? `<div class="client-detail"><span class="detail-icon">📍</span> ${client.address}</div>` : ''}
           ${client.staffId ? `<div class="client-detail"><span class="detail-icon">👤</span> 担当: ${staffName}</div>` : ''}
@@ -144,18 +148,27 @@ const Clients = {
                 <input type="tel" name="phone" id="cf_phone" placeholder="090-1234-5678">
               </div>
               <div class="form-group">
-                <label>メール</label>
-                <input type="email" name="email" id="cf_email" placeholder="example@mail.com">
+                <label>FAX番号</label>
+                <input type="tel" name="fax" id="cf_fax" placeholder="03-1234-5678">
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
+                <label>メール</label>
+                <input type="email" name="email" id="cf_email" placeholder="example@mail.com">
+              </div>
+              <div class="form-group">
                 <label>郵便番号</label>
                 <input type="text" name="zip" id="cf_zip" placeholder="460-0001">
               </div>
+            </div>
+            <div class="form-row">
               <div class="form-group">
                 <label>紹介元</label>
                 <input type="text" name="referral" id="cf_referral" placeholder="田中先生紹介">
+              </div>
+              <div class="form-group">
+                <!-- 空スペース -->
               </div>
             </div>
             <div class="form-group">
@@ -203,6 +216,7 @@ const Clients = {
       document.getElementById('cf_type').value = client.type || '個人';
       document.getElementById('cf_staffId').value = client.staffId || '';
       document.getElementById('cf_phone').value = client.phone || '';
+      document.getElementById('cf_fax').value = client.fax || '';
       document.getElementById('cf_email').value = client.email || '';
       document.getElementById('cf_zip').value = client.zip || '';
       document.getElementById('cf_referral').value = client.referral || '';
@@ -226,6 +240,7 @@ const Clients = {
       type: form.type.value,
       staffId: form.staffId.value,
       phone: form.phone.value.trim(),
+      fax: form.fax ? form.fax.value.trim() : '',
       email: form.email.value.trim(),
       zip: form.zip.value.trim(),
       referral: form.referral.value.trim(),
@@ -272,6 +287,7 @@ const Clients = {
             <div class="detail-item"><span class="detail-label">フリガナ</span><span>${client.nameKana || '—'}</span></div>
             <div class="detail-item"><span class="detail-label">区分</span><span>${client.type || '個人'}</span></div>
             <div class="detail-item"><span class="detail-label">電話</span><span>${client.phone || '—'}</span></div>
+            <div class="detail-item"><span class="detail-label">FAX</span><span>${client.fax || '—'}</span></div>
             <div class="detail-item"><span class="detail-label">メール</span><span>${client.email || '—'}</span></div>
             <div class="detail-item"><span class="detail-label">郵便番号</span><span>${client.zip || '—'}</span></div>
             <div class="detail-item"><span class="detail-label">住所</span><span>${client.address || '—'}</span></div>
@@ -286,6 +302,7 @@ const Clients = {
           <div class="detail-actions">
             <button class="btn btn-secondary" onclick="document.getElementById('clientDetailModal').remove(); Clients.showEditModal('${client.id}')">✏️ 編集</button>
             <button class="btn btn-primary" onclick="document.getElementById('clientDetailModal').remove(); Invoice.showSelectModal('${client.id}')">📄 請求書発行</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('clientDetailModal').remove(); Invoice.showSelectModal('${client.id}', 'estimate')" style="background:var(--accent-gold, #f59e0b);color:#fff;border:none">📄 見積書発行</button>
             <button class="btn btn-danger" onclick="if(confirm('この顧客と紐づく案件を全て削除しますか？')){Store.deleteClient('${client.id}'); document.getElementById('clientDetailModal').remove(); App.refreshView(); App.showToast('顧客を削除しました');}">🗑️ 削除</button>
           </div>
         </div>
@@ -319,10 +336,200 @@ const Clients = {
       }
         </div>
         <div class="detail-section">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h3 style="margin:0">👤 顧客担当者</h3>
+            <button class="btn btn-secondary btn-small" onclick="Clients.showContactAddForm('${client.id}')">＋ 追加</button>
+          </div>
+          <div id="clientContactArea_${client.id}">
+            ${this._renderContactList(client.id)}
+          </div>
+        </div>
+        <div class="detail-section">
           ${typeof ActivityLog !== 'undefined' ? ActivityLog.renderWidget('client', id) : ''}
         </div>
       </div>
     `;
     document.body.appendChild(modal);
+  },
+
+  exportCSV() {
+    const clients = Store.getClients();
+    if (clients.length === 0) {
+      App.showToast('エクスポートする顧客データがありません');
+      return;
+    }
+
+    const headers = ['区分', '名前', 'フリガナ', '郵便番号', '住所', '電話番号', 'FAX番号', 'メールアドレス', '紹介元', '登録日', 'メモ'];
+    const rows = [headers];
+
+    clients.forEach(c => {
+      rows.push([
+        c.type || '個人',
+        c.name || '',
+        c.nameKana || '',
+        c.zip || '',
+        c.address || '',
+        c.phone || '',
+        c.fax || '',
+        c.email || '',
+        c.referral || '',
+        c.createdAt ? c.createdAt.slice(0, 10) : '',
+        c.memo || ''
+      ]);
+    });
+
+    // カンマとダブルクォーテーションをエスケープ
+    const csvContent = rows.map(r => r.map(v => {
+      const escaped = String(v).replace(/"/g, '""');
+      return `"${escaped}"`;
+    }).join(',')).join('\n');
+
+    // Windows Excelでの文字化け防止用にBOMを付与
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `顧客リスト_${todayStr}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    App.showToast(`📥 ${clients.length}件の顧客データをCSV出力しました`);
+  },
+
+  // ---- 顧客担当者管理 ----
+  _renderContactList(clientId) {
+    const contacts = Store.getClientContacts(clientId);
+    if (contacts.length === 0) {
+      return '<p style="color:var(--text-muted);font-size:0.875rem;margin:0">担当者が登録されていません</p>';
+    }
+    return contacts.map(c => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-color)">
+        <span style="font-weight:600;flex:1;cursor:pointer" onclick="Clients.showContactDetail('${c.id}')">
+          👤 ${c.name}
+        </span>
+        ${c.phone ? `<span style="font-size:0.8rem;color:var(--text-muted)">📞 ${c.phone}</span>` : ''}
+        <button class="btn btn-secondary btn-small" onclick="Clients.showContactEditForm('${c.id}', '${clientId}')">✏️</button>
+        <button class="btn btn-danger btn-small" onclick="Clients.onContactDelete('${c.id}', '${clientId}')">🗑️</button>
+      </div>
+    `).join('');
+  },
+
+  _refreshContactArea(clientId) {
+    const area = document.getElementById(`clientContactArea_${clientId}`);
+    if (area) area.innerHTML = this._renderContactList(clientId);
+  },
+
+  showContactDetail(id) {
+    const c = Store.getClientContact(id);
+    if (!c) return;
+    const popup = document.createElement('div');
+    popup.id = 'contactDetailPopup';
+    popup.className = 'modal';
+    popup.style.display = 'flex';
+    popup.innerHTML = `
+      <div class="modal-overlay" onclick="document.getElementById('contactDetailPopup').remove()"></div>
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width:380px">
+        <div class="modal-header">
+          <h2>👤 担当者詳細</h2>
+          <button class="modal-close" onclick="document.getElementById('contactDetailPopup').remove()">✕</button>
+        </div>
+        <div class="detail-grid" style="gap:12px">
+          <div class="detail-item"><span class="detail-label">氏名</span><span>${c.name}</span></div>
+          <div class="detail-item"><span class="detail-label">電話番号</span><span>${c.phone || '—'}</span></div>
+          <div class="detail-item"><span class="detail-label">メール</span><span>${c.email || '—'}</span></div>
+          <div class="detail-item full-width"><span class="detail-label">メモ</span><span>${c.memo || '—'}</span></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(popup);
+  },
+
+  _contactFormHtml(contact, clientId, isEdit) {
+    return `
+      <div id="contactFormBox" style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;padding:14px;margin-top:8px">
+        <div style="font-weight:600;margin-bottom:10px;font-size:0.9rem">${isEdit ? '担当者を編集' : '担当者を追加'}</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>氏名 <span class="required">*</span></label>
+            <input type="text" id="ccf_name" value="${contact ? contact.name : ''}" placeholder="例：稲垣">
+          </div>
+          <div class="form-group">
+            <label>電話番号</label>
+            <input type="tel" id="ccf_phone" value="${contact ? (contact.phone || '') : ''}" placeholder="090-xxxx-xxxx">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>メール</label>
+            <input type="email" id="ccf_email" value="${contact ? (contact.email || '') : ''}" placeholder="example@mail.com">
+          </div>
+          <div class="form-group">
+            <label>メモ</label>
+            <input type="text" id="ccf_memo" value="${contact ? (contact.memo || '') : ''}" placeholder="備考">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button class="btn btn-secondary btn-small" onclick="Clients.cancelContactForm('${clientId}')">キャンセル</button>
+          <button class="btn btn-primary btn-small" onclick="Clients.onContactSubmit('${isEdit ? contact.id : ''}', '${clientId}')">保存</button>
+        </div>
+      </div>
+    `;
+  },
+
+  showContactAddForm(clientId) {
+    const area = document.getElementById(`clientContactArea_${clientId}`);
+    if (!area) return;
+    // フォームが既にあれば閉じる
+    const existing = document.getElementById('contactFormBox');
+    if (existing) existing.remove();
+    area.insertAdjacentHTML('beforeend', this._contactFormHtml(null, clientId, false));
+  },
+
+  showContactEditForm(contactId, clientId) {
+    const contact = Store.getClientContact(contactId);
+    if (!contact) return;
+    const area = document.getElementById(`clientContactArea_${clientId}`);
+    if (!area) return;
+    const existing = document.getElementById('contactFormBox');
+    if (existing) existing.remove();
+    area.insertAdjacentHTML('beforeend', this._contactFormHtml(contact, clientId, true));
+  },
+
+  cancelContactForm(clientId) {
+    const box = document.getElementById('contactFormBox');
+    if (box) box.remove();
+  },
+
+  onContactSubmit(contactId, clientId) {
+    const name = (document.getElementById('ccf_name')?.value || '').trim();
+    if (!name) { App.showToast('氏名を入力してください'); return; }
+    const data = {
+      clientId,
+      name,
+      phone: (document.getElementById('ccf_phone')?.value || '').trim(),
+      email: (document.getElementById('ccf_email')?.value || '').trim(),
+      memo: (document.getElementById('ccf_memo')?.value || '').trim(),
+    };
+    if (contactId) {
+      Store.updateClientContact(contactId, data);
+      App.showToast('担当者を更新しました');
+    } else {
+      Store.addClientContact(data);
+      App.showToast('担当者を追加しました');
+    }
+    this.cancelContactForm(clientId);
+    this._refreshContactArea(clientId);
+  },
+
+  onContactDelete(contactId, clientId) {
+    const c = Store.getClientContact(contactId);
+    if (!c) return;
+    if (confirm(`「${c.name}」を削除しますか？`)) {
+      Store.deleteClientContact(contactId);
+      this._refreshContactArea(clientId);
+      App.showToast('担当者を削除しました');
+    }
   },
 };

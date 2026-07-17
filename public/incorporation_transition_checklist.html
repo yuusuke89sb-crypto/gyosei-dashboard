@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【印刷用】法人化移行・業務継続チェックリスト | 行政書士法人Felis</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #0f0f23;
+            color: #e4e4ef;
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            position: relative;
+        }
+
+        /* 印刷ボタン */
+        .print-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+            gap: 12px;
+        }
+
+        .btn-print {
+            background: #f59e0b;
+            color: #0f0f23;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .btn-print:hover {
+            background: #d97706;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px dashed #2a2a4a;
+            padding-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            font-size: 0.9rem;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        .section {
+            background: #1a1a2e;
+            border-radius: 14px;
+            padding: 28px;
+            margin-bottom: 24px;
+            border: 1px solid #2a2a4a;
+        }
+
+        .section-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #f59e0b;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #2a2a4a;
+            padding-bottom: 8px;
+        }
+
+        .checklist {
+            list-style: none;
+        }
+
+        .checklist-item {
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #25253d;
+        }
+
+        .checklist-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .custom-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f59e0b;
+            border-radius: 4px;
+            margin-top: 3px;
+            flex-shrink: 0;
+            display: inline-block;
+            position: relative;
+        }
+
+        /* 画面上でのクリックトグル用のスタイル */
+        .checklist-item.checked .custom-checkbox::after {
+            content: "✓";
+            position: absolute;
+            top: -2px;
+            left: 2px;
+            color: #f59e0b;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .checklist-item.checked .checkbox-label {
+            color: #9ca3af;
+            text-decoration: line-through;
+        }
+
+        .details {
+            margin-left: 32px;
+            margin-top: 6px;
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+
+        .badge-warning {
+            background: #ef4444;
+            color: #fff;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+            font-weight: normal;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .badge-info {
+            background: #3b82f6;
+            color: #fff;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+            font-weight: normal;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .memo-area {
+            background: #1a1a2e;
+            border-radius: 14px;
+            padding: 28px;
+            border: 1px solid #2a2a4a;
+            margin-top: 32px;
+        }
+
+        .memo-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        .memo-lines {
+            border: 1px dashed #2a2a4a;
+            height: 120px;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.85rem;
+            color: #4b5563;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #6b7280;
+            font-size: 0.8rem;
+            border-top: 1px solid #2a2a4a;
+            padding-top: 20px;
+        }
+
+        /* 印刷用のスタイル調整 */
+        @media print {
+            body {
+                background: #fff;
+                color: #000;
+            }
+
+            .container {
+                max-width: 100%;
+                padding: 10px 0;
+            }
+
+            .print-actions {
+                display: none;
+            }
+
+            header {
+                border-bottom-color: #000;
+                padding-bottom: 16px;
+                margin-bottom: 24px;
+            }
+
+            h1 {
+                color: #000;
+                font-size: 1.5rem;
+            }
+
+            .subtitle {
+                color: #4b5563;
+            }
+
+            .section {
+                background: #fff;
+                border: 1px solid #000;
+                border-radius: 0;
+                padding: 20px;
+                margin-bottom: 20px;
+                page-break-inside: avoid;
+            }
+
+            .section-title {
+                color: #000;
+                border-bottom: 2px solid #000;
+                padding-bottom: 4px;
+                font-size: 1.1rem;
+            }
+
+            .checkbox-label {
+                color: #000;
+            }
+
+            .custom-checkbox {
+                border: 2px solid #000;
+            }
+
+            .checklist-item {
+                border-bottom: 1px solid #ccc;
+            }
+
+            .checklist-item.checked .custom-checkbox::after {
+                color: #000;
+            }
+
+            .checklist-item.checked .checkbox-label {
+                color: #000;
+                text-decoration: none;
+            }
+
+            .details {
+                color: #374151;
+            }
+
+            .badge-warning {
+                border: 1px solid #000;
+                background: #fff;
+                color: #000;
+                font-weight: bold;
+            }
+
+            .badge-info {
+                border: 1px solid #000;
+                background: #fff;
+                color: #000;
+            }
+
+            .memo-area {
+                background: #fff;
+                border: 1px solid #000;
+                border-radius: 0;
+                padding: 20px;
+                page-break-inside: avoid;
+            }
+
+            .memo-title {
+                color: #000;
+            }
+
+            .memo-lines {
+                border: 1px solid #000;
+                border-style: solid none none none;
+                height: 100px;
+                margin-top: 16px;
+                background-image: linear-gradient(to bottom, transparent 95%, #ccc 95%);
+                background-size: 100% 24px;
+                line-height: 24px;
+            }
+
+            footer {
+                border-top-color: #000;
+                color: #374151;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- 印刷ボタンエリア -->
+        <div class="print-actions">
+            <button class="btn-print" onclick="window.print()">
+                <span>🖨️ ページを印刷する</span>
+            </button>
+        </div>
+
+        <header>
+            <h1>⚖️ 法人化移行・業務継続チェックリスト</h1>
+            <p class="subtitle">個人事業から行政書士法人Felisへの組織変更時に、業務を停滞させずクライアントからの信頼を維持するための移行タスク一覧です。</p>
+        </header>
+
+        <!-- セクション1: クライアント・契約の承継 -->
+        <div class="section">
+            <h2 class="section-title">1. クライアント・契約関係の移行</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="task-1-1">
+                    <label class="checkbox-label" onclick="toggleItem('task-1-1')">
+                        <span class="custom-checkbox"></span>
+                        既存クライアントへの「法人化のご案内」送付（移行1ヶ月前）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>日栄先生との共同経営化による体制強化と、前向きな組織変更であることを記載し、不信感を払拭します。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-1-2">
+                    <label class="checkbox-label" onclick="toggleItem('task-1-2')">
+                        <span class="custom-checkbox"></span>
+                        顧問契約および継続案件の「契約承継合意書（覚書）」の締結
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>契約のすべてを新規で巻き直すのではなく、既存契約の権利義務を新法人へ包括的に引き継ぐ旨の1枚物の「覚書」で合意を得ます。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-1-3">
+                    <label class="checkbox-label" onclick="toggleItem('task-1-3')">
+                        <span class="custom-checkbox"></span>
+                        新規受任用の契約書・委任状テンプレートの「法人化対応」
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>委任状や業務委託契約書の受任者・当事者表記を「行政書士法人Felis」に変更し、法人代表印を押印する様式へ修正します。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- セクション2: 進行中案件のコントロール -->
+        <div class="section">
+            <h2 class="section-title">2. 進行中案件のコントロール（空白期間対策）</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="task-2-1">
+                    <label class="checkbox-label" onclick="toggleItem('task-2-1')">
+                        <span class="custom-checkbox"></span>
+                        進行中案件の洗い出しと前倒し申請（登記日の2週間前〜前日）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>法人の登記申請から登記簿謄本が発行されるまでの「空白期間」に重なる案件は、可能な限り個人名義で前倒し申請を完了させます。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-2-2">
+                    <label class="checkbox-label" onclick="toggleItem('task-2-2')">
+                        <span class="custom-checkbox"></span>
+                        登記日をまたぐ長期案件における「法人宛の委任状」の事前回収
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>登記完了直後に素早く申請できるよう、クライアントからあらかじめ代理人を「法人」とした委任状を事前回収しておきます。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-2-3">
+                    <label class="checkbox-label" onclick="toggleItem('task-2-3')">
+                        <span class="custom-checkbox"></span>
+                        主要な申請窓口（警察署・県庁等）への事前相談
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>特に車庫証明（警察）や建設業許可（県庁）などについて、受任者の法人成り時における変更手続きの取り扱い（再申請の要否など）を確認しておきます。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- セクション3: 法人口座・金銭管理 -->
+        <div class="section">
+            <h2 class="section-title">3. 銀行口座・金銭管理の切り替え（タイムラグ対策）</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="task-3-1">
+                    <label class="checkbox-label" onclick="toggleItem('task-3-1')">
+                        <span class="custom-checkbox"></span>
+                        法人設立登記完了後、直ちに「法人口座」の開設申請（登記日当日〜翌営業日）
+                        <span class="badge-warning">タイムラグあり</span>
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>法人口座開設には2〜4週間かかるため、履歴事項全部証明書が手に入り次第速やかに手続きを行います。ネット銀行も併せて申し込むと早いです。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-3-2">
+                    <label class="checkbox-label" onclick="toggleItem('task-3-2')">
+                        <span class="custom-checkbox"></span>
+                        口座未開設期間中の「代表者個人口座の一時利用」の案内準備
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>口座開設完了までの間に支払期日がある顧客に対し、「ただいま法人口座開設中のため、一時的に代表者の個人口座へお振り込みください」と説明する案内文書を準備します。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-3-3">
+                    <label class="checkbox-label" onclick="toggleItem('task-3-3')">
+                        <span class="custom-checkbox"></span>
+                        会計システム・ダッシュボードの移行設定
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>個人事業の帳簿を締め、法人としての新しい期・仕訳帳を立ち上げます。ダッシュボード側でも事務所情報を「行政書士法人Felis」に更新します。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- セクション4: 電子申請・ITインフラ -->
+        <div class="section">
+            <h2 class="section-title">4. 電子申請・ITインフラの法人対応</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="task-4-1">
+                    <label class="checkbox-label" onclick="toggleItem('task-4-1')">
+                        <span class="custom-checkbox"></span>
+                        商業登記用電子証明書の発行（登記完了当日）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>法務局の窓口またはオンラインで法人としての電子証明書を発行します。電子申請システムの切り替えに必須です。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-4-2">
+                    <label class="checkbox-label" onclick="toggleItem('task-4-2')">
+                        <span class="custom-checkbox"></span>
+                        gBizID Prime（法人用）の申請
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>法人登記簿謄本と印鑑証明書を添えて申請します。電子申請アカウントを個人のものから法人のものへ移行します。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-4-3">
+                    <label class="checkbox-label" onclick="toggleItem('task-4-3')">
+                        <span class="custom-checkbox"></span>
+                        電子申請アカウント切り替え期間中の「紙申請」の予備ルート確保
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>各種ポータル（e-Gov、OSS等）の法人登録変更中、オンライン申請が一時中断しても対応できるよう、紙申請用の様式や窓口情報を準備しておきます。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- セクション5: 職印・法廷手続き -->
+        <div class="section">
+            <h2 class="section-title">5. 職印・行政書士会への各種届出</h2>
+            <ul class="checklist">
+                <li class="checklist-item" id="task-5-1">
+                    <label class="checkbox-label" onclick="toggleItem('task-5-1')">
+                        <span class="custom-checkbox"></span>
+                        法人の職印（丸印・角印）の発行・届出
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>法人名（行政書士法人Felis）が入った職印を作成し、設立登記完了後、行政書士会へ職印届を提出します。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-5-2">
+                    <label class="checkbox-label" onclick="toggleItem('task-5-2')">
+                        <span class="custom-checkbox"></span>
+                        行政書士会への「法人成立届」および「入会届」の提出（登記完了後2週間以内）
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>愛知県行政書士会へ、登記簿謄本や定款コピーを添付して提出します。</li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="checklist-item" id="task-5-3">
+                    <label class="checkbox-label" onclick="toggleItem('task-5-3')">
+                        <span class="custom-checkbox"></span>
+                        各社員行政書士・補助者の変更登録申請の同時提出
+                    </label>
+                    <div class="details">
+                        <ul>
+                            <li>ユーザー様、日栄先生の「属性変更届」および補助者様の「設置届」をまとめて同時に提出し、一括で法人所属へ切り替えます。</li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- メモ欄（印刷した際にメモ書きできるように） -->
+        <div class="memo-area">
+            <div class="memo-title">📋 連絡・調整メモ</div>
+            <div class="memo-lines"></div>
+        </div>
+
+        <footer>
+            <p>行政書士法人Felis 開業準備プロジェクト (2026)</p>
+        </footer>
+    </div>
+
+    <script>
+        function toggleItem(id) {
+            const item = document.getElementById(id);
+            if (item) {
+                item.classList.toggle('checked');
+            }
+        }
+    </script>
+</body>
+
+</html>

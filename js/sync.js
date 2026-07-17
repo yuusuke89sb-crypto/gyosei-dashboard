@@ -81,11 +81,37 @@ const SpreadsheetSync = {
                     return {
                         ...remoteCase,
                         docs: Array.isArray(parsedDocs) ? parsedDocs : [],
-                        advances: Array.isArray(parsedAdvances) ? parsedAdvances : []
+                        advances: Array.isArray(parsedAdvances) ? parsedAdvances : [],
+                        // ローカル専用フィールドはローカル優先（リモートにない列）
+                        clientContactId: remoteCase.clientContactId || (localCase && localCase.clientContactId) || '',
+                        locationId: remoteCase.locationId || (localCase && localCase.locationId) || '',
+                        faxId: remoteCase.faxId || (localCase && localCase.faxId) || '',
+                        inboxId: remoteCase.inboxId || (localCase && localCase.inboxId) || '',
+                        driveFolderUrl: remoteCase.driveFolderUrl || (localCase && localCase.driveFolderUrl) || '',
+                        invoiceNo: remoteCase.invoiceNo || (localCase && localCase.invoiceNo) || '',
+                        deathDate: remoteCase.deathDate || (localCase && localCase.deathDate) || '',
+                        surveyDate: remoteCase.surveyDate || (localCase && localCase.surveyDate) || '',
+                        applyDate: remoteCase.applyDate || (localCase && localCase.applyDate) || '',
+                        policeDeliveryDate: remoteCase.policeDeliveryDate || (localCase && localCase.policeDeliveryDate) || '',
+                        storeDeliveryDate: remoteCase.storeDeliveryDate || (localCase && localCase.storeDeliveryDate) || '',
+                        storeDeliveryTime: remoteCase.storeDeliveryTime || (localCase && localCase.storeDeliveryTime) || '',
+                        surveyLocationId: remoteCase.surveyLocationId || (localCase && localCase.surveyLocationId) || '',
+                        policeLocationId: remoteCase.policeLocationId || (localCase && localCase.policeLocationId) || '',
+                        landTransportLocationId: remoteCase.landTransportLocationId || (localCase && localCase.landTransportLocationId) || '',
                     };
                 });
                 
                 Store._set(Store.KEYS.CASES, mergedCases);
+            }
+
+            // インボックスデータを localStorage に保存
+            if (data.inbox) {
+                Store._set(Store.KEYS.INBOX, data.inbox);
+            }
+
+            // 場所マスタデータを localStorage に保存
+            if (data.locations) {
+                Store._set(Store.KEYS.LOCATIONS, data.locations);
             }
 
             // 帳簿データをマージ（ローカル専用データを保持）
@@ -109,6 +135,8 @@ const SpreadsheetSync = {
                 staff: (data.staff || []).length,
                 cases: (data.cases || []).length,
                 journals: (data.journals || []).length,
+                inbox: (data.inbox || []).length,
+                locations: (data.locations || []).length,
                 syncedAt: data.syncedAt,
             };
 
@@ -155,6 +183,7 @@ const SpreadsheetSync = {
                 success: true,
                 customers: (data.customers || []).length,
                 staff: (data.staff || []).length,
+                locations: (data.locations || []).length,
             };
         } catch (err) {
             return { success: false, error: err.message };
@@ -231,7 +260,7 @@ const SpreadsheetSync = {
             resultDiv.innerHTML = `
         <div class="sync-result success">
           ✅ 接続成功！<br>
-          顧客: ${result.customers}件 / 担当者: ${result.staff}件
+          顧客: ${result.customers}件 / 担当者: ${result.staff}件 / 場所: ${result.locations}件
         </div>
       `;
         } else {
@@ -268,7 +297,7 @@ const SpreadsheetSync = {
         try {
             const result = await this.pull();
             App.refreshView();
-            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 案件${result.cases}件 / 帳簿${result.journals}件`);
+            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 場所${result.locations}件 / 案件${result.cases}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`);
         } catch (err) {
             App.showToast('❌ 同期エラー: ' + err.message);
         }
@@ -302,8 +331,8 @@ const SpreadsheetSync = {
         }
     },
 
-    // ---- Googleカレンダー同期 ----
-    async pushCalendarEvent(action, data) {
+    // ---- Google Apps Script 汎用通信送信 ----
+    async postToGas(action, data) {
         const url = this.getGasUrl();
         if (!url) return null;
 
@@ -316,14 +345,19 @@ const SpreadsheetSync = {
 
             const result = await response.json();
             if (result.error) {
-                console.warn('カレンダー同期エラー:', result.error);
+                console.warn(`${action} 同期エラー:`, result.error);
             }
             return result;
 
         } catch (err) {
-            console.warn('カレンダー同期通信エラー:', err);
+            console.warn(`${action} 通信エラー:`, err);
             return null;
         }
+    },
+
+    // バックワード互換性のためのエイリアス
+    async pushCalendarEvent(action, data) {
+        return this.postToGas(action, data);
     },
 
     async pullCalendarEvents() {

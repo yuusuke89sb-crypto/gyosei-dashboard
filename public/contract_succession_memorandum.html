@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【印刷用】契約上の地位承継に関する覚書 | 行政書士法人フェリス</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #0f0f23;
+            color: #e4e4ef;
+            line-height: 1.7;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1a1a2e;
+            border: 1px solid #2a2a4a;
+            border-radius: 14px;
+            padding: 40px;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 印刷ボタン */
+        .print-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+
+        .btn-print {
+            background: #f59e0b;
+            color: #0f0f23;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .btn-print:hover {
+            background: #d97706;
+        }
+
+        .doc-title {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 40px;
+            color: #fff;
+            letter-spacing: 0.1em;
+        }
+
+        .preamble {
+            font-size: 0.95rem;
+            margin-bottom: 30px;
+            text-indent: 1em;
+            color: #c4c4d6;
+        }
+
+        .clause-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-top: 24px;
+            margin-bottom: 8px;
+            color: #f59e0b;
+            border-left: 3px solid #f59e0b;
+            padding-left: 8px;
+        }
+
+        .clause-body {
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+            text-indent: 1em;
+            color: #c4c4d6;
+        }
+
+        .clause-list {
+            margin-left: 24px;
+            margin-bottom: 16px;
+            font-size: 0.95rem;
+            color: #c4c4d6;
+        }
+
+        .clause-list li {
+            margin-bottom: 4px;
+        }
+
+        .date-line {
+            text-align: right;
+            margin-top: 40px;
+            margin-bottom: 30px;
+            font-size: 0.95rem;
+            color: #fff;
+        }
+
+        .sign-area {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            margin-top: 40px;
+            border-top: 1px dashed #2a2a4a;
+            padding-top: 30px;
+        }
+
+        .sign-block {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .sign-label {
+            width: 80px;
+            font-weight: 700;
+            color: #fff;
+            font-size: 0.95rem;
+            padding-top: 4px;
+        }
+
+        .sign-fields {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+        }
+
+        .field-label {
+            width: 60px;
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+
+        .field-line {
+            flex-grow: 1;
+            border-bottom: 1px dashed #4b5563;
+            height: 24px;
+            margin-right: 40px;
+        }
+
+        .stamp-box {
+            width: 50px;
+            height: 50px;
+            border: 1px dashed #4b5563;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            color: #9ca3af;
+            border-radius: 4px;
+        }
+
+        /* 印刷用のスタイル調整 */
+        @media print {
+            body {
+                background: #fff;
+                color: #000;
+                padding: 0;
+            }
+
+            .container {
+                max-width: 100%;
+                background: #fff;
+                border: none;
+                box-shadow: none;
+                padding: 0;
+            }
+
+            .print-actions {
+                display: none;
+            }
+
+            .doc-title {
+                color: #000;
+                font-size: 1.6rem;
+                margin-top: 20px;
+            }
+
+            .preamble,
+            .clause-body,
+            .clause-list {
+                color: #000;
+                font-size: 0.9rem;
+            }
+
+            .clause-title {
+                color: #000;
+                border-left-color: #000;
+                font-size: 0.95rem;
+            }
+
+            .date-line {
+                color: #000;
+            }
+
+            .sign-area {
+                border-top-color: #000;
+            }
+
+            .sign-label {
+                color: #000;
+            }
+
+            .field-label {
+                color: #374151;
+            }
+
+            .field-line {
+                border-bottom-color: #000;
+            }
+
+            .stamp-box {
+                border-color: #000;
+                color: #374151;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 印刷ボタンエリア -->
+    <div class="print-actions">
+        <button class="btn-print" onclick="window.print()">
+            <span>🖨️ 契約書を印刷する</span>
+        </button>
+    </div>
+
+    <div class="container">
+        <h1 class="doc-title">契約上の地位承継に関する覚書</h1>
+
+        <p class="preamble">
+            委託者［　　　　　　　　　　］（以下「甲」という。）、受託者［　　　　　　　　　　］（以下「乙」という。）および新受託者 行政書士法人フェリス（以下「丙」という。）は、甲乙間で締結された原契約（第1条に定義する。）に基づく乙の契約上の地位を丙が承継することに関し、以下のとおり合意する。
+        </p>
+
+        <h2 class="clause-title">第1条（原契約の特定）</h2>
+        <p class="clause-body">
+            甲および乙は、甲乙間で締結された以下の契約（以下「原契約」という。）について、本覚書に基づき地位を承継することを確認する。
+        </p>
+        <ul class="clause-list">
+            <li>契約名称：［　　　　　　　　　　　　　　　　　　　　］</li>
+            <li>契約締結日：令和［　　］年［　　］月［　　］日</li>
+        </ul>
+
+        <h2 class="clause-title">第2条（契約上の地位の承継）</h2>
+        <p class="clause-body">
+            乙は丙に対し、令和［　　］年［　　］月［　　］日（以下「承継日」という。）をもって、原契約における乙の契約上の地位ならびに原契約に基づく一切の権利および義務（以下「承継地位等」という。）を譲渡し、丙はこれを引き受け、承継する。甲は、当該譲渡および承継について、本覚書をもって無条件に承諾する。
+        </p>
+
+        <h2 class="clause-title">第3条（承継の効果）</h2>
+        <p class="clause-body">
+            承継日以降、原契約における乙の表記は「丙（行政書士法人フェリス）」と読み替えるものとし、丙は原契約に基づく受託者として、甲に対して原契約に定める業務を遂行する義務を負い、かつ、同業務に対する報酬請求権その他一切の権利を行使するものとする。
+        </p>
+
+        <h2 class="clause-title">第4条（契約内容の維持）</h2>
+        <p class="clause-body">
+            本覚書において明示的に変更された事項を除き、原契約の各条項は承継日以降も有効に継続するものとし、その解釈および適用は原契約の定めに従う。
+        </p>
+
+        <h2 class="clause-title">第5条（情報の引継ぎ）</h2>
+        <p class="clause-body">
+            甲は、乙が原契約に関して甲から取得した個人情報を含む一切の情報および資料を、丙に対して引き継ぐことに同意する。丙は、引き継いだ情報等を原契約の秘密保持条項および関連法令に従って厳重に管理するものとする。
+        </p>
+
+        <h2 class="clause-title">第6条（振込先の変更）</h2>
+        <p class="clause-body">
+            承継日以降に発生する原契約に基づく報酬等の支払について、甲は、別途丙が通知する丙名義の銀行口座に振り込む方法により支払うものとする。
+        </p>
+
+        <h2 class="clause-title">第7条（協議解決）</h2>
+        <p class="clause-body">
+            本覚書に定めのない事項、または本覚書の解釈に疑義が生じた事項については、甲、乙および丙の三者が誠意をもって協議の上、解決するものとする。
+        </p>
+
+        <p class="preamble" style="margin-top: 30px; text-indent: 0;">
+            本覚書の成立を証するため、本書3通を作成し、甲乙丙記名押印の上、各1通を保有する。
+        </p>
+
+        <div class="date-line">
+            令和［　　］年［　　］月［　　］日
+        </div>
+
+        <div class="sign-area">
+            <!-- 甲 -->
+            <div class="sign-block">
+                <div class="sign-label">甲（委託者）</div>
+                <div class="sign-fields">
+                    <div class="field-row">
+                        <div class="field-label">住所</div>
+                        <div class="field-line"></div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field-label">氏名</div>
+                        <div class="field-line"></div>
+                        <div class="stamp-box">印</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 乙 -->
+            <div class="sign-block">
+                <div class="sign-label">乙（受託者）</div>
+                <div class="sign-fields">
+                    <div class="field-row">
+                        <div class="field-label">住所</div>
+                        <div class="field-line"></div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field-label">氏名</div>
+                        <div class="field-line"></div>
+                        <div class="stamp-box">印</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 丙 -->
+            <div class="sign-block">
+                <div class="sign-label">丙（新受託者）</div>
+                <div class="sign-fields">
+                    <div class="field-row">
+                        <div class="field-label">住所</div>
+                        <div class="field-line">愛知県一宮市木曽川町黒田字往還南80</div>
+                    </div>
+                    <div class="field-row">
+                        <div class="field-label">名称</div>
+                        <div class="field-line">行政書士法人フェリス<br><span style="font-size:0.75rem; color:#9ca3af;">代表社員：吉村 悠佑</span></div>
+                        <div class="stamp-box">法人印</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

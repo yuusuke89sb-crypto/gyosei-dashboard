@@ -92,12 +92,46 @@ function renderDashboard() {
     });
   }
 
+  // 未対応FAXの取得
+  let faxAlertHtml = '';
+  if (typeof FaxManager !== 'undefined') {
+    const unprocessed = FaxManager.getUnprocessedFaxes();
+    if (unprocessed.length > 0) {
+      faxAlertHtml = `
+        <div class="dashboard-section stat-danger-alert" style="margin-bottom: 20px; border-left: 4px solid var(--accent-orange); background: rgba(249, 115, 22, 0.05); padding: 16px 20px; border-radius: var(--radius)">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px">
+            <span style="font-weight:700; color:var(--accent-orange); font-size: 0.95rem; display:flex; align-items:center; gap:8px">
+              ⚠️ 未登録の受信FAXがあります (${unprocessed.length}件)
+            </span>
+            <button class="btn btn-secondary btn-small" onclick="App.navigate('fax'); setTimeout(() => FaxManager.loadLog(), 100)">📠 FAX一覧を開く</button>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px">
+            ${unprocessed.slice(0, 3).map(f => `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.15); padding:8px 12px; border-radius:var(--radius-sm); font-size:0.82rem">
+                <div style="text-align:left">
+                  <span style="color:var(--text-muted); margin-right:8px">${f.date}</span>
+                  <span style="font-weight:600; color:var(--text-primary); margin-right:8px">${f.number}</span>
+                  <span style="color:var(--text-secondary)">${f.subject || '（件名なし）'}</span>
+                  ${f.clientName ? `<span style="background:rgba(245,158,11,0.15); color:var(--accent-gold); padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:8px">${f.clientName}</span>` : ''}
+                </div>
+                <button class="btn btn-primary btn-small" style="font-size:0.75rem; padding:4px 10px; flex-shrink:0" onclick="FaxManager.createCase('${f.date}', '${f.number}', '${f.subject}', '${f.clientName || ''}')">➕ 案件登録</button>
+              </div>
+            `).join('')}
+            ${unprocessed.length > 3 ? `<div style="text-align:right; font-size:0.78rem; color:var(--text-muted)">他 ${unprocessed.length - 3} 件の未対応FAXがあります</div>` : ''}
+          </div>
+        </div>
+      `;
+    }
+  }
+
   return `
     <div class="dashboard">
       <div class="page-header">
         <h1>ダッシュボード</h1>
         <p class="page-subtitle">${new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p>
       </div>
+
+      ${faxAlertHtml}
 
       <div class="stat-cards">
         <div class="stat-card stat-primary">
@@ -172,6 +206,7 @@ function renderDashboard() {
         </div>
 
         ${typeof InheritanceDeadlines !== 'undefined' ? InheritanceDeadlines.renderDashboardWidget() : ''}
+        ${typeof GarageScheduleWidget !== 'undefined' ? GarageScheduleWidget.renderDashboardWidget() : ''}
 
         <div class="dashboard-section">
           <h2 class="section-title">📅 今後7日間の期限</h2>

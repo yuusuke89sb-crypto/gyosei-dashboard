@@ -57,6 +57,7 @@ const CaseDocs = {
             fileName: file.name,
             mimeType: file.type || 'application/octet-stream',
             base64Data,
+            folderUrl: c ? c.driveFolderUrl : undefined,
           });
 
           if (result && result.success) {

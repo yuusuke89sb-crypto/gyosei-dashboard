@@ -140,6 +140,8 @@ const Cases = {
     const catLabel = this.CATEGORIES.find(cat => cat.key === c.category);
     const deadlineClass = this.getDeadlineClass(c.deadline);
     const staffName = Store.getStaffName(c.staffId);
+    const contactName = c.clientContactId ? Store.getClientContact(c.clientContactId)?.name : '';
+    const locationName = Store.getLocationName(c.locationId);
     return `
       <div class="kanban-card ${deadlineClass}" draggable="true"
         ondragstart="event.dataTransfer.setData('text/plain','${c.id}')"
@@ -150,7 +152,10 @@ const Cases = {
         <div class="kanban-card-title">${c.title}</div>
         <div class="kanban-card-meta">
           ${client ? `<span>👤 ${client.name}</span>` : ''}
+          ${contactName ? `<span style="font-size:0.78rem;color:var(--text-muted)">└ ${contactName}</span>` : ''}
           ${c.staffId ? `<span>🏷️ ${staffName}</span>` : ''}
+          ${locationName ? `<span>📍 ${locationName}</span>` : ''}
+          ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
           ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
           ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
           ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
@@ -185,6 +190,7 @@ const Cases = {
                     <div class="case-list-meta">
                      ${client ? `<span>👤 ${client.name}</span>` : ''}
                      ${c.staffId ? `<span>🏷️ ${Store.getStaffName(c.staffId)}</span>` : ''}
+                     ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
                      ${c.createdAt ? `<span>📋 ${c.createdAt.slice(0, 10)}</span>` : ''}
                      ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
                      ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
@@ -223,18 +229,37 @@ const Cases = {
               <label>案件名 <span class="required">*</span></label>
               <input type="text" name="title" id="csf_title" required placeholder="例：田中太郎様 車庫証明申請">
             </div>
+            <div class="form-group">
+              <label>注文書№</label>
+              <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：PO-20260501">
+            </div>
             <div class="form-row">
               <div class="form-group">
                 <label>顧客</label>
-                <select name="clientId" id="csf_clientId" class="form-select">
+                <select name="clientId" id="csf_clientId" class="form-select" onchange="Cases.onClientChange(this.value)">
                   <option value="">未選択</option>
                   ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group">
+                <label>顧客担当者</label>
+                <select name="clientContactId" id="csf_clientContactId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
                 <label>カテゴリ <span class="required">*</span></label>
-                <select name="category" id="csf_category" required class="form-select" onchange="if(!Cases.editingId) CaseTemplates.applyTemplate(this.value)">
+                <select name="category" id="csf_category" required class="form-select" onchange="Cases.toggleCategoryFields(this.value); if(!Cases.editingId) CaseTemplates.applyTemplate(this.value)">
                   ${this.CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>📍 訪問場所</label>
+                <select name="locationId" id="csf_locationId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
                 </select>
               </div>
             </div>
@@ -292,8 +317,47 @@ const Cases = {
                 <input type="date" name="surveyDate" id="csf_surveyDate">
               </div>
               <div class="form-group">
+                <label>現地調査の場所</label>
+                <select name="surveyLocationId" id="csf_surveyLocationId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="form-row" id="csf_garageDates_group_police" style="display:none">
+              <div class="form-group">
+                <label>申請予定日</label>
+                <input type="date" name="applyDate" id="csf_applyDate">
+              </div>
+              <div class="form-group">
                 <label>警察署交付（予定）日</label>
                 <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
+              </div>
+            </div>
+            <div class="form-row" id="csf_garageDates_group_police_loc" style="display:none">
+              <div class="form-group">
+                <label>申請・交付の警察署</label>
+                <select name="policeLocationId" id="csf_policeLocationId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>登録の陸運局</label>
+                <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="form-row" id="csf_garageDates_group2" style="display:none">
+              <div class="form-group">
+                <label>店舗届ける予定日</label>
+                <input type="date" name="storeDeliveryDate" id="csf_storeDeliveryDate">
+              </div>
+              <div class="form-group">
+                <label>店舗届ける時間・時間指定</label>
+                <input type="text" name="storeDeliveryTime" id="csf_storeDeliveryTime" placeholder="例：午前中、15:00まで">
               </div>
             </div>
             <div class="form-section" style="background:#f9fafb;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #e5e7eb;">
@@ -352,6 +416,15 @@ const Cases = {
     return '';
   },
 
+  onClientChange(clientId, preSelectContactId) {
+    const sel = document.getElementById('csf_clientContactId');
+    if (!sel) return;
+    const contacts = clientId ? Store.getClientContacts(clientId) : [];
+    sel.innerHTML = '<option value="">— 未選択 —</option>' +
+      contacts.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    if (preSelectContactId) sel.value = preSelectContactId;
+  },
+
   onFilterChange() {
     this.filterCategory = document.getElementById('filterCategory').value;
     this.filterStatus = document.getElementById('filterStatus').value;
@@ -372,7 +445,7 @@ const Cases = {
     App.showToast('ステータスを更新しました');
   },
 
-  showAddModal() {
+  showAddModal(prefills) {
     this.editingId = null;
     App.refreshView();
     setTimeout(() => {
@@ -382,6 +455,46 @@ const Cases = {
       document.getElementById('caseModal').style.display = 'flex';
       this.advanceDraft = [];
       this.renderAdvanceRows();
+      // 顧客担当者リストをリセット
+      this.onClientChange('');
+
+      // 受信FAX/メールインボックスからの自動入力（プリフィル）
+      if (prefills) {
+        if (prefills.title) document.getElementById('csf_title').value = prefills.title;
+        if (prefills.clientId) {
+          document.getElementById('csf_clientId').value = prefills.clientId;
+          this.onClientChange(prefills.clientId);
+        }
+        if (prefills.category) document.getElementById('csf_category').value = prefills.category;
+        if (prefills.carPolice) document.getElementById('csf_carPolice').value = prefills.carPolice;
+        if (prefills.memo) document.getElementById('csf_memo').value = prefills.memo;
+        
+        let faxInput = document.getElementById('csf_faxId');
+        if (!faxInput) {
+          faxInput = document.createElement('input');
+          faxInput.type = 'hidden';
+          faxInput.name = 'faxId';
+          faxInput.id = 'csf_faxId';
+          document.getElementById('caseForm').appendChild(faxInput);
+        }
+        faxInput.value = prefills.faxId || '';
+
+        let inboxInput = document.getElementById('csf_inboxId');
+        if (!inboxInput) {
+          inboxInput = document.createElement('input');
+          inboxInput.type = 'hidden';
+          inboxInput.name = 'inboxId';
+          inboxInput.id = 'csf_inboxId';
+          document.getElementById('caseForm').appendChild(inboxInput);
+        }
+        inboxInput.value = prefills.inboxId || '';
+      } else {
+        const faxInput = document.getElementById('csf_faxId');
+        if (faxInput) faxInput.value = '';
+        const inboxInput = document.getElementById('csf_inboxId');
+        if (inboxInput) inboxInput.value = '';
+      }
+      Cases.toggleCategoryFields(document.getElementById('csf_category').value);
     }, 0);
   },
 
@@ -393,7 +506,9 @@ const Cases = {
     setTimeout(() => {
       document.getElementById('caseModalTitle').textContent = '案件編集';
       document.getElementById('csf_title').value = c.title;
+      document.getElementById('csf_orderNo').value = c.orderNo || '';
       document.getElementById('csf_clientId').value = c.clientId || '';
+      Cases.onClientChange(c.clientId || '', c.clientContactId || '');
       document.getElementById('csf_staffId').value = c.staffId || '';
       document.getElementById('csf_registeredAt').value = c.registeredAt || c.createdAt?.slice(0, 10) || '';
       document.getElementById('csf_category').value = c.category;
@@ -401,6 +516,8 @@ const Cases = {
       document.getElementById('csf_deadline').value = c.deadline || '';
       document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
       document.getElementById('csf_fee').value = c.fee || '';
+      const locSel = document.getElementById('csf_locationId');
+      if (locSel) locSel.value = c.locationId || '';
       document.getElementById('csf_memo').value = c.memo || '';
       document.getElementById('csf_carName').value = c.carName || '';
       document.getElementById('csf_carAddress').value = c.carAddress || '';
@@ -420,14 +537,32 @@ const Cases = {
       if (deathDateEl) deathDateEl.value = c.deathDate || '';
 
       // 車庫関係フィールド表示制御
+      const isGarage = ['garage_oss', 'garage_paper', 'seal'].includes(c.category);
       const garageDatesGroup = document.getElementById('csf_garageDates_group');
-      if (garageDatesGroup) {
-        garageDatesGroup.style.display = ['garage_oss', 'garage_paper', 'seal'].includes(c.category) ? '' : 'none';
-      }
+      if (garageDatesGroup) garageDatesGroup.style.display = isGarage ? '' : 'none';
+      const garageDatesGroupPolice = document.getElementById('csf_garageDates_group_police');
+      if (garageDatesGroupPolice) garageDatesGroupPolice.style.display = isGarage ? '' : 'none';
+      const garageDatesGroupPoliceLoc = document.getElementById('csf_garageDates_group_police_loc');
+      if (garageDatesGroupPoliceLoc) garageDatesGroupPoliceLoc.style.display = isGarage ? '' : 'none';
+      const garageDatesGroup2 = document.getElementById('csf_garageDates_group2');
+      if (garageDatesGroup2) garageDatesGroup2.style.display = isGarage ? '' : 'none';
+
       const surveyDateEl = document.getElementById('csf_surveyDate');
       if (surveyDateEl) surveyDateEl.value = c.surveyDate || '';
+      const surveyLocationIdEl = document.getElementById('csf_surveyLocationId');
+      if (surveyLocationIdEl) surveyLocationIdEl.value = c.surveyLocationId || '';
+      const applyDateEl = document.getElementById('csf_applyDate');
+      if (applyDateEl) applyDateEl.value = c.applyDate || '';
       const policeDeliveryDateEl = document.getElementById('csf_policeDeliveryDate');
       if (policeDeliveryDateEl) policeDeliveryDateEl.value = c.policeDeliveryDate || '';
+      const policeLocationIdEl = document.getElementById('csf_policeLocationId');
+      if (policeLocationIdEl) policeLocationIdEl.value = c.policeLocationId || '';
+      const landTransportLocationIdEl = document.getElementById('csf_landTransportLocationId');
+      if (landTransportLocationIdEl) landTransportLocationIdEl.value = c.landTransportLocationId || '';
+      const storeDeliveryDateEl = document.getElementById('csf_storeDeliveryDate');
+      if (storeDeliveryDateEl) storeDeliveryDateEl.value = c.storeDeliveryDate || '';
+      const storeDeliveryTimeEl = document.getElementById('csf_storeDeliveryTime');
+      if (storeDeliveryTimeEl) storeDeliveryTimeEl.value = c.storeDeliveryTime || '';
       // 対応履歴・チェックリスト・期限アラートを追加
       const extArea = document.getElementById('caseExtArea');
       if (extArea) {
@@ -455,8 +590,11 @@ const Cases = {
     const form = e.target;
     const data = {
       title: form.title.value.trim(),
+      orderNo: form.orderNo ? form.orderNo.value.trim() : '',
       clientId: form.clientId.value,
+      clientContactId: form.clientContactId ? form.clientContactId.value : '',
       staffId: form.staffId.value,
+      locationId: form.locationId ? form.locationId.value : '',
       registeredAt: form.registeredAt.value,
       category: form.category.value,
       status: form.status.value,
@@ -466,11 +604,19 @@ const Cases = {
       advances: this.advanceDraft.filter(a => a.label || Number(a.amount) > 0),
       deathDate: form.deathDate ? form.deathDate.value : '',
       surveyDate: form.surveyDate ? form.surveyDate.value : '',
+      surveyLocationId: form.surveyLocationId ? form.surveyLocationId.value : '',
+      applyDate: form.applyDate ? form.applyDate.value : '',
       policeDeliveryDate: form.policeDeliveryDate ? form.policeDeliveryDate.value : '',
+      policeLocationId: form.policeLocationId ? form.policeLocationId.value : '',
+      landTransportLocationId: form.landTransportLocationId ? form.landTransportLocationId.value : '',
+      storeDeliveryDate: form.storeDeliveryDate ? form.storeDeliveryDate.value : '',
+      storeDeliveryTime: form.storeDeliveryTime ? form.storeDeliveryTime.value.trim() : '',
       carName: form.carName ? form.carName.value.trim() : '',
       carAddress: form.carAddress ? form.carAddress.value.trim() : '',
       carNumber: form.carNumber ? form.carNumber.value.trim() : '',
       carPolice: form.carPolice ? form.carPolice.value.trim() : '',
+      faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',
+      inboxId: document.getElementById('csf_inboxId') ? document.getElementById('csf_inboxId').value : '',
       memo: form.memo.value.trim(),
     };
     let savedCase;
@@ -478,6 +624,10 @@ const Cases = {
       savedCase = Store.updateCase(this.editingId, data);
     } else {
       savedCase = Store.addCase(data);
+      // インボックスからの移行の場合、ステータスを対応済に更新
+      if (data.inboxId && typeof Store.updateInboxStatus === 'function') {
+        Store.updateInboxStatus(data.inboxId, '対応済', savedCase.id);
+      }
     }
 
     // フォルダ未作成の場合は裏側でGAS連携してフォルダ作成
@@ -495,7 +645,7 @@ const Cases = {
           Store.updateCase(savedCase.id, { driveFolderUrl: res.folderUrl });
           App.refreshView();
         }
-      });
+      }).catch(err => console.warn('Google Drive フォルダ自動生成に失敗しました:', err));
     }
 
     this.closeModal();
@@ -512,4 +662,20 @@ const Cases = {
       App.showToast('案件を削除しました');
     }
   },
+
+  toggleCategoryFields(category) {
+    const isGarage = ['garage_oss', 'garage_paper', 'seal'].includes(category);
+    const garageDatesGroup = document.getElementById('csf_garageDates_group');
+    if (garageDatesGroup) garageDatesGroup.style.display = isGarage ? '' : 'none';
+    const garageDatesGroupPolice = document.getElementById('csf_garageDates_group_police');
+    if (garageDatesGroupPolice) garageDatesGroupPolice.style.display = isGarage ? '' : 'none';
+    const garageDatesGroupPoliceLoc = document.getElementById('csf_garageDates_group_police_loc');
+    if (garageDatesGroupPoliceLoc) garageDatesGroupPoliceLoc.style.display = isGarage ? '' : 'none';
+    const garageDatesGroup2 = document.getElementById('csf_garageDates_group2');
+    if (garageDatesGroup2) garageDatesGroup2.style.display = isGarage ? '' : 'none';
+
+    const isInheritance = category === 'inheritance';
+    const deathDateGroup = document.getElementById('csf_deathDate_group');
+    if (deathDateGroup) deathDateGroup.style.display = isInheritance ? '' : 'none';
+  }
 };

@@ -9,6 +9,9 @@ const Store = {
     EVENTS: 'gyosei_events',
     JOURNALS: 'gyosei_journals',
     TODOS: 'gyosei_todos',
+    CLIENT_CONTACTS: 'gyosei_client_contacts',
+    LOCATIONS: 'gyosei_locations',
+    INBOX: 'gyosei_inbox',
   },
 
   // ---- ユーティリティ ----
@@ -45,6 +48,7 @@ const Store = {
       nameKana: data.nameKana || '',
       type: data.type || '個人',
       phone: data.phone || '',
+      fax: data.fax || '',
       email: data.email || '',
       zip: data.zip || '',
       address: data.address || '',
@@ -81,9 +85,27 @@ const Store = {
   deleteClient(id) {
     const clients = this.getClients().filter(c => c.id !== id);
     this._set(this.KEYS.CLIENTS, clients);
-    // 紐づく案件も削除
-    const cases = this.getCases().filter(c => c.clientId !== id);
-    this._set(this.KEYS.CASES, cases);
+
+    // 紐づく案件のIDを収集して案件を削除
+    const clientCases = this.getCases().filter(c => c.clientId === id);
+    const clientCaseIds = clientCases.map(c => c.id);
+    const remainingCases = this.getCases().filter(c => c.clientId !== id);
+    this._set(this.KEYS.CASES, remainingCases);
+
+    // 紐づく請求・入金レコード（payments）を削除
+    const payments = JSON.parse(localStorage.getItem('gyosei_payments') || '[]');
+    const clientPayments = payments.filter(p => p.clientId == id);
+    const clientPaymentIds = clientPayments.map(p => p.id);
+    const remainingPayments = payments.filter(p => p.clientId != id);
+    localStorage.setItem('gyosei_payments', JSON.stringify(remainingPayments));
+
+    // 紐づく仕訳データ（journals）もクリーンアップ（案件IDまたは入金IDで紐づくもの）
+    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    const remainingJournals = journals.filter(j => 
+      !clientCaseIds.includes(j.caseId) && !clientPaymentIds.includes(j.paymentId)
+    );
+    localStorage.setItem('gyosei_journals', JSON.stringify(remainingJournals));
+
     // スプレッドシートからも削除
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('deleteCustomer', { id });
@@ -116,10 +138,22 @@ const Store = {
       advances: data.advances || [],             // [{label, amount}] 立替金
       docs: data.docs || [],                     // [{id, name, driveUrl, ...}] 添付書類
       deathDate: data.deathDate || '',
+      surveyDate: data.surveyDate || '',
+      applyDate: data.applyDate || '',
+      policeDeliveryDate: data.policeDeliveryDate || '',
+      storeDeliveryDate: data.storeDeliveryDate || '',
+      storeDeliveryTime: data.storeDeliveryTime || '',
+      locationId: data.locationId || '',
+      clientContactId: data.clientContactId || '',
+      surveyLocationId: data.surveyLocationId || '',
+      policeLocationId: data.policeLocationId || '',
+      landTransportLocationId: data.landTransportLocationId || '',
       carName: data.carName || '',               // 名前（申請者等）
       carAddress: data.carAddress || '',         // 住所
       carNumber: data.carNumber || '',           // 車台番号
       carPolice: data.carPolice || '',           // 所轄警察署
+      faxId: data.faxId || '',                   // 受信FAXとの紐付け用ID
+      inboxId: data.inboxId || '',               // インボックス連携用ID
       memo: data.memo || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -187,6 +221,12 @@ const Store = {
   deleteCase(id) {
     const cases = this.getCases().filter(c => c.id !== id);
     this._set(this.KEYS.CASES, cases);
+
+    // 紐づく仕訳データ（journals）もクリーンアップ
+    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    const remainingJournals = journals.filter(j => j.caseId !== id);
+    localStorage.setItem('gyosei_journals', JSON.stringify(remainingJournals));
+
     // スプレッドシートからも削除
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('deleteCase', { id });
@@ -230,6 +270,7 @@ const Store = {
       time: data.time || '',
       endTime: data.endTime || '',
       staffId: data.staffId || '',
+      locationId: data.locationId || '',
       category: data.category || 'other',
       memo: data.memo || '',
       createdAt: new Date().toISOString(),
@@ -290,14 +331,134 @@ const Store = {
     this._set(this.KEYS.TODOS, todos);
   },
 
+  // ---- 顧客担当者 CRUD ----
+  getAllClientContacts() {
+    return this._get(this.KEYS.CLIENT_CONTACTS);
+  },
+
+  getClientContacts(clientId) {
+    return this.getAllClientContacts().filter(c => c.clientId == clientId);
+  },
+
+  getClientContact(id) {
+    return this.getAllClientContacts().find(c => c.id == id) || null;
+  },
+
+  addClientContact(data) {
+    const contacts = this.getAllClientContacts();
+    const contact = {
+      id: this._generateId(),
+      clientId: data.clientId || '',
+      name: data.name || '',
+      phone: data.phone || '',
+      email: data.email || '',
+      memo: data.memo || '',
+      createdAt: new Date().toISOString(),
+    };
+    contacts.push(contact);
+    this._set(this.KEYS.CLIENT_CONTACTS, contacts);
+    return contact;
+  },
+
+  updateClientContact(id, data) {
+    const contacts = this.getAllClientContacts();
+    const idx = contacts.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    contacts[idx] = { ...contacts[idx], ...data };
+    this._set(this.KEYS.CLIENT_CONTACTS, contacts);
+    return contacts[idx];
+  },
+
+  deleteClientContact(id) {
+    const contacts = this.getAllClientContacts().filter(c => c.id !== id);
+    this._set(this.KEYS.CLIENT_CONTACTS, contacts);
+  },
+
+  // ---- 場所マスター CRUD ----
+  getLocations() {
+    return this._get(this.KEYS.LOCATIONS);
+  },
+
+  getLocation(id) {
+    return this.getLocations().find(l => l.id == id) || null;
+  },
+
+  getLocationName(id) {
+    if (!id) return '';
+    const loc = this.getLocation(id);
+    return loc ? loc.name : '';
+  },
+
+  addLocation(data) {
+    const locations = this.getLocations();
+    const location = {
+      id: data.id || this._generateId(),
+      name: data.name || '',
+      address: data.address || '',
+      memo: data.memo || '',
+      createdAt: data.createdAt || new Date().toISOString(),
+      updatedAt: data.updatedAt || new Date().toISOString(),
+    };
+    locations.push(location);
+    this._set(this.KEYS.LOCATIONS, locations);
+    // スプレッドシートへ自動プッシュ
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertLocation', location);
+    }
+    return location;
+  },
+
+  updateLocation(id, data) {
+    const locations = this.getLocations();
+    const idx = locations.findIndex(l => l.id === id);
+    if (idx === -1) return null;
+    locations[idx] = { ...locations[idx], ...data, updatedAt: new Date().toISOString() };
+    this._set(this.KEYS.LOCATIONS, locations);
+    // スプレッドシートへ自動プッシュ
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertLocation', locations[idx]);
+    }
+    return locations[idx];
+  },
+
+  deleteLocation(id) {
+    const locations = this.getLocations().filter(l => l.id !== id);
+    this._set(this.KEYS.LOCATIONS, locations);
+    // スプレッドシートへ自動プッシュ
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('deleteLocation', { id });
+    }
+  },
+
+  // ---- インボックス CRUD ----
+  getInbox() {
+    return this._get(this.KEYS.INBOX);
+  },
+
+  updateInboxStatus(id, status, caseId = '') {
+    const inbox = this.getInbox();
+    const idx = inbox.findIndex(item => item.id === id);
+    if (idx === -1) return null;
+    inbox[idx] = { ...inbox[idx], status, caseId };
+    this._set(this.KEYS.INBOX, inbox);
+    // スプレッドシートへ自動プッシュ
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertInboxItem', inbox[idx]);
+    }
+    return inbox[idx];
+  },
+
   // ---- エクスポート / インポート ----
   exportData() {
     const data = {
       clients: this.getClients(),
       cases: this.getCases(),
+      inbox: this.getInbox(),
       staff: this.getAllStaff(),
       events: this.getEvents(),
       todos: this.getTodos(),
+      clientContacts: this.getAllClientContacts(),
+      locations: this.getLocations(),
       journals: JSON.parse(localStorage.getItem('gyosei_journals') || '[]'),
       payments: JSON.parse(localStorage.getItem('gyosei_payments') || '[]'),
       activityLog: JSON.parse(localStorage.getItem('gyosei_activity_log') || '[]'),
@@ -329,6 +490,9 @@ const Store = {
       if (data.staff) this._set(this.KEYS.STAFF, data.staff);
       if (data.events) this._set(this.KEYS.EVENTS, data.events);
       if (data.todos) this._set(this.KEYS.TODOS, data.todos);
+      if (data.clientContacts) this._set(this.KEYS.CLIENT_CONTACTS, data.clientContacts);
+      if (data.locations) this._set(this.KEYS.LOCATIONS, data.locations);
+      if (data.inbox) this._set(this.KEYS.INBOX, data.inbox);
       if (data.journals) localStorage.setItem('gyosei_journals', JSON.stringify(data.journals));
       if (data.payments) localStorage.setItem('gyosei_payments', JSON.stringify(data.payments));
       if (data.activityLog) localStorage.setItem('gyosei_activity_log', JSON.stringify(data.activityLog));

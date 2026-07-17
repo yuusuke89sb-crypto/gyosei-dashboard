@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【印刷・編集用】法人化ご挨拶状 | 行政書士法人Felis</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: #0f0f23;
+            color: #e4e4ef;
+            line-height: 1.8;
+            padding: 20px;
+        }
+
+        /* 編集パネル */
+        .edit-panel {
+            max-width: 800px;
+            margin: 0 auto 20px auto;
+            background: #1a1a2e;
+            border: 1px solid #2a2a4a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .edit-panel h3 {
+            font-size: 1rem;
+            color: #f59e0b;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #2a2a4a;
+            padding-bottom: 6px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+
+        .form-group input {
+            padding: 8px 12px;
+            background: #0f0f23;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #f59e0b;
+        }
+
+        .btn-print {
+            background: #f59e0b;
+            color: #0f0f23;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        .btn-print:hover {
+            background: #d97706;
+        }
+
+        /* 便箋・レター部分 */
+        .letter-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            color: #1f2937;
+            padding: 80px 60px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4);
+            font-family: 'Noto Serif JP', serif;
+            position: relative;
+        }
+
+        /* 編集可能なプレースホルダー表示用 */
+        [contenteditable="true"] {
+            border: 1px dashed transparent;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        [contenteditable="true"]:hover {
+            border-color: #f59e0b;
+            background: #fef3c7;
+        }
+
+        [contenteditable="true"]:focus {
+            outline: none;
+            border-color: #d97706;
+            background: #fffbeb;
+        }
+
+        .date-line {
+            text-align: right;
+            font-size: 1.05rem;
+            margin-bottom: 24px;
+        }
+
+        .recipient-line {
+            font-size: 1.15rem;
+            font-weight: bold;
+            margin-bottom: 40px;
+            border-bottom: 1px solid #d1d5db;
+            display: inline-block;
+            min-width: 250px;
+            padding-bottom: 4px;
+        }
+
+        .sender-box {
+            float: right;
+            text-align: right;
+            margin-bottom: 40px;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .sender-office {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .clear-float {
+            clear: both;
+        }
+
+        .letter-title {
+            text-align: center;
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 40px;
+            letter-spacing: 0.05em;
+        }
+
+        .letter-body {
+            font-size: 1.05rem;
+            text-align: justify;
+            margin-bottom: 40px;
+        }
+
+        .letter-body p {
+            margin-bottom: 16px;
+            text-indent: 1em;
+        }
+
+        .letter-body p.no-indent {
+            text-indent: 0;
+        }
+
+        .announcement-details {
+            margin: 30px auto;
+            max-width: 90%;
+            border-top: 1px solid #1f2937;
+            border-bottom: 1px solid #1f2937;
+            padding: 20px 10px;
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 1rem;
+        }
+
+        .detail-row {
+            display: flex;
+            margin-bottom: 12px;
+        }
+
+        .detail-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .detail-label {
+            width: 120px;
+            font-weight: bold;
+        }
+
+        .detail-value {
+            flex-grow: 1;
+        }
+
+        /* 印刷用のスタイル調整 */
+        @media print {
+            body {
+                background: #fff;
+                color: #000;
+                padding: 0;
+            }
+
+            .edit-panel {
+                display: none; /* 編集パネルは印刷しない */
+            }
+
+            .letter-container {
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+            }
+
+            [contenteditable="true"] {
+                border: none !important;
+                background: transparent !important;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 編集コントロールパネル -->
+    <div class="edit-panel">
+        <h3>✏️ 挨拶状の情報編集（画面上で直接文字を書き換えることもできます）</h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="input-date">日付</label>
+                <input type="text" id="input-date" value="令和8年6月吉日" oninput="updateField('date', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="input-recipient">宛先（クライアント表示例）</label>
+                <input type="text" id="input-recipient" value="関 係 各 位" oninput="updateField('recipient', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="input-office">新法人名（事務所名）</label>
+                <input type="text" id="input-office" value="行政書士法人Felis" oninput="updateField('office', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="input-rep">代表社員（代表行政書士）</label>
+                <input type="text" id="input-rep" value="[代表者氏名]" oninput="updateField('rep', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="input-partner">共同経営社員</label>
+                <input type="text" id="input-partner" value="日栄 [日栄先生氏名]" oninput="updateField('partner', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="input-address">新事務所 所在地</label>
+                <input type="text" id="input-address" value="愛知県一宮市...（事務所住所）" oninput="updateField('address', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="input-tel">電話番号</label>
+                <input type="text" id="input-tel" value="0586-50-2896" oninput="updateField('tel', this.value)">
+            </div>
+            <div class="form-group">
+                <label for="input-fax">FAX番号</label>
+                <input type="text" id="input-fax" value="0586-22-9096" oninput="updateField('fax', this.value)">
+            </div>
+        </div>
+        <button class="btn-print" onclick="window.print()">🖨️ 挨拶状を印刷する / PDF保存</button>
+    </div>
+
+    <!-- 便箋エリア -->
+    <div class="letter-container">
+        <!-- 日付 -->
+        <div class="date-line">
+            <span id="field-date" contenteditable="true">令和8年6月吉日</span>
+        </div>
+
+        <!-- 宛先 -->
+        <div class="recipient-line">
+            <span id="field-recipient" contenteditable="true">関 係 各 位</span>
+        </div>
+
+        <!-- 差出人 -->
+        <div class="sender-box">
+            <div id="field-sender-office" class="sender-office" contenteditable="true">行政書士法人Felis</div>
+            <div>代表社員　<span id="field-sender-rep" contenteditable="true">[代表者氏名]</span></div>
+            <div>社　　員　<span id="field-sender-partner" contenteditable="true">日栄 [日栄先生氏名]</span></div>
+        </div>
+
+        <div class="clear-float"></div>
+
+        <!-- タイトル -->
+        <h1 class="letter-title" id="field-title" contenteditable="true">法人化及び組織変更のご挨拶</h1>
+
+        <!-- 本文 -->
+        <div class="letter-body">
+            <p class="no-indent">拝啓</p>
+            <p>
+                時下ますますご清栄のこととお慶び申し上げます。平素は格別のご高配を賜り、厚く御礼申し上げます。
+            </p>
+            <p>
+                さて、当事務所は、平成〇年の創業以来、個人事業として皆様のご支援のもと業務に邁進してまいりましたが、このたび業務拡大とさらなるサービス向上のため、令和8年〇月〇日（※登記日に合わせて変更）をもって組織を変更し、「<span class="inline-office-name">行政書士法人Felis</span>」を設立いたすこととなりました。
+            </p>
+            <p>
+                新法人におきましては、共同経営者（社員）として新たに参画いたします行政書士 日栄〇〇とともに、より一層迅速かつ高度なリーガルサービスの提供と、誠実なサポート体制の構築に努めてまいる所存でございます。
+            </p>
+            <p>
+                これもひとえに皆様方の温かいご愛顧の賜物と、深く感謝申し上げます。何卒今後とも倍旧のご指導ご鞭撻を賜りますようお願い申し上げます。
+            </p>
+            <p>
+                まずは略儀ながら書中をもちましてご挨拶申し上げます。
+            </p>
+            <p style="text-align: right; text-indent: 0;">敬具</p>
+
+            <div style="text-align: center; font-weight: bold; margin-top: 40px; margin-bottom: 20px; font-family: 'Noto Sans JP', sans-serif;">記</div>
+
+            <!-- 法人概要 -->
+            <div class="announcement-details">
+                <div class="detail-row">
+                    <div class="detail-label">新法人名</div>
+                    <div class="detail-value" id="field-detail-office" contenteditable="true">行政書士法人Felis</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">役員構成</div>
+                    <div class="detail-value">
+                        代表社員：<span id="field-detail-rep" contenteditable="true">[代表者氏名]</span><br>
+                        社　　員：<span id="field-detail-partner" contenteditable="true">日栄 [日栄先生氏名]</span>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">事務所所在地</div>
+                    <div class="detail-value" id="field-detail-address" contenteditable="true">愛知県一宮市...（事務所住所）</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">連絡先</div>
+                    <div class="detail-value">
+                        TEL：<span id="field-detail-tel" contenteditable="true">0586-50-2896</span><br>
+                        FAX：<span id="field-detail-fax" contenteditable="true">0586-22-9096</span>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">設立日</div>
+                    <div class="detail-value" contenteditable="true">令和8年〇月〇日（大安）</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 入力フォームとレター表示の双方向同期
+        function updateField(fieldId, value) {
+            if (fieldId === 'date') {
+                document.getElementById('field-date').textContent = value;
+            } else if (fieldId === 'recipient') {
+                document.getElementById('field-recipient').textContent = value;
+            } else if (fieldId === 'office') {
+                document.getElementById('field-sender-office').textContent = value;
+                document.getElementById('field-detail-office').textContent = value;
+                // 本文中のインラインの事務所名も更新
+                const inlines = document.querySelectorAll('.inline-office-name');
+                inlines.forEach(el => el.textContent = value);
+            } else if (fieldId === 'rep') {
+                document.getElementById('field-sender-rep').textContent = value;
+                document.getElementById('field-detail-rep').textContent = value;
+            } else if (fieldId === 'partner') {
+                document.getElementById('field-sender-partner').textContent = value;
+                document.getElementById('field-detail-partner').textContent = value;
+            } else if (fieldId === 'address') {
+                document.getElementById('field-detail-address').textContent = value;
+            } else if (fieldId === 'tel') {
+                document.getElementById('field-detail-tel').textContent = value;
+            } else if (fieldId === 'fax') {
+                document.getElementById('field-detail-fax').textContent = value;
+            }
+        }
+
+        // 双方向同期（レターを直接書き換えた場合にフォーム側も更新する）
+        document.addEventListener('DOMContentLoaded', () => {
+            const mappings = [
+                { elId: 'field-date', formId: 'input-date' },
+                { elId: 'field-recipient', formId: 'input-recipient' },
+                { elId: 'field-sender-office', formId: 'input-office' },
+                { elId: 'field-detail-office', formId: 'input-office' },
+                { elId: 'field-sender-rep', formId: 'input-rep' },
+                { elId: 'field-detail-rep', formId: 'input-rep' },
+                { elId: 'field-sender-partner', formId: 'input-partner' },
+                { elId: 'field-detail-partner', formId: 'input-partner' },
+                { elId: 'field-detail-address', formId: 'input-address' },
+                { elId: 'field-detail-tel', formId: 'input-tel' },
+                { elId: 'field-detail-fax', formId: 'input-fax' }
+            ];
+
+            mappings.forEach(m => {
+                const el = document.getElementById(m.elId);
+                const form = document.getElementById(m.formId);
+                if (el && form) {
+                    el.addEventListener('blur', () => {
+                        form.value = el.textContent.trim();
+                        // 事務所名連動
+                        if (m.elId === 'field-sender-office' || m.elId === 'field-detail-office') {
+                            document.getElementById('field-sender-office').textContent = el.textContent;
+                            document.getElementById('field-detail-office').textContent = el.textContent;
+                            const inlines = document.querySelectorAll('.inline-office-name');
+                            inlines.forEach(inlineEl => inlineEl.textContent = el.textContent);
+                        }
+                        // 代表者名連動
+                        if (m.elId === 'field-sender-rep' || m.elId === 'field-detail-rep') {
+                            document.getElementById('field-sender-rep').textContent = el.textContent;
+                            document.getElementById('field-detail-rep').textContent = el.textContent;
+                        }
+                        // 共同経営名連動
+                        if (m.elId === 'field-sender-partner' || m.elId === 'field-detail-partner') {
+                            document.getElementById('field-sender-partner').textContent = el.textContent;
+                            document.getElementById('field-detail-partner').textContent = el.textContent;
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

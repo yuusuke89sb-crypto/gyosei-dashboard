@@ -40,42 +40,64 @@ const Invoice = {
     return next;
   },
 
-  // 対象案件を取得（特定の顧客・年月の完了案件）
-  getBillingCases(clientId, year, month) {
-    const yearMonth = `${year}-${String(month).padStart(2, '0')}`;
+  // 未請求の完了案件を取得
+  getUnbilledCases(clientId) {
     const cases = Store.getCasesByClient(clientId);
     return cases.filter(c => {
       if (c.status !== 'done') return false;
-      // 報酬 or 立替金のどちらかがあれば対象
+      if (c.invoiceNo) return false; // 既に請求済みの場合は除外
       const hasAdvances = Array.isArray(c.advances) && c.advances.length > 0;
       if (!c.fee && !hasAdvances) return false;
-      const doneDate = c.completedAt || c.updatedAt || '';
-      return doneDate.startsWith(yearMonth);
+      return true;
     });
   },
 
-  // 請求書選択モーダルを表示
-  showSelectModal(clientId) {
+  // 再印刷用に特定の請求書番号に紐づく案件を取得
+  getBilledCases(clientId, invoiceNo) {
+    const cases = Store.getCasesByClient(clientId);
+    return cases.filter(c => c.invoiceNo === invoiceNo);
+  },
+
+  // 請求書・見積書選択モーダルを表示
+  showSelectModal(clientId, docType = 'invoice') {
     const client = Store.getClient(clientId);
     if (!client) return;
 
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
+    const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().slice(0, 10);
 
-    // 過去6ヶ月分のオプション
-    let monthOptions = '';
-    for (let i = 0; i < 6; i++) {
-      let y = currentYear;
-      let m = currentMonth - i;
-      if (m <= 0) { m += 12; y--; }
-      const label = `${y}年${m}月`;
-      const cases = this.getBillingCases(clientId, y, m);
-      const feeTotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
-      const advTotal = cases.reduce((sum, c) => sum + (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0), 0);
-      const total = feeTotal + advTotal;
-      const selected = i === 0 ? 'selected' : '';
-      monthOptions += `<option value="${y}-${m}" ${selected}>${label} (${cases.length}件 / ¥${total.toLocaleString()})</option>`;
+    // 未請求案件のリスト生成
+    const unbilledCases = this.getUnbilledCases(clientId);
+    let unbilledHtml = '';
+    if (unbilledCases.length === 0) {
+      unbilledHtml = `<div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">未請求の完了案件はありません。</div>`;
+    } else {
+      unbilledHtml = unbilledCases.map(c => {
+        const advSum = (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0);
+        const amountStr = `報酬 ¥${Number(c.fee||0).toLocaleString()} ${advSum>0 ? '+ 立替 ¥'+advSum.toLocaleString() : ''}`;
+        return `
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.9rem;cursor:pointer;">
+            <input type="checkbox" name="targetCases" value="${c.id}" checked class="case-checkbox" onchange="Invoice.updatePreview('${clientId}')">
+            <span>${c.title} <small style="color:var(--text-muted)">(${amountStr})</small></span>
+          </label>
+        `;
+      }).join('');
+    }
+
+    // 過去の請求書リスト（再印刷用）を取得
+    let pastInvoicesHtml = '<option value="">選択してください</option>';
+    let hasPastInvoices = false;
+    if (typeof Payments !== 'undefined') {
+      const payments = Payments.getByClient(clientId);
+      const invoices = payments.filter(p => p.invoiceNo).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+      if (invoices.length > 0) {
+        hasPastInvoices = true;
+        pastInvoicesHtml += invoices.map(p => {
+          return `<option value="${p.invoiceNo}">${p.invoiceNo} (¥${Number(p.amount||0).toLocaleString()})</option>`;
+        }).join('');
+      }
     }
 
     const existing = document.getElementById('invoiceSelectModal');
@@ -89,119 +111,192 @@ const Invoice = {
       <div class="modal-overlay" onclick="document.getElementById('invoiceSelectModal').remove()"></div>
       <div class="modal-content">
         <div class="modal-header">
-          <h2>📄 請求書発行</h2>
+          <h2>📄 ${docType === 'estimate' ? '見積書発行' : '請求書発行'}</h2>
           <button class="modal-close" onclick="document.getElementById('invoiceSelectModal').remove()">✕</button>
         </div>
         <div style="padding:0">
-          <div class="form-group">
-            <label>顧客</label>
-            <input type="text" class="search-input" value="${client.name}" disabled style="width:100%">
+          
+          <!-- タブ風の切り替えUI -->
+          <div style="display:flex; gap:16px; margin-bottom:16px; border-bottom:1px solid var(--border); ${docType === 'estimate' ? 'display:none !important' : ''}">
+            <button type="button" id="tabNew" style="padding:8px 16px; background:none; border:none; border-bottom:2px solid var(--primary); color:var(--primary); font-weight:bold; cursor:pointer;" onclick="Invoice.switchTab('new')">新規発行</button>
+            <button type="button" id="tabReprint" style="padding:8px 16px; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-muted); cursor:pointer;" onclick="Invoice.switchTab('reprint')">再印刷</button>
           </div>
-          <div class="form-row">
+
+          <!-- 新規発行エリア -->
+          <div id="areaNew">
+            <div class="form-group" style="background:var(--bg-secondary); padding:12px; border-radius:var(--radius-sm); margin-bottom:16px;">
+              <label>📝 ${docType === 'estimate' ? '見積対象の案件を選択' : '請求対象の案件を選択'}</label>
+              <div style="margin-top:8px;">
+                ${unbilledHtml}
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label>発行日</label>
+                <input type="date" id="invoiceDate" value="${now.toISOString().slice(0, 10)}">
+              </div>
+              <div class="form-group" style="${docType === 'estimate' ? 'display:none' : ''}">
+                <label>支払期限</label>
+                <input type="date" id="invoiceDueDate" value="${endOfMonth}">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>消費税率 (%)</label>
+                <input type="number" id="invoiceTaxRate" value="10" min="0" max="100" step="1">
+              </div>
+            </div>
             <div class="form-group">
-              <label>請求対象月 <span class="required">*</span></label>
-              <select id="invoiceMonth" class="form-select" onchange="Invoice.onMonthChange('${clientId}')">
-                ${monthOptions}
+              <label>備考</label>
+              <textarea id="invoiceNote" rows="2" placeholder="備考があれば入力..."></textarea>
+            </div>
+            <div id="invoicePreviewInfoNew" style="margin:12px 0;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.85rem"></div>
+            
+            <div class="form-actions">
+              <button class="btn btn-secondary" onclick="Invoice.showOfficeSettings()">🏢 事務所情報</button>
+              <button class="btn btn-primary" id="generateInvoiceBtn" onclick="Invoice.generateNew('${clientId}', '${docType}')" ${unbilledCases.length === 0 ? 'disabled' : ''}>📄 新規に発行する</button>
+            </div>
+          </div>
+
+          <!-- 再印刷エリア -->
+          <div id="areaReprint" style="display:none;">
+            <div class="form-group">
+              <label>過去の請求書を選択</label>
+              <select id="reprintInvoiceNo" class="form-select" onchange="Invoice.updateReprintPreview('${clientId}')" ${!hasPastInvoices ? 'disabled' : ''}>
+                ${hasPastInvoices ? pastInvoicesHtml : '<option value="">過去の請求書はありません</option>'}
               </select>
             </div>
-            <div class="form-group">
-              <label>発行日</label>
-              <input type="date" id="invoiceDate" value="${now.toISOString().slice(0, 10)}">
+            <div id="invoicePreviewInfoReprint" style="margin:12px 0;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.85rem"></div>
+            <div class="form-actions">
+              <button class="btn btn-secondary" onclick="Invoice.showOfficeSettings()">🏢 事務所情報</button>
+              <button class="btn btn-primary" id="reprintInvoiceBtn" onclick="Invoice.generateReprint('${clientId}')" disabled>📄 再印刷する</button>
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>支払期限</label>
-              <input type="date" id="invoiceDueDate" value="${new Date(currentYear, currentMonth, 0).toISOString().slice(0, 10)}">
-            </div>
-            <div class="form-group">
-              <label>消費税率 (%)</label>
-              <input type="number" id="invoiceTaxRate" value="10" min="0" max="100" step="1">
-            </div>
-          </div>
-          <div class="form-group">
-            <label>備考</label>
-            <textarea id="invoiceNote" rows="2" placeholder="備考があれば入力..."></textarea>
-          </div>
-          <div id="invoicePreviewInfo" style="margin:12px 0;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.85rem"></div>
-          <div class="form-actions">
-            <button class="btn btn-secondary" onclick="Invoice.showOfficeSettings()">🏢 事務所情報</button>
-            <button class="btn btn-primary" id="generateInvoiceBtn" onclick="Invoice.generate('${clientId}', null)">📄 請求書を発行</button>
-          </div>
+
         </div>
       </div>
     `;
     document.body.appendChild(modal);
-    this.onMonthChange(clientId);
+    this.updatePreview(clientId);
   },
 
-  onMonthChange(clientId) {
-    const val = document.getElementById('invoiceMonth').value;
-    const [year, month] = val.split('-').map(Number);
-    const cases = this.getBillingCases(clientId, year, month);
-    const feeTotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
-    const advTotal = cases.reduce((sum, c) => sum + (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0), 0);
-    const CATS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続' };
-    const info = document.getElementById('invoicePreviewInfo');
+  switchTab(tab) {
+    const tabNew = document.getElementById('tabNew');
+    const tabReprint = document.getElementById('tabReprint');
+    const areaNew = document.getElementById('areaNew');
+    const areaReprint = document.getElementById('areaReprint');
     
-    let existingInvoiceNo = null;
-    if (typeof Payments !== 'undefined') {
-      const payments = Payments.getByClient(clientId);
-      const prefix = `INV-${year}${String(month).padStart(2, '0')}-`;
-      const p = payments.find(x => x.invoiceNo && x.invoiceNo.startsWith(prefix));
-      if (p) existingInvoiceNo = p.invoiceNo;
-    }
-
-    const btn = document.getElementById('generateInvoiceBtn');
-    if (btn) {
-      if (existingInvoiceNo) {
-        btn.innerHTML = '📄 再印刷 (' + existingInvoiceNo + ')';
-        btn.onclick = () => Invoice.generate(clientId, existingInvoiceNo);
-        btn.classList.add('btn-secondary');
-        btn.classList.remove('btn-primary');
-      } else {
-        btn.innerHTML = '📄 請求書を発行';
-        btn.onclick = () => Invoice.generate(clientId, null);
-        btn.classList.add('btn-primary');
-        btn.classList.remove('btn-secondary');
-      }
-    }
-
-    if (cases.length === 0) {
-      info.innerHTML = '<span style="color:var(--text-muted)">この月に完了した案件はありません</span>';
+    if (tab === 'new') {
+      tabNew.style.borderBottomColor = 'var(--primary)';
+      tabNew.style.color = 'var(--primary)';
+      tabNew.style.fontWeight = 'bold';
+      tabReprint.style.borderBottomColor = 'transparent';
+      tabReprint.style.color = 'var(--text-muted)';
+      tabReprint.style.fontWeight = 'normal';
+      areaNew.style.display = 'block';
+      areaReprint.style.display = 'none';
     } else {
-      let html = `<strong>対象案件 (${cases.length}件)</strong><br>`;
-      if (existingInvoiceNo) {
-        html += `<div style="color:#eab308;font-weight:700;margin-bottom:8px">※ 既に発行済みの請求書（${existingInvoiceNo}）が存在します。再印刷になります。</div>`;
-      }
-      html += cases.map(c => {
-        const advs = (c.advances||[]).filter(a=>a.label||Number(a.amount)>0);
-        const advSum = advs.reduce((s,a)=>s+Number(a.amount||0),0);
-        return `・${CATS[c.category]||''} ${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
-      }).join('<br>');
-      html += `<br><strong style="color:var(--accent-green)">報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
-      info.innerHTML = html;
+      tabReprint.style.borderBottomColor = 'var(--primary)';
+      tabReprint.style.color = 'var(--primary)';
+      tabReprint.style.fontWeight = 'bold';
+      tabNew.style.borderBottomColor = 'transparent';
+      tabNew.style.color = 'var(--text-muted)';
+      tabNew.style.fontWeight = 'normal';
+      areaReprint.style.display = 'block';
+      areaNew.style.display = 'none';
     }
   },
 
-  // 請求書を生成して新しいウィンドウで開く
-  generate(clientId, existingInvoiceNo = null) {
-    const val = document.getElementById('invoiceMonth').value;
-    const [year, month] = val.split('-').map(Number);
-    const cases = this.getBillingCases(clientId, year, month);
+  updatePreview(clientId) {
+    const info = document.getElementById('invoicePreviewInfoNew');
+    const btn = document.getElementById('generateInvoiceBtn');
+    if (!info) return;
 
-    if (cases.length === 0) {
-      App.showToast('対象の完了案件がありません');
+    const checkboxes = document.querySelectorAll('.case-checkbox:checked');
+    const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (selectedIds.length === 0) {
+      info.innerHTML = '<span style="color:var(--text-muted)">案件が選択されていません</span>';
+      if (btn) btn.disabled = true;
       return;
     }
+    if (btn) btn.disabled = false;
+
+    const allCases = Store.getCasesByClient(clientId);
+    const cases = allCases.filter(c => selectedIds.includes(c.id));
+    
+    const feeTotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
+    const advTotal = cases.reduce((sum, c) => sum + (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0), 0);
+    
+    let html = `<strong>選択中案件 (${cases.length}件)</strong><br>`;
+    html += cases.map(c => {
+      const advs = (c.advances||[]).filter(a=>a.label||Number(a.amount)>0);
+      const advSum = advs.reduce((s,a)=>s+Number(a.amount||0),0);
+      return `・${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
+    }).join('<br>');
+    html += `<br><strong style="color:var(--accent-green)">報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
+    info.innerHTML = html;
+  },
+
+  updateReprintPreview(clientId) {
+    const info = document.getElementById('invoicePreviewInfoReprint');
+    const btn = document.getElementById('reprintInvoiceBtn');
+    const invoiceNo = document.getElementById('reprintInvoiceNo').value;
+    
+    if (!invoiceNo) {
+      info.innerHTML = '';
+      if(btn) btn.disabled = true;
+      return;
+    }
+    if(btn) btn.disabled = false;
+
+    const cases = this.getBilledCases(clientId, invoiceNo);
+    if(cases.length === 0) {
+      info.innerHTML = '<span style="color:#eab308">この請求書に紐づく案件データが見つかりません。当時の請求書のみが印刷されます。</span>';
+      return;
+    }
+
+    const feeTotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
+    const advTotal = cases.reduce((sum, c) => sum + (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0), 0);
+    
+    let html = `<strong>対象案件 (${cases.length}件)</strong><br>`;
+    html += cases.map(c => {
+      const advs = (c.advances||[]).filter(a=>a.label||Number(a.amount)>0);
+      const advSum = advs.reduce((s,a)=>s+Number(a.amount||0),0);
+      return `・${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
+    }).join('<br>');
+    html += `<br><strong>報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
+    info.innerHTML = html;
+  },
+
+  // 新規に請求書・見積書を発行する
+  generateNew(clientId, docType = 'invoice') {
+    const checkboxes = document.querySelectorAll('.case-checkbox:checked');
+    const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (selectedIds.length === 0) {
+      App.showToast('対象の案件が選択されていません');
+      return;
+    }
+
+    const allCases = Store.getCasesByClient(clientId);
+    const cases = allCases.filter(c => selectedIds.includes(c.id));
 
     const client = Store.getClient(clientId);
     const office = this.getOfficeInfo();
     const issueDate = document.getElementById('invoiceDate').value;
-    const dueDate = document.getElementById('invoiceDueDate').value;
+    const dueDate = docType === 'estimate' ? '' : document.getElementById('invoiceDueDate').value;
     const taxRate = parseInt(document.getElementById('invoiceTaxRate').value) || 10;
     const note = document.getElementById('invoiceNote').value;
-    const invoiceNo = existingInvoiceNo || this.generateInvoiceNumber(clientId, year, month);
+    
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    let invoiceNo = this.generateInvoiceNumber(clientId, year, month);
+    if (docType === 'estimate') {
+      invoiceNo = invoiceNo.replace('INV-', 'EST-');
+    }
 
     const feeSubtotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
@@ -211,10 +306,22 @@ const Invoice = {
 
     const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
 
+    // 顧客担当者名を取得（案件に紐づく担当者をユニーク化）
+    const contactNames = [...new Set(
+      cases
+        .filter(c => c.clientContactId)
+        .map(c => {
+          const ct = Store.getClientContact(c.clientContactId);
+          return ct ? ct.name : null;
+        })
+        .filter(Boolean)
+    )];
+
     const html = this.buildInvoiceHTML({
       invoiceNo, issueDate, dueDate, year, month,
       client, office, cases, CATS,
       feeSubtotal, tax, taxRate, advanceTotal, total, note,
+      docType, contactNames
     });
 
     const win = window.open('', '_blank');
@@ -223,39 +330,106 @@ const Invoice = {
 
     document.getElementById('invoiceSelectModal').remove();
     
-    if (!existingInvoiceNo) {
-      // 入金管理に請求レコードを追加（新規発行時のみ）
+    if (docType === 'invoice') {
+      // 選択された案件を請求済みとしてマーク
+      cases.forEach(c => {
+        Store.updateCase(c.id, { invoiceNo: invoiceNo });
+      });
+
+      // 入金管理に請求レコードを追加
       if (typeof Payments !== 'undefined') {
-        Payments.createFromInvoice(invoiceNo, clientId, total, dueDate);
+        Payments.createFromInvoice(invoiceNo, clientId, total, dueDate, taxRate);
       }
       App.showToast(`請求書 ${invoiceNo} を発行しました`);
     } else {
-      App.showToast(`請求書 ${invoiceNo} を再印刷しました`);
+      App.showToast(`見積書 ${invoiceNo} を作成しました`);
     }
 
-    // Google Drive に自動保存（新規・再印刷とも上書き保存）
+    // Google Drive に自動保存
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       const clientDisplayName = client.type === '法人' ? (client.companyName || client.name) : client.name;
       
-      // 1. 顧客別の請求書フォルダへ保存（従来通り）
-      SpreadsheetSync.pushInvoice(html, invoiceNo, clientDisplayName, '請求書').then(result => {
+      SpreadsheetSync.pushInvoice(html, invoiceNo, clientDisplayName, docType === 'estimate' ? '見積書' : '請求書').then(result => {
         if (result && result.success) {
           App.showToast(`📁 Driveに保存しました: ${result.folderPath}`);
         }
       });
 
-      // 2. もし単一案件の請求書で、かつ案件フォルダURLが存在する場合は、その案件フォルダにもコピーを保存
       if (cases.length === 1 && cases[0].driveFolderUrl) {
         SpreadsheetSync.push('saveGeneratedPdf', {
           html: html,
-          fileName: `請求書_${invoiceNo}.pdf`,
+          fileName: `${docType === 'estimate' ? '見積書' : '請求書'}_${invoiceNo}.pdf`,
           folderUrl: cases[0].driveFolderUrl
         });
       }
     }
   },
 
-  buildInvoiceHTML({ invoiceNo, issueDate, dueDate, year, month, client, office, cases, CATS, feeSubtotal, tax, taxRate, advanceTotal, total, note }) {
+  // 再印刷
+  generateReprint(clientId) {
+    const invoiceNo = document.getElementById('reprintInvoiceNo').value;
+    if (!invoiceNo) return;
+
+    const cases = this.getBilledCases(clientId, invoiceNo);
+    if (cases.length === 0) {
+      App.showToast('対象の案件が見つかりません');
+      return;
+    }
+
+    const client = Store.getClient(clientId);
+    const office = this.getOfficeInfo();
+    
+    // 過去の支払いレコードから期限日と税率を取得（存在すれば）
+    let dueDate = '';
+    let taxRate = 10; // デフォルトは10%
+    let issueDate = new Date().toISOString().slice(0, 10);
+    if (typeof Payments !== 'undefined') {
+      const p = Payments.getByClient(clientId).find(x => x.invoiceNo === invoiceNo);
+      if (p) {
+        if (p.dueDate) dueDate = p.dueDate;
+        if (p.taxRate !== undefined) taxRate = p.taxRate;
+      }
+    }
+
+    const match = invoiceNo.match(/INV-(\d{4})(\d{2})-/);
+    const year = match ? parseInt(match[1]) : new Date().getFullYear();
+    const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
+
+    const feeSubtotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
+    const tax = Math.floor(feeSubtotal * taxRate / 100);
+    const advanceTotal = cases.reduce((sum, c) =>
+      sum + (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0), 0);
+    const total = feeSubtotal + tax + advanceTotal;
+
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
+
+    // 顧客担当者名を取得
+    const contactNames = [...new Set(
+      cases
+        .filter(c => c.clientContactId)
+        .map(c => {
+          const ct = Store.getClientContact(c.clientContactId);
+          return ct ? ct.name : null;
+        })
+        .filter(Boolean)
+    )];
+
+    const html = this.buildInvoiceHTML({
+      invoiceNo, issueDate, dueDate, year, month,
+      client, office, cases, CATS,
+      feeSubtotal, tax, taxRate, advanceTotal, total, note: '（再印刷）',
+      contactNames
+    });
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+
+    document.getElementById('invoiceSelectModal').remove();
+    App.showToast(`請求書 ${invoiceNo} を再印刷しました`);
+  },
+
+  buildInvoiceHTML({ invoiceNo, issueDate, dueDate, year, month, client, office, cases, CATS, feeSubtotal, tax, taxRate, advanceTotal, total, note, docType = 'invoice', contactNames = [] }) {
     // 全案件の立替金をフラット化
     const allAdvances = cases.flatMap(c =>
       (c.advances||[]).filter(a => a.label || Number(a.amount) > 0).map(a => ({
@@ -266,7 +440,7 @@ const Invoice = {
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>請求書 ${invoiceNo}</title>
+<title>${docType === 'estimate' ? '見積書' : '請求書'} ${invoiceNo}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -408,7 +582,7 @@ const Invoice = {
   </div>
 
   <div class="invoice-header">
-    <div class="invoice-title">請 求 書</div>
+    <div class="invoice-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}</div>
     <div class="invoice-no">No. ${invoiceNo}</div>
   </div>
 
@@ -419,6 +593,7 @@ const Invoice = {
         ${client.zip ? '〒' + client.zip + '<br>' : ''}
         ${client.address || ''}
       </div>
+      ${contactNames.length > 0 ? `<div style="margin-top:8px;font-size:13px;color:#333">ご担当：<strong>${contactNames.join('・')}</strong> 様</div>` : ''}
     </div>
     <div class="invoice-office">
       <div class="office-name">${office.name}</div>
@@ -436,12 +611,12 @@ const Invoice = {
 
   <div class="date-info">
     <div>発行日: <span>${issueDate}</span></div>
-    <div>お支払期限: <span>${dueDate}</span></div>
+    ${dueDate ? `<div>お支払期限: <span>${dueDate}</span></div>` : ''}
     <div>対象期間: <span>${year}年${month}月分</span></div>
   </div>
 
   <div class="total-box">
-    <div class="total-label">ご請求金額（税込）</div>
+    <div class="total-label">${docType === 'estimate' ? 'ご見積金額（税込）' : 'ご請求金額（税込）'}</div>
     <div class="total-amount">${total.toLocaleString()}</div>
   </div>
 
@@ -457,13 +632,17 @@ const Invoice = {
       </tr>
     </thead>
     <tbody>
-      ${cases.map((c, i) => `
+      ${cases.map((c, i) => {
+        const ct = c.clientContactId ? Store.getClientContact(c.clientContactId) : null;
+        const contactTag = ct ? `<div style="font-size:11px;color:#888;margin-top:2px">ご担当：${ct.name} 様</div>` : '';
+        return `
       <tr>
         <td>${i + 1}</td>
-        <td>${c.title}</td>
+        <td>${c.title}${contactTag}</td>
         <td>${CATS[c.category] || c.category}</td>
         <td>¥${Number(c.fee||0).toLocaleString()}</td>
-      </tr>`).join('')}
+      </tr>`;
+      }).join('')}
     </tbody>
   </table>
 
@@ -494,12 +673,12 @@ const Invoice = {
     <tr><td>報酬小計</td><td>¥${feeSubtotal.toLocaleString()}</td></tr>
     <tr><td>消費税 (${taxRate}%)</td><td>¥${tax.toLocaleString()}</td></tr>
     ${advanceTotal > 0 ? `<tr class="adv-row"><td>立替金合計（非課税）</td><td>¥${advanceTotal.toLocaleString()}</td></tr>` : ''}
-    <tr class="total-row"><td>合計請求金額</td><td>¥${total.toLocaleString()}</td></tr>
+    <tr class="total-row"><td>${docType === 'estimate' ? '合計見積金額' : '合計請求金額'}</td><td>¥${total.toLocaleString()}</td></tr>
   </table>
 
   ${office.bankName ? `
   <div class="bank-section">
-    <div class="bank-title">📋 お振込先</div>
+    <div class="bank-title">📋 ${docType === 'estimate' ? 'お振込先予定（ご契約時）' : 'お振込先'}</div>
     <div class="bank-grid">
       <span class="bank-label">金融機関</span><span>${office.bankName}</span>
       <span class="bank-label">支店名</span><span>${office.bankBranch}</span>
@@ -512,7 +691,7 @@ const Invoice = {
   ${note ? `
   <div class="note-section">
     <div class="note-title">備考</div>
-    ${note.replace(/\n/g, '<br>')}
+    ${note.replace(/\\n/g, '<br>')}
   </div>` : ''}
 
   <div class="footer">
@@ -601,8 +780,8 @@ const Invoice = {
             <input type="text" name="accountHolder" value="${info.accountHolder}" placeholder="例：ギョウセイショシ サトウタロウ" style="width:100%">
           </div>
           <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('officeSettingsModal').remove()">キャンセル</button>
-            <button type="submit" class="btn btn-primary">💾 保存</button>
+            <button type="button" class="btn-secondary" onclick="document.getElementById('officeSettingsModal').remove()">キャンセル</button>
+            <button type="submit" class="btn-primary">💾 保存</button>
           </div>
         </form>
       </div>

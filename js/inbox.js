@@ -1,0 +1,600 @@
+/**
+ * 登録前BOX（受信インボックス ＆ FAX管理）モジュール
+ */
+const InboxManager = {
+  activeTab: 'inbox', // 'inbox' | 'send' | 'history'
+  searchQuery: '',
+  filterType: 'all', // 'all' | 'FAX' | 'メール'
+
+  render() {
+    return `
+      <div class="inbox-page" style="display: flex; flex-direction: column; gap: 20px; padding-bottom: 40px;">
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px">
+          <div style="display:flex; align-items:center; gap:10px">
+            <span style="font-size:2rem">📥</span>
+            <h1 style="margin:0">登録前BOX</h1>
+          </div>
+          <div style="display:flex; gap:8px">
+            <button class="btn btn-secondary" onclick="InboxManager.checkIncomingInbox()" id="inboxCheckBtn">
+              🔄 受信チェック
+            </button>
+          </div>
+        </div>
+
+        <!-- タブナビゲーション -->
+        <div class="tabs" style="display:flex; border-bottom:2px solid var(--border-color); gap:16px; margin-bottom:10px">
+          <button class="tab-btn ${this.activeTab === 'inbox' ? 'active' : ''}" onclick="InboxManager.switchTab('inbox')" 
+            style="background:none; border:none; padding:10px 16px; font-size:0.95rem; font-weight:600; cursor:pointer; color:${this.activeTab === 'inbox' ? 'var(--primary-color)' : 'var(--text-secondary)'}; border-bottom:3px solid ${this.activeTab === 'inbox' ? 'var(--primary-color)' : 'transparent'}; transition: all 0.2s">
+            📥 受信BOX
+          </button>
+          <button class="tab-btn ${this.activeTab === 'send' ? 'active' : ''}" onclick="InboxManager.switchTab('send')"
+            style="background:none; border:none; padding:10px 16px; font-size:0.95rem; font-weight:600; cursor:pointer; color:${this.activeTab === 'send' ? 'var(--primary-color)' : 'var(--text-secondary)'}; border-bottom:3px solid ${this.activeTab === 'send' ? 'var(--primary-color)' : 'transparent'}; transition: all 0.2s">
+            📤 FAX送信
+          </button>
+          <button class="tab-btn ${this.activeTab === 'history' ? 'active' : ''}" onclick="InboxManager.switchTab('history')"
+            style="background:none; border:none; padding:10px 16px; font-size:0.95rem; font-weight:600; cursor:pointer; color:${this.activeTab === 'history' ? 'var(--primary-color)' : 'var(--text-secondary)'}; border-bottom:3px solid ${this.activeTab === 'history' ? 'var(--primary-color)' : 'transparent'}; transition: all 0.2s">
+            📜 すべての履歴
+          </button>
+        </div>
+
+        <!-- タブコンテンツ -->
+        <div class="tab-content">
+          ${this.renderTabContent()}
+        </div>
+      </div>
+    `;
+  },
+
+  renderTabContent() {
+    switch (this.activeTab) {
+      case 'inbox': return this.renderInboxTab();
+      case 'send': return this.renderSendTab();
+      case 'history': return this.renderHistoryTab();
+      default: return '';
+    }
+  },
+
+  // ─── 📥 受信BOX タブ ──────────────────────────────────────────
+  renderInboxTab() {
+    const inbox = Store.getInbox ? Store.getInbox() : [];
+    // 未対応のみ表示
+    let filtered = inbox.filter(item => item.status === '未対応');
+
+    // フィルタ種別
+    if (this.filterType !== 'all') {
+      filtered = filtered.filter(item => item.type === this.filterType);
+    }
+
+    // 検索ワード
+    if (this.searchQuery.trim() !== '') {
+      const q = this.searchQuery.toLowerCase();
+      filtered = filtered.filter(item => 
+        (item.sender && item.sender.toLowerCase().includes(q)) || 
+        (item.subject && item.subject.toLowerCase().includes(q)) ||
+        (item.body && item.body.toLowerCase().includes(q))
+      );
+    }
+
+    // ソート（新しい順）
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return `
+      <div>
+        <!-- 検索・フィルターバー -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; background:var(--bg-secondary); padding:12px; border-radius:8px">
+          <div style="display:flex; gap:8px">
+            <button class="btn btn-small ${this.filterType === 'all' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setFilterType('all')">すべて</button>
+            <button class="btn btn-small ${this.filterType === 'FAX' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setFilterType('FAX')">📠 FAX</button>
+            <button class="btn btn-small ${this.filterType === 'メール' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setFilterType('メール')">📧 メール</button>
+          </div>
+          <div style="flex-grow:1; max-width:400px; display:flex; gap:6px">
+            <input type="text" id="inboxSearchInput" class="search-input" style="width:100%; margin:0" placeholder="🔍 送信元・件名・本文で検索..." 
+              value="${this.searchQuery}" onkeyup="if(event.key==='Enter') InboxManager.search(this.value)" onblur="InboxManager.search(this.value)">
+            <button class="btn btn-secondary" onclick="InboxManager.search(document.getElementById('inboxSearchInput').value)">検索</button>
+          </div>
+        </div>
+
+        <!-- インボックスカードリスト -->
+        ${filtered.length === 0 
+          ? `
+            <div style="text-align:center; padding:60px 20px; background:var(--bg-secondary); border-radius:8px; border:2px dashed var(--border-color); margin-top:10px">
+              <span style="font-size:3.5rem; display:block; margin-bottom:12px">📥</span>
+              <h3 style="margin:0 0 6px 0; color:var(--text-secondary)">登録前BOXは空です</h3>
+              <p style="margin:0; font-size:0.85rem; color:var(--text-muted)">受信チェックを行うか、新しいFAX・メールが届くまでお待ちください</p>
+            </div>
+          `
+          : `
+            <div style="display:grid; grid-template-columns: 1fr; gap:16px;">
+              ${filtered.map(item => this.renderInboxCard(item)).join('')}
+            </div>
+          `
+        }
+      </div>
+    `;
+  },
+
+  renderInboxCard(item) {
+    const isFax = item.type === 'FAX';
+    const typeBadgeBg = isFax ? '#10b981' : '#3b82f6'; // Green for FAX, Blue for Mail
+    const formattedDate = new Date(item.date).toLocaleString('ja-JP', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+
+    // 添付ファイルのパース
+    let attachments = [];
+    if (item.attachments) {
+      try {
+        attachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+      } catch (e) {
+        attachments = [];
+      }
+    }
+
+    // 自動顧客マッチング
+    const matchedClient = this.matchClient(item);
+    const matchAlertHtml = matchedClient 
+      ? `<div style="background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9; padding:6px 12px; border-radius:4px; font-size:0.75rem; font-weight:600; display:inline-flex; align-items:center; gap:6px; margin-bottom:8px">
+          👤 登録済みの顧客とマッチしました: <strong>${matchedClient.name}</strong> (${matchedClient.companyName || '個人'})
+         </div>`
+      : '';
+
+    return `
+      <div class="inbox-card" style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:8px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:transform 0.15s, box-shadow 0.15s; cursor:default; display:flex; flex-direction:column; gap:10px"
+        onmouseover="this.style.boxShadow='0 4px 6px rgba(0,0,0,0.08)'; this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'; this.style.transform='translateY(0)'">
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px">
+          <div style="display:flex; align-items:center; gap:8px">
+            <span style="background:${typeBadgeBg}; color:#fff; font-size:0.7rem; font-weight:bold; padding:2px 8px; border-radius:4px; text-transform:uppercase">${item.type}</span>
+            <span style="font-size:0.8rem; color:var(--text-muted)">${formattedDate}</span>
+          </div>
+          <span style="font-size:0.8rem; font-weight:bold; color:var(--text-secondary)">ID: ${item.id}</span>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:4px">
+          <h3 style="margin:0; font-size:1rem; color:var(--text-primary)">${item.subject || '（無題）'}</h3>
+          <div style="font-size:0.85rem; color:var(--text-secondary)">
+            <strong>差出人:</strong> <span style="font-family:monospace">${item.sender || '不明'}</span>
+          </div>
+        </div>
+
+        ${matchAlertHtml}
+
+        <div style="font-size:0.85rem; color:var(--text-secondary); background:var(--bg-secondary); padding:10px; border-radius:6px; max-height:120px; overflow-y:auto; white-space:pre-wrap; font-family:var(--font-mono)">${item.body || '本文なし'}</div>
+
+        <!-- 添付ファイル -->
+        ${attachments && attachments.length > 0 
+          ? `
+            <div style="display:flex; flex-direction:column; gap:6px; margin-top:4px">
+              <span style="font-size:0.75rem; font-weight:bold; color:var(--text-muted)">📎 添付ファイル:</span>
+              <div style="display:flex; flex-wrap:wrap; gap:6px">
+                ${attachments.map(att => `
+                  <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:4px 8px; text-decoration:none; display:inline-flex; align-items:center; gap:4px">
+                    📄 ${att.name || '添付ファイル'}
+                  </a>
+                `).join('')}
+              </div>
+            </div>
+          `
+          : ''
+        }
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px; border-top:1px solid var(--border-color); padding-top:12px">
+          <button class="btn btn-secondary btn-small" style="color:var(--accent-red,#ef4444); border-color:var(--accent-red,#ef4444)" onclick="InboxManager.ignoreItem('${item.id}')">
+            🚫 対象外にする
+          </button>
+          <button class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${item.id}')">
+            ➕ 案件として登録
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
+  // ─── 📤 FAX送信 タブ ──────────────────────────────────────────
+  renderSendTab() {
+    const clients = Store.getClients();
+    const clientOptions = clients.map(c =>
+      `<option value="${c.name}">${c.name} ${c.companyName ? `(${c.companyName})` : ''}</option>`
+    ).join('');
+
+    return `
+      <div style="max-width:600px; margin: 0 auto; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:8px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+        <h2 style="margin:0 0 16px 0; font-size:1.15rem; border-bottom:1px solid var(--border-color); padding-bottom:8px">📤 FAX送信</h2>
+        <form id="faxSendForm" onsubmit="InboxManager.onSend(event)">
+          <div class="form-row" style="margin-bottom:12px">
+            <div class="form-group" style="flex:1">
+              <label>FAX番号 <span class="required" style="color:#ef4444">*</span></label>
+              <input type="tel" name="faxNumber" id="faxNumber" required
+                placeholder="例：0312345678" pattern="[0-9\\-]+"
+                style="width:100%">
+            </div>
+            <div class="form-group" style="flex:1">
+              <label>顧客（履歴紐付け用）</label>
+              <select name="clientName" id="faxClientName" style="width:100%">
+                <option value="">— 選択 —</option>
+                ${clientOptions}
+              </select>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>件名（カバーページ）</label>
+            <input type="text" name="subject" id="faxSubject"
+              placeholder="例：車庫証明申請書の送付" style="width:100%">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>本文（カバーページ内容）</label>
+            <textarea name="body" id="faxBody" rows="4" style="width:100%"
+              placeholder="いつもお世話になっております。&#10;下記の書類を送付いたします。"></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label>PDF添付</label>
+            <input type="file" id="faxFile" accept=".pdf"
+              onchange="InboxManager.onFileSelect(event)">
+            <small style="color:var(--text-muted); display:block; margin-top:2px">※ PDFファイルのみ添付可能です</small>
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:8px">
+            <button type="submit" class="btn btn-primary" style="width:100%">📠 FAXを送信する</button>
+          </div>
+        </form>
+      </div>
+    `;
+  },
+
+  // ─── 📜 すべての履歴 タブ ──────────────────────────────────────
+  renderHistoryTab() {
+    const inbox = Store.getInbox ? Store.getInbox() : [];
+    const cases = Store.getCases();
+    const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
+
+    // 履歴データ構築
+    const histories = [];
+
+    // 1. インボックスデータ追加 (受信FAX & 受信メール)
+    inbox.forEach(item => {
+      let linkedCase = null;
+      if (item.caseId) {
+        linkedCase = cases.find(c => c.id === item.caseId);
+      } else {
+        // IDや日付で案件と紐付ける (フォールバック)
+        linkedCase = cases.find(c => c.inboxId === item.id || c.faxId === item.id);
+      }
+
+      histories.push({
+        id: item.id,
+        date: item.date,
+        direction: '受信',
+        type: item.type,
+        sender: item.sender,
+        subject: item.subject,
+        status: item.status,
+        caseId: linkedCase ? linkedCase.id : '',
+        caseTitle: linkedCase ? linkedCase.title : '',
+      });
+    });
+
+    // 2. 送信FAXを追加 (faxLogsから送信のもの)
+    faxLogs.forEach((l, i) => {
+      if (l.direction === '送信') {
+        histories.push({
+          id: 'SENT-FAX-' + i,
+          date: l.date,
+          direction: '送信',
+          type: 'FAX',
+          sender: l.number, // 送信先番号
+          subject: l.subject,
+          status: '対応済',
+          caseId: '',
+          caseTitle: l.clientName || '—',
+        });
+      }
+    });
+
+    // ソート (日付新しい順)
+    histories.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return `
+      <div style="overflow-x:auto; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:8px">
+        <table style="width:100%; border-collapse:collapse; font-size:0.85rem">
+          <thead>
+            <tr style="background:var(--bg-secondary); text-align:left">
+              <th style="padding:12px; border-bottom:1px solid var(--border-color)">日時</th>
+              <th style="padding:12px; border-bottom:1px solid var(--border-color)">種別</th>
+              <th style="padding:12px; border-bottom:1px solid var(--border-color)">番号/宛先</th>
+              <th style="padding:12px; border-bottom:1px solid var(--border-color)">件名</th>
+              <th style="padding:12px; border-bottom:1px solid var(--border-color)">処理状態</th>
+              <th style="padding:12px; border-bottom:1px solid var(--border-color)">対応内容</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${histories.length === 0 
+              ? `<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--text-muted)">送受信履歴はありません</td></tr>`
+              : histories.map(h => {
+                  let statusHtml = '';
+                  let actionHtml = '';
+
+                  if (h.direction === '送信') {
+                    statusHtml = `<span style="color:var(--text-muted)">送信完了</span>`;
+                    actionHtml = `<span style="color:var(--text-muted)">顧客: ${h.caseTitle}</span>`;
+                  } else {
+                    if (h.status === '対応済') {
+                      statusHtml = `<span style="color:#16a34a; font-weight:600">✅ 処理済</span>`;
+                      if (h.caseId) {
+                        actionHtml = `<a href="#" onclick="event.preventDefault(); App.navigate('cases'); setTimeout(() => Cases.showEditModal('${h.caseId}'), 100)" style="font-weight:600; color:var(--primary-color)">📋 案件: ${h.caseTitle}</a>`;
+                      } else {
+                        actionHtml = `<span style="color:var(--text-muted)">手動対応済</span>`;
+                      }
+                    } else if (h.status === '除外') {
+                      statusHtml = `<span style="color:var(--text-muted)">🚫 除外</span>`;
+                      actionHtml = `<button class="btn btn-secondary btn-small" onclick="InboxManager.restoreItem('${h.id}')">復元</button>`;
+                    } else {
+                      statusHtml = `<span style="color:#d97706; font-weight:600">⏳ 未対応</span>`;
+                      actionHtml = `<button class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>`;
+                    }
+                  }
+
+                  const directionBadge = h.direction === '送信' 
+                    ? `<span style="background:#dbeafe; color:#2563eb; font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px">送信 ${h.type}</span>`
+                    : `<span style="background:#dcfce7; color:#16a34a; font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px">受信 ${h.type}</span>`;
+
+                  return `
+                    <tr style="border-bottom:1px solid var(--border-color)">
+                      <td style="padding:10px 12px; white-space:nowrap">${h.date}</td>
+                      <td style="padding:10px 12px">${directionBadge}</td>
+                      <td style="padding:10px 12px; font-family:monospace">${h.sender || '—'}</td>
+                      <td style="padding:10px 12px">${h.subject || '（無題）'}</td>
+                      <td style="padding:10px 12px">${statusHtml}</td>
+                      <td style="padding:10px 12px">${actionHtml}</td>
+                    </tr>
+                  `;
+                }).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  // ─── アクション・イベントハンドラ ────────────────────────────────
+  switchTab(tab) {
+    this.activeTab = tab;
+    App.refreshView();
+  },
+
+  setFilterType(type) {
+    this.filterType = type;
+    App.refreshView();
+  },
+
+  search(val) {
+    this.searchQuery = val;
+    App.refreshView();
+  },
+
+  // 1. メール・FAX受信チェック
+  async checkIncomingInbox() {
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
+      App.showToast('⚙️ スプレッドシート連携を設定してください');
+      return;
+    }
+
+    const btn = document.getElementById('inboxCheckBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ チェック中...';
+    }
+
+    App.showToast('📥 新規メールおよびFAXをスキャン中...');
+
+    try {
+      // GAS側でGmail検索とインボックス書込を実行
+      const result = await SpreadsheetSync.pushCalendarEvent('checkInbox', {});
+
+      if (result && result.success) {
+        // GASからローカルストレージへデータをプル
+        const syncResult = await SpreadsheetSync.pull();
+        
+        // 旧FAXログのロード (互換用)
+        if (typeof SpreadsheetSync.getGasUrl === 'function') {
+          const url = SpreadsheetSync.getGasUrl();
+          const response = await fetch(url + '?type=faxLog');
+          const logData = await response.json();
+          if (logData.faxLog) {
+            localStorage.setItem('gyosei_fax_logs', JSON.stringify(logData.faxLog));
+          }
+        }
+
+        App.refreshView();
+        App.showToast(`✅ スキャン完了！ 新規に ${result.saved} 件を取り込みました`);
+      } else if (result && result.error) {
+        App.showToast('❌ 取り込みエラー: ' + result.error);
+      }
+    } catch (err) {
+      App.showToast('❌ 通信エラー: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🔄 受信チェック';
+      }
+    }
+  },
+
+  // 2. 顧客データベースとのマッチングロジック
+  matchClient(item) {
+    if (!item.sender) return null;
+    const clients = Store.getClients();
+    const cleanSender = item.sender.replace(/[^a-zA-Z0-9@\.]/g, '').toLowerCase();
+
+    for (const client of clients) {
+      // 1. 電話番号/FAX番号でのマッチング (FAXの場合)
+      if (item.type === 'FAX') {
+        const cleanFax = cleanSender.replace(/[^0-9]/g, '');
+        if (client.fax) {
+          const cleanClientFax = client.fax.replace(/[^0-9]/g, '');
+          if (cleanClientFax && cleanFax && (cleanClientFax === cleanFax || cleanClientFax.includes(cleanFax) || cleanFax.includes(cleanClientFax))) {
+            return client;
+          }
+        }
+        if (client.phone) {
+          const cleanPhone = client.phone.replace(/[^0-9]/g, '');
+          if (cleanPhone && cleanFax && (cleanPhone === cleanFax || cleanPhone.includes(cleanFax) || cleanFax.includes(cleanPhone))) {
+            return client;
+          }
+        }
+      }
+      
+      // 2. メールアドレスでのマッチング (メールの場合)
+      if (item.type === 'メール' && client.email) {
+        const cleanEmail = client.email.toLowerCase().trim();
+        if (cleanEmail && cleanSender.includes(cleanEmail)) {
+          return client;
+        }
+      }
+
+      // 3. 名前や法人名が件名/本文に含まれているか (緩いマッチング)
+      if (item.subject) {
+        if (client.name && item.subject.includes(client.name)) return client;
+        if (client.companyName && item.subject.includes(client.companyName)) return client;
+      }
+    }
+    return null;
+  },
+
+  // 3. インボックスから案件登録モーダルへ展開
+  registerCase(itemId) {
+    const inbox = Store.getInbox ? Store.getInbox() : [];
+    const item = inbox.find(i => i.id === itemId);
+    if (!item) return;
+
+    // 顧客自動マッチング
+    const client = this.matchClient(item);
+
+    // 添付ファイルのテキストリスト作成
+    let attachments = [];
+    if (item.attachments) {
+      try {
+        attachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+      } catch (e) { attachments = []; }
+    }
+    const attachmentText = attachments.length > 0 
+      ? `\n\n【添付書類】\n` + attachments.map(a => `・${a.name}: ${a.url}`).join('\n')
+      : '';
+
+    // カテゴリ自動予測 (件名からキーワード推測)
+    let category = 'garage_paper'; // デフォルトは紙の車庫証明
+    const subject = item.subject || '';
+    if (subject.includes('OSS') || subject.toLowerCase().includes('oss')) {
+      category = 'garage_oss';
+    } else if (subject.includes('相続') || subject.includes('遺産')) {
+      category = 'inheritance';
+    } else if (subject.includes('封印') || subject.includes('ナンバー')) {
+      category = 'seal';
+    }
+
+    const prefills = {
+      title: `${item.type === 'FAX' ? 'FAX' : 'メール'}依頼: ${item.subject || '無題案件'}`,
+      clientId: client ? client.id : '',
+      category: category,
+      memo: `【受信日時】: ${new Date(item.date).toLocaleString('ja-JP')}\n【送信元】: ${item.sender}\n【本文概要】:\n${item.body || 'なし'}${attachmentText}`,
+      inboxId: item.id,
+      faxId: item.type === 'FAX' ? item.id : '' // FAXログ互換用
+    };
+
+    // 案件管理画面へ遷移し、モーダルを開く
+    App.navigate('cases');
+    setTimeout(() => {
+      Cases.showAddModal(prefills);
+    }, 100);
+  },
+
+  // 4. 不要レコードの除外
+  ignoreItem(itemId) {
+    if (confirm('この受信データを登録前BOXから除外（非表示）にしますか？\n（履歴タブからいつでも復元できます）')) {
+      Store.updateInboxStatus(itemId, '除外');
+      App.refreshView();
+      App.showToast('データをインボックスから除外しました');
+    }
+  },
+
+  // 5. レコードの復元
+  restoreItem(itemId) {
+    Store.updateInboxStatus(itemId, '未対応');
+    App.refreshView();
+    App.showToast('データをインボックスに復元しました');
+  },
+
+  // ─── FAX送信関連処理 ──────────────────────────────────────
+  selectedPdfBase64: null,
+  selectedPdfName: null,
+
+  onFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      this.selectedPdfBase64 = base64;
+      this.selectedPdfName = file.name;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  async onSend(e) {
+    e.preventDefault();
+
+    const faxNumber = document.getElementById('faxNumber').value.trim();
+    const subject = document.getElementById('faxSubject').value.trim();
+    const body = document.getElementById('faxBody').value.trim();
+    const clientName = document.getElementById('faxClientName').value;
+
+    if (!faxNumber) {
+      App.showToast('FAX番号を入力してください');
+      return;
+    }
+
+    App.showToast('📠 FAX送信中...');
+
+    try {
+      const data = {
+        faxNumber,
+        subject: subject || 'FAX送信',
+        body,
+        clientName,
+      };
+
+      if (this.selectedPdfBase64) {
+        data.pdfBase64 = this.selectedPdfBase64;
+        data.pdfName = this.selectedPdfName;
+      }
+
+      const result = await SpreadsheetSync.pushCalendarEvent('sendFax', data);
+
+      if (result && result.success) {
+        App.showToast('✅ ' + result.message);
+        this.selectedPdfBase64 = null;
+        this.selectedPdfName = null;
+        
+        // 履歴をリフレッシュ
+        if (typeof SpreadsheetSync.getGasUrl === 'function') {
+          const url = SpreadsheetSync.getGasUrl();
+          const response = await fetch(url + '?type=faxLog');
+          const logData = await response.json();
+          if (logData.faxLog) {
+            localStorage.setItem('gyosei_fax_logs', JSON.stringify(logData.faxLog));
+          }
+        }
+        
+        document.getElementById('faxSendForm').reset();
+        this.switchTab('history');
+      } else if (result && result.error) {
+        App.showToast('❌ ' + result.error);
+      } else {
+        App.showToast('❌ FAX送信に失敗しました');
+      }
+
+    } catch (err) {
+      App.showToast('❌ 通信エラー: ' + err.message);
+    }
+  }
+};

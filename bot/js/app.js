@@ -384,13 +384,18 @@ document.addEventListener('DOMContentLoaded', () => {
             </style></head><body>
             <div class="print-header">
                 <h1>⚖️ 行政書士AIボット</h1>
-                <div class="office">○○行政書士事務所<br>TEL: 000-0000-0000</div>
+                <div class="office">
+                  <script>
+                    var o=JSON.parse(localStorage.getItem('gyosei_office_info')||'{}');
+                    document.write((o.name||'行政書士法人Felis')+'<br>TEL: '+(o.tel||'0586-50-2896')+'<br>FAX: '+(o.fax||'0586-22-9096'));
+                  </script>
+                </div>
             </div>
             <div class="print-date">出力日: ${new Date().toLocaleDateString('ja-JP')}</div>
             ${data.question ? `<div class="print-question">Q. ${data.question}</div>` : ''}
             <div class="print-body">${content ? content.innerHTML : ''}</div>
             ${citations ? `<div class="print-section"><div class="print-section-title">📚 引用・参照</div>${citations.innerHTML}</div>` : ''}
-            <div class="print-footer">このドキュメントは行政書士AIボットにより自動生成されました。正確性については必ず最新の法令をご確認ください。</div>
+            <div class="print-footer">※正確性については必ず最新の法令をご確認ください。</div>
         </body></html>`);
         printWin.document.close();
         printWin.focus();

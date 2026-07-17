@@ -338,7 +338,7 @@ class PDFGenerator {
 
     // ===== PDF生成のCSS =====
     static DOC_CSS = `
-    @page { size: A4; margin: 25mm 20mm; }
+    @page { size: A4; margin: 0mm; } /* margin:0 でブラウザデフォルトのURLや日付を非表示に */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', 'Meiryo', sans-serif;
            font-size: 11pt; line-height: 1.8; color: #111; }
@@ -386,9 +386,13 @@ class PDFGenerator {
       <title>${tmpl.title}</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
       <style>${PDFGenerator.DOC_CSS}
-        body { max-width: 210mm; margin: 0 auto; padding: 25mm 20mm; background: white; min-height: 297mm; }
+        body { max-width: 210mm; margin: 0 auto; padding: 25mm 20mm; background: white; position: relative; }
+        .custom-footer { position: fixed; bottom: 10mm; right: 20mm; font-size: 10pt; color: #555; }
       </style>
-      </head><body>${tmpl.build(data)}</body></html>`;
+      </head><body>
+        ${tmpl.build(data)}
+        <div class="custom-footer">行政書士法人Felis</div>
+      </body></html>`;
     }
 
     // PDF生成（印刷ダイアログ方式 - iframe使用でポップアップブロック回避）

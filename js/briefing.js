@@ -97,6 +97,21 @@ const Briefing = {
       received: '受付', hearing: 'ヒアリング', documents: '書類作成', applying: '申請中', done: '完了'
     };
 
+    // インボックスの未対応件数を取得
+    const inbox = (typeof Store !== 'undefined' && Store.getInbox) ? Store.getInbox() : [];
+    const unprocessedInbox = inbox.filter(item => item.status === '未対応');
+    const inboxAlertHtml = unprocessedInbox.length > 0
+      ? `
+        <div class="briefing-alert-banner" style="background:#fff3cd;border:1px solid #ffeeba;border-radius:6px;padding:12px;margin-bottom:20px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="document.getElementById('briefingModal').remove(); App.navigate('inbox')">
+          <span style="font-size:1.5rem">📥</span>
+          <div>
+            <strong style="color:#856404;font-size:0.95rem">未登録の受信FAX・メールがあります（${unprocessedInbox.length}件）</strong>
+            <div style="font-size:0.75rem;color:#856404;margin-top:2px">クリックすると登録前BOXに移動します。案件の登録漏れがないか確認してください。</div>
+          </div>
+        </div>
+      `
+      : '';
+
     // グループ別プリセット
     const groups = {};
     this.PRESETS.forEach(p => {
@@ -124,6 +139,7 @@ const Briefing = {
         </div>
 
         <div class="briefing-body">
+          ${inboxAlertHtml}
 
           <!-- 本日の案件 -->
           <section class="briefing-section">
