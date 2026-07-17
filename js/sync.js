@@ -98,6 +98,7 @@ const SpreadsheetSync = {
                         surveyLocationId: remoteCase.surveyLocationId || (localCase && localCase.surveyLocationId) || '',
                         policeLocationId: remoteCase.policeLocationId || (localCase && localCase.policeLocationId) || '',
                         landTransportLocationId: remoteCase.landTransportLocationId || (localCase && localCase.landTransportLocationId) || '',
+                        registrationDate: remoteCase.registrationDate || (localCase && localCase.registrationDate) || '',
                     };
                 });
                 

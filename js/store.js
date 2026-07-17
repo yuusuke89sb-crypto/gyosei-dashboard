@@ -148,6 +148,7 @@ const Store = {
       surveyLocationId: data.surveyLocationId || '',
       policeLocationId: data.policeLocationId || '',
       landTransportLocationId: data.landTransportLocationId || '',
+      registrationDate: data.registrationDate || '',
       carName: data.carName || '',               // 名前（申請者等）
       carAddress: data.carAddress || '',         // 住所
       carNumber: data.carNumber || '',           // 車台番号

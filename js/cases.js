@@ -384,6 +384,12 @@ const Cases = {
                   ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
                 </select>
               </div>
+            </div>
+            <div class="form-row" id="csf_garageDates_group_land_transport" style="display:none">
+              <div class="form-group">
+                <label>登録予定日 (陸運局)</label>
+                <input type="date" name="registrationDate" id="csf_registrationDate">
+              </div>
               <div class="form-group">
                 <label>登録の陸運局</label>
                 <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
@@ -586,6 +592,8 @@ const Cases = {
       if (garageDatesGroupPolice) garageDatesGroupPolice.style.display = isGarage ? '' : 'none';
       const garageDatesGroupPoliceLoc = document.getElementById('csf_garageDates_group_police_loc');
       if (garageDatesGroupPoliceLoc) garageDatesGroupPoliceLoc.style.display = isGarage ? '' : 'none';
+      const garageDatesGroupLandTransport = document.getElementById('csf_garageDates_group_land_transport');
+      if (garageDatesGroupLandTransport) garageDatesGroupLandTransport.style.display = isGarage ? '' : 'none';
       const garageDatesGroup2 = document.getElementById('csf_garageDates_group2');
       if (garageDatesGroup2) garageDatesGroup2.style.display = isGarage ? '' : 'none';
 
@@ -599,6 +607,8 @@ const Cases = {
       if (policeDeliveryDateEl) policeDeliveryDateEl.value = c.policeDeliveryDate || '';
       const policeLocationIdEl = document.getElementById('csf_policeLocationId');
       if (policeLocationIdEl) policeLocationIdEl.value = c.policeLocationId || '';
+      const registrationDateEl = document.getElementById('csf_registrationDate');
+      if (registrationDateEl) registrationDateEl.value = c.registrationDate || '';
       const landTransportLocationIdEl = document.getElementById('csf_landTransportLocationId');
       if (landTransportLocationIdEl) landTransportLocationIdEl.value = c.landTransportLocationId || '';
       const storeDeliveryDateEl = document.getElementById('csf_storeDeliveryDate');
@@ -650,6 +660,7 @@ const Cases = {
       applyDate: form.applyDate ? form.applyDate.value : '',
       policeDeliveryDate: form.policeDeliveryDate ? form.policeDeliveryDate.value : '',
       policeLocationId: form.policeLocationId ? form.policeLocationId.value : '',
+      registrationDate: form.registrationDate ? form.registrationDate.value : '',
       landTransportLocationId: form.landTransportLocationId ? form.landTransportLocationId.value : '',
       storeDeliveryDate: form.storeDeliveryDate ? form.storeDeliveryDate.value : '',
       storeDeliveryTime: form.storeDeliveryTime ? form.storeDeliveryTime.value.trim() : '',
@@ -713,6 +724,8 @@ const Cases = {
     if (garageDatesGroupPolice) garageDatesGroupPolice.style.display = isGarage ? '' : 'none';
     const garageDatesGroupPoliceLoc = document.getElementById('csf_garageDates_group_police_loc');
     if (garageDatesGroupPoliceLoc) garageDatesGroupPoliceLoc.style.display = isGarage ? '' : 'none';
+    const garageDatesGroupLandTransport = document.getElementById('csf_garageDates_group_land_transport');
+    if (garageDatesGroupLandTransport) garageDatesGroupLandTransport.style.display = isGarage ? '' : 'none';
     const garageDatesGroup2 = document.getElementById('csf_garageDates_group2');
     if (garageDatesGroup2) garageDatesGroup2.style.display = isGarage ? '' : 'none';
 

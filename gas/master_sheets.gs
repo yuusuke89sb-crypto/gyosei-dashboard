@@ -54,6 +54,7 @@ const CASE_HEADERS = [
   '備考', '完了日', '登録日', '更新日',
   '被相続人死亡日', '現地調査予定日', '申請予定日', '交付予定日', '店舗届ける予定日', '店舗届ける時間',
   '現地調査場所ID', '警察署場所ID', '陸運局場所ID',
+  '登録予定日',
 ];
 
 const JOURNAL_HEADERS = [
@@ -651,7 +652,7 @@ function getSheetDataAsJson_(sheetName, headers) {
 function getKeyMap_(sheetName) {
   if (sheetName === SHEET_NAMES.CUSTOMER) return {'顧客ID': 'id','氏名': 'name','フリガナ': 'nameKana','区分': 'type','電話番号': 'phone','FAX番号': 'fax','メールアドレス': 'email','郵便番号': 'zip','住所': 'address','生年月日': 'birthday','法人名': 'companyName','法人番号': 'companyNumber','紹介元': 'referral','担当者ID': 'staffId','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
   if (sheetName === SHEET_NAMES.STAFF) return {'担当者ID': 'id','氏名': 'name','フリガナ': 'nameKana','役職': 'role','電話番号': 'phone','メールアドレス': 'email','担当業務': 'duties','ステータス': 'status','登録日': 'createdAt','更新日': 'updatedAt'};
-  if (sheetName === SHEET_NAMES.CASES) return {'案件ID': 'id','顧客ID': 'clientId','案件名': 'title','注文書№': 'orderNo','カテゴリ': 'category','ステータス': 'status','期限': 'deadline','報酬': 'fee','担当者ID': 'staffId','備考': 'memo','完了日': 'completedAt','登録日': 'createdAt','更新日': 'updatedAt','被相続人死亡日': 'deathDate','現地調査予定日': 'surveyDate','申請予定日': 'applyDate','交付予定日': 'policeDeliveryDate','店舗届ける予定日': 'storeDeliveryDate','店舗届ける時間': 'storeDeliveryTime','現地調査場所ID': 'surveyLocationId','警察署場所ID': 'policeLocationId','陸運局場所ID': 'landTransportLocationId'};
+  if (sheetName === SHEET_NAMES.CASES) return {'案件ID': 'id','顧客ID': 'clientId','案件名': 'title','注文書№': 'orderNo','カテゴリ': 'category','ステータス': 'status','期限': 'deadline','報酬': 'fee','担当者ID': 'staffId','備考': 'memo','完了日': 'completedAt','登録日': 'createdAt','更新日': 'updatedAt','被相続人死亡日': 'deathDate','現地調査予定日': 'surveyDate','申請予定日': 'applyDate','交付予定日': 'policeDeliveryDate','店舗届ける予定日': 'storeDeliveryDate','店舗届ける時間': 'storeDeliveryTime','現地調査場所ID': 'surveyLocationId','警察署場所ID': 'policeLocationId','陸運局場所ID': 'landTransportLocationId','登録予定日': 'registrationDate'};
   if (sheetName === SHEET_NAMES.JOURNALS) return {'伝票ID': 'id','日付': 'date','借方': 'debit','貸方': 'credit','金額': 'amount','摘要': 'description','案件ID': 'caseId','自動': 'auto','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.INBOX) return {'インボックスID': 'id','日時': 'date','種別': 'type','送信元': 'sender','件名': 'subject','本文': 'body','添付ファイル': 'attachments','ステータス': 'status','案件ID': 'caseId','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.LOCATION) return {'場所ID': 'id','場所名': 'name','住所': 'address','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
