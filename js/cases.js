@@ -141,7 +141,27 @@ const Cases = {
     const deadlineClass = this.getDeadlineClass(c.deadline);
     const staffName = Store.getStaffName(c.staffId);
     const contactName = c.clientContactId ? Store.getClientContact(c.clientContactId)?.name : '';
-    const locationName = Store.getLocationName(c.locationId);
+    
+    // 複数目的地のバッジを組み立て
+    const locNames = [];
+    if (c.surveyLocationId) {
+      const loc = Store.getLocationName(c.surveyLocationId);
+      if (loc) locNames.push(`現調:${loc}`);
+    }
+    if (c.policeLocationId) {
+      const loc = Store.getLocationName(c.policeLocationId);
+      if (loc) locNames.push(`警察:${loc}`);
+    }
+    if (c.landTransportLocationId) {
+      const loc = Store.getLocationName(c.landTransportLocationId);
+      if (loc) locNames.push(`陸局:${loc}`);
+    }
+    if (locNames.length === 0 && c.locationId) {
+      const loc = Store.getLocationName(c.locationId);
+      if (loc) locNames.push(loc);
+    }
+    const locationsHtml = locNames.map(name => `<span>📍 ${name}</span>`).join('');
+
     return `
       <div class="kanban-card ${deadlineClass}" draggable="true"
         ondragstart="event.dataTransfer.setData('text/plain','${c.id}')"
@@ -154,7 +174,7 @@ const Cases = {
           ${client ? `<span>👤 ${client.name}</span>` : ''}
           ${contactName ? `<span style="font-size:0.78rem;color:var(--text-muted)">└ ${contactName}</span>` : ''}
           ${c.staffId ? `<span>🏷️ ${staffName}</span>` : ''}
-          ${locationName ? `<span>📍 ${locationName}</span>` : ''}
+          ${locationsHtml}
           ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
           ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
           ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
@@ -180,6 +200,27 @@ const Cases = {
           const statusInfo = this.STATUSES.find(s => s.key === c.status);
           const catLabel = this.CATEGORIES.find(cat => cat.key === c.category);
           const deadlineClass = this.getDeadlineClass(c.deadline);
+
+          // 複数目的地のバッジを組み立て
+          const locNames = [];
+          if (c.surveyLocationId) {
+            const loc = Store.getLocationName(c.surveyLocationId);
+            if (loc) locNames.push(`現調:${loc}`);
+          }
+          if (c.policeLocationId) {
+            const loc = Store.getLocationName(c.policeLocationId);
+            if (loc) locNames.push(`警察:${loc}`);
+          }
+          if (c.landTransportLocationId) {
+            const loc = Store.getLocationName(c.landTransportLocationId);
+            if (loc) locNames.push(`陸局:${loc}`);
+          }
+          if (locNames.length === 0 && c.locationId) {
+            const loc = Store.getLocationName(c.locationId);
+            if (loc) locNames.push(loc);
+          }
+          const locationsHtml = locNames.map(name => `<span>📍 ${name}</span>`).join('');
+
           return `
                 <div class="case-list-item ${deadlineClass}" onclick="Cases.showEditModal('${c.id}')">
                   <div class="case-list-top">
@@ -188,15 +229,16 @@ const Cases = {
                   </div>
                   <div class="case-list-title">${c.title}</div>
                     <div class="case-list-meta">
-                     ${client ? `<span>👤 ${client.name}</span>` : ''}
-                     ${c.staffId ? `<span>🏷️ ${Store.getStaffName(c.staffId)}</span>` : ''}
-                     ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
-                     ${c.createdAt ? `<span>📋 ${c.createdAt.slice(0, 10)}</span>` : ''}
-                     ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
-                     ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
-                     ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
-                     ${c.fee ? `<span>💰 ${Number(c.fee).toLocaleString()}円</span>` : ''}
-                   </div>
+                      ${client ? `<span>👤 ${client.name}</span>` : ''}
+                      ${c.staffId ? `<span>🏷️ ${Store.getStaffName(c.staffId)}</span>` : ''}
+                      ${locationsHtml}
+                      ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
+                      ${c.createdAt ? `<span>📋 ${c.createdAt.slice(0, 10)}</span>` : ''}
+                      ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
+                      ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
+                      ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
+                      ${c.fee ? `<span>💰 ${Number(c.fee).toLocaleString()}円</span>` : ''}
+                    </div>
                   <div class="case-list-status-controls">
                     ${this.STATUSES.map(s => `
                       <button class="status-step-btn ${c.status === s.key ? 'active' : ''}"
