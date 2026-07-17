@@ -673,8 +673,9 @@ const Calendar = {
       });
 
       if (noneItems.length > 0) {
+        const debugIds = noneItems.map(item => `${item.title.substring(0, 10)}: ID[${item.locationId}]`).join(', ');
         locationGroups.push({
-          label: '📋 その他・場所未設定',
+          label: `📋 その他・場所未設定 (デバッグ用ID: ${debugIds})`,
           items: noneItems
         });
       }
