@@ -1088,11 +1088,12 @@ const Calendar = {
         });
       }
       // 4. 交付 (Police Delivery)
-      if (c.policeDeliveryDate) {
+      const deliveryDate = c.policeDeliveryDate || c.applyDate;
+      if (deliveryDate) {
         caseEvents.push({
           id: `${c.id}-delivery`,
           caseId: c.id,
-          date: c.policeDeliveryDate,
+          date: deliveryDate,
           title: `📄交付: ${c.title}`,
           category: c.category,
           status: c.status,

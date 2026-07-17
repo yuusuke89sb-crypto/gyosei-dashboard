@@ -267,17 +267,106 @@ const Cases = {
             <button class="modal-close" onclick="Cases.closeModal()">✕</button>
           </div>
           <form id="caseForm" onsubmit="Cases.onSubmit(event)">
-            <div class="form-group">
-              <label>案件名 <span class="required">*</span></label>
-              <input type="text" name="title" id="csf_title" required placeholder="例：田中太郎様 車庫証明申請">
+            <div class="form-row">
+              <div class="form-group" style="flex:2">
+                <label>案件名 <span class="required">*</span></label>
+                <input type="text" name="title" id="csf_title" required placeholder="例：田中太郎様 車庫証明申請">
+              </div>
+              <div class="form-group" style="flex:1">
+                <label>注文書№</label>
+                <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：PO-20260501">
+              </div>
             </div>
-            <div class="form-group">
-              <label>注文書№</label>
-              <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：PO-20260501">
-            </div>
+
+            <!-- カテゴリとステータス -->
             <div class="form-row">
               <div class="form-group">
-                <label>顧客</label>
+                <label>カテゴリ <span class="required">*</span></label>
+                <select name="category" id="csf_category" required class="form-select" onchange="Cases.toggleCategoryFields(this.value); if(!Cases.editingId) CaseTemplates.applyTemplate(this.value)">
+                  ${this.CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>ステータス</label>
+                <select name="status" id="csf_status" class="form-select">
+                  ${this.STATUSES.map(s => `<option value="${s.key}">${s.icon} ${s.label}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+
+            <!-- 現地調査 (車庫証明等) -->
+            <div class="form-row" id="csf_garageDates_group" style="display:none">
+              <div class="form-group">
+                <label>現地調査の場所</label>
+                <select name="surveyLocationId" id="csf_surveyLocationId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>現地調査予定日</label>
+                <input type="date" name="surveyDate" id="csf_surveyDate">
+              </div>
+            </div>
+
+            <!-- 申請先、申請日 -->
+            <div class="form-row" id="csf_garageDates_group_police_apply" style="display:none">
+              <div class="form-group">
+                <label>申請先 (警察署)</label>
+                <select name="policeLocationId" id="csf_policeLocationId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>申請日</label>
+                <input type="date" name="applyDate" id="csf_applyDate" onchange="if(!document.getElementById('csf_policeDeliveryDate').value) document.getElementById('csf_policeDeliveryDate').value = this.value">
+              </div>
+            </div>
+
+            <!-- 交付日、期限日 -->
+            <div class="form-row" id="csf_garageDates_group_police_delivery" style="display:none">
+              <div class="form-group">
+                <label>交付日 <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は申請日と同日)</span></label>
+                <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
+              </div>
+              <div class="form-group">
+                <label>期限日</label>
+                <input type="date" name="deadline" id="csf_deadline">
+              </div>
+            </div>
+
+            <!-- 登録先、登録予定日 -->
+            <div class="form-row" id="csf_garageDates_group_land_transport" style="display:none">
+              <div class="form-group">
+                <label>登録先 (陸運局)</label>
+                <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>登録予定日</label>
+                <input type="date" name="registrationDate" id="csf_registrationDate">
+              </div>
+            </div>
+
+            <!-- 店舗届ける予定日、店舗届ける時間帯 -->
+            <div class="form-row" id="csf_garageDates_group2" style="display:none">
+              <div class="form-group">
+                <label>店舗届ける予定日</label>
+                <input type="date" name="storeDeliveryDate" id="csf_storeDeliveryDate">
+              </div>
+              <div class="form-group">
+                <label>店舗届ける時間帯</label>
+                <input type="text" name="storeDeliveryTime" id="csf_storeDeliveryTime" placeholder="例：午前中、15:00まで">
+              </div>
+            </div>
+
+            <!-- 顧客店舗、担当者、その他の設定 -->
+            <div class="form-row">
+              <div class="form-group">
+                <label>顧客店舗</label>
                 <select name="clientId" id="csf_clientId" class="form-select" onchange="Cases.onClientChange(this.value)">
                   <option value="">未選択</option>
                   ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
@@ -290,21 +379,7 @@ const Cases = {
                 </select>
               </div>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>カテゴリ <span class="required">*</span></label>
-                <select name="category" id="csf_category" required class="form-select" onchange="Cases.toggleCategoryFields(this.value); if(!Cases.editingId) CaseTemplates.applyTemplate(this.value)">
-                  ${this.CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>📍 訪問場所</label>
-                <select name="locationId" id="csf_locationId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-                </select>
-              </div>
-            </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label>担当者</label>
@@ -314,10 +389,25 @@ const Cases = {
                 </select>
               </div>
               <div class="form-group">
+                <label>📍 訪問場所 (共通/予備)</label>
+                <select name="locationId" id="csf_locationId" class="form-select">
+                  <option value="">— 未選択 —</option>
+                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
                 <label>登録日</label>
                 <input type="date" name="registeredAt" id="csf_registeredAt" value="${today}">
               </div>
+              <div class="form-group">
+                <label>報酬額（円）</label>
+                <input type="number" name="fee" id="csf_fee" placeholder="例：30000">
+              </div>
             </div>
+
             <div class="form-group">
               <label>📁 Google Drive 案件フォルダURL</label>
               <div style="display:flex;gap:8px">
@@ -325,87 +415,18 @@ const Cases = {
                 <button type="button" class="btn btn-secondary" onclick="const url=document.getElementById('csf_driveFolderUrl').value; if(url) window.open(url, '_blank'); else alert('URLが入力されていません');">🔗 開く</button>
               </div>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>ステータス</label>
-                <select name="status" id="csf_status" class="form-select">
-                  ${this.STATUSES.map(s => `<option value="${s.key}">${s.icon} ${s.label}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>期限日</label>
-                <input type="date" name="deadline" id="csf_deadline">
-              </div>
-            </div>
-            <div class="form-group">
-              <label>報酬額（円）</label>
-              <input type="number" name="fee" id="csf_fee" placeholder="例：30000">
-            </div>
+
             <div class="form-group" id="csf_advances_section">
               <label>立替金</label>
               <div id="csf_advance_rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
               <button type="button" class="btn btn-secondary" style="font-size:0.8rem;padding:4px 10px"
                 onclick="Cases.addAdvanceRow()">＋ 立替金を追加</button>
             </div>
+
             <div class="form-row" id="csf_deathDate_group" style="display:none">
               <div class="form-group">
                 <label>被相続人死亡日 <span style="font-size:0.75rem;color:var(--text-muted)">(期限自動計算用)</span></label>
                 <input type="date" name="deathDate" id="csf_deathDate">
-              </div>
-            </div>
-            <div class="form-row" id="csf_garageDates_group" style="display:none">
-              <div class="form-group">
-                <label>現地調査予定日</label>
-                <input type="date" name="surveyDate" id="csf_surveyDate">
-              </div>
-              <div class="form-group">
-                <label>現地調査の場所</label>
-                <select name="surveyLocationId" id="csf_surveyLocationId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-            <div class="form-row" id="csf_garageDates_group_police" style="display:none">
-              <div class="form-group">
-                <label>申請予定日</label>
-                <input type="date" name="applyDate" id="csf_applyDate">
-              </div>
-              <div class="form-group">
-                <label>警察署交付（予定）日</label>
-                <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
-              </div>
-            </div>
-            <div class="form-row" id="csf_garageDates_group_police_loc" style="display:none">
-              <div class="form-group">
-                <label>申請・交付の警察署</label>
-                <select name="policeLocationId" id="csf_policeLocationId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-            <div class="form-row" id="csf_garageDates_group_land_transport" style="display:none">
-              <div class="form-group">
-                <label>登録予定日 (陸運局)</label>
-                <input type="date" name="registrationDate" id="csf_registrationDate">
-              </div>
-              <div class="form-group">
-                <label>登録の陸運局</label>
-                <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-            <div class="form-row" id="csf_garageDates_group2" style="display:none">
-              <div class="form-group">
-                <label>店舗届ける予定日</label>
-                <input type="date" name="storeDeliveryDate" id="csf_storeDeliveryDate">
-              </div>
-              <div class="form-group">
-                <label>店舗届ける時間・時間指定</label>
-                <input type="text" name="storeDeliveryTime" id="csf_storeDeliveryTime" placeholder="例：午前中、15:00まで">
               </div>
             </div>
             <div class="form-section" style="background:#f9fafb;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #e5e7eb;">
@@ -506,6 +527,12 @@ const Cases = {
       // 顧客担当者リストをリセット
       this.onClientChange('');
 
+      // 注文書№ 自動連番付与 (PO-YYYYMMDD-XXX)
+      const nextNum = Store.getCases().length + 1;
+      const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
+      document.getElementById('csf_orderNo').value = autoOrderNo;
+
       // 受信FAX/メールインボックスからの自動入力（プリフィル）
       if (prefills) {
         if (prefills.title) document.getElementById('csf_title').value = prefills.title;
@@ -588,10 +615,10 @@ const Cases = {
       const isGarage = ['garage_oss', 'garage_paper', 'seal'].includes(c.category);
       const garageDatesGroup = document.getElementById('csf_garageDates_group');
       if (garageDatesGroup) garageDatesGroup.style.display = isGarage ? '' : 'none';
-      const garageDatesGroupPolice = document.getElementById('csf_garageDates_group_police');
-      if (garageDatesGroupPolice) garageDatesGroupPolice.style.display = isGarage ? '' : 'none';
-      const garageDatesGroupPoliceLoc = document.getElementById('csf_garageDates_group_police_loc');
-      if (garageDatesGroupPoliceLoc) garageDatesGroupPoliceLoc.style.display = isGarage ? '' : 'none';
+      const garageDatesGroupPoliceApply = document.getElementById('csf_garageDates_group_police_apply');
+      if (garageDatesGroupPoliceApply) garageDatesGroupPoliceApply.style.display = isGarage ? '' : 'none';
+      const garageDatesGroupPoliceDelivery = document.getElementById('csf_garageDates_group_police_delivery');
+      if (garageDatesGroupPoliceDelivery) garageDatesGroupPoliceDelivery.style.display = isGarage ? '' : 'none';
       const garageDatesGroupLandTransport = document.getElementById('csf_garageDates_group_land_transport');
       if (garageDatesGroupLandTransport) garageDatesGroupLandTransport.style.display = isGarage ? '' : 'none';
       const garageDatesGroup2 = document.getElementById('csf_garageDates_group2');
@@ -658,7 +685,7 @@ const Cases = {
       surveyDate: form.surveyDate ? form.surveyDate.value : '',
       surveyLocationId: form.surveyLocationId ? form.surveyLocationId.value : '',
       applyDate: form.applyDate ? form.applyDate.value : '',
-      policeDeliveryDate: form.policeDeliveryDate ? form.policeDeliveryDate.value : '',
+      policeDeliveryDate: (form.policeDeliveryDate && form.policeDeliveryDate.value) ? form.policeDeliveryDate.value : (form.applyDate ? form.applyDate.value : ''),
       policeLocationId: form.policeLocationId ? form.policeLocationId.value : '',
       registrationDate: form.registrationDate ? form.registrationDate.value : '',
       landTransportLocationId: form.landTransportLocationId ? form.landTransportLocationId.value : '',
@@ -720,10 +747,10 @@ const Cases = {
     const isGarage = ['garage_oss', 'garage_paper', 'seal'].includes(category);
     const garageDatesGroup = document.getElementById('csf_garageDates_group');
     if (garageDatesGroup) garageDatesGroup.style.display = isGarage ? '' : 'none';
-    const garageDatesGroupPolice = document.getElementById('csf_garageDates_group_police');
-    if (garageDatesGroupPolice) garageDatesGroupPolice.style.display = isGarage ? '' : 'none';
-    const garageDatesGroupPoliceLoc = document.getElementById('csf_garageDates_group_police_loc');
-    if (garageDatesGroupPoliceLoc) garageDatesGroupPoliceLoc.style.display = isGarage ? '' : 'none';
+    const garageDatesGroupPoliceApply = document.getElementById('csf_garageDates_group_police_apply');
+    if (garageDatesGroupPoliceApply) garageDatesGroupPoliceApply.style.display = isGarage ? '' : 'none';
+    const garageDatesGroupPoliceDelivery = document.getElementById('csf_garageDates_group_police_delivery');
+    if (garageDatesGroupPoliceDelivery) garageDatesGroupPoliceDelivery.style.display = isGarage ? '' : 'none';
     const garageDatesGroupLandTransport = document.getElementById('csf_garageDates_group_land_transport');
     if (garageDatesGroupLandTransport) garageDatesGroupLandTransport.style.display = isGarage ? '' : 'none';
     const garageDatesGroup2 = document.getElementById('csf_garageDates_group2');
