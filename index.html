@@ -19,7 +19,10 @@
   <header class="mobile-header">
     <button class="hamburger" onclick="App.toggleSidebar()" aria-label="メニュー">☰</button>
     <div class="mobile-logo"><span>⚖️</span> 案件管理</div>
-    <button class="hamburger" onclick="GlobalSearch.show()" aria-label="検索">🔍</button>
+    <div style="display:flex;gap:4px">
+      <button class="hamburger" onclick="SpreadsheetSync.syncNow()" aria-label="同期" style="margin-right:4px">🔄</button>
+      <button class="hamburger" onclick="GlobalSearch.show()" aria-label="検索">🔍</button>
+    </div>
   </header>
 
   <!-- メインコンテンツ -->
