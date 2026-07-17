@@ -628,16 +628,20 @@ const Calendar = {
         }
       });
 
-      // 2. 店舗お届け先グループ
+      // 2. 店舗お届け先グループ（1つの共通見出し「🏢 届け先」に合算）
+      const storeItems = [];
       clients.forEach(c => {
         const key = `client-${c.id}`;
         if (groups[key]) {
-          locationGroups.push({
-            label: `🏢 届け先: ${c.name}`,
-            items: groups[key]
-          });
+          storeItems.push(...groups[key]);
         }
       });
+      if (storeItems.length > 0) {
+        locationGroups.push({
+          label: '🏢 届け先',
+          items: storeItems
+        });
+      }
 
       // 3. その他・場所未指定
       let noneItems = groups['__none__'] || [];
@@ -657,37 +661,7 @@ const Calendar = {
         });
       }
 
-      allDayHtml = locationGroups.map((g, idx) => {
-        // アクション別の件数をカウント
-        const counts = {};
-        let timeLimits = [];
-
-        g.items.forEach(item => {
-          let actionLabel = '';
-          if (item.title.includes('📝申請・📄交付') || item.title.includes('申請・交付')) actionLabel = '📝申請・📄交付';
-          else if (item.title.startsWith('📝申請') || item.title.includes('申請')) actionLabel = '📝申請';
-          else if (item.title.startsWith('📄交付') || item.title.includes('交付')) actionLabel = '📄交付';
-          else if (item.title.startsWith('🚗登録') || item.title.includes('登録')) actionLabel = '🚗登録';
-          else if (item.title.startsWith('⏰締切') || item.title.includes('締切')) actionLabel = '⏰締切';
-          else if (item.title.startsWith('🔍現調') || item.title.includes('現調')) actionLabel = '🔍現調';
-          else if (item.title.startsWith('🚚店届') || item.title.includes('店届') || item.title.includes('受取り') || item.label === '🚚' || item.label === '📝🚚') actionLabel = '🚚店届';
-          else if (item.label) actionLabel = item.label;
-          else actionLabel = 'other';
-
-          counts[actionLabel] = (counts[actionLabel] || 0) + 1;
-
-          // 時間制約を取得 (店舗お届けの時間帯のみに限定)
-          if (actionLabel === '🚚店届' || item.label === '🚚' || item.label === '📝🚚') {
-            const caseObj = item.type === 'case' ? Store.getCase(item.id) : null;
-            if (caseObj && caseObj.storeDeliveryTime) {
-              timeLimits.push(caseObj.storeDeliveryTime);
-            }
-          }
-        });
-
-        const countsStr = Object.entries(counts).map(([label, count]) => `${label} ${count}件`).join(' / ');
-        const timeStr = timeLimits.length > 0 ? timeLimits.join(', ') : '';
-
+      allDayHtml = locationGroups.map(g => {
         const renderItem = (item) => {
           const staffName = Store.getStaffName(item.staffId);
           const clickAction = item.type === 'event'
@@ -703,38 +677,17 @@ const Calendar = {
 
           return `
             <div class="allday-item" onclick="event.stopPropagation(); ${clickAction}" 
-                 style="background:var(--bg-primary);border:1px solid var(--border-color);border-radius:6px;padding:8px 12px;cursor:pointer;font-size:0.8rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-              <div class="allday-item-title" style="font-weight:600">${displayTitle}</div>
-              <div class="allday-item-meta" style="color:var(--text-muted);font-size:0.75rem">${staffName ? '👤 ' + staffName : ''}</div>
+                 style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;padding:10px 12px;cursor:pointer;font-size:0.82rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;min-height:44px">
+              <div class="allday-item-title" style="font-weight:600;white-space:normal;line-height:1.45;flex:1">${displayTitle}</div>
+              <div class="allday-item-meta" style="color:var(--text-muted);font-size:0.75rem;margin-left:8px;white-space:nowrap">${staffName ? '👤 ' + staffName : ''}</div>
             </div>
           `;
         };
 
-        const detailsId = `dayview-details-${idx}`;
-        const arrowId = `dayview-arrow-${idx}`;
-
         return `
-          <div class="day-view-summary-card" style="margin-bottom:10px;border-bottom:1px solid var(--border-color);padding-bottom:10px">
-            <div onclick="const el=document.getElementById('${detailsId}'); const arr=document.getElementById('${arrowId}'); if(el.style.display==='none'){ el.style.display='block'; arr.textContent='▼'; }else{ el.style.display='none'; arr.textContent='▶'; }" 
-                 style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background 0.2s">
-              <div style="flex:1;min-width:0;margin-right:12px">
-                <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);display:flex;align-items:center;gap:6px">
-                  <span id="${arrowId}" style="font-size:0.65rem;color:var(--text-muted);width:10px;display:inline-block">▶</span>
-                  <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.label}</span>
-                </div>
-                <div style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;padding-left:16px">${countsStr}</div>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px">
-                ${timeStr ? `
-                  <div style="font-weight:700;font-size:0.72rem;color:#d97706;background:#fef3c7;border:1px solid #fde68a;padding:2px 6px;border-radius:4px;white-space:nowrap;display:flex;align-items:center;gap:3px">
-                    🕒 ${timeStr}
-                  </div>
-                ` : ''}
-              </div>
-            </div>
-            
-            <!-- 折りたたみ式の詳細リスト -->
-            <div id="${detailsId}" style="display:none;margin-top:6px;padding-left:16px">
+          <div style="margin-bottom:14px">
+            <div style="font-size:0.78rem;font-weight:700;color:var(--text-muted);letter-spacing:0.5px;margin-bottom:6px;padding:2px 6px;background:var(--bg-secondary);border-radius:4px;display:inline-block">${g.label}</div>
+            <div class="day-view-allday-grid" style="margin-top:4px;display:flex;flex-direction:column;gap:2px">
               ${g.items.map(renderItem).join('')}
             </div>
           </div>
