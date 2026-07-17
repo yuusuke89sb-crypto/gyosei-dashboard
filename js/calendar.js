@@ -635,10 +635,17 @@ const Calendar = {
       // 1. 訪問場所マスタにあるグループ
       const locationGroups = [];
       locations.forEach(l => {
-        if (groups[l.id]) {
+        const cleanLocId = String(l.id).trim();
+        const matchedItems = [];
+        Object.keys(groups).forEach(key => {
+          if (String(key).trim() === cleanLocId) {
+            matchedItems.push(...groups[key]);
+          }
+        });
+        if (matchedItems.length > 0) {
           locationGroups.push({
             label: `📍 訪問先: ${l.name}`,
-            items: groups[l.id]
+            items: matchedItems
           });
         }
       });
@@ -657,7 +664,10 @@ const Calendar = {
       // 3. その他・場所未指定
       let noneItems = groups['__none__'] || [];
       Object.keys(groups).forEach(key => {
-        if (key !== '__none__' && !locations.some(l => l.id === key) && !clients.some(c => `client-${c.id}` === key)) {
+        const cleanKey = String(key).trim();
+        if (cleanKey !== '__none__' && 
+            !locations.some(l => String(l.id).trim() === cleanKey) && 
+            !clients.some(c => `client-${c.id}` === cleanKey)) {
           noneItems = noneItems.concat(groups[key]);
         }
       });
