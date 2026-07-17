@@ -628,20 +628,16 @@ const Calendar = {
         }
       });
 
-      // 2. 店舗お届け先グループ（1つの共通見出し「🏢 届け先」に合算）
-      const storeItems = [];
+      // 2. 店舗お届け先グループ (店舗ごとに見出しを生成)
       clients.forEach(c => {
         const key = `client-${c.id}`;
         if (groups[key]) {
-          storeItems.push(...groups[key]);
+          locationGroups.push({
+            label: `🏢 届け先: ${c.name}`,
+            items: groups[key]
+          });
         }
       });
-      if (storeItems.length > 0) {
-        locationGroups.push({
-          label: '🏢 届け先',
-          items: storeItems
-        });
-      }
 
       // 3. その他・場所未指定
       let noneItems = groups['__none__'] || [];
