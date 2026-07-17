@@ -294,8 +294,8 @@ const Cases = {
               </div>
             </div>
 
-            <!-- 現地調査 (車庫証明等) -->
-            <div class="form-row" id="csf_garageDates_group" style="display:none">
+            <!-- 現地調査 (車庫証明等) - 一旦非表示 -->
+            <div class="form-row" id="csf_garageDates_group" style="display:none !important">
               <div class="form-group">
                 <label>現地調査の場所</label>
                 <select name="surveyLocationId" id="csf_surveyLocationId" class="form-select">
@@ -312,7 +312,7 @@ const Cases = {
             <!-- 申請先、申請日 -->
             <div class="form-row" id="csf_garageDates_group_police_apply" style="display:none">
               <div class="form-group">
-                <label>申請先 (警察署)</label>
+                <label>申請先</label>
                 <select name="policeLocationId" id="csf_policeLocationId" class="form-select">
                   <option value="">— 未選択 —</option>
                   ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
@@ -324,22 +324,18 @@ const Cases = {
               </div>
             </div>
 
-            <!-- 交付日、期限日 -->
+            <!-- 交付日 -->
             <div class="form-row" id="csf_garageDates_group_police_delivery" style="display:none">
               <div class="form-group">
                 <label>交付日 <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は申請日と同日)</span></label>
                 <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
-              </div>
-              <div class="form-group">
-                <label>期限日</label>
-                <input type="date" name="deadline" id="csf_deadline">
               </div>
             </div>
 
             <!-- 登録先、登録予定日 -->
             <div class="form-row" id="csf_garageDates_group_land_transport" style="display:none">
               <div class="form-group">
-                <label>登録先 (陸運局)</label>
+                <label>登録先</label>
                 <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
                   <option value="">— 未選択 —</option>
                   ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
@@ -588,7 +584,8 @@ const Cases = {
       document.getElementById('csf_registeredAt').value = c.registeredAt || c.createdAt?.slice(0, 10) || '';
       document.getElementById('csf_category').value = c.category;
       document.getElementById('csf_status').value = c.status;
-      document.getElementById('csf_deadline').value = c.deadline || '';
+      const deadlineEl = document.getElementById('csf_deadline');
+      if (deadlineEl) deadlineEl.value = c.deadline || '';
       document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
       document.getElementById('csf_fee').value = c.fee || '';
       const locSel = document.getElementById('csf_locationId');
@@ -677,7 +674,7 @@ const Cases = {
       registeredAt: form.registeredAt.value,
       category: form.category.value,
       status: form.status.value,
-      deadline: form.deadline.value,
+      deadline: (form.deadline && form.deadline.value) ? form.deadline.value : '',
       driveFolderUrl: form.driveFolderUrl.value.trim(),
       fee: form.fee.value,
       advances: this.advanceDraft.filter(a => a.label || Number(a.amount) > 0),

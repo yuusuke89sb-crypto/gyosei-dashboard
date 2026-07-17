@@ -664,21 +664,24 @@ const Calendar = {
 
         g.items.forEach(item => {
           let actionLabel = '';
-          if (item.title.startsWith('📝申請') || item.title.includes('申請')) actionLabel = '📝申請';
+          if (item.title.includes('📝申請・📄交付') || item.title.includes('申請・交付')) actionLabel = '📝申請・📄交付';
+          else if (item.title.startsWith('📝申請') || item.title.includes('申請')) actionLabel = '📝申請';
           else if (item.title.startsWith('📄交付') || item.title.includes('交付')) actionLabel = '📄交付';
           else if (item.title.startsWith('🚗登録') || item.title.includes('登録')) actionLabel = '🚗登録';
           else if (item.title.startsWith('⏰締切') || item.title.includes('締切')) actionLabel = '⏰締切';
           else if (item.title.startsWith('🔍現調') || item.title.includes('現調')) actionLabel = '🔍現調';
-          else if (item.title.startsWith('🚚店届') || item.title.includes('店届')) actionLabel = '🚚店届';
+          else if (item.title.startsWith('🚚店届') || item.title.includes('店届') || item.label === '🚚') actionLabel = '🚚店届';
           else if (item.label) actionLabel = item.label;
           else actionLabel = 'その他';
 
           counts[actionLabel] = (counts[actionLabel] || 0) + 1;
 
-          // 時間制約を取得 (店舗お届けの時間帯など)
-          const caseObj = item.type === 'case' ? Store.getCase(item.id) : null;
-          if (caseObj && caseObj.storeDeliveryTime) {
-            timeLimits.push(caseObj.storeDeliveryTime);
+          // 時間制約を取得 (店舗お届けの時間帯のみに限定)
+          if (actionLabel === '🚚店届' || item.label === '🚚') {
+            const caseObj = item.type === 'case' ? Store.getCase(item.id) : null;
+            if (caseObj && caseObj.storeDeliveryTime) {
+              timeLimits.push(caseObj.storeDeliveryTime);
+            }
           }
         });
 
@@ -1122,36 +1125,51 @@ const Calendar = {
           type: 'case-survey'
         });
       }
-      // 3. 申請 (Apply)
-      if (c.applyDate) {
+      // 3. 申請 ＆ 4. 交付 (同日の場合は合算して1行にまとめる)
+      const effectiveDeliveryDate = c.policeDeliveryDate || c.applyDate;
+      if (c.applyDate && effectiveDeliveryDate && c.applyDate === effectiveDeliveryDate) {
         caseEvents.push({
-          id: `${c.id}-apply`,
+          id: `${c.id}-apply-delivery`,
           caseId: c.id,
           date: c.applyDate,
-          title: `📝申請: ${c.title}`,
+          title: `📝申請・📄交付: ${c.title}`,
           category: c.category,
           status: c.status,
           staffId: c.staffId || '',
           locationId: c.policeLocationId || c.locationId || '',
-          icon: '📝',
-          type: 'case-apply'
+          icon: '📝📄',
+          type: 'case-apply-delivery'
         });
-      }
-      // 4. 交付 (Police Delivery)
-      const deliveryDate = c.policeDeliveryDate || c.applyDate;
-      if (deliveryDate) {
-        caseEvents.push({
-          id: `${c.id}-delivery`,
-          caseId: c.id,
-          date: deliveryDate,
-          title: `📄交付: ${c.title}`,
-          category: c.category,
-          status: c.status,
-          staffId: c.staffId || '',
-          locationId: c.policeLocationId || c.locationId || '',
-          icon: '📄',
-          type: 'case-delivery'
-        });
+      } else {
+        // 別日の場合は従来どおり別々に登録
+        if (c.applyDate) {
+          caseEvents.push({
+            id: `${c.id}-apply`,
+            caseId: c.id,
+            date: c.applyDate,
+            title: `📝申請: ${c.title}`,
+            category: c.category,
+            status: c.status,
+            staffId: c.staffId || '',
+            locationId: c.policeLocationId || c.locationId || '',
+            icon: '📝',
+            type: 'case-apply'
+          });
+        }
+        if (effectiveDeliveryDate) {
+          caseEvents.push({
+            id: `${c.id}-delivery`,
+            caseId: c.id,
+            date: effectiveDeliveryDate,
+            title: `📄交付: ${c.title}`,
+            category: c.category,
+            status: c.status,
+            staffId: c.staffId || '',
+            locationId: c.policeLocationId || c.locationId || '',
+            icon: '📄',
+            type: 'case-delivery'
+          });
+        }
       }
       // 5. 店舗届ける (Store Delivery)
       if (c.storeDeliveryDate) {
