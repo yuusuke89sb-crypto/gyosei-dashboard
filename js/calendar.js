@@ -1040,18 +1040,19 @@ const Calendar = {
 
     cases.forEach(c => {
       const catLabel = CATEGORY_LABELS[c.category] || '案件';
-      // 1. 期限 (Deadline)
-      if (c.deadline) {
+      // 1. 期限 (Deadline) / 陸運局登録
+      const deadlineDate = c.deadline || (c.landTransportLocationId ? c.policeDeliveryDate : '');
+      if (deadlineDate) {
         caseEvents.push({
           id: `${c.id}-deadline`,
           caseId: c.id,
-          date: c.deadline,
-          title: `⏰締切: ${c.title}`,
+          date: deadlineDate,
+          title: c.deadline ? `⏰締切: ${c.title}` : `🚗登録: ${c.title}`,
           category: c.category,
           status: c.status,
           staffId: c.staffId || '',
           locationId: c.landTransportLocationId || c.locationId || '',
-          icon: '⏰',
+          icon: c.deadline ? '⏰' : '🚗',
           type: 'case-deadline'
         });
       }
