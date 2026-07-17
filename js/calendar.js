@@ -670,14 +670,14 @@ const Calendar = {
           else if (item.title.startsWith('🚗登録') || item.title.includes('登録')) actionLabel = '🚗登録';
           else if (item.title.startsWith('⏰締切') || item.title.includes('締切')) actionLabel = '⏰締切';
           else if (item.title.startsWith('🔍現調') || item.title.includes('現調')) actionLabel = '🔍現調';
-          else if (item.title.startsWith('🚚店届') || item.title.includes('店届') || item.label === '🚚') actionLabel = '🚚店届';
+          else if (item.title.startsWith('🚚店届') || item.title.includes('店届') || item.title.includes('受取り') || item.label === '🚚' || item.label === '📝🚚') actionLabel = '🚚店届';
           else if (item.label) actionLabel = item.label;
-          else actionLabel = 'その他';
+          else actionLabel = 'other';
 
           counts[actionLabel] = (counts[actionLabel] || 0) + 1;
 
           // 時間制約を取得 (店舗お届けの時間帯のみに限定)
-          if (actionLabel === '🚚店届' || item.label === '🚚') {
+          if (actionLabel === '🚚店届' || item.label === '🚚' || item.label === '📝🚚') {
             const caseObj = item.type === 'case' ? Store.getCase(item.id) : null;
             if (caseObj && caseObj.storeDeliveryTime) {
               timeLimits.push(caseObj.storeDeliveryTime);
@@ -1125,23 +1125,45 @@ const Calendar = {
           type: 'case-survey'
         });
       }
-      // 3. 申請 ＆ 4. 交付 (同日の場合は合算して1行にまとめる)
+      // 3. 申請 ＆ 4. 交付 (同日の場合は合算して1行にまとめる。さらに交付と店届が同日の場合は店届へマージする)
       const effectiveDeliveryDate = c.policeDeliveryDate || c.applyDate;
-      if (c.applyDate && effectiveDeliveryDate && c.applyDate === effectiveDeliveryDate) {
-        caseEvents.push({
-          id: `${c.id}-apply-delivery`,
-          caseId: c.id,
-          date: c.applyDate,
-          title: `📝申請・📄交付: ${c.title}`,
-          category: c.category,
-          status: c.status,
-          staffId: c.staffId || '',
-          locationId: c.policeLocationId || c.locationId || '',
-          icon: '📝📄',
-          type: 'case-apply-delivery'
-        });
+      const isDeliverySameDayAsStore = c.storeDeliveryDate && effectiveDeliveryDate && effectiveDeliveryDate === c.storeDeliveryDate;
+      const isApplySameDayAsDelivery = c.applyDate && effectiveDeliveryDate && c.applyDate === effectiveDeliveryDate;
+
+      if (isApplySameDayAsDelivery) {
+        if (isDeliverySameDayAsStore) {
+          // 申請・交付・店届がすべて同日の場合：申請は警察署に単体で残し、交付は店届側と合算する
+          if (c.applyDate) {
+            caseEvents.push({
+              id: `${c.id}-apply`,
+              caseId: c.id,
+              date: c.applyDate,
+              title: `📝申請: ${c.title}`,
+              category: c.category,
+              status: c.status,
+              staffId: c.staffId || '',
+              locationId: c.policeLocationId || c.locationId || '',
+              icon: '📝',
+              type: 'case-apply'
+            });
+          }
+        } else {
+          // 申請・交付が同日で、店届が別日または無い場合：合算して警察署へ表示
+          caseEvents.push({
+            id: `${c.id}-apply-delivery`,
+            caseId: c.id,
+            date: c.applyDate,
+            title: `📝申請・📄交付: ${c.title}`,
+            category: c.category,
+            status: c.status,
+            staffId: c.staffId || '',
+            locationId: c.policeLocationId || c.locationId || '',
+            icon: '📝📄',
+            type: 'case-apply-delivery'
+          });
+        }
       } else {
-        // 別日の場合は従来どおり別々に登録
+        // 申請と交付が別日の場合
         if (c.applyDate) {
           caseEvents.push({
             id: `${c.id}-apply`,
@@ -1156,7 +1178,8 @@ const Calendar = {
             type: 'case-apply'
           });
         }
-        if (effectiveDeliveryDate) {
+        if (effectiveDeliveryDate && !isDeliverySameDayAsStore) {
+          // 交付が店届と別日の場合のみ、個別に警察署へ表示
           caseEvents.push({
             id: `${c.id}-delivery`,
             caseId: c.id,
@@ -1171,22 +1194,39 @@ const Calendar = {
           });
         }
       }
+
       // 5. 店舗届ける (Store Delivery)
       if (c.storeDeliveryDate) {
         const client = Store.getClient(c.clientId);
         const storeName = client ? client.name : '店舗未選択';
         const timeLabel = c.storeDeliveryTime ? ` (${c.storeDeliveryTime})` : '';
+
+        let title = '';
+        let icon = '🚚';
+        let type = 'case-store';
+
+        if (isDeliverySameDayAsStore) {
+          // 「交付→店届」が同日の特別形式
+          const policeStationName = Store.getLocationName(c.policeLocationId) || '警察署';
+          const policeStationShort = policeStationName.replace('警察署', '署');
+          title = `${policeStationShort}受取り${c.storeDeliveryTime ? `（${c.storeDeliveryTime}）` : ''}　${storeName}`;
+          icon = '📝🚚';
+          type = 'case-delivery-store';
+        } else {
+          title = `🚚店届: ${storeName} (${c.title})${timeLabel}`;
+        }
+
         caseEvents.push({
           id: `${c.id}-store`,
           caseId: c.id,
           date: c.storeDeliveryDate,
-          title: `🚚店届: ${storeName} (${c.title})${timeLabel}`,
+          title: title,
           category: c.category,
           status: c.status,
           staffId: c.staffId || '',
           locationId: `client-${c.clientId}`,
-          icon: '🚚',
-          type: 'case-store'
+          icon: icon,
+          type: type
         });
       }
     });
