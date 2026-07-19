@@ -583,26 +583,41 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
     
-    // ── LINE Messaging API Webhook の検知とユーザーID自動記録 ──
+    // ── LINE Messaging API Webhook の検知とID自動記録 ──
     if (body.events && body.events.length > 0) {
       const event = body.events[0];
-      if (event.source && event.source.userId) {
-        const userId = event.source.userId;
-        const msgText = (event.message && event.message.text) ? event.message.text : '（メッセージ受信）';
+      if (event.source) {
+        let targetId = '';
+        let idLabel = 'ユーザーID';
         
-        // スプレッドシートの「操作ログ」に記録
-        const ss = SpreadsheetApp.getActiveSpreadsheet();
-        const logSheet = ss.getSheetByName(SHEET_NAMES.LOG || '操作ログ');
-        if (logSheet) {
-          logSheet.appendRow([
-            new Date(),
-            'LINE Webhook: ' + msgText,
-            'システム',
-            '-',
-            'LINE連携設定用',
-            '-',
-            'あなたのユーザーID: ' + userId
-          ]);
+        if (event.source.type === 'group' && event.source.groupId) {
+          targetId = event.source.groupId;
+          idLabel = 'グループID';
+        } else if (event.source.type === 'room' && event.source.roomId) {
+          targetId = event.source.roomId;
+          idLabel = 'ルームID';
+        } else if (event.source.userId) {
+          targetId = event.source.userId;
+          idLabel = 'ユーザーID';
+        }
+        
+        if (targetId) {
+          const msgText = (event.message && event.message.text) ? event.message.text : '（メッセージ受信）';
+          
+          // スプレッドシートの「操作ログ」に記録
+          const ss = SpreadsheetApp.getActiveSpreadsheet();
+          const logSheet = ss.getSheetByName(SHEET_NAMES.LOG || '操作ログ');
+          if (logSheet) {
+            logSheet.appendRow([
+              new Date(),
+              'LINE Webhook (' + (event.source.type || 'user') + '): ' + msgText,
+              'システム',
+              '-',
+              'LINE連携設定用',
+              '-',
+              'あなたの' + idLabel + ': ' + targetId
+            ]);
+          }
         }
       }
       return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
