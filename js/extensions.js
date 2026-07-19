@@ -108,7 +108,12 @@ const Payments = {
                 <span class="mini-case-title">${p.invoiceNo}</span>
                 <span style="color:var(--text-secondary)">${client ? client.name : ''}</span>
                 <span class="mini-case-fee">¥${p.amount.toLocaleString()}</span>
-                ${p.status === 'unpaid' ? `<button class="btn btn-small btn-primary" onclick="event.stopPropagation(); Payments.confirmPaid('${p.id}')">入金</button>` : `<span style="font-size:0.75rem;color:var(--text-muted)">${p.paidAt ? p.paidAt.slice(0, 10) : ''}</span>`}
+                ${p.status === 'unpaid' ? `<button class="btn btn-small btn-primary" onclick="event.stopPropagation(); Payments.confirmPaid('${p.id}')">入金</button>` : `
+                   <div style="display:flex;align-items:center;gap:6px">
+                     <span style="font-size:0.75rem;color:var(--text-muted)">${p.paidAt ? p.paidAt.slice(0, 10) : ''}</span>
+                     <button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); Invoice.showReceipt('${p.invoiceNo}')" style="padding:2px 6px;font-size:0.7rem">🧾 領収書</button>
+                   </div>
+                 `}
               </div>`;
         }).join('')}
         </div>
@@ -2145,6 +2150,495 @@ const TaxHelper = {
       </div>
     `;
     document.body.appendChild(modal);
+  }
+};
+
+// ============================================================
+// 9. 相続関係図（ファミリーツリー）メーカー
+// ============================================================
+const FamilyTreeMaker = {
+  currentCaseId: null,
+  childrenDraft: [],
+
+  show(caseId) {
+    this.currentCaseId = caseId;
+    const c = Store.getCase(caseId);
+    if (!c) return;
+
+    // デフォルトデータ作成
+    let data = c.familyTreeData;
+    if (!data) {
+      const client = Store.getClient(c.clientId);
+      data = {
+        deceased: { name: c.carName || '被相続人 氏名', deathDate: c.deathDate || '' },
+        spouse: { name: client ? client.name : '配偶者 氏名', isAlive: true, exists: true },
+        children: [],
+        parents: [
+          { name: '父 氏名', relation: '父', isAlive: false, exists: false },
+          { name: '母 氏名', relation: '母', isAlive: false, exists: false }
+        ]
+      };
+    }
+
+    const existing = document.getElementById('familyTreeModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'familyTreeModal';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-overlay" onclick="FamilyTreeMaker.close()"></div>
+      <div class="modal-content ft-modal-content ft-no-print">
+        <div class="modal-header">
+          <h2>🌳 相続関係図メーカー</h2>
+          <button class="modal-close" onclick="FamilyTreeMaker.close()">✕</button>
+        </div>
+        <div class="ft-layout">
+          <!-- 左側：エディタフォーム -->
+          <div class="ft-sidebar">
+            <h3 style="font-size:0.9rem;border-bottom:1px solid var(--border-color);padding-bottom:6px">👤 被相続人 (亡くなった方)</h3>
+            <div class="form-group">
+              <label>氏名</label>
+              <input type="text" id="ft_deceased_name" value="${data.deceased.name || ''}" oninput="FamilyTreeMaker.update()">
+            </div>
+            <div class="form-group">
+              <label>死亡日</label>
+              <input type="date" id="ft_deceased_date" value="${data.deceased.deathDate || ''}" oninput="FamilyTreeMaker.update()">
+            </div>
+
+            <h3 style="font-size:0.9rem;border-bottom:1px solid var(--border-color);padding-bottom:6px;margin-top:10px;display:flex;align-items:center;justify-content:space-between">
+              👥 配偶者
+              <label style="font-size:0.75rem;font-weight:normal;display:flex;align-items:center;gap:4px">
+                <input type="checkbox" id="ft_spouse_exists" ${data.spouse.exists ? 'checked' : ''} onchange="FamilyTreeMaker.update()"> あり
+              </label>
+            </h3>
+            <div id="ft_spouse_section" style="${data.spouse.exists ? '' : 'display:none'}">
+              <div class="form-group">
+                <label>氏名</label>
+                <input type="text" id="ft_spouse_name" value="${data.spouse.name || ''}" oninput="FamilyTreeMaker.update()">
+              </div>
+              <div class="form-group" style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                <label style="font-size:0.8rem;display:flex;align-items:center;gap:4px;cursor:pointer">
+                  <input type="radio" name="ft_spouse_alive" value="true" ${data.spouse.isAlive ? 'checked' : ''} onchange="FamilyTreeMaker.update()"> 存命
+                </label>
+                <label style="font-size:0.8rem;display:flex;align-items:center;gap:4px;cursor:pointer">
+                  <input type="radio" name="ft_spouse_alive" value="false" ${!data.spouse.isAlive ? 'checked' : ''} onchange="FamilyTreeMaker.update()"> 死亡
+                </label>
+              </div>
+            </div>
+
+            <h3 style="font-size:0.9rem;border-bottom:1px solid var(--border-color);padding-bottom:6px;margin-top:10px;display:flex;align-items:center;justify-content:space-between">
+              👶 子供
+              <button class="btn btn-secondary btn-small" style="font-size:0.75rem;padding:2px 8px" onclick="FamilyTreeMaker.addChild()">＋ 追加</button>
+            </h3>
+            <div id="ft_children_list" style="display:flex;flex-direction:column;gap:8px">
+              <!-- 子供リストが動的挿入される -->
+            </div>
+
+            <h3 style="font-size:0.9rem;border-bottom:1px solid var(--border-color);padding-bottom:6px;margin-top:10px">
+              👴 父母
+            </h3>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${data.parents.map((p, idx) => `
+                <div style="background:rgba(0,0,0,0.15);padding:8px;border-radius:4px;border:1px solid var(--border-color)">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <label style="font-weight:600;font-size:0.8rem">${p.relation}</label>
+                    <label style="font-size:0.75rem;display:flex;align-items:center;gap:4px;cursor:pointer">
+                      <input type="checkbox" id="ft_parent_exists_${idx}" ${p.exists ? 'checked' : ''} onchange="FamilyTreeMaker.update()"> 記載する
+                    </label>
+                  </div>
+                  <div id="ft_parent_section_${idx}" style="${p.exists ? '' : 'display:none'}">
+                    <input type="text" id="ft_parent_name_${idx}" value="${p.name || ''}" placeholder="氏名" style="width:100%;margin-bottom:6px" oninput="FamilyTreeMaker.update()">
+                    <div style="display:flex;align-items:center;gap:12px">
+                      <label style="font-size:0.78rem;display:flex;align-items:center;gap:4px;cursor:pointer">
+                        <input type="radio" name="ft_parent_alive_${idx}" value="true" ${p.isAlive ? 'checked' : ''} onchange="FamilyTreeMaker.update()"> 存命
+                      </label>
+                      <label style="font-size:0.78rem;display:flex;align-items:center;gap:4px;cursor:pointer">
+                        <input type="radio" name="ft_parent_alive_${idx}" value="false" ${!p.isAlive ? 'checked' : ''} onchange="FamilyTreeMaker.update()"> 死亡
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+
+            <div style="margin-top:auto;display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="FamilyTreeMaker.save()" style="flex:1">💾 保存</button>
+              <button class="btn btn-secondary" onclick="FamilyTreeMaker.print()" style="flex:1">🖨️ 印刷</button>
+            </div>
+          </div>
+
+          <!-- 右側：関係図プレビューキャンバス -->
+          <div class="ft-canvas-container">
+            <div class="ft-tree" id="ft_preview_tree"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 印刷用隠しエリア -->
+      <div id="ftPrintArea" class="ft-print-only-layout" style="display:none"></div>
+    `;
+    document.body.appendChild(modal);
+
+    // 子供たちのリストをロード
+    this.childrenDraft = JSON.parse(JSON.stringify(data.children || []));
+    this.renderChildrenList();
+    this.update();
+  },
+
+  close() {
+    const m = document.getElementById('familyTreeModal');
+    if (m) m.remove();
+  },
+
+  addChild() {
+    const nextIndex = this.childrenDraft.length + 1;
+    let label = '子';
+    if (nextIndex === 1) label = '長男';
+    else if (nextIndex === 2) label = '長女';
+    else if (nextIndex === 3) label = '二男';
+    else label = `子 ${nextIndex}`;
+
+    this.childrenDraft.push({
+      name: `相続人 ${nextIndex}`,
+      relation: label,
+      isAlive: true
+    });
+    this.renderChildrenList();
+    this.update();
+  },
+
+  removeChild(idx) {
+    this.childrenDraft.splice(idx, 1);
+    this.renderChildrenList();
+    this.update();
+  },
+
+  onChildInput(idx, field, value) {
+    if (field === 'isAlive') {
+      this.childrenDraft[idx].isAlive = value === 'true';
+    } else {
+      this.childrenDraft[idx][field] = value;
+    }
+    this.update();
+  },
+
+  renderChildrenList() {
+    const list = document.getElementById('ft_children_list');
+    if (!list) return;
+
+    if (this.childrenDraft.length === 0) {
+      list.innerHTML = '<p style="font-size:0.75rem;color:var(--text-muted);text-align:center;padding:12px 0">子供は追加されていません</p>';
+      return;
+    }
+
+    list.innerHTML = this.childrenDraft.map((c, i) => `
+      <div style="background:rgba(0,0,0,0.15);padding:8px;border-radius:4px;border:1px solid var(--border-color)">
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px">
+          <input type="text" value="${c.name || ''}" placeholder="名前" style="flex:2;font-size:0.8rem;padding:4px" oninput="FamilyTreeMaker.onChildInput(${i}, 'name', this.value)">
+          <select style="flex:1.2;font-size:0.8rem;padding:2px" onchange="FamilyTreeMaker.onChildInput(${i}, 'relation', this.value)">
+            <option value="長男" ${c.relation === '長男' ? 'selected' : ''}>長男</option>
+            <option value="長女" ${c.relation === '長女' ? 'selected' : ''}>長女</option>
+            <option value="二男" ${c.relation === '二男' ? 'selected' : ''}>二男</option>
+            <option value="二女" ${c.relation === '二女' ? 'selected' : ''}>二女</option>
+            <option value="三男" ${c.relation === '三男' ? 'selected' : ''}>三男</option>
+            <option value="三女" ${c.relation === '三女' ? 'selected' : ''}>三女</option>
+          </select>
+          <button class="btn btn-secondary" style="padding:2px 8px;color:#ef4444;border-color:var(--border-color)" onclick="FamilyTreeMaker.removeChild(${i})">✕</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="font-size:0.78rem;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="radio" name="ft_child_alive_${i}" value="true" ${c.isAlive ? 'checked' : ''} onchange="FamilyTreeMaker.onChildInput(${i}, 'isAlive', this.value)"> 存命
+          </label>
+          <label style="font-size:0.78rem;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="radio" name="ft_child_alive_${i}" value="false" ${!c.isAlive ? 'checked' : ''} onchange="FamilyTreeMaker.onChildInput(${i}, 'isAlive', this.value)"> 死亡
+          </label>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  update() {
+    const data = this.readFormData();
+    
+    // UI表示
+    const spouseSec = document.getElementById('ft_spouse_section');
+    if (spouseSec) spouseSec.style.display = data.spouse.exists ? '' : 'none';
+
+    data.parents.forEach((p, idx) => {
+      const parentSec = document.getElementById('ft_parent_section_'+idx);
+      if (parentSec) parentSec.style.display = p.exists ? '' : 'none';
+    });
+
+    const canvas = document.getElementById('ft_preview_tree');
+    if (canvas) {
+      canvas.innerHTML = this.buildTreeHTML(data);
+    }
+  },
+
+  readFormData() {
+    const spouseExists = document.getElementById('ft_spouse_exists')?.checked || false;
+    const spouseAliveRadio = document.querySelector('input[name="ft_spouse_alive"]:checked');
+    const spouseIsAlive = spouseAliveRadio ? spouseAliveRadio.value === 'true' : true;
+
+    const parentList = [];
+    const relations = ['父', '母'];
+    relations.forEach((rel, idx) => {
+      const exists = document.getElementById('ft_parent_exists_' + idx)?.checked || false;
+      const name = document.getElementById('ft_parent_name_' + idx)?.value || '';
+      const aliveRadio = document.querySelector(`input[name="ft_parent_alive_${idx}"]:checked`);
+      const isAlive = aliveRadio ? aliveRadio.value === 'true' : true;
+      parentList.push({ relation: rel, name, isAlive, exists });
+    });
+
+    return {
+      deceased: {
+        name: document.getElementById('ft_deceased_name')?.value || '被相続人',
+        deathDate: document.getElementById('ft_deceased_date')?.value || ''
+      },
+      spouse: {
+        exists: spouseExists,
+        name: document.getElementById('ft_spouse_name')?.value || '',
+        isAlive: spouseIsAlive
+      },
+      children: this.childrenDraft,
+      parents: parentList
+    };
+  },
+
+  buildTreeHTML(data) {
+    // 父母の行
+    const activeParents = data.parents.filter(p => p.exists);
+    let parentsRowHtml = '';
+    if (activeParents.length > 0) {
+      parentsRowHtml = `
+        <div class="ft-row">
+          ${activeParents.map(p => `
+            <div class="ft-node-wrapper">
+              <div class="ft-node ${!p.isAlive ? 'dead' : ''}">
+                <div class="ft-node-role">${p.relation}</div>
+                <div>${p.name || '未入力'}</div>
+                ${!p.isAlive ? '<div class="ft-node-death">（死亡）</div>' : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="ft-line-v"></div>
+      `;
+    }
+
+    // 被相続人と配偶者
+    let centerHtml = `
+      <div class="ft-node-wrapper">
+        <div class="ft-node deceased">
+          <div class="ft-node-role">被相続人</div>
+          <div>${data.deceased.name || '未入力'}</div>
+          ${data.deceased.deathDate ? `<div class="ft-node-death">（死亡）<br>${data.deceased.deathDate.replace(/-/g, '/')}</div>` : ''}
+        </div>
+      </div>`;
+
+    if (data.spouse.exists) {
+      centerHtml += `
+        <div class="ft-connect-double"></div>
+        <div class="ft-node-wrapper">
+          <div class="ft-node spouse ${!data.spouse.isAlive ? 'dead' : ''}">
+            <div class="ft-node-role">配偶者</div>
+            <div>${data.spouse.name || '未入力'}</div>
+            ${!data.spouse.isAlive ? '<div class="ft-node-death">（死亡）</div>' : ''}
+          </div>
+        </div>`;
+    }
+
+    const centerRow = `<div class="ft-row">${centerHtml}</div>`;
+
+    // 子供たち
+    let childrenHtml = '';
+    if (data.children.length > 0) {
+      childrenHtml = `
+        <div class="ft-line-v"></div>
+        <div class="ft-children-container">
+          ${data.children.map(c => `
+            <div class="ft-child-branch">
+              <div class="ft-node-wrapper">
+                <div class="ft-node ${!c.isAlive ? 'dead' : ''}">
+                  <div class="ft-node-role">${c.relation}</div>
+                  <div>${c.name || '未入力'}</div>
+                  ${!c.isAlive ? '<div class="ft-node-death">（死亡）</div>' : ''}
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    return `
+      ${parentsRowHtml}
+      ${centerRow}
+      ${childrenHtml}
+    `;
+  },
+
+  save() {
+    const data = this.readFormData();
+    Store.updateCase(this.currentCaseId, { familyTreeData: data });
+    App.showToast('関係図データを保存しました');
+    this.close();
+    
+    // 案件モーダルを再描画
+    if (typeof Cases !== 'undefined' && Cases.editingId) {
+      Cases.showEditModal(this.currentCaseId);
+    }
+  },
+
+  print() {
+    const data = this.readFormData();
+    const treeHtml = this.buildTreeHTML(data);
+    
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>相続関係説明図 - 印刷</title>
+        <style>
+          body {
+            background: white !important;
+            color: black !important;
+            padding: 40px !important;
+            font-family: serif !important;
+          }
+          .ft-print-header {
+            text-align: center;
+            margin-bottom: 50px;
+            border-bottom: 2px solid black;
+            padding-bottom: 12px;
+          }
+          .ft-print-header h1 {
+            font-size: 24px;
+            letter-spacing: 6px;
+          }
+          .ft-print-canvas {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+          }
+          .ft-tree {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 32px;
+            min-width: 600px;
+          }
+          .ft-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 48px;
+            position: relative;
+          }
+          .ft-node-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+          }
+          .ft-node {
+            width: 120px;
+            padding: 12px 10px;
+            border: 2px solid black !important;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            background: white !important;
+            color: black !important;
+          }
+          .ft-node-role {
+            font-size: 0.72rem;
+            margin-bottom: 4px;
+            font-weight: normal;
+          }
+          .ft-node-death {
+            font-size: 0.7rem;
+            margin-top: 2px;
+            font-weight: normal;
+          }
+          .ft-node.dead {
+            opacity: 0.6;
+          }
+          .ft-connect-double {
+            width: 48px;
+            height: 8px;
+            border-top: 2px double black !important;
+            border-bottom: 2px double black !important;
+            margin: 0 -48px;
+          }
+          .ft-line-v {
+            width: 2px;
+            height: 32px;
+            background: black !important;
+          }
+          .ft-children-container {
+            display: flex;
+            gap: 32px;
+            position: relative;
+            padding-top: 24px;
+            border-top: 2px solid black !important;
+          }
+          .ft-child-branch {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+          }
+          .ft-child-branch::before {
+            content: "";
+            position: absolute;
+            top: -26px;
+            height: 26px;
+            width: 2px;
+            background: black !important;
+          }
+          .no-print {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 50px;
+          }
+          .no-print button {
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: bold;
+            background: #1e293b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+          }
+          @media print {
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="ft-print-header">
+          <h1>相続関係説明図</h1>
+        </div>
+        <div class="ft-print-canvas">
+          <div class="ft-tree">
+            ${treeHtml}
+          </div>
+        </div>
+        <div class="no-print">
+          <button onclick="window.print()">🖨️ 印刷する / PDF保存</button>
+          <button onclick="window.close()" style="background:#64748b">✕ 閉じる</button>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
   }
 };
 

@@ -162,6 +162,37 @@ const Cases = {
     }
     const locationsHtml = locNames.map(name => `<span>📍 ${name}</span>`).join('');
 
+    let milestoneHtml = '';
+    const mIndex = c.milestoneIndex !== undefined ? Number(c.milestoneIndex) : 0;
+    if (this.filterCategory === 'all') {
+      if (c.category !== 'inheritance') {
+        const steps = c.category === 'seal' 
+          ? ['書類受領', '日程調整', '施封完了'] 
+          : ['配置図作成', '承諾書回収', '警察署申請'];
+        milestoneHtml = `
+          <div class="card-milestone-dots" title="進捗: ${mIndex}/3 (現在: ${steps[Math.min(mIndex, 2)] || '未完了'})">
+            ${[0, 1, 2].map(idx => `<span class="milestone-dot ${idx < mIndex ? 'active' : ''} ${c.category}"></span>`).join('')}
+            <span class="milestone-text-ratio">${mIndex}/3</span>
+          </div>`;
+      }
+    } else if (this.filterCategory === 'inheritance') {
+      const steps = ['相続人特定', '財産調査', '協議書捺印', '手続完了'];
+      milestoneHtml = `
+        <div class="card-milestone-dots" title="進捗: ${mIndex}/4 (現在: ${steps[Math.min(mIndex, 3)] || '未完了'})">
+          ${[0, 1, 2, 3].map(idx => `<span class="milestone-dot ${idx < mIndex ? 'active' : ''} ${c.category}"></span>`).join('')}
+          <span class="milestone-text-ratio">${mIndex}/4</span>
+        </div>`;
+    } else {
+      const steps = c.category === 'seal' 
+        ? ['書類受領', '日程調整', '施封完了'] 
+        : ['配置図作成', '承諾書回収', '警察署申請'];
+      milestoneHtml = `
+        <div class="card-milestone-dots" title="進捗: ${mIndex}/3 (現在: ${steps[Math.min(mIndex, 2)] || '未完了'})">
+          ${[0, 1, 2].map(idx => `<span class="milestone-dot ${idx < mIndex ? 'active' : ''} ${c.category}"></span>`).join('')}
+          <span class="milestone-text-ratio">${mIndex}/3</span>
+        </div>`;
+    }
+
     return `
       <div class="kanban-card ${deadlineClass}" draggable="true"
         ondragstart="event.dataTransfer.setData('text/plain','${c.id}')"
@@ -180,6 +211,7 @@ const Cases = {
           ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
           ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
         </div>
+        ${milestoneHtml}
         ${c.createdAt ? `<div class="kanban-card-date">📋 ${c.createdAt.slice(0, 10)}</div>` : ''}
         ${c.fee ? `<div class="kanban-card-fee">💰 報酬 ${Number(c.fee).toLocaleString()}円${(c.advances||[]).length > 0 ? ` + 立替 ${(c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0).toLocaleString()}円` : ''}</div>` : ''}
       </div>
@@ -221,11 +253,26 @@ const Cases = {
           }
           const locationsHtml = locNames.map(name => `<span>📍 ${name}</span>`).join('');
 
+          let milestoneHtml = '';
+          const mIndex = c.milestoneIndex !== undefined ? Number(c.milestoneIndex) : 0;
+          if (this.filterCategory === 'all') {
+            if (c.category !== 'inheritance') {
+              milestoneHtml = `<span style="font-size:0.75rem;color:var(--accent-blue);background:rgba(59,130,246,0.08);padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/3</span>`;
+            }
+          } else if (this.filterCategory === 'inheritance') {
+            milestoneHtml = `<span style="font-size:0.75rem;color:var(--accent-purple);background:rgba(139,92,246,0.08);padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/4</span>`;
+          } else {
+            const colorVar = c.category === 'seal' ? 'var(--accent-gold)' : 'var(--accent-blue)';
+            const bgVar = c.category === 'seal' ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)';
+            milestoneHtml = `<span style="font-size:0.75rem;color:${colorVar};background:${bgVar};padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/3</span>`;
+          }
+
           return `
                 <div class="case-list-item ${deadlineClass}" onclick="Cases.showEditModal('${c.id}')">
                   <div class="case-list-top">
                     <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : ''}</span>
                     <span class="status-badge status-${c.status}">${statusInfo ? statusInfo.icon + ' ' + statusInfo.label : ''}</span>
+                    ${milestoneHtml}
                   </div>
                   <div class="case-list-title">${c.title}</div>
                     <div class="case-list-meta">
@@ -277,6 +324,9 @@ const Cases = {
                 <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：PO-20260501">
               </div>
             </div>
+
+            <!-- マイルストーン表示エリア (相続のみ) -->
+            <div id="csf_milestone_stepper_wrap" style="display:none; margin-bottom: 20px;"></div>
 
             <!-- カテゴリとステータス -->
             <div class="form-row">
@@ -565,6 +615,8 @@ const Cases = {
         const inboxInput = document.getElementById('csf_inboxId');
         if (inboxInput) inboxInput.value = '';
       }
+      const wrap = document.getElementById('csf_milestone_stepper_wrap');
+      if (wrap) wrap.style.display = 'none';
       Cases.toggleCategoryFields(document.getElementById('csf_category').value);
     }, 0);
   },
@@ -639,6 +691,10 @@ const Cases = {
       if (storeDeliveryDateEl) storeDeliveryDateEl.value = c.storeDeliveryDate || '';
       const storeDeliveryTimeEl = document.getElementById('csf_storeDeliveryTime');
       if (storeDeliveryTimeEl) storeDeliveryTimeEl.value = c.storeDeliveryTime || '';
+
+      // マイルストーン表示制御 (全カテゴリ)
+      Cases.renderMilestoneStepper(id);
+
       // 対応履歴・チェックリスト・期限アラートを追加
       const extArea = document.getElementById('caseExtArea');
       if (extArea) {
@@ -650,6 +706,14 @@ const Cases = {
         extHtml += DocChecklist.renderChecklist(id) + ActivityLog.renderWidget('case', id);
         if (c.category === 'inheritance' && c.deathDate && typeof InheritanceDeadlines !== 'undefined') {
           extHtml = InheritanceDeadlines.renderDeadlinePanel(c.deathDate) + extHtml;
+        }
+        if (c.category === 'inheritance') {
+          extHtml = `
+            <div class="checklist-widget" style="margin-top:12px; border-left:4px solid var(--accent-purple); padding:12px; border-radius:6px; background:rgba(139,92,246,0.03); border:1px solid var(--border-color)">
+              <h4 style="margin:0 0 8px;font-size:0.9rem">🌳 相続関係説明図</h4>
+              <button type="button" class="btn btn-secondary btn-small" onclick="FamilyTreeMaker.show('${id}')" style="width:100%;font-weight:600">関係図エディタを開く</button>
+            </div>
+          ` + extHtml;
         }
         extArea.innerHTML = extHtml;
       }
@@ -696,6 +760,30 @@ const Cases = {
       inboxId: document.getElementById('csf_inboxId') ? document.getElementById('csf_inboxId').value : '',
       memo: form.memo.value.trim(),
     };
+
+    // マイルストーン同期ロジック (全カテゴリ)
+    let milestoneVal = 0;
+    const totalSteps = data.category === 'inheritance' ? 4 : 3;
+    if (this.editingId) {
+      const existing = Store.getCase(this.editingId);
+      const oldMilestone = (existing && existing.milestoneIndex !== undefined) ? Number(existing.milestoneIndex) : 0;
+      
+      if (existing && existing.category !== data.category) {
+        milestoneVal = data.status === 'done' ? totalSteps : 0;
+      } else {
+        if (data.status === 'done') {
+          milestoneVal = totalSteps;
+        } else if (existing && existing.status === 'done' && data.status !== 'done') {
+          milestoneVal = totalSteps - 1; // 完了から戻した場合は1段階戻す
+        } else {
+          milestoneVal = oldMilestone;
+        }
+      }
+    } else {
+      milestoneVal = data.status === 'done' ? totalSteps : 0;
+    }
+    data.milestoneIndex = milestoneVal;
+
     let savedCase;
     if (this.editingId) {
       savedCase = Store.updateCase(this.editingId, data);
@@ -756,5 +844,95 @@ const Cases = {
     const isInheritance = category === 'inheritance';
     const deathDateGroup = document.getElementById('csf_deathDate_group');
     if (deathDateGroup) deathDateGroup.style.display = isInheritance ? '' : 'none';
+
+    // マイルストーン表示の動的切り替え (全カテゴリで表示)
+    const wrap = document.getElementById('csf_milestone_stepper_wrap');
+    if (wrap) {
+      if (this.editingId) {
+        this.renderMilestoneStepper(this.editingId);
+      } else {
+        wrap.style.display = 'none';
+      }
+    }
+  },
+
+  renderMilestoneStepper(caseId) {
+    const wrap = document.getElementById('csf_milestone_stepper_wrap');
+    if (!wrap) return;
+    const c = Store.getCase(caseId);
+    if (!c) {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    let steps = [];
+    if (c.category === 'inheritance') {
+      steps = ['相続人特定', '財産調査', '協議書捺印', '手続完了'];
+    } else if (c.category === 'seal') {
+      steps = ['書類受領', '日程調整', '施封完了'];
+    } else {
+      steps = ['配置図作成', '承諾書回収', '警察署申請'];
+    }
+
+    const totalSteps = steps.length;
+    const mIndex = c.milestoneIndex !== undefined ? Number(c.milestoneIndex) : 0;
+    
+    let pct = 0;
+    if (mIndex > 0) {
+      pct = Math.round(((mIndex - 1) / (totalSteps - 1)) * 100);
+      if (mIndex === totalSteps) pct = 100;
+    }
+    
+    const activeColor = c.category === 'inheritance' ? 'var(--accent-purple)' : c.category === 'seal' ? 'var(--accent-gold)' : 'var(--accent-blue)';
+
+    wrap.innerHTML = `
+      <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600">🏁 進捗マイルストーン (クリックして進捗を更新)</label>
+      <div class="milestone-stepper">
+        <div class="stepper-line">
+          <div class="stepper-line-fill" style="width:${pct}%; background-color:${activeColor}"></div>
+        </div>
+        ${steps.map((label, idx) => {
+          const isCompleted = idx < mIndex;
+          const isActive = idx === mIndex || (mIndex === totalSteps && idx === totalSteps - 1);
+          let stateClass = '';
+          if (isActive) stateClass = 'active';
+          else if (isCompleted) stateClass = 'completed';
+          
+          return `
+            <div class="step-node ${stateClass}" onclick="Cases.setMilestone('${caseId}', ${idx + 1})">
+              <div class="step-circle" style="${isActive || isCompleted ? `border-color:${activeColor}; color:${isActive ? '#fff' : activeColor}; background-color:${isActive ? activeColor : 'var(--bg-card)'}` : ''}">${idx + 1}</div>
+              <div class="step-label" style="${isActive ? `color:var(--text-primary); font-weight:700` : ''}">${label}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  },
+
+  setMilestone(caseId, milestoneVal) {
+    const c = Store.getCase(caseId);
+    if (!c) return;
+
+    const totalSteps = c.category === 'inheritance' ? 4 : 3;
+    const updates = { milestoneIndex: milestoneVal };
+    if (milestoneVal === totalSteps) {
+      updates.status = 'done';
+    } else {
+      if (c.status === 'done') {
+        updates.status = 'applying'; // Doneから戻した場合は申請中にする
+      }
+    }
+    Store.updateCase(caseId, updates);
+    this.renderMilestoneStepper(caseId);
+    
+    // フォームが開いていたらステータスプルダウンも同期
+    const statusSel = document.getElementById('csf_status');
+    if (statusSel && updates.status) {
+      statusSel.value = updates.status;
+    }
+    
+    App.showToast(`マイルストーンを更新しました: ${milestoneVal}/${totalSteps}`);
+    App.refreshView();
   }
 };

@@ -1,0 +1,2006 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>行政書士開業実務ノウハウ・書式集パック ポータル</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0b0f19;
+      --bg-surface: #111827;
+      --bg-card: #1f2937;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent-green: #10b981;
+      --accent-orange: #f59e0b;
+      --accent-purple: #8b5cf6;
+      --accent-teal: #14b8a6;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --border-color: #374151;
+      --card-border: #2d3748;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1e1b4b, #111827);
+      padding: 20px 40px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-logo span {
+      font-size: 2.2rem;
+    }
+
+    .header-logo h1 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(to right, #a5b4fc, #e0e7ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-logo p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .back-to-dash {
+      font-size: 0.85rem;
+      padding: 8px 16px;
+      background-color: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .back-to-dash:hover {
+      color: #fff;
+      background-color: rgba(255,255,255,0.1);
+      border-color: var(--text-muted);
+    }
+
+    .container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* サイドバー */
+    .sidebar {
+      width: 290px;
+      background-color: var(--bg-surface);
+      border-right: 1px solid var(--border-color);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+    }
+
+    .tab-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 500;
+      text-align: left;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      background-color: rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    /* メインエリア */
+    .main-content {
+      flex: 1;
+      padding: 30px 40px;
+      overflow-y: auto;
+      background-color: var(--bg-base);
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h2 {
+      font-size: 1.65rem;
+      margin-bottom: 8px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+    }
+
+    .lead-text {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+    }
+
+    /* 検索＆フィルタエリア */
+    .search-filter-section {
+      background-color: var(--bg-surface);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .search-wrapper {
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 16px 12px 42px;
+      background-color: var(--bg-base);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    .filter-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filter-tag {
+      padding: 6px 14px;
+      border-radius: 20px;
+      background-color: var(--bg-base);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-tag:hover {
+      color: #fff;
+      border-color: var(--text-muted);
+    }
+
+    .filter-tag.active {
+      background-color: rgba(99, 102, 241, 0.15);
+      border-color: var(--primary);
+      color: #a5b4fc;
+    }
+
+    /* 書式一覧カードレイアウト */
+    .templates-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .template-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+    }
+
+    .template-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      border-color: var(--border-color);
+    }
+
+    .card-top {
+      margin-bottom: 12px;
+    }
+
+    .card-badges {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .cat-badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .cat-operation { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .cat-agency { background-color: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .cat-construction { background-color: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .cat-financial { background-color: rgba(20, 184, 166, 0.15); color: #2dd4bf; }
+    .cat-attachments { background-color: rgba(156, 163, 175, 0.15); color: #d1d5db; }
+    .cat-supp { background-color: rgba(236, 72, 153, 0.15); color: #f472b6; }
+
+    .val-badge {
+      font-size: 0.72rem;
+      color: #a5b4fc;
+      font-weight: 500;
+      background-color: rgba(99, 102, 241, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .card-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .card-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .card-links {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 12px;
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .link-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+    }
+
+    .link-label {
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-action {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s;
+    }
+
+    .btn-blank {
+      background-color: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+    .btn-blank:hover {
+      background-color: rgba(255,255,255,0.12);
+    }
+
+    .btn-example {
+      background-color: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+    .btn-example:hover {
+      background-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .btn-guide {
+      background-color: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+    }
+    .btn-guide:hover {
+      background-color: rgba(99, 102, 241, 0.25);
+    }
+
+    .no-file {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.15);
+    }
+
+    /* リスト項目 */
+    .bullet-list {
+      margin-left: 20px;
+      margin-bottom: 24px;
+    }
+
+    .bullet-list li {
+      margin-bottom: 10px;
+      color: #e5e7eb;
+      font-size: 0.92rem;
+    }
+
+    /* コラムカード */
+    .column-card {
+      background-color: var(--bg-surface);
+      padding: 24px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 24px;
+    }
+
+    .column-card h3 {
+      font-size: 1.15rem;
+      color: #fff;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ノウハウチャプター */
+    .knowhow-chapter {
+      margin-bottom: 30px;
+    }
+
+    .knowhow-chapter-title {
+      font-size: 1.15rem;
+      color: #fff;
+      font-weight: 700;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .knowhow-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 14px;
+    }
+
+    .knowhow-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.15s;
+    }
+
+    .knowhow-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    .kh-number {
+      font-size: 0.72rem;
+      color: var(--primary);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .kh-name {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    .kh-btn {
+      align-self: flex-start;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      background-color: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s;
+    }
+
+    .kh-btn:hover {
+      background-color: rgba(99, 102, 241, 0.3);
+    }
+
+    /* 空状態 */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px;
+      background-color: var(--bg-surface);
+      border-radius: 8px;
+      border: 1px dashed var(--border-color);
+      color: var(--text-muted);
+    }
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-logo">
+      <span>⚖️</span>
+      <div>
+        <h1>行政書士開業実務ノウハウ・書式集パック</h1>
+        <p>実務テンプレート ＆ 開業営業知見 統合ポータル</p>
+      </div>
+    </div>
+    <a href="index.html" class="back-to-dash">← 業務ダッシュボードへ戻る</a>
+  </header>
+
+  <div class="container">
+    <!-- サイドバーメニュー -->
+    <aside class="sidebar">
+      <button class="tab-btn active" onclick="switchTab(event, 'tab-summary')">
+        <span class="tab-icon">📖</span> 実務解説・心得
+      </button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-templates')">
+        <span class="tab-icon">📄</span> 契約書・実務書式
+      </button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-marketing')">
+        <span class="tab-icon">📣</span> セミナー集客特典 (特典①)
+      </button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-peer-alliance')">
+        <span class="tab-icon">🤝</span> 他士業連携特典 (特典②)
+      </button>
+    </aside>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+      
+      <!-- 1. 実務解説・心得タブ -->
+      <section id="tab-summary" class="tab-content active">
+        <h2>📖 実務解説と基本心得</h2>
+        <p class="lead-text">書式の作成ルール、調印、訂正印、捨印の使い方など、行政書士の実務基礎解説PDFです。まずはこちらをご一読ください。</p>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">🖋️ 基本実務ルール・解説</div>
+          <div class="knowhow-grid">
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第1章 - 第3節</div>
+                <div class="kh-name">記名押印と署名押印の具体的なやり方</div>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap: wrap; margin-top:8px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　３、書式末尾における、記名+押印や、署名+押印の、具体的なやり方　①.pdf" class="kh-btn" target="_blank">📄 解説①</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　３、書式末尾における、記名+押印や、署名+押印の、具体的なやり方　②.pdf" class="kh-btn" target="_blank">📄 解説②</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　３、書式末尾における、記名+押印や、署名+押印の、具体的なやり方　③.pdf" class="kh-btn" target="_blank">📄 解説③</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　３、書式末尾における、記名+押印や、署名+押印の、具体的なやり方　④.pdf" class="kh-btn" target="_blank">📄 解説④</a>
+              </div>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第1章 - 第4節</div>
+                <div class="kh-name">書式の訂正印と捨印の具体的なやり方</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　４、書式の、訂正印と捨印の、具体的なやり方.pdf" class="kh-btn" style="margin-top:8px" target="_blank">📄 解説PDFを開く</a>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第1章 - 第2節</div>
+                <div class="kh-name">15種類・27種類の基本書式テンプレートの特徴</div>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap: wrap; margin-top:8px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　２、２７種類のテンプレート（書式）集の特徴　①.pdf" class="kh-btn" target="_blank">📄 特徴①</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　２、１５種類のテンプレート（書式）集の特徴　②.pdf" class="kh-btn" target="_blank">📄 特徴②</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　２、１５種類のテンプレート（書式）集の特徴　③.pdf" class="kh-btn" target="_blank">📄 特徴③</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　２、１5種類のテンプレート（書式）集の特徴　④.pdf" class="kh-btn" target="_blank">📄 特徴④</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">📑 共通心得・注意事項</div>
+          <div class="knowhow-grid">
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">全体ルール</div>
+                <div class="kh-name">書き方を教えない書式集だけでは書式は作れない</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第１章　１、書き方を教えない書式集だけでは、書式は作れない.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">全体ルール</div>
+                <div class="kh-name">すべての書式に共通する事項（共通基本ルール）</div>
+              </div>
+              <div style="display:flex; gap:6px; margin-top:8px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第２章　１、全ての書式に共通する事項.pdf" class="kh-btn" target="_blank">📄 共通事項①</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第３章　２、全ての書式（テンプレート）に共通の事項.pdf" class="kh-btn" target="_blank">📄 共通事項②</a>
+              </div>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">実務心得</div>
+                <div class="kh-name">受託・案件を進める上での解説順番</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第３章　１、解説順番.pdf" class="kh-btn" target="_blank">📄 解説順PDFを開く</a>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">実務心得</div>
+                <div class="kh-name">行政書士報酬の取り方（着手金・報酬割合の勘所）</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/第３章　２３、報酬の取り方.pdf" class="kh-btn" target="_blank">📄 報酬の取り方を開く</a>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">初期資料</div>
+                <div class="kh-name">注意事項・表紙・教材構成概要</div>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap: wrap; margin-top:8px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/表紙（行政書士開業者のための、これだけで十分足りる、書式集パック（動画解説付き）.pdf" class="kh-btn" target="_blank">📄 表紙</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/注意事項.pdf" class="kh-btn" target="_blank">📄 注意事項</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/教材ページ内容 （行政書士開業者のための、これだけで十分足りる、書式集パック（動画解説付き）　①.pdf" class="kh-btn" target="_blank">📄 教材構成①</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/教材ページ内容 （行政書士開業者のための、これだけで十分足りる、書式集パック（動画解説付き）　②.pdf" class="kh-btn" target="_blank">📄 教材構成②</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/教材ページ内容 （行政書士開業者のための、これだけで十分足りる、書式集パック（動画解説付き）　③.pdf" class="kh-btn" target="_blank">📄 教材構成③</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="column-card">
+          <h3 style="color:#a5b4fc">⚖️ 行政書士実務の「超」重要基本心得</h3>
+          <ul class="bullet-list" style="margin-bottom:0">
+            <li><strong>本人が手続きをした証明としての署名・記名:</strong> 実印が必要な箇所（契約書、重要委任状）では「署名＋実印押印」を原則とすることで後日のトラブルを最小限に防ぎます。</li>
+            <li><strong>捨印の取り扱いに関する倫理:</strong> 捨印は非常に強力な権限を与えるため、受託者である行政書士と依頼者との間の強固な信頼関係が必要です。訂正した内容は必ず依頼者へ報告することが実務上の鉄則です。</li>
+            <li><strong>職印（職氏名印）の適切な利用:</strong> 行政書士の「職印」を押す箇所は公的な申請代理にかかわる部分であり、私的な契約等で不用意に使用しないよう厳密に区別します。</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 2. 書式・テンプレート集タブ -->
+      <section id="tab-templates" class="tab-content">
+        <h2>📄 契約書・実務書式テンプレート</h2>
+        <p class="lead-text">事務所の運営に必要な契約書から、委任状、建設業許可申請に必要な財務諸表まで、すべて網羅しています。</p>
+
+        <!-- 検索とフィルタ -->
+        <div class="search-filter-section">
+          <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="template-search" class="search-input" placeholder="書類名、キーワード、解説内容からリアルタイム検索..." oninput="filterTemplates()">
+          </div>
+          <div class="filter-tags" id="category-filters">
+            <span class="filter-tag active" data-cat="all" onclick="setCategoryFilter('all')">すべて表示</span>
+            <span class="filter-tag" data-cat="operation" onclick="setCategoryFilter('operation')">💼 事務所運営・契約</span>
+            <span class="filter-tag" data-cat="agency" onclick="setCategoryFilter('agency')">📋 証明・委任状</span>
+            <span class="filter-tag" data-cat="construction" onclick="setCategoryFilter('construction')">🏗️ 建設業許可書類</span>
+            <span class="filter-tag" data-cat="financial" onclick="setCategoryFilter('financial')">📊 財務諸表様式</span>
+            <span class="filter-tag" data-cat="supp" onclick="setCategoryFilter('supp')">➕ 追録(インボイス等)</span>
+            <span class="filter-tag" data-cat="attachments" onclick="setCategoryFilter('attachments')">📁 添付資料見本</span>
+          </div>
+        </div>
+
+        <!-- カードグリッド -->
+        <div class="templates-grid" id="templates-grid-container">
+          <!-- JSで動的描画 -->
+        </div>
+      </section>
+
+      <!-- 3. セミナー集客特典タブ -->
+      <section id="tab-marketing" class="tab-content">
+        <h2>📣 特典①：費用0円でセミナー集客数を3倍にする方法</h2>
+        <p class="lead-text">広告費をかけずに安定して案件を獲得するための、行政書士向けのセミナー集客・営業ノウハウです。全34ファイルを網羅しています。</p>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">📘 第1章：セミナー営業の有利点・種類</div>
+          <div class="knowhow-grid">
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第1章 第1節</div>
+                <div class="kh-name">セミナー開催で一番重要なこと</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第１章　１、セミナー開催で一番重要なこと.pdf" class="kh-btn" target="_blank">📄 解説を開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第1章 第2節</div>
+                <div class="kh-name">セミナー営業の有利点 (全3頁)</div>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第１章　２、セミナー営業の有利点　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第１章　２、セミナー営業の有利点　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第１章　２、セミナー営業の有利点　③.pdf" class="kh-btn" target="_blank">📄 3頁</a>
+              </div>
+            </div>
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第1章 第3節</div>
+                <div class="kh-name">セミナーの種類（自主開催とタイアップの違い）</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第１章　３、セミナーの種類.pdf" class="kh-btn" target="_blank">📄 解説を開く</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">📗 第2章：告知・チラシ・会場・本番</div>
+          <div class="knowhow-grid">
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第2章 第1節</div>
+                <div class="kh-name">告知レター（セールスレター）の作成手順</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　１、セミナーの告知方法（セールスレター）　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　１、セミナーの告知方法（セールスレター）　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+              </div>
+            </div>
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第2章 第2節</div>
+                <div class="kh-name">告知チラシの作り方の勘所</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　２、セミナーの告知方法（チラシ）.pdf" class="kh-btn" target="_blank">📄 チラシ作成</a>
+            </div>
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第2章 第3節</div>
+                <div class="kh-name">セミナー開催業務の外注化（全3頁）</div>
+              </div>
+              <div style="display:flex; gap:4px; flex-wrap:wrap">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　３、セミナー開催仕事の外注化　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　３、セミナー開催仕事の外注化　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　３、セミナー開催仕事の外注化　③.pdf" class="kh-btn" target="_blank">📄 3頁</a>
+              </div>
+            </div>
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第2章 第4節</div>
+                <div class="kh-name">失敗しないセミナー会場の選び方</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　４、セミナーの会場選び.pdf" class="kh-btn" target="_blank">📄 会場選び</a>
+            </div>
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第2章 第5節</div>
+                <div class="kh-name">セミナー本番当日の動きと運営手順</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　５、セミナー開催本番　①.pdf" class="kh-btn" target="_blank">📄 前半</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第２章　５、セミナー開催本番　②.pdf" class="kh-btn" target="_blank">📄 後半</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">💻 第3章：Zoomオンラインセミナー実践方法</div>
+          <div class="knowhow-grid">
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第1節</div><div class="kh-name">オンライン開催はもはや無視できない</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　１、zoom利用によるセミナー開催は無視できない.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第2節</div><div class="kh-name">オンライン開催に向いている業務</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　２、オンライン開催に向いているのもの.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第3節</div><div class="kh-name">オンライン開催に向いていない業務</div></div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　３、オンライン開催に向いていないもの　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　３、オンライン開催に向いていないもの　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+              </div>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第4節</div><div class="kh-name">オンラインセミナーの優位点</div></div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　４、オンラインセミナーの優位点　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　４、オンラインセミナーの優位点　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+              </div>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第5節</div><div class="kh-name">Zoomならではの営業上のメリット</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　５、zoom利用の優位点.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第6節</div><div class="kh-name">オンライン開催での注意点・デメリット</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　６、zoom利用のセミナーの注意点.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第7節</div><div class="kh-name">オンラインセミナーの主催類型</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　７、zoom利用のセミナーの類型.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第8節</div><div class="kh-name">オンライン開催時のスタッフ体制</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　８、zoom利用のセミナーのスタッフ利用.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第9節</div><div class="kh-name">セミナー参加費の設定基準</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　９、zoom利用のセミナーの参加費設定方法など.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第10節</div><div class="kh-name">オンライン募集告知の方法</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　１０、zoom利用のセミナーの募集の告知.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第11節</div><div class="kh-name">Zoomの必須ツール設定と機能</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　１１、zoomのツール利用.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第12節</div><div class="kh-name">開催前リハーサルのチェックポイント</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　１２、zoom利用のセミナーのリハーサル.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第13節</div><div class="kh-name">オンラインならではの途中休憩・時間配分</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　１３、zoom利用のセミナーの途中休憩など.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第3章 第14節</div><div class="kh-name">短期間でオンラインセミナーに習熟する方法</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/第３章　１４、zoomに習熟するとっておきの方法.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">📑 補足資料</div>
+          <div class="knowhow-grid">
+            <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/表紙（費用0円でセミナー集客数を3倍にする方法）.pdf" class="kh-btn" target="_blank">📄 特典①の表紙</a>
+            <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/注意事項.pdf" class="kh-btn" target="_blank">⚠️ 注意事項</a>
+            <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/教材ページ内容（費用0円でセミナー集客数を3倍にする方法）　①.pdf" class="kh-btn" target="_blank">📄 教材概要①</a>
+            <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典①「費用0円でセミナー集客数を3倍にする方法（前提知識テキストファイル）」/教材ページ内容（費用0円でセミナー集客数を3倍にする方法）　②.pdf" class="kh-btn" target="_blank">📄 教材概要②</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 他士業連携タブ -->
+      <section id="tab-peer-alliance" class="tab-content">
+        <h2>🤝 特典②：他士業から仕事をもらって年収300万円アップしようよ</h2>
+        <p class="lead-text">他士業（弁護士・司法書士・税理士等）や関連業種とのアライアンスを組み、お互いに強みを活かして相互紹介をする営業手法の完全網羅版です。</p>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">📘 第1章：売り込まない営業手法の基本理念</div>
+          <div class="knowhow-grid">
+            <div class="knowhow-card">
+              <div><div class="kh-number">第1章 第1節</div><div class="kh-name">売り込まない営業法</div></div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第１章　１、売り込まない営業法　①.pdf" class="kh-btn" target="_blank">📄 前編</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第１章　１、売り込まない営業法　②.pdf" class="kh-btn" target="_blank">📄 後編</a>
+              </div>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第1章 第2節</div><div class="kh-name">なぜ他士業ルートの営業法が極めて有効なのか</div></div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第１章　２、なぜこの営業法が有効なのか　①.pdf" class="kh-btn" target="_blank">📄 前編</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第１章　２、なぜこの営業法が有効なのか　②.pdf" class="kh-btn" target="_blank">📄 後編</a>
+              </div>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第1章 第3節</div><div class="kh-name">あなたがすべての依頼を引き受ける必要はない</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第１章　３、あなたが全ての依頼を引き受ける必要はない.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第1章 第4節</div><div class="kh-name">紹介料（キックバック）に寛容な士業・不寛容な士業の倫理</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第１章　４、キックバックに寛容な士業、不寛容な士業.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第1章 第5節</div><div class="kh-name">この営業法で有利に働く「事務所名」のつけ方</div></div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第１章　５、この営業法を実行するにあたっての、有利な事務所名.pdf" class="kh-btn" target="_blank">📄 開く</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">📗 第2章：他士業へのアプローチと関係構築</div>
+          <div class="knowhow-grid">
+            <div class="knowhow-card">
+              <div><div class="kh-number">第2章 第1節</div><div class="kh-name">各士業の傾向と対策（どのような不満や課題を持っているか）</div></div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第２章　１、他士業の傾向と対策　①.pdf" class="kh-btn" target="_blank">📄 前編</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第２章　１、他士業の傾向と対策　②.pdf" class="kh-btn" target="_blank">📄 後編</a>
+              </div>
+            </div>
+            <div class="knowhow-card">
+              <div><div class="kh-number">第2章 第2節</div><div class="kh-name">他士業や同業（他行政書士）へのアプローチ接近方法</div></div>
+              <div style="display:flex; gap:4px; flex-wrap:wrap">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第２章　２、他士業や他行政書士への接近方法　①.pdf" class="kh-btn" target="_blank">📄 ①接近手段</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第２章　２、他士業や他行政書士への接近方法　②.pdf" class="kh-btn" target="_blank">📄 ②関係深耕</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第２章　２、他士業や他行政書士への接近方法　③.pdf" class="kh-btn" target="_blank">📄 ③紹介サイクル</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">📙 第3章：士業別・提携営業の勘所</div>
+          <div class="knowhow-grid">
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第3章 第1節</div>
+                <div class="kh-name">弁護士とのアプローチ・役割分担</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　１、弁護士の場合　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　１、弁護士の場合　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+              </div>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第3章 第2節</div>
+                <div class="kh-name">司法書士とのシナジー・登記と許認可の連携</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　２、司法書士の場合　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　２、司法書士の場合　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+              </div>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第3章 第3節</div>
+                <div class="kh-name">税理士からの安定紹介（顧問先許認可）</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　３、税理士の場合　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　３、税理士の場合　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　３、税理士の場合　③.pdf" class="kh-btn" target="_blank">📄 3頁</a>
+              </div>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第3章 第4節</div>
+                <div class="kh-name">土地家屋調査士との開発許可・農地転用連携</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　４、土地家屋調査士の場合　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　４、土地家屋調査士の場合　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+              </div>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第3章 第5節</div>
+                <div class="kh-name">中小企業診断士との補助金・経営診断連携</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　５、中小企業診断士の場合.pdf" class="kh-btn" target="_blank">📄 全文を開く</a>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第3章 第6節</div>
+                <div class="kh-name">宅建士（不動産業界）との農地転用・開発案件</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　６、宅建士（宅建業）の場合　①.pdf" class="kh-btn" target="_blank">📄 1頁</a>
+                <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　６、宅建士（宅建業）の場合　②.pdf" class="kh-btn" target="_blank">📄 2頁</a>
+              </div>
+            </div>
+
+            <div class="knowhow-card">
+              <div>
+                <div class="kh-number">第3章 第7節</div>
+                <div class="kh-name">他の行政書士（同業者）との棲み分け・得意分野補完</div>
+              </div>
+              <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/第３章　７、行政書士の場合.pdf" class="kh-btn" target="_blank">📄 全文を開く</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="knowhow-chapter">
+          <div class="knowhow-chapter-title">📑 補足資料</div>
+          <div class="knowhow-grid">
+            <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/表紙（他士業から仕事をもらって年収300万円アップしようよ）.pdf" class="kh-btn" target="_blank">📄 特典②の表紙</a>
+            <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/注意事項.pdf" class="kh-btn" target="_blank">⚠️ 注意事項</a>
+            <a href="../../.agents/skills/gyosei_office_knowledge/references/購入者特典②「他士業から仕事をもらって年収300万円アップしようよ（前提知識テキストファイル）」/教材ページ内容（他士業から仕事をもらって年収300万円アップしようよ）.pdf" class="kh-btn" target="_blank">📄 教材概要</a>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // パスベース定義
+    const PATHS = {
+      format: "../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（書式ファイル）/",
+      format_supp: "../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（書式ファイル（追録））/",
+      text: "../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル）/",
+      text_supp: "../../.agents/skills/gyosei_office_knowledge/references/行政書士開業者のための、これだけで十分足りる、書式集パック（前提知識テキストファイル（追録））/"
+    };
+
+    // 書式データ配列
+    const templatesData = [
+      // 1. 事務所運営・基本契約
+      {
+        name: "業務委託契約書",
+        category: "operation",
+        desc: "顧客と業務委託契約（スポット・継続）を結ぶ際の基本ひな形。免責条項や契約終了などを規定します。",
+        value: "50,000円相当",
+        blank: "業務委託契約書（白紙）.doc",
+        example: "業務委託契約書（記入例）.doc",
+        guides: [
+          { title: "解説PDF①", file: "第３章　１１、業務委託契約書（※50,000円相当）　①.pdf" },
+          { title: "解説PDF②", file: "第３章　１１、業務委託契約書（※50,000円相当）　②.pdf" }
+        ]
+      },
+      {
+        name: "プライバシーポリシー（個人情報保護方針）",
+        category: "operation",
+        desc: "事務所ウェブサイトや業務受託時に明示する必要がある個人情報保護に関する基本方針です。",
+        value: "50,000円相当",
+        blank: "プライバシーポリシー（個人情報保護方針）（白紙）.doc",
+        example: "プライバシーポリシー（個人情報保護方針）（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　３１、プライバシー・ポリシー（個人情報保護方針）（※50,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "反社会的勢力表明・確約書",
+        category: "operation",
+        desc: "コンプライアンス順守のために、受託契約書とは別に取得しておくと強固な防衛策となる表明確約書です。",
+        value: "5,000円相当",
+        blank: "反社会的勢力ではないこと等に関する表明・確約書（白紙）.doc",
+        example: "反社会的勢力ではないこと等に関する表明・確約書（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　１０、反社会的勢力ではないこと等に関する表明・確約書（※5,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "他士業への相談依頼書",
+        category: "operation",
+        desc: "他士業（司法書士や税理士等）へ顧客の案件を紹介・確認相談をする際の公式書類フォーマットです。",
+        value: "30,000円相当",
+        blank: "他士業などへの相談依頼書（白紙）.doc",
+        example: "他士業などへの相談依頼書（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　３０、他士業（司法書士など）への相談依頼書（※30,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "他士業相談への回答書",
+        category: "operation",
+        desc: "他士業から相談や確認依頼を受けた際に、行政書士として書面で回答を返すための様式です。",
+        value: "実務用",
+        blank: "他士業などへの相談依頼書の回答書（白紙）.doc",
+        example: "他士業などへの相談依頼書の回答書（記入例）.doc",
+        guides: []
+      },
+      {
+        name: "許認可取得後の注意事項表",
+        category: "operation",
+        desc: "許認可の完了引渡し時に、更新時期や満了後の義務事項を顧客に一覧化して示すためのサービスシートです。",
+        value: "3,000円相当",
+        blank: "",
+        example: "許認可取得後の注意事項表（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　２１、許認可取得後の注意事項表（※3,000円相当）.pdf" }
+        ]
+      },
+
+      // 2. 日常業務・会計
+      {
+        name: "見積書",
+        category: "operation",
+        desc: "行政書士実務に適した見積書ひな形。報酬額と立替費用（証紙代等）を明確に区分できます。",
+        value: "5,000円相当",
+        blank: "見積書（白紙）.xls",
+        example: "見積書（記入例）.xls",
+        guides: [
+          { title: "解説PDF", file: "第３章　２４、見積書（※5,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "請求書",
+        category: "operation",
+        desc: "源泉徴収税の有無や実費立替金をすっきりと整理できる、実用的な請求書テンプレートです。",
+        value: "5,000円相当",
+        blank: "請求書（白紙）.xls",
+        example: "請求書（記入例）.xls",
+        guides: [
+          { title: "解説PDF", file: "第３章　２５、請求書（※5,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "領収書 (初期様式)",
+        category: "operation",
+        desc: "代金受領時に交付する領収書。※インボイス制度対応版は追録タブをご確認ください。",
+        value: "5,000円相当",
+        blank: "領収書（白紙）.xls",
+        example: "領収書（記入例）.xls",
+        guides: [
+          { title: "解説PDF", file: "第３章　２６、領収書（※5,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "ご入金のお礼",
+        category: "operation",
+        desc: "着手金や報酬のご入金を確認した際に、領収書に添えることで信用とホスピタリティを高めるお礼状です。",
+        value: "5,000円相当",
+        blank: "ご入金のお礼（白紙）.doc",
+        example: "ご入金のお礼（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　２７、ご入金の御礼（※5,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "預り証① (契約着手金・立替金用)",
+        category: "operation",
+        desc: "正式受託前にお金を預かる場合や、多額の実費立替金を事前に預かる場合に交付する預り証です。",
+        value: "5,000円相当",
+        blank: "預り証①（白紙）.doc",
+        example: "預り証①（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　２８、預り証①（※5,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "預り証② (汎用預かり用)",
+        category: "operation",
+        desc: "重要書類や印鑑、通帳など、金銭以外の重要物品を顧客から一時的に預かる際に発行する預り証です。",
+        value: "5,000円相当",
+        blank: "預り証②（白紙）.doc",
+        example: "預り証②（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　２９、預り証②（※5,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "FAX送信票",
+        category: "operation",
+        desc: "役所や他士業、クライアントとFAXでやり取りする際の標準送信票レイアウトです。",
+        value: "3,000円相当",
+        blank: "FAX送信票（白紙）.pdf",
+        example: "FAX送信票（記入例）.pdf",
+        guides: [
+          { title: "解説PDF", file: "第３章　１９、FAX送信票（※3,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "書類送付状 (送付案内)",
+        category: "operation",
+        desc: "郵送や手渡しで書類を送る際に添える送付案内（カバーレター）の基本ひな形です。",
+        value: "3,000円相当",
+        blank: "書類送付状（白紙）.doc",
+        example: "書類送付状（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　２０、書類送付状（※3,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "行政書士事件簿",
+        category: "operation",
+        desc: "行政書士法第9条により作成および2年間の保存義務が定められている「法定帳簿」です。",
+        value: "5,000円相当",
+        blank: "事件簿（白紙）.xls",
+        example: "事件簿（記入例）.xls",
+        guides: [
+          { title: "解説PDF①", file: "第３章　２２、行政書士事件簿（※5,000円相当）　①.pdf" },
+          { title: "解説PDF②", file: "第３章　２２、行政書士事件簿（※5,000円相当）　②.pdf" },
+          { title: "解説PDF③", file: "第３章　２２、行政書士事件簿（※5,000円相当）　③.pdf" }
+        ]
+      },
+      {
+        name: "誓約書・始末書 (不備等謝罪用)",
+        category: "operation",
+        desc: "業務上のミスや役所の要請等により、誓約や顛末を示す始始末書を差し入れる際の参考様式です。",
+        value: "20,000円相当",
+        blank: "誓約書（始末書）（白紙）.doc",
+        example: "誓約書（始末書）（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　１２、始末書（※20,000円相当）.pdf" }
+        ]
+      },
+
+      // 3. 申請代理・汎用委任状
+      {
+        name: "行政書士登録申請書",
+        category: "agency",
+        desc: "行政書士会に新規登録を申請する際の登録申請書類ひな形です。",
+        value: "5,000円相当",
+        blank: "行政書士登録申請書（白紙）.pdf",
+        example: "行政書士登録申請書（記入例）.pdf",
+        guides: [
+          { title: "解説PDF", file: "第３章　３、行政書士登録申請書（※5,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "許認可用 委任状",
+        category: "agency",
+        desc: "一般的な行政許認可申請（各種届出・申請）を代理受託する際に使用する汎用委任状です。",
+        value: "20,000円相当",
+        blank: "許認可用委任状（白紙）.doc",
+        example: "許認可用委任状（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　４、許認可用委任状（※20,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "民事法務用 委任状",
+        category: "agency",
+        desc: "契約書の作成代理や調査業務など、行政庁に提出しない民事法務業務に関する委任状です。",
+        value: "20,000円相当",
+        blank: "民事法務用委任状（白紙）.doc",
+        example: "民事法務用委任状（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　５、市民（民事）法務用委任状（※20,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "復代理人選任条項入り委任状 ＆ 復委任状",
+        category: "agency",
+        desc: "他の行政書士へ実務を外注・再委任（復代理）することを許容する選任委任状および復委任状のセットです。",
+        value: "50,000円相当",
+        blank: "復代理人の選任の条項入りの委任状（白紙）.doc",
+        example: "復代理人の選任の条項入りの委任状（記入例）.doc",
+        guides: [
+          { title: "解説PDF①", file: "第３章　６、復代理人の選任の条項入りの委任状+復委任状（※50,000円相当）　①.pdf" },
+          { title: "解説PDF②", file: "第３章　６、復代理人の選任の条項入りの委任状+復委任状（※50,000円相当）　②.pdf" }
+        ],
+        extra_blank: "復委任状（白紙）.doc",
+        extra_example: "復委任状（記入例）.doc"
+      },
+      {
+        name: "代理権行使と委任について",
+        category: "agency",
+        desc: "行政書士が業務を遂行する上での、代理権の法的効力と委任関係の整理・解説書です。",
+        value: "10,000円相当",
+        blank: "",
+        example: "",
+        guides: [
+          { title: "解説PDF", file: "第３章　７、代理権行使と委任について（※10,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "不動産調査用 委任状",
+        category: "agency",
+        desc: "役所や法務局等で土地建物の登記、道路状況、都市計画等の調査を行う際に使用する委任状です。",
+        value: "10,000円相当",
+        blank: "不動産調査委任状（白紙）.doc",
+        example: "不動産調査委任状（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　８、不動産調査委任状（※10,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "農地調査用 委任状",
+        category: "agency",
+        desc: "農業委員会や現地で農地台帳、転用可能性などを調査するための専用委任状フォーマットです。",
+        value: "10,000円相当",
+        blank: "農地調査委任状（白紙）.doc",
+        example: "農地調査委任状（記入例）.doc",
+        guides: [
+          { title: "解説PDF", file: "第３章　９、農地調査委任状（※10,000円相当）.pdf" }
+        ]
+      },
+      {
+        name: "登記されていないことの証明書 委任状・申請書",
+        category: "agency",
+        desc: "許認可役員に欠格事由がないことを証明するための、東京法務局への証明申請書および代理委任状です。",
+        value: "5,000円相当",
+        blank: "登記されていないことの証明書の委任状（白紙）.pdf",
+        example: "登記されていないことの証明書の委任状（記入例）.pdf",
+        guides: [
+          { title: "解説PDF①", file: "第３章　１３、登記されていないことの証明書（※5,000円相当）　①.pdf" },
+          { title: "解説PDF②", file: "第３章　１３、登記されていないことの証明書（※5,000円相当）　②.pdf" }
+        ],
+        extra_blank: "登記されていないことの証明申請書（白紙）.pdf",
+        extra_example: "登記されていないことの証明申請書（記入例）.pdf"
+      },
+      {
+        name: "身分証明書交付請求書・委任状",
+        category: "agency",
+        desc: "本籍地の市区町村長に対して「破産宣告の通知を受けていないこと」等の証明書を請求する書類および委任状です。",
+        value: "5,000円相当",
+        blank: "身分証明書交付請求書の委任状（白紙）.pdf",
+        example: "身分証明書交付請求書の委任状（記入例）.pdf",
+        guides: [
+          { title: "解説PDF", file: "第３章　１５、身分証明書交付請求書（※5,000円相当）.pdf" }
+        ],
+        extra_blank: "身分証明書交付請求書（白紙）.pdf",
+        extra_example: "身分証明書交付請求書（記入例）.pdf"
+      },
+      {
+        name: "住民票の写し交付請求書・委任状",
+        category: "agency",
+        desc: "役所で本人に代わり住民票の写しを取得するための請求用紙および委任状です。",
+        value: "5,000円相当",
+        blank: "住民票の写し交付請求書の委任状（白紙）.pdf",
+        example: "住民票の写し交付請求書の委任状（記入例）.pdf",
+        guides: [
+          { title: "解説PDF", file: "第３章　１４、住民票の写し交付請求書（※5,000円相当）.pdf" }
+        ],
+        extra_blank: "住民票の写し交付請求書（白紙）.pdf",
+        extra_example: "住民票の写し交付請求書（記入例）.pdf"
+      },
+      {
+        name: "戸籍抄本等交付請求書・委任状",
+        category: "agency",
+        desc: "委任を受けて本籍地役所から戸籍抄本等を取得するための請求書類と代理委任状です。",
+        value: "5,000円相当",
+        blank: "戸籍抄本交付請求書の委任状（白紙）.pdf",
+        example: "戸籍抄本交付請求書の委任状（記入例）.pdf",
+        guides: [
+          { title: "解説PDF", file: "第３章　１６、戸籍抄本交付請求書（※5,000円相当）.pdf" }
+        ],
+        extra_blank: "戸籍抄本交付請求書（白紙）.pdf",
+        extra_example: "戸籍抄本交付請求書（記入例）.pdf"
+      },
+      {
+        name: "職務上請求書",
+        category: "agency",
+        desc: "戸籍謄本や住民票を職権で取得するための、行政書士専用の職務上請求書に関する実務解説・ひな形です。",
+        value: "5,000円相当",
+        blank: "職務上請求書（白紙）.pdf",
+        example: "職務上請求書（記入例）.pdf",
+        guides: [
+          { title: "解説PDF①", file: "第３章　１８、職務上請求書（※5,000円相当）　①.pdf" },
+          { title: "解説PDF②", file: "第３章　１８、職務上請求書（※5,000円相当）　②.pdf" }
+        ]
+      },
+
+      // 4. 建設業許可申請関連
+      {
+        name: "建設業許可申請書",
+        category: "construction",
+        desc: "建設業許可申請のメイン申請書です。膨大な記入項目があり、許認可の基本となる様式です。",
+        value: "150,000円相当",
+        blank: "建設業許可申請書（白紙）.pdf",
+        example: "建設業許可申請書（記入例）.pdf",
+        guides: [
+          { title: "解説PDF①", file: "第４章　１、建設業許可申請書（※150,000円相当）　①.pdf" },
+          { title: "解説PDF②", file: "第４章　１、建設業許可申請書（※150,000円相当）　②.pdf" },
+          { title: "解説PDF③", file: "第４章　１、建設業許可申請書（※150,000円相当）　③.pdf" },
+          { title: "解説PDF④", file: "第４章　１、建設業許可申請書（※150,000円相当）　④.pdf" },
+          { title: "解説PDF⑤", file: "第４章　１、建設業許可申請書（※150,000円相当）　⑤.pdf" },
+          { title: "解説PDF⑥", file: "第４章　１、建設業許可申請書（※150,000円相当）　⑥.pdf" }
+        ]
+      },
+      {
+        name: "建設業許可申請書 (代理権利用様式)",
+        category: "construction",
+        desc: "行政書士が代理権を利用して手続きを遂行する際の様式です。",
+        value: "実務用",
+        blank: "建設業許可申請書（代理権利用の場合）（白紙）.pdf",
+        example: "建設業許可申請書（代理権利用の場合）（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "建設業許可申請用 委任状",
+        category: "construction",
+        desc: "建設業許可申請手続き全般を代理するために取得する委任状です。",
+        value: "実務用",
+        blank: "建設業許可申請用委任状（白紙 ）.doc",
+        example: "建設業許可申請用委任状（記入例).doc",
+        guides: []
+      },
+      {
+        name: "役員等の一覧表",
+        category: "construction",
+        desc: "申請会社の役員や顧問、株主等を一覧にして申告する申請添付書類です。",
+        value: "実務用",
+        blank: "役員等の一覧表（白紙）.pdf",
+        example: "役員等の一覧表（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "営業所一覧表・新規",
+        category: "construction",
+        desc: "新規申請時に営業所の名称、所在地、電話番号等を記載し提出する書類です。",
+        value: "実務用",
+        blank: "営業所一覧表・新規（白紙）.pdf",
+        example: "営業所一覧表・新規（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "専任技術者証明書",
+        category: "construction",
+        desc: "各営業所に配置する「専任技術者」の要件資格、実務経歴を証する主要な添付書面です。",
+        value: "実務用",
+        blank: "専任技術者証明書（白紙）.pdf",
+        example: "専任技術者証明書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "工事経歴書",
+        category: "construction",
+        desc: "直前1年間に施工した主な工事実績を工種別に一覧にした書類。配置技術者の照合等に使われます。",
+        value: "実務用",
+        blank: "工事経歴書（白紙）.pdf",
+        example: "工事経歴書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "直前３年の各事業年度における工事施工金額",
+        category: "construction",
+        desc: "直前3年の決算期ごとの施工金額を、元請・下請別、公共・民間別に集計して記載する書類です。",
+        value: "実務用",
+        blank: "直前３年の各事業年度における工事施工金額（白紙）.pdf",
+        example: "直前３年の各事業年度における工事施工金額（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "使用人数",
+        category: "construction",
+        desc: "本社および支店ごとの役職員・技術職員・事務職員の構成人数を申告する様式です。",
+        value: "実務用",
+        blank: "使用人数(白紙）.pdf",
+        example: "使用人数（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "誓約書 (欠格事由の非該当誓約)",
+        category: "construction",
+        desc: "申請者や役員が、建設業法で定める欠格事由（破産者や刑罰等）に該当しないことを誓約する書類です。",
+        value: "実務用",
+        blank: "誓約書（白紙）.pdf",
+        example: "誓約書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "所属建設業者団体",
+        category: "construction",
+        desc: "申請者が現在加盟している建設業団体を申告する様式です。",
+        value: "実務用",
+        blank: "所属建設業者団体（白紙）.pdf",
+        example: "所属建設業者団体（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "主要取引金融機関名",
+        category: "construction",
+        desc: "資金調達の円滑性を証するため、主要な取引先銀行・口座情報等を記入して申告する書面です。",
+        value: "実務用",
+        blank: "主要取引金融機関名（白紙）.pdf",
+        example: "主要取引金融機関名（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "営業所技術者等証明書",
+        category: "construction",
+        desc: "専任技術者以外の一般技術者や事務従事者を登録・証明するための書類です。",
+        value: "実務用",
+        blank: "営業所技術者等証明書（白紙）.pdf",
+        example: "営業所技術者等証明書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "営業の沿革",
+        category: "construction",
+        desc: "会社の設立、資本金変更、役員の変遷、過去の許可取得状況等の歴史を記述する添付様式です。",
+        value: "実務用",
+        blank: "営業の沿革（白紙）.pdf",
+        example: "営業の沿革（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "実務経験証明書",
+        category: "construction",
+        desc: "専任技術者が国家資格を持たない場合に、10年以上の実務経験を具体的に記述して証明する書類です。",
+        value: "実務用",
+        blank: "実務経験証明書（白紙）.pdf",
+        example: "実務経験証明書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "専任技術者・専任性確認 念書",
+        category: "construction",
+        desc: "他社で役員等をしていないことや、二重就職でないことを専任技術者本人が誓約する確認書です。",
+        value: "実務用",
+        blank: "専任技術者の専任性の確認資料③（念書（専任技術者用））（白紙）.pdf",
+        example: "専任技術者の専任性の確認資料③（念書（専任技術者用））（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "常勤役員等（経営業務管理責任者）確認 念書",
+        category: "construction",
+        desc: "常勤役員（経営業務の管理責任者など）が他社で非常勤以外の役職に就いておらず、自社に常勤していることを誓約する念書です。",
+        value: "実務用",
+        blank: "常勤役員等、常勤役員等を直接に補佐する者の常勤性の確認資料②（（念書（常勤役員等（経営業務の管理責任者用））））（白紙）.pdf",
+        example: "常勤役員等、常勤役員等を直接に補佐する者の常勤性の確認資料②（（念書（常勤役員等（経営業務の管理責任者用））））（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "常勤役員等の略歴書",
+        category: "construction",
+        desc: "経営の責任者である役員の過去の職歴・取締役経験年数等を記載し、経営業務の管理責任者要件を証します。",
+        value: "実務用",
+        blank: "常勤役員等の略歴書（白紙）.pdf",
+        example: "常勤役員等の略歴書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "常勤役員等（経営業務の管理責任者等）証明書",
+        category: "construction",
+        desc: "申請者が経営責任者（経管）としての適格要件を満たしていることを証明するための基本書類です。",
+        value: "実務用",
+        blank: "常勤役員等（経営業務の管理責任者等）証明書（白紙）.pdf",
+        example: "常勤役員等（経営業務の管理責任者等）証明書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "許可申請者の住所、生年月日に関する調書",
+        category: "construction",
+        desc: "申請者（役員等全員）の氏名、住所、生年月日等を記載し、欠格事由の役所確認に供する書類です。",
+        value: "実務用",
+        blank: "許可申請者の住所、生年月日に関する調書（白紙）.pdf",
+        example: "許可申請者の住所、生年月日に関する調書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "申請手数料貼付用紙 (別紙三)",
+        category: "construction",
+        desc: "新規申請時に、都道府県の収入証紙（または収入印紙）を貼付して手数料を納付するための台紙です。",
+        value: "実務用",
+        blank: "申請書別紙三（申請手数料貼付用紙）（白紙）.pdf",
+        example: "申請書別紙三（申請手数料貼付用紙）（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "営業所技術者等一覧表 / 専任技術者一覧表 (別紙四)",
+        category: "construction",
+        desc: "営業所ごとに配置されている技術職員や、専任技術者を明記するための内訳・別紙書類です。",
+        value: "実務用",
+        blank: "申請書別紙四（営業所技術者等一覧表）（白紙）.pdf",
+        example: "申請書別紙四（営業所技術者等一覧表）（記入例）.pdf",
+        guides: [],
+        extra_blank: "申請書別紙四（専任技術者一覧表）（白紙）.pdf",
+        extra_example: "申請書別紙四（専任技術者一覧表）（記入例）.pdf"
+      },
+      {
+        name: "会社形態",
+        category: "construction",
+        desc: "申請法人または事業所の組織・資本構成を補足して説明するためのメモ様式です。",
+        value: "実務用",
+        blank: "会社形態.doc",
+        example: "",
+        guides: []
+      },
+
+      // 5. 財務諸表様式
+      {
+        name: "財務諸表 表紙",
+        category: "financial",
+        desc: "建設業財務諸表を綴る際の表紙様式。決算期や会社名を記載します。",
+        value: "実務用",
+        blank: "財務諸表表紙（白紙 ）.pdf",
+        example: "財務諸表表紙（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "貸借対照表 (建設業様式)",
+        category: "financial",
+        desc: "商業登記用の決算書から、建設業独自の勘定科目に組み替えた貸借対照表（①〜③様式）です。",
+        value: "実務用",
+        blank: "貸借対照表①（白紙）.pdf",
+        example: "貸借対照表①（記入例）.pdf",
+        guides: [],
+        extra_blank: "貸借対照表②（白紙）.pdf",
+        extra_example: "貸借対照表②（記入例）.pdf",
+        extra_blank2: "貸借対照表③（白紙）.pdf",
+        extra_example2: "貸借対照表③（記入例）.pdf"
+      },
+      {
+        name: "損益計算書 (建設業様式)",
+        category: "financial",
+        desc: "売上高を「完成工事高」、売上原価を「完成工事原価」等に置き換え整理した損益計算書です。",
+        value: "実務用",
+        blank: "損益計算書①（白紙）.pdf",
+        example: "損益計算書①（記入例）.pdf",
+        guides: [],
+        extra_blank: "損益計算書②（白紙）.pdf",
+        extra_example: "損益計算書②（記入例）.pdf"
+      },
+      {
+        name: "完成工事原価報告書",
+        category: "financial",
+        desc: "建設業の製造原価明細書にあたる、材料費、労務費、外注費、経費の内訳を報告する重要書類です。",
+        value: "実務用",
+        blank: "完成工事原価報告書（白紙）.pdf",
+        example: "完成工事原価報告書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "株主資本等変動計算書",
+        category: "financial",
+        desc: "自己資本の各項目の決算期中における変動額を申告する様式です。",
+        value: "実務用",
+        blank: "株主資本等変動計算書（白紙）.pdf",
+        example: "株主資本等変動計算書（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "注記表 (様式①〜④)",
+        category: "financial",
+        desc: "重要な会計方針、継続企業の前提、株主資本に関する情報等の注記項目を整理する書面です。",
+        value: "実務用",
+        blank: "注記表①（白紙）.pdf",
+        example: "注記表①（記入例）.pdf",
+        guides: [],
+        extra_blank: "注記表②（白紙）.pdf",
+        extra_example: "注記表②（記入例）.pdf",
+        extra_blank2: "注記表③（白紙）.pdf",
+        extra_example2: "注記表③（記入例）.pdf",
+        extra_blank3: "注記表④（白紙）.pdf",
+        extra_example3: "注記表④（記入例）.pdf"
+      },
+      {
+        name: "株主（出資者）調書",
+        category: "financial",
+        desc: "法人の主要株主（出資割合の高い者）の氏名、住所、持ち株数を記載する様式です。",
+        value: "実務用",
+        blank: "株主（出資者）調書（白紙）.pdf",
+        example: "株主（出資者）調書（記入例）.pdf",
+        guides: []
+      },
+
+      // 6. 追録 (インボイス・新様式)
+      {
+        name: "適格請求書 (インボイス対応版)",
+        category: "supp",
+        desc: "登録番号、適用税率、消費税額等の記載義務を満たした、インボイス制度対応の請求書テンプレートです。",
+        value: "追録追加分",
+        blank: "適格請求書（インボイス）（白紙）.xls",
+        example: "適格請求書（インボイス）（記入例）.xls",
+        guides: [
+          { title: "解説PDF①", file: "追録、適格請求書（インボイス）①.pdf", supp: true },
+          { title: "解説PDF②", file: "追録、適格請求書（インボイス）②.pdf", supp: true },
+          { title: "解説PDF③", file: "追録、適格請求書（インボイス）③.pdf", supp: true },
+          { title: "解説PDF④", file: "追録、適格請求書（インボイス）④.pdf", supp: true }
+        ],
+        isSupp: true
+      },
+      {
+        name: "領収書 (インボイス・追録新様式)",
+        category: "supp",
+        desc: "インボイス対応に消費税区分や登録番号欄を新設した、追録版の新領収書テンプレートです。",
+        value: "追録追加分",
+        blank: "領収書（白紙）.xls",
+        example: "領収書（記入例）.xls",
+        guides: [
+          { title: "解説PDF①", file: "追録、領収書①.pdf", supp: true },
+          { title: "解説PDF②", file: "追録、領収書②.pdf", supp: true },
+          { title: "解説PDF③", file: "追録、領収書③.pdf", supp: true },
+          { title: "解説PDF④", file: "追録、領収書④.pdf", supp: true }
+        ],
+        isSupp: true
+      },
+
+      // 7. 添付確認資料サンプル
+      {
+        name: "役員・専任技術者の住民票サンプル",
+        category: "attachments",
+        desc: "常勤性や専任性、住所確認書類として添付する住民票のサンプルコピーです。",
+        value: "見本資料",
+        blank: "",
+        example: "事業主・役員等の確認資料①（住民票（鈴木　一郎））.pdf",
+        guides: [],
+        extra_example: "事業主・役員等の確認資料②（住民票（鈴木　二郎））.pdf"
+      },
+      {
+        name: "健康保険・労働保険等 加入確認資料",
+        category: "attachments",
+        desc: "社会保険への加入状況を示す「保険料納入告知書」「労働保険料領収書」のコピー見本です。",
+        value: "見本資料",
+        blank: "",
+        example: "健康保険等の加入状況の確認資料①（保険料納入告知書・領収済額通知書）.pdf",
+        guides: [],
+        extra_example: "健康保険等の加入状況の確認資料②（労働保険料等領収書）.pdf"
+      },
+      {
+        name: "健康保険等の加入状況 (申告書様式)",
+        category: "attachments",
+        desc: "健康保険、厚生年金、雇用保険の加入有無や事業所整理番号を申告する様式です。",
+        value: "見本資料",
+        blank: "健康保険等の加入状況（白紙）.pdf",
+        example: "健康保険等の加入状況（記入例）.pdf",
+        guides: []
+      },
+      {
+        name: "卒業証明書 添付見本",
+        category: "attachments",
+        desc: "専任技術者の学歴要件（指定学科の卒業）を証明するために添付する実物の証明書例です。",
+        value: "見本資料",
+        blank: "",
+        example: "卒業証明書.pdf",
+        guides: []
+      },
+      {
+        name: "定款 添付見本 (全4頁)",
+        category: "attachments",
+        desc: "法人の事業目的に「建設業」が含まれているか等を証明するために添付する定款の写しです。",
+        value: "見本資料",
+        blank: "",
+        example: "定款①.pdf",
+        guides: [],
+        extra_example: "定款②.pdf",
+        extra_example2: "定款③.pdf",
+        extra_example3: "定款④.pdf"
+      },
+      {
+        name: "注文書・請書 (実務経験証明の確認資料)",
+        category: "attachments",
+        desc: "資格なし技術者の10年実務経験を証明するため、証拠資料として差し出す注文書の実際の様式例です。",
+        value: "見本資料",
+        blank: "",
+        example: "実務経験証明書の確認資料（注文書）①.pdf",
+        guides: [],
+        extra_example: "実務経験証明書の確認資料（注文書）②.pdf",
+        extra_example2: "実務経験証明書の確認資料（注文書）③.pdf",
+        extra_example3: "実務経験証明書の確認資料（注文書）④.pdf",
+        extra_example4: "実務経験証明書の確認資料（注文書）⑤.pdf"
+      },
+      {
+        name: "常勤役員・経管の確認資料 (全部履歴証明 / 注文書)",
+        category: "attachments",
+        desc: "経営業務管理責任者の取締役としての経験年数を証明するために差し出す会社の全部事項証明書および注文書の見本です。",
+        value: "見本資料",
+        blank: "",
+        example: "常勤役員等及び常勤役員等を直接に補佐する者の業務経験の確認資料①（履歴事項全部証明書①）.pdf",
+        guides: [],
+        extra_example: "常勤役員等及び常勤役員等を直接に補佐する者の業務経験の確認資料①（履歴事項全部証明書②）.pdf",
+        extra_example2: "常勤役員等及び常勤役員等を直接に補佐する者の業務経験の確認資料②（注文書①）.pdf",
+        extra_example3: "常勤役員等及び常勤役員等を直接に補佐する者の業務経験の確認資料②（注文書②）.pdf",
+        extra_example4: "常勤役員等及び常勤役員等を直接に補佐する者の業務経験の確認資料②（注文書③）.pdf",
+        extra_example5: "常勤役員等及び常勤役員等を直接に補佐する者の業務経験の確認資料②（注文書④）.pdf",
+        extra_example6: "常勤役員等及び常勤役員等を直接に補佐する者の業務経験の確認資料②（注文書⑤）.pdf"
+      },
+      {
+        name: "社会保険被保険者 標準報酬決定通知書",
+        category: "attachments",
+        desc: "専任技術者や役員が、その事業所で常勤雇用されているかを証明する年金事務所からの決定通知書のコピー見本です。",
+        value: "見本資料",
+        blank: "",
+        example: "営業所技術者の専任性の確認資料②（健康保険・厚生年金被保険者標準報酬決定通知書）.pdf",
+        guides: []
+      },
+      {
+        name: "身分証明書・登記されていないことの証明書 (実物例)",
+        category: "attachments",
+        desc: "本人が役所等から取り出した、欠格事由に該当しないことを証する実物の「登記されていないことの証明書」「身分証明書」の見本です。",
+        value: "見本資料",
+        blank: "",
+        example: "登記されていないことの証明書（鈴木　一郎）.pdf",
+        guides: [],
+        extra_example: "登記されていないことの証明書（鈴木　二郎）.pdf",
+        extra_example2: "身分証明書（鈴木　一郎）.pdf",
+        extra_example3: "身分証明書（鈴木　二郎）.pdf"
+      },
+      {
+        name: "実印・職印の押印印影一覧",
+        category: "attachments",
+        desc: "どの箇所に「法人の実印」「個人の実印」「行政書士の職印」を捺印すべきかを示す、実印押印比較表です。",
+        value: "見本資料",
+        blank: "",
+        example: "株式会社池袋建設の会社の実印、鈴木一郎の個人の実印、鈴木二郎の個人の実印、行政書士冨樂事務所の職印、冨樂剛志の個人の実印.pdf",
+        guides: []
+      },
+      {
+        name: "納税証明書 添付見本",
+        category: "attachments",
+        desc: "許可要件や法令順守の証として役所に提出する納税証明書の見本コピーです。",
+        value: "見本資料",
+        blank: "",
+        example: "納税証明書.pdf",
+        guides: []
+      },
+      {
+        name: "財産的基礎要件 残高証明書",
+        category: "attachments",
+        desc: "一般建設業許可に必須となる「自己資金500万円以上」を証するための、銀行発行の残高証明書の見本コピーです。",
+        value: "見本資料",
+        blank: "",
+        example: "財産的基礎要件の確認資料（残高証明書）.pdf",
+        guides: []
+      },
+      {
+        name: "財務諸表（決算報告書）添付見本",
+        category: "attachments",
+        desc: "法人の決算報告書（貸借対照表）の実物サンプルコピーです。これを見ながら建設業様式に組み替えます。",
+        value: "見本資料",
+        blank: "",
+        example: "貸借対照表（決算報告書内 ）.pdf",
+        guides: []
+      }
+    ];
+
+    // DOM構築
+    function renderTemplates() {
+      const container = document.getElementById('templates-grid-container');
+      const searchQuery = document.getElementById('template-search').value.toLowerCase();
+      
+      // アクティブなカテゴリフィルタを取得
+      const activeTag = document.querySelector('.filter-tag.active');
+      const categoryFilter = activeTag ? activeTag.getAttribute('data-cat') : 'all';
+
+      // フィルタリング
+      const filtered = templatesData.filter(item => {
+        // カテゴリ一致チェック
+        if (categoryFilter !== 'all' && item.category !== categoryFilter) {
+          return false;
+        }
+        
+        // 検索クエリチェック
+        if (searchQuery) {
+          const matchName = item.name.toLowerCase().includes(searchQuery);
+          const matchDesc = item.desc.toLowerCase().includes(searchQuery);
+          const matchBlank = item.blank && item.blank.toLowerCase().includes(searchQuery);
+          const matchExample = item.example && item.example.toLowerCase().includes(searchQuery);
+          const matchGuides = item.guides && item.guides.some(g => g.file.toLowerCase().includes(searchQuery) || g.title.toLowerCase().includes(searchQuery));
+          
+          return matchName || matchDesc || matchBlank || matchExample || matchGuides;
+        }
+
+        return true;
+      });
+
+      // レンダリング
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span style="font-size: 2rem; display:block; margin-bottom:10px">🔍</span>
+            該当する書式が見つかりませんでした。別のキーワードでお試しください。
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(item => {
+        // 白紙ファイルリンク
+        let blankBtn = '<span class="no-file">提供なし</span>';
+        if (item.blank) {
+          const folderBase = item.isSupp ? PATHS.format_supp : PATHS.format;
+          const ext = item.blank.split('.').pop().toUpperCase();
+          blankBtn = `<a href="${folderBase}${encodeURIComponent(item.blank)}" class="btn-action btn-blank">📥 白紙 (${ext})</a>`;
+        }
+
+        // 記入例ファイルリンク
+        let exampleBtn = '<span class="no-file">提供なし</span>';
+        if (item.example) {
+          const folderBase = item.isSupp ? PATHS.format_supp : PATHS.format;
+          const ext = item.example.split('.').pop().toUpperCase();
+          exampleBtn = `<a href="${folderBase}${encodeURIComponent(item.example)}" class="btn-action btn-example">📋 例 (${ext})</a>`;
+        }
+
+        // 予備の白紙/記入例リンク (復代理や住民票など、同一項目で複数ファイルがあるもの用)
+        let extraRow = '';
+        if (item.extra_blank || item.extra_example) {
+          const folderBase = item.isSupp ? PATHS.format_supp : PATHS.format;
+          let eb = '';
+          let ex = '';
+          if (item.extra_blank) {
+            const ext = item.extra_blank.split('.').pop().toUpperCase();
+            eb = `<a href="${folderBase}${encodeURIComponent(item.extra_blank)}" class="btn-action btn-blank" title="${item.extra_blank}">📥 追白紙</a>`;
+          }
+          if (item.extra_example) {
+            const ext = item.extra_example.split('.').pop().toUpperCase();
+            ex = `<a href="${folderBase}${encodeURIComponent(item.extra_example)}" class="btn-action btn-example" title="${item.extra_example}">📋 追例</a>`;
+          }
+          extraRow = `
+            <div class="link-row" style="margin-top:4px">
+              <span class="link-label">🔗 関連ファイル:</span>
+              <div style="display:flex; gap:6px">
+                ${eb}
+                ${ex}
+              </div>
+            </div>
+          `;
+        }
+
+        // 2枚目以上の予備記入例がある場合 (定款、注文書等)
+        let multiExtraRow = '';
+        const extras = [];
+        if (item.extra_example2) extras.push({ name: '追例2', file: item.extra_example2 });
+        if (item.extra_example3) extras.push({ name: '追例3', file: item.extra_example3 });
+        if (item.extra_example4) extras.push({ name: '追例4', file: item.extra_example4 });
+        if (item.extra_example5) extras.push({ name: '追例5', file: item.extra_example5 });
+        if (item.extra_example6) extras.push({ name: '追例6', file: item.extra_example6 });
+
+        if (extras.length > 0) {
+          const folderBase = item.isSupp ? PATHS.format_supp : PATHS.format;
+          const linksHtml = extras.map(ex => {
+            return `<a href="${folderBase}${encodeURIComponent(ex.file)}" class="btn-action btn-example" title="${ex.file}">📋 ${ex.name}</a>`;
+          }).join(' ');
+
+          multiExtraRow = `
+            <div class="link-row" style="margin-top:4px">
+              <span class="link-label">🔗 複数見本:</span>
+              <div style="display:flex; gap:4px; flex-wrap:wrap">
+                ${linksHtml}
+              </div>
+            </div>
+          `;
+        }
+
+        // 関連解説PDFリンク
+        let guidesHtml = '<span class="no-file">解説なし</span>';
+        if (item.guides && item.guides.length > 0) {
+          guidesHtml = item.guides.map(g => {
+            const textFolderBase = g.supp ? PATHS.text_supp : PATHS.text;
+            return `<a href="${textFolderBase}${encodeURIComponent(g.file)}" class="btn-action btn-guide" target="_blank">📖 ${g.title}</a>`;
+          }).join(' ');
+        }
+
+        return `
+          <div class="template-card">
+            <div class="card-top">
+              <div class="card-badges">
+                <span class="cat-badge cat-${item.category}">${getCategoryLabel(item.category)}</span>
+                <span class="val-badge">${item.value}</span>
+              </div>
+              <div class="card-name">${item.name}</div>
+              <div class="card-desc">${item.desc}</div>
+            </div>
+            
+            <div class="card-links">
+              <div class="link-row">
+                <span class="link-label">📄 白紙様式:</span>
+                ${blankBtn}
+              </div>
+              <div class="link-row">
+                <span class="link-label">📝 記入例:</span>
+                ${exampleBtn}
+              </div>
+              ${extraRow}
+              ${multiExtraRow}
+              <div class="link-row">
+                <span class="link-label">💡 実務解説:</span>
+                <div style="display:flex; gap:4px; flex-wrap:wrap">
+                  ${guidesHtml}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getCategoryLabel(cat) {
+      switch (cat) {
+        case 'operation': return '運営・契約';
+        case 'agency': return '証明・委任状';
+        case 'construction': return '建設業許可';
+        case 'financial': return '財務諸表';
+        case 'attachments': return '添付資料例';
+        case 'supp': return '追録';
+        default: return cat;
+      }
+    }
+
+    // カテゴリフィルタ選択
+    function setCategoryFilter(cat) {
+      // フィルタボタンのクラスを変更
+      const tags = document.querySelectorAll('#category-filters .filter-tag');
+      tags.forEach(tag => {
+        if (tag.getAttribute('data-cat') === cat) {
+          tag.classList.add('active');
+        } else {
+          tag.classList.remove('active');
+        }
+      });
+
+      // レンダリング実行
+      renderTemplates();
+    }
+
+    // 検索入力によるフィルタ
+    function filterTemplates() {
+      renderTemplates();
+    }
+
+    // タブ切り替え
+    function switchTab(evt, tabId) {
+      // すべてのタブボタンのactiveクラスを削除
+      const buttons = document.querySelectorAll('.tab-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+
+      // すべてのコンテンツセクションを非表示
+      const contents = document.querySelectorAll('.tab-content');
+      contents.forEach(content => content.classList.remove('active'));
+
+      // クリックされたボタンをactiveにし、対応するコンテンツを表示
+      evt.currentTarget.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+
+      // 書式タブが開かれた場合は初期レンダリング
+      if (tabId === 'tab-templates') {
+        renderTemplates();
+      }
+    }
+
+    // 初回レンダリング
+    window.addEventListener('DOMContentLoaded', () => {
+      // 初期描画
+      renderTemplates();
+    });
+  </script>
+</body>
+</html>

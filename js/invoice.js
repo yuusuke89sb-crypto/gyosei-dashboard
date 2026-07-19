@@ -582,7 +582,7 @@ const Invoice = {
   </div>
 
   <div class="invoice-header">
-    <div class="invoice-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}</div>
+    <div class="invoice-title">${docType === 'receipt' ? '領 収 書' : docType === 'estimate' ? '御 見 積 書' : '請 求 書'}</div>
     <div class="invoice-no">No. ${invoiceNo}</div>
   </div>
 
@@ -610,15 +610,23 @@ const Invoice = {
   </div>
 
   <div class="date-info">
-    <div>発行日: <span>${issueDate}</span></div>
+    <div>${docType === 'receipt' ? '領収日' : '発行日'}: <span>${issueDate}</span></div>
     ${dueDate ? `<div>お支払期限: <span>${dueDate}</span></div>` : ''}
     <div>対象期間: <span>${year}年${month}月分</span></div>
   </div>
 
+  ${docType === 'receipt' ? `
+  <div class="total-box" style="background:none; border:none; border-bottom:2px solid #1a1a2e; border-radius:0; padding:16px 0; justify-content:center; margin-bottom:8px">
+    <div class="total-label" style="font-size:18px; margin-right:16px">領収金額（税込）</div>
+    <div class="total-amount" style="font-size:32px; border-bottom:1px solid #1a1a2e; padding:0 24px">¥${total.toLocaleString()}-</div>
+  </div>
+  <div style="text-align:center; font-size:0.9rem; font-weight:600; margin-bottom:32px; color:#374151">但し、上記正に領収いたしました</div>
+  ` : `
   <div class="total-box">
     <div class="total-label">${docType === 'estimate' ? 'ご見積金額（税込）' : 'ご請求金額（税込）'}</div>
     <div class="total-amount">${total.toLocaleString()}</div>
   </div>
+  `}
 
   <!-- 報酬明細 -->
   <div class="section-title">【報酬明細】（課税対象）</div>
@@ -673,10 +681,10 @@ const Invoice = {
     <tr><td>報酬小計</td><td>¥${feeSubtotal.toLocaleString()}</td></tr>
     <tr><td>消費税 (${taxRate}%)</td><td>¥${tax.toLocaleString()}</td></tr>
     ${advanceTotal > 0 ? `<tr class="adv-row"><td>立替金合計（非課税）</td><td>¥${advanceTotal.toLocaleString()}</td></tr>` : ''}
-    <tr class="total-row"><td>${docType === 'estimate' ? '合計見積金額' : '合計請求金額'}</td><td>¥${total.toLocaleString()}</td></tr>
+    <tr class="total-row"><td>${docType === 'receipt' ? '合計領収金額' : docType === 'estimate' ? '合計見積金額' : '合計請求金額'}</td><td>¥${total.toLocaleString()}</td></tr>
   </table>
 
-  ${office.bankName ? `
+  ${docType !== 'receipt' && office.bankName ? `
   <div class="bank-section">
     <div class="bank-title">📋 ${docType === 'estimate' ? 'お振込先予定（ご契約時）' : 'お振込先'}</div>
     <div class="bank-grid">
@@ -810,4 +818,36 @@ const Invoice = {
     document.getElementById('officeSettingsModal').remove();
     App.showToast('事務所情報を保存しました');
   },
+
+  showReceipt(invoiceNo) {
+    const payments = typeof Payments !== 'undefined' ? Payments.getAll() : [];
+    const p = payments.find(x => x.invoiceNo === invoiceNo);
+    if (!p) {
+      App.showToast('入金データが見つかりません');
+      return;
+    }
+    const clientId = p.clientId;
+    const client = Store.getClient(clientId);
+    const office = this.getOfficeInfo();
+    const cases = this.getBilledCases(clientId, invoiceNo);
+    
+    const feeSubtotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
+    const taxRate = p.taxRate !== undefined ? p.taxRate : 10;
+    const tax = Math.floor(feeSubtotal * taxRate / 100);
+    const advanceTotal = cases.reduce((sum, c) => sum + (c.advances || []).reduce((s,a) => s + Number(a.amount || 0), 0), 0);
+    const total = p.amount;
+    const paidAt = p.paidAt ? p.paidAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    
+    const html = this.buildInvoiceHTML({
+      invoiceNo, issueDate: paidAt, dueDate: '', year: new Date(paidAt).getFullYear(), month: new Date(paidAt).getMonth() + 1,
+      client, office, cases, CATS: { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' },
+      feeSubtotal, tax, taxRate, advanceTotal, total, note: '領収証として上記正に領収いたしました。',
+      docType: 'receipt', contactNames: []
+    });
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    App.showToast(`領収書 ${invoiceNo} を印刷プレビューしました`);
+  }
 };

@@ -78,6 +78,15 @@ const SpreadsheetSync = {
                         parsedAdvances = localCase.advances;
                     }
 
+                    // familyTreeData のパース
+                    let parsedFamilyTree = remoteCase.familyTreeData;
+                    if (typeof parsedFamilyTree === 'string') {
+                        try { parsedFamilyTree = JSON.parse(parsedFamilyTree); } catch(e) { parsedFamilyTree = null; }
+                    }
+                    if (!parsedFamilyTree && localCase && localCase.familyTreeData) {
+                        parsedFamilyTree = localCase.familyTreeData;
+                    }
+
                     return {
                         ...remoteCase,
                         docs: Array.isArray(parsedDocs) ? parsedDocs : [],
@@ -99,6 +108,12 @@ const SpreadsheetSync = {
                         policeLocationId: remoteCase.policeLocationId || (localCase && localCase.policeLocationId) || '',
                         landTransportLocationId: remoteCase.landTransportLocationId || (localCase && localCase.landTransportLocationId) || '',
                         registrationDate: remoteCase.registrationDate || (localCase && localCase.registrationDate) || '',
+                        milestoneIndex: remoteCase.milestoneIndex !== undefined && remoteCase.milestoneIndex !== ''
+                            ? Number(remoteCase.milestoneIndex)
+                            : (localCase && localCase.milestoneIndex) !== undefined && (localCase && localCase.milestoneIndex) !== ''
+                                ? Number(localCase.milestoneIndex)
+                                : 0,
+                        familyTreeData: parsedFamilyTree || null,
                     };
                 });
                 
