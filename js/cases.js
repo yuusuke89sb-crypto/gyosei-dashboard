@@ -20,6 +20,10 @@ const Cases = {
     { key: 'garage_paper', label: '🚗 車庫証明（紙）' },
     { key: 'seal', label: '🚙 丁種封印' },
     { key: 'inheritance', label: '📜 相続' },
+    { key: 'realestate', label: '🏢 宅建業新規免許' },
+    { key: 'antiques', label: '💎 古物商許可' },
+    { key: 'cabaret', label: '🍷 風俗営業1号' },
+    { key: 'visa_work', label: '🌍 就労在留資格' },
   ],
 
   render() {
@@ -763,7 +767,10 @@ const Cases = {
 
     // マイルストーン同期ロジック (全カテゴリ)
     let milestoneVal = 0;
-    const totalSteps = data.category === 'inheritance' ? 4 : 3;
+    let totalSteps = 4;
+    if (data.category === 'cabaret') totalSteps = 5;
+    else if (['seal', 'garage_oss', 'garage_paper'].includes(data.category)) totalSteps = 3;
+
     if (this.editingId) {
       const existing = Store.getCase(this.editingId);
       const oldMilestone = (existing && existing.milestoneIndex !== undefined) ? Number(existing.milestoneIndex) : 0;
@@ -871,8 +878,18 @@ const Cases = {
       steps = ['相続人特定', '財産調査', '協議書捺印', '手続完了'];
     } else if (c.category === 'seal') {
       steps = ['書類受領', '日程調整', '施封完了'];
-    } else {
+    } else if (c.category === 'realestate') {
+      steps = ['要件診断', '書類収集', '役所申請', '免許受領'];
+    } else if (c.category === 'antiques') {
+      steps = ['管理者選定', '書類作成', '警察署申請', '許可受領'];
+    } else if (c.category === 'cabaret') {
+      steps = ['現地調査', '図面作成', '警察署申請', '実地検査', '許可受領'];
+    } else if (c.category === 'visa_work') {
+      steps = ['書類作成', '申請準備', '入管申請', '結果受領'];
+    } else if (['garage_oss', 'garage_paper'].includes(c.category)) {
       steps = ['配置図作成', '承諾書回収', '警察署申請'];
+    } else {
+      steps = ['ヒアリング', '書類準備', '申請中', '手続完了'];
     }
 
     const totalSteps = steps.length;

@@ -11,7 +11,11 @@ const INQUIRY_FLOWS = {
     { id: 'waste', name: '産業廃棄物', icon: '♻️', color: '#65A30D' },
     { id: 'transport', name: '運送業許可', icon: '🚛', color: '#BE185D' },
     { id: 'agriculture', name: '農地転用', icon: '🌾', color: '#854D0E' },
-    { id: 'subsidy', name: '補助金・助成金', icon: '💰', color: '#7C3AED' }
+    { id: 'subsidy', name: '補助金・助成金', icon: '💰', color: '#7C3AED' },
+    { id: 'realestate', name: '宅建業免許', icon: '🏢', color: '#0F766E' },
+    { id: 'antiques', name: '古物商許可', icon: '💎', color: '#4338CA' },
+    { id: 'cabaret', name: '風俗営業1号', icon: '🍷', color: '#B91C1C' },
+    { id: 'visa_work', name: '就労ビザ', icon: '🌍', color: '#6D28D9' }
   ],
 
   flows: {
@@ -938,6 +942,276 @@ const INQUIRY_FLOWS = {
           '商業登記簿謄本（法人の場合）'
         ],
         processing: '公募期間→審査→採択通知まで約2〜4ヶ月'
+      }
+    },
+
+    // ===== 宅地建物取引業 免許 =====
+    realestate: {
+      title: '宅建業免許 確認フロー',
+      steps: [
+        {
+          id: 'type',
+          question: '免許の種類または申請区分を教えてください',
+          type: 'choice',
+          choices: [
+            { label: '新規免許申請（知事免許）', value: 'new_gov', next: 'officer_check', note: '→ 都道府県知事への新規申請', icon: '🆕' },
+            { label: '新規免許申請（大臣免許）', value: 'new_min', next: 'officer_check', note: '→ 国土交通大臣への新規申請', icon: '🏢' },
+            { label: '更新申請', value: 'renewal', next: 'officer_check', note: '→ 免許の更新（5年ごと）', icon: '🔄' }
+          ]
+        },
+        {
+          id: 'officer_check',
+          question: '専任の宅地建物取引士（専任の取引士）は確保されています加？',
+          type: 'yesno',
+          info: '1つの営業所において、業務に従事する者の5人に1人以上の割合で専任の取引士の設置が必要です',
+          yes: { next: 'office_check', note: '✅ 専任の取引士候補あり' },
+          no: { next: 'office_check', note: '⚠️ 専任の取引士候補なし → 資格取得者又は登録済みの専任取引士の確保が必須' }
+        },
+        {
+          id: 'office_check',
+          question: '事務所の独立性は確保されていますか？',
+          type: 'yesno',
+          info: '他の企業と同居、又は自宅兼事務所の場合、固定式のパーテーション等で仕切られ、独立して業務が行える構造が必要です',
+          yes: { next: 'finance_check', note: '✅ 事務所の独立性要件クリア可能' },
+          no: { next: 'finance_check', note: '⚠️ 事務所の独立性懸念あり → レイアウトの変更や工事、または別場所の確保を検討' }
+        },
+        {
+          id: 'finance_check',
+          question: '営業保証金の供託（1,000万円）または保証協会への加入（約130万〜150万円）の自己資金はありますか？',
+          type: 'yesno',
+          info: '開業には、保証協会（ハトマーク又はウサギマーク）への加入金約130万〜150万円、あるいは法務局への営業保証金1,000万円の供託が必要です',
+          yes: { next: 'disqualification_check', note: '✅ 開業初期資金あり' },
+          no: { next: 'disqualification_check', note: '⚠️ 初期資金不足の懸念あり → 保証協会加入用の資金手当てが必要です' }
+        },
+        {
+          id: 'disqualification_check',
+          question: '申請者や役員に欠格要件に該当する事項はありませんか？',
+          type: 'yesno',
+          info: '破産者で復権を得ない者、禁錮以上の刑又は宅建業法違反での処分を受けてから5年を経過しない者等',
+          yes: { next: null, note: '✅ 欠格要件なし' },
+          no: { next: null, note: '⚠️ 欠格要件に該当の可能性あり → 詳細確認が必要' }
+        }
+      ],
+      summary: {
+        title: '宅建業免許 確認結果',
+        documents: [
+          '免許申請書',
+          '専任の宅地建物取引士の身分証明書・登記簿',
+          '事務所の権利関係書類（賃貸借契約書等）',
+          '事務所の写真（間取り、ビル外観、入口、事務室等）',
+          '納税証明書',
+          '役員・専任取引士の住民票・身分証明書',
+          '登記されていないことの証明書'
+        ],
+        fees: { new_gov: '33,000円', new_min: '90,000円', renewal: '33,000円' },
+        processing: '知事免許：約30日〜40日 / 大臣免許：約90日'
+      }
+    },
+
+    // ===== 古物商許可 =====
+    antiques: {
+      title: '古物商許可 確認フロー',
+      steps: [
+        {
+          id: 'category',
+          question: '主に取り扱う古物の区分（品目）を教えてください',
+          type: 'choice',
+          choices: [
+            { label: '美術品・宝飾品類', value: 'art', next: 'manager_check', icon: '💎' },
+            { label: '衣類・衣服', value: 'clothes', next: 'manager_check', icon: '👕' },
+            { label: '時計・カメラ・家電類', value: 'clock_camera', next: 'manager_check', icon: '📷' },
+            { label: '自動車・二輪・部品', value: 'vehicle', next: 'manager_check', icon: '🚗' },
+            { label: 'その他（道具類等）', value: 'other', next: 'manager_check', icon: '📋' }
+          ]
+        },
+        {
+          id: 'manager_check',
+          question: '営業所ごとに「専任の管理者」を置くことができますか？',
+          type: 'yesno',
+          info: '古物取引の適正な管理を行うため、営業所ごとに常勤の管理者を置く必要があります（申請者本人が兼ねることも可能です）',
+          yes: { next: 'office_check', note: '✅ 管理者候補あり' },
+          no: { next: 'office_check', note: '⚠️ 管理者候補なし → 常勤できる責任者を決定する必要があります' }
+        },
+        {
+          id: 'office_check',
+          question: '実態のある「営業所」を確保していますか？',
+          type: 'yesno',
+          info: '古物の保管・取引を行う物理的な営業所が必要です。賃貸住宅やバーチャルオフィス、シェアオフィスは許可が下りないケースがあります',
+          yes: { next: 'url_check', note: '✅ 営業所要件クリア' },
+          no: { next: 'url_check', note: '⚠️ 営業所なし・ペーパーオフィス → 賃貸契約書で使用許諾があるか、実体があるか確認が必要' }
+        },
+        {
+          id: 'url_check',
+          question: 'ホームページを開設して、ネット上で古物の取引を行いますか？',
+          type: 'yesno',
+          info: '独自のホームページやオークションサイトで取引を行う場合は、URLの届出（プロバイダ等のドメイン割当通知書）が必要です',
+          yes: { next: 'disqualification_check', note: '→ ホームページURLの届出が必要' },
+          no: { next: 'disqualification_check', note: '✅ ホームページ利用なし' }
+        },
+        {
+          id: 'disqualification_check',
+          question: '申請者、役員、管理者に欠格要件に該当する事項はありませんか？',
+          type: 'yesno',
+          info: '禁錮以上の刑、又は窃盗等の特定の犯罪で罰金刑を受けて5年未満の者、破産者で復権を得ない者、住所不定の者等',
+          yes: { next: null, note: '✅ 欠格要件なし' },
+          no: { next: null, note: '⚠️ 欠格要件に該当の可能性あり → 許可が取得できない可能性があります' }
+        }
+      ],
+      summary: {
+        title: '古物商許可 確認結果',
+        documents: [
+          '古物商許可申請書',
+          '略歴書（最近5年間の職歴・住所）',
+          '誓約書（個人用・管理者用）',
+          '住民票の写し（本籍地記載）',
+          '市区町村発行の身分証明書',
+          '登記されていないことの証明書',
+          '営業所の使用権原を疎明する書類（賃貸借契約書及び使用許諾書等）',
+          'プロバイダ等のドメイン割当通知書の写し（URL届出時）'
+        ],
+        fees: { apply: '19,000円（警察署への申請手数料）' },
+        processing: '申請受理から約40営業日（土日祝を除く）'
+      }
+    },
+
+    // ===== 風俗営業1号 =====
+    cabaret: {
+      title: '風俗営業1号許可 確認フロー',
+      steps: [
+        {
+          id: 'location_zone',
+          question: '出店予定地の用途地域はどこですか？',
+          type: 'choice',
+          info: '風俗営業は原則として商業地域、近隣商業地域、準工業地域（一部例外あり）でのみ許可されます。住居系地域は不可です',
+          choices: [
+            { label: '商業地域', value: 'commercial', next: 'location_distance', icon: '🏢' },
+            { label: '近隣商業地域', value: 'near_commercial', next: 'location_distance', icon: '🏪' },
+            { label: '住居地域（住居専用等）', value: 'residential', next: 'location_distance', note: '⚠️ 許可不可の用途地域です。出店できません', icon: '🏠' },
+            { label: 'わからない', value: 'unknown', next: 'location_distance', note: '→ 都市計画マップ等で用途地域を確認する必要があります', icon: '❓' }
+          ]
+        },
+        {
+          id: 'location_distance',
+          question: '保全対象施設（学校、図書館、児童福祉施設、入院設備のある病院等）は近くにありませんか？',
+          type: 'yesno',
+          info: '営業所の敷地境界から保全対象施設までの直線距離が、都道府県の条例で定める距離（例: 商業地域で50m〜100m等）以上離れている必要があります',
+          yes: { next: 'structure_check', note: '✅ 保全施設との距離要件クリア見込み' },
+          no: { next: 'structure_check', note: '⚠️ 営業禁止区域に該当する懸念あり → 現地実測及び役所確認が必要です' }
+        },
+        {
+          id: 'structure_check',
+          question: '店舗の構造・設備基準を満たしていますか？',
+          type: 'checklist',
+          items: [
+            { label: '客室の床面積が1室16.5㎡以上（和風客室は9.5㎡以上）であること', key: 'area' },
+            { label: '客席から見通しを妨げる設備（高さ1m以上の仕切りや衝立等）がないこと', key: 'visibility' },
+            { label: '客室内に鍵や施錠設備がないこと', key: 'lock' },
+            { label: '客室の照度が20ルクス以上（調光器の設置不可）であること', key: 'lux' },
+            { label: '防音設備、騒音防止措置が講じられていること', key: 'noise' }
+          ],
+          next: 'manager_check'
+        },
+        {
+          id: 'manager_check',
+          question: '専任の管理者（欠格事由に該当しない20歳以上の常勤者）を置くことができますか？',
+          type: 'yesno',
+          info: '営業所ごとに管理者を設置し、管理者講習を受ける必要があります。他店舗の管理者との兼任は不可です',
+          yes: { next: 'disqualification_check', note: '✅ 管理者候補あり' },
+          no: { next: 'disqualification_check', note: '⚠️ 管理者なし → 管理者を常勤雇用、又は適任者の確保が必要です' }
+        },
+        {
+          id: 'disqualification_check',
+          question: '申請者や法人の役員に欠格要件に該当する事項はありませんか？',
+          type: 'yesno',
+          info: '禁錮以上の刑、風営法違反での罰金刑等の処分を受けてから5年を経過しない者、破産者で復権を得ない者等',
+          yes: { next: null, note: '✅ 欠格要件なし' },
+          no: { next: null, note: '⚠️ 欠格要件に該当の可能性あり → 許可申請が行えません' }
+        }
+      ],
+      summary: {
+        title: '風俗営業1号許可 確認結果',
+        documents: [
+          '風俗営業許可申請書',
+          '営業方法を記載した書面',
+          '営業所の平面図、客室・調理場等の詳細求積図・求積計算書',
+          '建物及び土地の賃貸借契約書、使用許諾書（所有者の承諾書）',
+          '建物登記簿謄本',
+          '住民票・身分証明書・登記されていないことの証明書（役員・管理者全員）',
+          '管理者の誓約書・顔写真（2枚）',
+          '飲食店営業許可証の写し（保健所より取得）'
+        ],
+        fees: { apply: '24,000円（警察署への申請手数料）' },
+        processing: '申請受理から約55日（警察署および公安委員会による実地検査があります）'
+      }
+    },
+
+    // ===== 就労ビザ =====
+    visa_work: {
+      title: '就労ビザ（技術・人文知識・国際業務） 確認フロー',
+      steps: [
+        {
+          id: 'education',
+          question: '申請者の学歴を教えてください',
+          type: 'choice',
+          choices: [
+            { label: '大学卒業（国内外の学士・修士・博士）', value: 'university', next: 'job_matching', note: '✅ 学歴要件クリア', icon: '🎓' },
+            { label: '日本の専門学校卒業（「専門士」の称号あり）', value: 'senmon', next: 'job_matching', note: '✅ 学歴要件クリア（職務内容との関連性が厳しく判定されます）', icon: '📝' },
+            { label: '学歴なし（実務経験あり）', value: 'experience', next: 'experience_years', note: '→ 実務経験年数の確認へ', icon: '🔨' }
+          ]
+        },
+        {
+          id: 'experience_years',
+          question: '申請者の関連業務の実務経験は何年以上ありますか？',
+          type: 'choice',
+          info: '大学等の学歴がない場合、従事する職務に応じて10年以上（翻訳・通訳・語学指導は3年以上）の実務経験証明書が必要です',
+          choices: [
+            { label: '10年以上（翻訳等は3年以上）', value: 'meet', next: 'job_matching', note: '✅ 実務経験による要件クリア可能（在籍会社からの証明書が必須）', icon: '📅' },
+            { label: '要件年数未満', value: 'fail', next: 'job_matching', note: '⚠️ 就労ビザの取得が困難です（他資格への変更等を要検討）', icon: '❌' }
+          ]
+        },
+        {
+          id: 'job_matching',
+          question: '予定する職務内容と、大学等の専攻分野に関連性はありますか？',
+          type: 'yesno',
+          info: '大学や専門学校で専攻した学術的内容と、企業で実際に行う業務内容（例：プログラマー、企画、営業、語学等）に関連性が認められる必要があります',
+          yes: { next: 'salary_check', note: '✅ 職務・専攻の関連性クリア見込み' },
+          no: { next: 'salary_check', note: '⚠️ 関連性なしと判断される可能性大 → 業務の関連性を疎明する理由書の作り込みが必要です' }
+        },
+        {
+          id: 'salary_check',
+          question: '日本人が従事する場合と同等以上の報酬（概ね月給20万円以上）が設定されていますか？',
+          type: 'yesno',
+          info: '外国人に不当な低賃金を強いることを防ぐため、同等の職務に従事する日本人と同水準以上の給与である必要があります',
+          yes: { next: 'employer_finance', note: '✅ 給与水準クリア' },
+          no: { next: 'employer_finance', note: '⚠️ 給与基準未達 → 雇用契約書での条件改定が必要です' }
+        },
+        {
+          id: 'employer_finance',
+          question: '雇用企業の財務状況に問題はありませんか？',
+          type: 'choice',
+          info: '受入企業の安定性・継続性が評価されます。直近決算が債務超過や赤字の場合、中小企業では事業計画書の提出が必要です',
+          choices: [
+            { label: '黒字または安定している', value: 'stable', next: null, note: '✅ 企業の安定性クリア', icon: '📈' },
+            { label: '赤字（単年度）', value: 'red_single', next: null, note: '⚠️ 決算書に加え、赤字の理由及び今後の事業見通し説明書が必要', icon: '📉' },
+            { label: '債務超過', value: 'insolvent', next: null, note: '⚠️ 審査が厳しくなります → 中長期の財務改善を盛り込んだ精緻な事業計画書が必須', icon: '⚠️' }
+          ]
+        }
+      ],
+      summary: {
+        title: '就労ビザ 確認結果',
+        documents: [
+          '在留資格認定証明書交付申請書 又は 在留資格変更許可申請書',
+          '申請者の証明写真（4cm×3cm、3ヶ月以内）',
+          'パスポート及び在留カードの写し（変更申請時）',
+          '申請者の大学卒業証明書 又は 専門学校の専門士称号証明書',
+          '申請者の履歴書・職歴証明書',
+          '雇用契約書（労働条件通知書）の写し',
+          '受入企業の商業登記簿謄本、直近の決算書（貸借対照表・損益計算書）',
+          '法定調書合計表の写し（源泉徴収税額がわかるもの）',
+          '会社パンフレット、採用理由書'
+        ],
+        fees: { apply: '認定交付申請は無料 / 変更・更新許可時は4,000円の収入印紙' },
+        processing: '審査期間：約1ヶ月〜3ヶ月'
       }
     }
   }

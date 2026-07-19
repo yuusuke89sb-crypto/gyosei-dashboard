@@ -753,5 +753,254 @@ const FEE_DATA = {
 
       return results;
     }
+  },
+
+  // ============================================================
+  // 宅建業免許
+  // ============================================================
+  realestate: {
+    title: '宅建業免許 報酬シミュレーター',
+    icon: '🏢',
+    steps: [
+      {
+        id: 'type',
+        question: '申請の種類は？',
+        type: 'select',
+        options: [
+          { label: '新規免許申請（知事免許）', value: 'new_gov' },
+          { label: '新規免許申請（大臣免許）', value: 'new_min' },
+          { label: '更新申請', value: 'renewal' }
+        ]
+      },
+      {
+        id: 'guarantor',
+        question: '保証協会の加入手続き支援は必要ですか？',
+        type: 'select',
+        options: [
+          { label: '希望する（ハト・ウサギマーク加入手続も委託）', value: 'yes' },
+          { label: '不要（自社で手続きを行う）', value: 'no' }
+        ]
+      }
+    ],
+    calculate: (answers) => {
+      const results = { items: [], officialFee: 0, reward: 0, notes: [] };
+
+      let baseReward = 0;
+      let officialFee = 0;
+
+      if (answers.type === 'new_gov') {
+        baseReward = 120000;
+        officialFee = 33000;
+        results.items.push({ label: '宅建業新規知事免許申請 報酬', amount: 120000 });
+        results.items.push({ label: '登録免許税（法定費用）', amount: 33000, isOfficial: true });
+      } else if (answers.type === 'new_min') {
+        baseReward = 180000;
+        officialFee = 90000;
+        results.items.push({ label: '宅建業新規大臣免許申請 報酬', amount: 180000 });
+        results.items.push({ label: '登録免許税（法定費用）', amount: 90000, isOfficial: true });
+      } else if (answers.type === 'renewal') {
+        baseReward = 60000;
+        officialFee = 33000;
+        results.items.push({ label: '宅建業免許更新申請 報酬', amount: 60000 });
+        results.items.push({ label: '登録免許税（法定費用）', amount: 33000, isOfficial: true });
+      }
+
+      if (answers.guarantor === 'yes') {
+        baseReward += 30000;
+        results.items.push({ label: '保証協会入会申請支援 報酬', amount: 30000 });
+      }
+
+      results.reward = baseReward;
+      results.officialFee = officialFee;
+
+      results.notes.push('※ 上記の他に、保証協会（全国宅地建物取引業保証協会など）へ支払う分担金や入会金等が約130万〜150万円必要になります。');
+      results.notes.push('※ 専任の宅地建物取引士が不足している場合は、免許要件を満たさないため申請できません。');
+
+      return results;
+    }
+  },
+
+  // ============================================================
+  // 古物商許可
+  // ============================================================
+  antiques: {
+    title: '古物商許可 報酬シミュレーター',
+    icon: '💎',
+    steps: [
+      {
+        id: 'type',
+        question: '申請の主体は？',
+        type: 'select',
+        options: [
+          { label: '個人事業主', value: 'individual' },
+          { label: '法人', value: 'corporation' }
+        ]
+      },
+      {
+        id: 'url',
+        question: 'ホームページURLの届出はありますか？',
+        type: 'select',
+        options: [
+          { label: 'あり（ネットオークションやEC販売等）', value: 'yes' },
+          { label: 'なし（対面店舗販売のみ）', value: 'no' }
+        ]
+      }
+    ],
+    calculate: (answers) => {
+      const results = { items: [], officialFee: 0, reward: 0, notes: [] };
+
+      let baseReward = answers.type === 'corporation' ? 60000 : 40000;
+      const typeLabel = answers.type === 'corporation' ? '法人' : '個人';
+      results.items.push({ label: `古物商許可申請（${typeLabel}）報酬`, amount: baseReward });
+      
+      const officialFee = 19000;
+      results.items.push({ label: '警察署申請手数料（法定実費）', amount: officialFee, isOfficial: true });
+
+      if (answers.url === 'yes') {
+        baseReward += 15000;
+        results.items.push({ label: 'ホームページURL届出書類作成 報酬', amount: 15000 });
+      }
+
+      results.reward = baseReward;
+      results.officialFee = officialFee;
+
+      results.notes.push('※ 法人申請の場合、役員全員の住民票や登記されていないことの証明書を収集する必要があるため、役員数に応じて実費書類代がかかります。');
+      results.notes.push('※ 申請から許可が下りるまでに約40営業日（約2ヶ月）かかります。');
+
+      return results;
+    }
+  },
+
+  // ============================================================
+  // 風俗営業1号
+  // ============================================================
+  cabaret: {
+    title: '風俗営業1号 報酬シミュレーター',
+    icon: '🍷',
+    steps: [
+      {
+        id: 'size',
+        question: '店舗の床面積（延床面積）はどのくらいですか？',
+        type: 'select',
+        options: [
+          { label: '50㎡未満', value: 'small' },
+          { label: '50〜100㎡', value: 'mid' },
+          { label: '100㎡以上', value: 'large' }
+        ]
+      },
+      {
+        id: 'rooms',
+        question: '客室数はいくつですか？',
+        type: 'select',
+        options: [
+          { label: '1室のみ', value: 'one' },
+          { label: '2室以上', value: 'multi' }
+        ]
+      }
+    ],
+    calculate: (answers) => {
+      const results = { items: [], officialFee: 0, reward: 0, notes: [] };
+
+      let baseReward = 180000;
+      if (answers.size === 'mid') baseReward = 220000;
+      else if (answers.size === 'large') baseReward = 260000;
+
+      const sizeLabel = answers.size === 'small' ? '50㎡未満' : answers.size === 'mid' ? '50〜100㎡' : '100㎡以上';
+      results.items.push({ label: `風俗営業1号許可申請（${sizeLabel}）報酬`, amount: baseReward });
+
+      if (answers.rooms === 'multi') {
+        baseReward += 40000;
+        results.items.push({ label: '客室複数対応（求積図の増加分）', amount: 40000 });
+      }
+
+      const officialFee = 24000;
+      results.items.push({ label: '警察署申請手数料（法定実費）', amount: officialFee, isOfficial: true });
+
+      results.reward = baseReward;
+      results.officialFee = officialFee;
+
+      results.notes.push('※ 風俗営業許可にはミリ単位での精密な店舗測量と「求積図面」の作成が必要であり、この図面作成費用が含まれています。');
+      results.notes.push('※ 申請後、警察および浄化協会による「実地検査」が現地で行われ、当事務所の行政書士が立ち会い対応します。');
+      results.notes.push('※ 前提となる保健所の「飲食店営業許可」が未取得の場合は、別途保健所申請（報酬約3〜4万円＋実費1.6万円程度）が並行して必要になります。');
+
+      return results;
+    }
+  },
+
+  // ============================================================
+  // 就労ビザ
+  // ============================================================
+  visa_work: {
+    title: '就労ビザ（技術・人文知識・国際業務） 報酬シミュレーター',
+    icon: '🌍',
+    steps: [
+      {
+        id: 'type',
+        question: '希望する手続きの種類は？',
+        type: 'select',
+        options: [
+          { label: '新規呼び寄せ（海外からの在留資格認定証明書交付）', value: 'coe' },
+          { label: '在留資格変更（留学生の就職や他ビザからの変更）', value: 'change' },
+          { label: '在留期間更新（期間延長）', value: 'renew' }
+        ]
+      },
+      {
+        id: 'company_size',
+        question: '受入企業の規模区分（カテゴリー）は？',
+        type: 'select',
+        options: [
+          { label: 'カテゴリー1・2（上場企業、前年源泉徴収1,000万円以上など）', value: 'cat1_2' },
+          { label: 'カテゴリー3（前年法定調書合計表の提出がある中小企業等）', value: 'cat3' },
+          { label: 'カテゴリー4（新設会社、個人事業、または前年源泉徴収実績なし等）', value: 'cat4' }
+        ]
+      },
+      {
+        id: 'job_change',
+        question: '（更新申請の場合のみ）前回申請時から「転職」はありましたか？',
+        type: 'select',
+        showIf: { type: ['renew'] },
+        options: [
+          { label: 'なし（同じ会社で同じ職務を継続）', value: 'no' },
+          { label: 'あり（現在の会社へ転職後、初めての更新）', value: 'yes' }
+        ]
+      }
+    ],
+    calculate: (answers) => {
+      const results = { items: [], officialFee: 0, reward: 0, notes: [] };
+
+      let baseReward = 120000;
+      let officialFee = 0;
+
+      if (answers.type === 'coe') {
+        const rewards = { cat1_2: 100000, cat3: 130000, cat4: 150000 };
+        baseReward = rewards[answers.company_size] || 130000;
+        results.items.push({ label: '在留資格認定証明書交付申請（COE）報酬', amount: baseReward });
+        results.notes.push('※ 海外から呼び寄せる場合、入国管理局の法定手数料はかかりません（無料）。');
+      } else if (answers.type === 'change') {
+        const rewards = { cat1_2: 100000, cat3: 120000, cat4: 140000 };
+        baseReward = rewards[answers.company_size] || 120000;
+        officialFee = 4000;
+        results.items.push({ label: '在留資格変更許可申請 報酬', amount: baseReward });
+        results.items.push({ label: '入国管理局手数料（許可時・印紙代）', amount: officialFee, isOfficial: true });
+      } else if (answers.type === 'renew') {
+        if (answers.job_change === 'yes') {
+          baseReward = 100000;
+          results.items.push({ label: '在留期間更新申請（転職あり・実質新規審査）報酬', amount: baseReward });
+        } else {
+          baseReward = answers.company_size === 'cat1_2' ? 40000 : 50000;
+          results.items.push({ label: '在留期間更新申請（転職なし・単純更新）報酬', amount: baseReward });
+        }
+        officialFee = 4000;
+        results.items.push({ label: '入国管理局手数料（許可時・印紙代）', amount: officialFee, isOfficial: true });
+      }
+
+      results.reward = baseReward;
+      results.officialFee = officialFee;
+
+      results.notes.push('※ カテゴリー3・4に該当する中小企業やベンチャー企業の場合、決算書や採用理由書、および詳細な事業説明資料の作り込みが必要となるため、報酬額に幅があります。');
+      results.notes.push('※ 申請取次資格を持つ行政書士が代行しますので、入国管理局への出頭や長い並び待ち時間は発生しません。');
+
+      return results;
+    }
   }
 };

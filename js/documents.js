@@ -156,10 +156,17 @@ const CaseDocs = {
           <span class="docs-hint">PDF・画像・Word・Excel / 最大15MB</span>
         </div>
 
-        <div class="docs-export-area" style="margin-top:12px; display:flex; gap:8px;">
-          <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'receipt')">📥 お預かり証</button>
-          <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'transmittal')">📤 送付状</button>
-          <button type="button" class="btn btn-primary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'poa')">📝 委任状</button>
+        <div class="docs-export-area" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'receipt')">📥 お預かり証</button>
+            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'transmittal')">📤 送付状</button>
+            <button type="button" class="btn btn-primary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'poa')">📝 委任状</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'estimate')">📊 見積書</button>
+            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'agreement')">🤝 委託契約</button>
+            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'antisocial')">🔒 反社表明確約</button>
+          </div>
         </div>
       </div>
     `;
@@ -270,6 +277,15 @@ const CaseDocs = {
 
     if (type === 'poa') {
       return this.generatePOA(c, clientName, clientAddress, officeName, officeInfo);
+    }
+    if (type === 'estimate') {
+      return this.generateEstimate(c, clientName, clientAddress, officeName, officeDetail, officeInfo);
+    }
+    if (type === 'agreement') {
+      return this.generateAgreement(c, clientName, clientAddress, officeName, officeDetail, officeInfo);
+    }
+    if (type === 'antisocial') {
+      return this.generateAntisocial(c, clientName, clientAddress, officeName, officeDetail, officeInfo);
     }
 
     let docListHtml = docs.map((d, i) => `
@@ -519,6 +535,375 @@ const CaseDocs = {
         folderUrl: c.driveFolderUrl
       }).then(res => {
         if (res && res.success) App.showToast(`✅ 委任状をDriveに保存しました`);
+      });
+    }
+  },
+
+  // ─── 御見積書ジェネレーター ──────────────────────────
+  generateEstimate(c, clientName, clientAddress, officeName, officeDetail, officeInfo) {
+    const today = new Date().toLocaleDateString('ja-JP');
+    const feeNum = parseInt(c.fee, 10) || 0;
+    const taxNum = Math.round(feeNum * 0.1);
+    const advances = Array.isArray(c.advances) ? c.advances : [];
+    const advancesSum = advances.reduce((sum, a) => sum + (parseInt(a.amount, 10) || 0), 0);
+    const grandTotal = feeNum + taxNum + advancesSum;
+
+    let itemsHtml = `
+      <tr>
+        <td style="text-align:center">1</td>
+        <td>行政書士業務報酬（${c.title}）</td>
+        <td style="text-align:right">￥${feeNum.toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td style="text-align:center">2</td>
+        <td>消費税（10%）</td>
+        <td style="text-align:right">￥${taxNum.toLocaleString()}</td>
+      </tr>
+    `;
+
+    advances.forEach((a, i) => {
+      itemsHtml += `
+        <tr>
+          <td style="text-align:center">${i + 3}</td>
+          <td>立替金：${a.label || '実費'}</td>
+          <td style="text-align:right">￥${(parseInt(a.amount, 10) || 0).toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>御見積書 - ${c.title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Noto Sans JP', sans-serif; color: #1a1a2e; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; }
+  @media print { body { padding: 20px; } .no-print { display: none !important; } @page { margin: 15mm; size: A4; } }
+  .print-bar { display: flex; gap: 10px; margin-bottom: 30px; justify-content: flex-end; }
+  .print-bar button { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .btn-print { background: #3b82f6; color: #fff; }
+  .btn-close { background: #e5e7eb; color: #374151; }
+  .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+  .client-box { font-size: 20px; font-weight: 700; border-bottom: 2px solid #1a1a2e; padding-bottom: 4px; margin-bottom: 8px; display: inline-block; }
+  .client-box::after { content: " 御中"; font-size: 16px; font-weight: 400; }
+  .client-address { font-size: 12px; color: #555; line-height: 1.6; }
+  .office-box { text-align: right; }
+  .office-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .office-detail { font-size: 11px; color: #555; line-height: 1.8; }
+  .title { text-align: center; font-size: 24px; font-weight: 700; letter-spacing: 12px; margin-bottom: 30px; border-bottom: 2px solid #1a1a2e; padding-bottom: 12px; }
+  .total-box { background: #f3f4f6; border: 2px solid #1a1a2e; padding: 15px; margin-bottom: 30px; text-align: center; }
+  .total-label { font-size: 14px; font-weight: 700; margin-bottom: 5px; }
+  .total-amount { font-size: 26px; font-weight: 700; color: #1e3a8a; }
+  .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; }
+  .doc-table th { background: #1a1a2e; color: #fff; padding: 10px; text-align: left; font-weight: 600; }
+  .doc-table th.center { text-align: center; }
+  .doc-table td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+  .notes-area { font-size: 12px; color: #555; line-height: 1.8; background: #fafafa; padding: 15px; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <div class="print-bar no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+    <button class="btn-close" onclick="window.close()">✕ 閉じる</button>
+  </div>
+  
+  <div style="text-align:right; margin-bottom: 16px; font-size: 12px;">${today}</div>
+  
+  <div class="header">
+    <div>
+      <div class="client-box">${clientName}</div>
+      <div class="client-address">${clientAddress}</div>
+    </div>
+    <div class="office-box">
+      <div class="office-name">${officeName}</div>
+      <div class="office-detail">${officeDetail}</div>
+    </div>
+  </div>
+
+  <div class="title">御見積書</div>
+  
+  <div style="margin-bottom: 20px; font-size: 14px;">
+    件名： ${c.title} に伴う行政書士業務報酬及び実費
+  </div>
+  
+  <div class="total-box">
+    <div class="total-label">御見積額合計（税込）</div>
+    <div class="total-amount">￥${grandTotal.toLocaleString()}-</div>
+  </div>
+  
+  <table class="doc-table">
+    <thead>
+      <tr>
+        <th class="center" style="width:50px">No.</th>
+        <th>項目名</th>
+        <th style="width:150px; text-align:right">金額</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemsHtml}
+    </tbody>
+  </table>
+  
+  <div class="notes-area">
+    <strong>【備考・お支払条件】</strong><br>
+    ※ 官公署の法定手数料（登録免許税や印紙代）は、申請時に必要となるため、原則前払いにてお願い申し上げます。<br>
+    ※ 本見積書の有効期限は、作成日より3ヶ月間とさせていただきます。<br>
+    ※ ご不明な点がございましたら、担当行政書士までお気軽にお問い合わせください。
+  </div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+
+    if (c.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      App.showToast(`🔄 Driveへ御見積書を自動保存中...`);
+      SpreadsheetSync.push('saveGeneratedPdf', {
+        html: html,
+        fileName: '御見積書.pdf',
+        folderUrl: c.driveFolderUrl
+      }).then(res => {
+        if (res && res.success) App.showToast(`✅ 御見積書をDriveに保存しました`);
+      });
+    }
+  },
+
+  // ─── 業務委託契約書ジェネレーター ──────────────────────────
+  generateAgreement(c, clientName, clientAddress, officeName, officeDetail, officeInfo) {
+    const feeNum = parseInt(c.fee, 10) || 0;
+    const taxNum = Math.round(feeNum * 0.1);
+    const totalFee = feeNum + taxNum;
+
+    const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>業務委託契約書 - ${c.title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Noto Serif JP', serif; color: #111; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.8; font-size: 14px; }
+  @media print { body { padding: 20px; } .no-print { display: none !important; } @page { margin: 20mm; size: A4; } }
+  .print-bar { display: flex; gap: 10px; margin-bottom: 30px; justify-content: flex-end; font-family: sans-serif; }
+  .print-bar button { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .btn-print { background: #3b82f6; color: #fff; }
+  .btn-close { background: #e5e7eb; color: #374151; }
+  .title { text-align: center; font-size: 24px; font-weight: 700; letter-spacing: 4px; margin-top: 20px; margin-bottom: 40px; }
+  .contract-clause { margin-bottom: 20px; text-indent: 1em; }
+  .clause-title { font-weight: 700; margin-top: 25px; margin-bottom: 10px; text-indent: 0; }
+  .signature-block { display: flex; justify-content: space-between; margin-top: 60px; }
+  .signature-left, .signature-right { width: 48%; }
+  .sig-row { margin-bottom: 15px; display: flex; }
+  .sig-label { width: 60px; }
+  .sig-value { flex: 1; border-bottom: 1px dotted #555; position: relative; min-height: 25px; }
+  .inkan { position: absolute; right: 10px; top: -5px; font-size: 20px; color: #ccc; }
+</style>
+</head>
+<body>
+  <div class="print-bar no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+    <button class="btn-close" onclick="window.close()">✕ 閉じる</button>
+  </div>
+  
+  <div class="title">業務委託契約書</div>
+  
+  <div style="margin-bottom: 30px;">
+    委託者 ${clientName}（以下「甲」という）と、受託者 行政書士 ${officeInfo.representative || '○○ ○○'}（以下「乙」という）は、甲の乙に対する行政書士業務の委託に関し、次のとおり業務委託契約（以下「本契約」という）を締結する。
+  </div>
+
+  <div class="clause-title">第１条（委託業務）</div>
+  <div class="contract-clause">
+    甲は、次の業務（以下「本業務」という）を乙に委託し、乙はこれを受託する。<br>
+    <strong>本業務の内容： ${c.title} 申請手続 of 代理及び書類の作成</strong>
+  </div>
+
+  <div class="clause-title">第２条（報酬及び支払方法）</div>
+  <div class="contract-clause">
+    本業務に伴う乙の報酬額は、金 ${feeNum.toLocaleString()} 円（消費税等別、税込合計額 金 ${totalFee.toLocaleString()} 円）とする。
+  </div>
+  <div class="contract-clause">
+    ２．甲は乙に対し、本契約締結後速やかに着手金として上記金額を乙が指定する口座へ振込により支払うものとする。なお、振込手数料は甲の負担とする。
+  </div>
+
+  <div class="clause-title">第３条（必要書類の提供）</div>
+  <div class="contract-clause">
+    甲は、乙の請求に基づき、本業務の遂行に必要な書類及び情報を、遅滞なく乙に提供しなければならない。
+  </div>
+
+  <div class="clause-title">第４条（秘密保持）</div>
+  <div class="contract-clause">
+    乙は、本業務の遂行上知り得た甲の秘密情報（個人情報及び事業上の秘密を含む）を、正当な理由なく第三者に漏洩してはならない。本契約終了後も同様とする。
+  </div>
+
+  <div class="clause-title">第５条（反社会的勢力の排除）</div>
+  <div class="contract-clause">
+    甲及び乙は、自ら又は自らの役員若しくは従業員が、反社会的勢力（暴力団、暴力団員、その他これらに準ずる者）に該当しないこと、及び資金提供等を通じて反社会的勢力の維持・運営に関与していないことを表明し、将来にわたっても確約する。
+  </div>
+  <div class="contract-clause">
+    ２．甲又は乙は、相手方が前項の表明確約に違反した場合、催告することなく直ちに本契約を解除することができる。
+  </div>
+
+  <div class="clause-title">第６条（合意管轄）</div>
+  <div class="contract-clause">
+    本契約に関し裁判上の紛争が生じたときは、乙の事務所所在地を管轄する地方裁判所又は簡易裁判所を第一審の専属的合意管轄裁判所とする。
+  </div>
+
+  <div style="margin-top: 50px; text-align: right; padding-right: 20px;">
+    本契約締結の証として、本書２通を作成し、甲乙双方が署名又は記名押印の上、各自１通を保有する。<br><br>
+    令和　　　年　　　月　　　日
+  </div>
+  
+  <div class="signature-block">
+    <div class="signature-left">
+      <div style="font-weight: 700; margin-bottom: 16px;">（甲）委託者</div>
+      <div class="sig-row">
+        <div class="sig-label">住所</div>
+        <div class="sig-value">${clientAddress || ''}</div>
+      </div>
+      <div class="sig-row" style="margin-top:20px;">
+        <div class="sig-label">氏名</div>
+        <div class="sig-value">${clientName !== 'お客様' ? clientName : ''}<span class="inkan">㊞</span></div>
+      </div>
+    </div>
+    <div class="signature-right">
+      <div style="font-weight: 700; margin-bottom: 16px;">（乙）受託者</div>
+      <div class="sig-row">
+        <div class="sig-label">住所</div>
+        <div class="sig-value">${officeInfo.address || ''}</div>
+      </div>
+      <div class="sig-row" style="margin-top:20px;">
+        <div class="sig-label">氏名</div>
+        <div class="sig-value">行政書士 ${officeInfo.representative || ''}<span class="inkan">㊞</span></div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+
+    if (c.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      App.showToast(`🔄 Driveへ業務委託契約書を自動保存中...`);
+      SpreadsheetSync.push('saveGeneratedPdf', {
+        html: html,
+        fileName: '業務委託契約書.pdf',
+        folderUrl: c.driveFolderUrl
+      }).then(res => {
+        if (res && res.success) App.showToast(`✅ 業務委託契約書をDriveに保存しました`);
+      });
+    }
+  },
+
+  // ─── 表明確約書（反社排除）ジェネレーター ──────────────────
+  generateAntisocial(c, clientName, clientAddress, officeName, officeDetail, officeInfo) {
+    const today = new Date().toLocaleDateString('ja-JP');
+
+    const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>表明確約書 - ${c.title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Noto Serif JP', serif; color: #111; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 2; font-size: 14px; }
+  @media print { body { padding: 20px; } .no-print { display: none !important; } @page { margin: 20mm; size: A4; } }
+  .print-bar { display: flex; gap: 10px; margin-bottom: 30px; justify-content: flex-end; font-family: sans-serif; }
+  .print-bar button { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .btn-print { background: #3b82f6; color: #fff; }
+  .btn-close { background: #e5e7eb; color: #374151; }
+  .title { text-align: center; font-size: 22px; font-weight: 700; letter-spacing: 4px; margin-top: 20px; margin-bottom: 40px; }
+  .clause-item { margin-bottom: 15px; padding-left: 20px; text-indent: -20px; }
+  .signature-block { margin-top: 60px; display: flex; justify-content: flex-end; }
+  .signature-box { width: 350px; }
+  .sig-row { margin-bottom: 15px; display: flex; }
+  .sig-label { width: 80px; }
+  .sig-value { flex: 1; border-bottom: 1px dotted #555; position: relative; min-height: 25px; }
+  .inkan { position: absolute; right: 10px; top: -5px; font-size: 20px; color: #ccc; }
+</style>
+</head>
+<body>
+  <div class="print-bar no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+    <button class="btn-close" onclick="window.close()">✕ 閉じる</button>
+  </div>
+  
+  <div class="title">反社会的勢力の排除に関する表明確約書</div>
+  
+  <div style="margin-bottom: 30px; text-align: left;">
+    行政書士 ${officeInfo.representative || '○○ ○○'} 御中
+  </div>
+
+  <div style="margin-bottom: 30px; text-indent: 1em;">
+    私は、行政書士との間における業務委託契約その他一切の取引（以下「本取引」という）に際し、現在及び将来にわたって、次の各号の事項を表明し、確約いたします。
+  </div>
+
+  <div class="clause-item">
+    １．自ら又は自らの法人の役員、主要な株主若しくはこれらに準ずる者が、現在、暴力団、暴力団員、暴力団員でなくなった時から５年を経過しない者、暴力団準構成員、暴力団関係企業、総会屋、社会運動標ぼうゴロ、特殊知能暴力集団その他これらに準ずる者（以下、これらを総称して「暴力団員等」という）に該当しないこと。
+  </div>
+
+  <div class="clause-item">
+    ２．暴力団員等が、自らの経営又は事業の実質的な運営に関与していないこと。
+  </div>
+
+  <div class="clause-item">
+    ３．自己若しくは第三者の不正の利益を図る目的、又は第三者に損害を加える目的をもって、暴力団員等を利用していると認められる関係を有していないこと。
+  </div>
+
+  <div class="clause-item">
+    ４．暴力団員等に対して資金等を提供し、又は便宜を供与するなどの関与をしていないこと。
+  </div>
+
+  <div class="clause-item">
+    ５．自ら又は第三者を利用して、暴力的若しくは法的な責任を超えた不当な要求行為、脅迫的な言動若しくは暴力を用いる行為、又は風説を流布し、偽計若しくは威力を用いて貴事務所の信用を毀損し、業務を妨害する行為を行わないこと。
+  </div>
+
+  <div style="margin-top: 30px; text-indent: 1em;">
+    私は、上記の表明確約に違反する事実が判明した場合には、貴事務所が何らの催告を要せず直ちに本取引を解除されても異議を申し立てず、また、これにより被った損害についての賠償請求を行わないことを確約いたします。
+  </div>
+
+  <div style="margin-top: 50px; text-align: right; padding-right: 20px;">
+    令和　　　年　　　月　　　日
+  </div>
+  
+  <div class="signature-block">
+    <div class="signature-box">
+      <div class="sig-row">
+        <div class="sig-label">住所</div>
+        <div class="sig-value">${clientAddress || ''}</div>
+      </div>
+      <div class="sig-row" style="margin-top:20px;">
+        <div class="sig-label">氏名・商号</div>
+        <div class="sig-value">${clientName !== 'お客様' ? clientName : ''}<span class="inkan">㊞</span></div>
+      </div>
+      <div class="sig-row" style="margin-top:20px;">
+        <div class="sig-label">代表者氏名</div>
+        <div class="sig-value"><span class="inkan">㊞</span></div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+
+    if (c.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      App.showToast(`🔄 Driveへ表明確約書を自動保存中...`);
+      SpreadsheetSync.push('saveGeneratedPdf', {
+        html: html,
+        fileName: '表明確約書.pdf',
+        folderUrl: c.driveFolderUrl
+      }).then(res => {
+        if (res && res.success) App.showToast(`✅ 表明確約書をDriveに保存しました`);
       });
     }
   },
