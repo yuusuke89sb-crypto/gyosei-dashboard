@@ -703,6 +703,10 @@ const Cases = {
       const extArea = document.getElementById('caseExtArea');
       if (extArea) {
         let extHtml = '';
+        
+        // 所在図・配置図（地図メーカー）ウィジェットを最上部に追加
+        extHtml += Cases.renderMapWidget(id);
+
         // 書類添付パネル
         if (typeof CaseDocs !== 'undefined') {
           extHtml += CaseDocs.renderPanel(id);
@@ -951,5 +955,69 @@ const Cases = {
     
     App.showToast(`マイルストーンを更新しました: ${milestoneVal}/${totalSteps}`);
     App.refreshView();
+  },
+
+  renderMapWidget(caseId) {
+    const mapPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
+    
+    let mapPreviewHtml = '';
+    if (mapPng) {
+      mapPreviewHtml = `
+        <div style="margin-bottom:8px; border:1px solid var(--border-color); border-radius:4px; overflow:hidden; background:white; display:flex; align-items:center; justify-content:center; max-height:160px; padding:4px">
+          <img src="${mapPng}" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:2px;" />
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn btn-secondary btn-small" onclick="window.open('map-maker/index.html?caseId=${caseId}', '_blank')" style="flex:1; font-size:0.75rem; padding:4px 8px;">🗺️ 再編集</button>
+          <button type="button" class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')" style="flex:1; font-size:0.75rem; padding:4px 8px;">📥 保存</button>
+          <button type="button" class="btn btn-danger btn-small" onclick="Cases.deleteAttachedMap('${caseId}')" style="font-size:0.75rem; padding:4px 8px;" title="削除">🗑️</button>
+        </div>
+      `;
+    } else {
+      mapPreviewHtml = `
+        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; line-height:1.4;">
+          車庫証明の所在図・配置図をブラウザ上で簡単に作成し、この案件へ添付できます。
+        </p>
+        <button type="button" class="btn btn-secondary btn-small" onclick="window.open('map-maker/index.html?caseId=${caseId}', '_blank')" style="width:100%; font-weight:600; font-size:0.78rem; padding:6px">
+          🗺️ 地図メーカーで図面を作成
+        </button>
+      `;
+    }
+
+    return `
+      <div class="checklist-widget" style="margin-top:12px; border-left:4px solid var(--accent-orange); padding:12px; border-radius:6px; background:rgba(249,115,22,0.02); border:1px solid var(--border-color)">
+        <h4 style="margin:0 0 8px; font-size:0.88rem; display:flex; align-items:center; gap:6px; color:var(--text-dark)">
+          🗺️ 所在図・配置図
+        </h4>
+        ${mapPreviewHtml}
+      </div>
+    `;
+  },
+
+  downloadAttachedMap(caseId) {
+    const mapPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
+    if (!mapPng) return;
+    const a = document.createElement('a');
+    a.href = mapPng;
+    a.download = `case_${caseId}_map.png`;
+    a.click();
+  },
+
+  deleteAttachedMap(caseId) {
+    if (confirm('添付された地図を削除しますか？\n（ベクター作成データも消去されます）')) {
+      localStorage.removeItem('gyosei_case_map_png_' + caseId);
+      localStorage.removeItem('gyosei_case_map_vector_' + caseId);
+      Cases.showEditModal(caseId); // Reload modal
+      App.showToast('地図を削除しました');
+    }
   }
 };
+
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'MAP_SAVED') {
+    const { caseId, mapDataUrl } = e.data;
+    if (typeof Cases !== 'undefined' && Cases.editingId === caseId) {
+      Cases.showEditModal(caseId);
+      App.showToast('✅ 地図が保存されました');
+    }
+  }
+});

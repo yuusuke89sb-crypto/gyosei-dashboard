@@ -2148,5 +2148,71 @@ function applyCrop() {
   });
 }
 
+// ===== Case Integration =====
+(function initCaseIntegration() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const caseId = urlParams.get('caseId');
+  if (caseId) {
+    // Show the "📤 案件に保存" button
+    const saveBtn = document.getElementById('btn-save-case');
+    if (saveBtn) {
+      saveBtn.style.display = 'block';
+      saveBtn.onclick = () => saveMapToCase(caseId);
+    }
+    
+    // Auto-load vector elements from localStorage if they exist
+    const savedVector = localStorage.getItem('gyosei_case_map_vector_' + caseId);
+    if (savedVector) {
+      try {
+        S.elements = JSON.parse(savedVector);
+        setTimeout(render, 100);
+      } catch (e) {
+        console.error('Failed to parse saved vector map data:', e);
+      }
+    }
+  }
+})();
+
+function saveMapToCase(caseId) {
+  // Save vector shapes
+  localStorage.setItem('gyosei_case_map_vector_' + caseId, JSON.stringify(S.elements));
+  
+  // Hide UI helpers before exporting the image
+  const origRef = S.showRef, origGrid = S.showGrid, origSel = S.selectedIdx;
+  S.showRef = false; S.showGrid = false; S.selectedIdx = -1;
+  render();
+  
+  canvas.toBlob(blob => {
+    // Restore helper UI
+    S.showRef = origRef; S.showGrid = origGrid; S.selectedIdx = origSel;
+    render();
+
+    if (!blob || blob.size < 100) {
+      alert('保存エラー: キャンバスが空です。');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      
+      // Save PNG data URL to localStorage
+      localStorage.setItem('gyosei_case_map_png_' + caseId, dataUrl);
+      
+      // Post message to parent if opener window is active
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: 'MAP_SAVED',
+          caseId: caseId,
+          mapDataUrl: dataUrl
+        }, '*');
+      }
+      
+      alert('✅ 所在図・配置図を案件データに保存しました！\nダッシュボードの案件編集フォームで保存ボタンを押すと変更が確定されます。');
+    };
+    reader.readAsDataURL(blob);
+  }, 'image/png');
+}
+
 // ===== Init =====
 resize();

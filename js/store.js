@@ -543,6 +543,13 @@ const Store = {
       // 8. 定型仕訳 (gyosei_recurring) をクリア
       localStorage.setItem('gyosei_recurring', JSON.stringify([]));
 
+      // 9. 案件に紐づく地図メーカーの画像・ベクターデータをクリア
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('gyosei_case_map_')) {
+          localStorage.removeItem(key);
+        }
+      });
+
       if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
         alert('ローカルのテストデータ消去が完了しました。\n\n⚠️ 重要：Googleスプレッドシート連携が設定されているため、このまま同期するとスプレッドシート上のテストデータが再ダウンロードされます。スプレッドシート側（案件シート、仕訳シートなど）からも手動でテスト用の行を削除するか、新しい本番用スプレッドシートへURLを変更してください。');
       } else {
