@@ -171,7 +171,9 @@ const SpreadsheetSync = {
             action,
             data,
             lineToken: config.lineToken || '',
-            lineUserId: config.lineUserId || ''
+            lineUserId: config.lineUserId || '',
+            lineNotifyCase: !!config.lineNotifyCase,
+            lineNotifyInbox: !!config.lineNotifyInbox
         };
 
         try {
@@ -263,6 +265,18 @@ const SpreadsheetSync = {
                 ※ ユーザーIDが不明な場合、友だち追加したBotへスマホから適当な言葉（例:「ID」）を送信後、Googleスプレッドシートの「**操作ログ**」シートを開くと、あなたのユーザーIDが自動で記録されています。
               </p>
             </div>
+            
+            <!-- 通知項目のオン・オフ切り替え -->
+            <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+              <label style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:var(--text-color);cursor:pointer">
+                <input type="checkbox" id="syncLineNotifyCase" ${config.lineNotifyCase ? 'checked' : ''} style="margin:0">
+                <span>案件完了時にお祝い＆売上報告通知を送る</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:var(--text-color);cursor:pointer">
+                <input type="checkbox" id="syncLineNotifyInbox" ${config.lineNotifyInbox ? 'checked' : ''} style="margin:0">
+                <span>新着資料・FAX受信時に通知を送る</span>
+              </label>
+            </div>
           </div>
 
           <div class="form-actions" style="gap:8px">
@@ -339,11 +353,15 @@ const SpreadsheetSync = {
         const url = document.getElementById('syncGasUrl').value.trim();
         const lineToken = document.getElementById('syncLineToken') ? document.getElementById('syncLineToken').value.trim() : '';
         const lineUserId = document.getElementById('syncLineUserId') ? document.getElementById('syncLineUserId').value.trim() : '';
+        const lineNotifyCase = document.getElementById('syncLineNotifyCase') ? document.getElementById('syncLineNotifyCase').checked : false;
+        const lineNotifyInbox = document.getElementById('syncLineNotifyInbox') ? document.getElementById('syncLineNotifyInbox').checked : false;
         this.saveConfig({
             ...this.getConfig(),
             gasUrl: url,
             lineToken: lineToken,
-            lineUserId: lineUserId
+            lineUserId: lineUserId,
+            lineNotifyCase: lineNotifyCase,
+            lineNotifyInbox: lineNotifyInbox
         });
         document.getElementById('syncSettingsModal').remove();
         App.showToast('連携設定を保存しました');

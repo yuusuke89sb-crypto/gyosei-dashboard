@@ -627,6 +627,8 @@ function doPost(e) {
     const data = body.data;
     const lineToken = body.lineToken; // LINE公式チャネルアクセストークン
     const lineUserId = body.lineUserId; // 送信先ユーザーID
+    const lineNotifyCase = !!body.lineNotifyCase; // 案件完了通知フラグ
+    const lineNotifyInbox = !!body.lineNotifyInbox; // インボックス通知フラグ
     let result = {};
 
     switch (action) {
@@ -641,8 +643,8 @@ function doPost(e) {
       case 'sendFax': result = sendFax_(data); break;
       case 'checkFax': result = checkIncomingFax_(); break;
       case 'checkInbox': result = checkIncomingInbox_(); break;
-      case 'upsertInboxItem': result = upsertInboxItem_(data, lineToken, lineUserId); break;
-      case 'upsertCase': result = upsertCase_(data, lineToken, lineUserId); break;
+      case 'upsertInboxItem': result = upsertInboxItem_(data, lineToken, lineUserId, lineNotifyInbox); break;
+      case 'upsertCase': result = upsertCase_(data, lineToken, lineUserId, lineNotifyCase); break;
       case 'deleteCase': result = deleteRow_(SHEET_NAMES.CASES, data.id); break;
       case 'upsertJournal': result = upsertJournal_(data); break;
       case 'deleteJournal': result = deleteRow_(SHEET_NAMES.JOURNALS, data.id); break;
@@ -810,7 +812,7 @@ function deleteRow_(sheetName, id) {
   return { success: true, action: 'deleted', id: id };
 }
 
-function upsertCase_(data, lineToken, lineUserId) {
+function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAMES.CASES);
   if (!sheet) {
@@ -842,7 +844,7 @@ function upsertCase_(data, lineToken, lineUserId) {
         sheet.getRange(row, 13).setValue(now); // Column 13 is 更新日 (updatedAt)
 
         // 案件完了時の通知
-        if (data.status === 'done' && oldStatus !== 'done' && lineToken && lineUserId) {
+        if (data.status === 'done' && oldStatus !== 'done' && lineToken && lineUserId && lineNotifyCase) {
           const clientName = data.clientId ? (getClientName_(data.clientId) || '') : '';
           const msg = '\n【🎉 案件完了】\n' + 
                       (clientName ? clientName + ' 様：' : '') + data.title + '\n' +
@@ -1261,7 +1263,7 @@ function getFaxLog_(count) {
 //  インボックス連携 & 自動受信スキャン
 // ============================================================
 
-function upsertInboxItem_(data, lineToken, lineUserId) {
+function upsertInboxItem_(data, lineToken, lineUserId, lineNotifyInbox) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAMES.INBOX);
   if (!sheet) return { error: 'インボックスシートが見つかりません' };
@@ -1299,7 +1301,7 @@ function upsertInboxItem_(data, lineToken, lineUserId) {
   sheet.appendRow(rowData);
 
   // 新着資料・FAXの通知
-  if (lineToken && lineUserId) {
+  if (lineToken && lineUserId && lineNotifyInbox) {
     const msg = '\n【📥 新着資料受信】\n' +
                 '種別：' + (data.type || '不明') + '\n' +
                 '送信元：' + (data.sender || '不明') + '\n' +
