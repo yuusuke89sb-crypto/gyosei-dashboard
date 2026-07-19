@@ -245,11 +245,23 @@ const SpreadsheetSync = {
           <div id="syncTestResult" style="margin-top:12px;display:none"></div>
 
           ${config.lastSync ? `
-            <div class="sync-status-info">
+            <div class="sync-status-info" style="margin-bottom:12px">
               <span class="detail-icon">⏱️</span>
               最終同期: ${new Date(config.lastSync).toLocaleString('ja-JP')}
             </div>
           ` : ''}
+
+          <!-- 本番移行用メンテナンスツール -->
+          <div style="border-top:1px solid var(--border-color);margin-top:16px;padding-top:16px">
+            <h3 style="font-size:0.9rem;margin-bottom:6px;color:var(--accent-orange);display:flex;align-items:center;gap:6px">⚠️ 本番移行用のデータ初期化</h3>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:12px;line-height:1.4">
+              テスト用に登録した「仕訳帳」および「案件データ（進捗、請求、予定、タスク含む）」のみを一括消去します。<br>
+              <strong>※ 顧客情報、担当者、店舗/場所マスターは削除されずにそのまま残ります。</strong>
+            </p>
+            <button class="btn" onclick="Store.clearTestDataForProduction()" style="background-color:#c2410c;color:white;font-size:0.78rem;padding:6px 12px">
+              🧹 仕訳・案件データのみ消去
+            </button>
+          </div>
         </div>
       </div>
     `;

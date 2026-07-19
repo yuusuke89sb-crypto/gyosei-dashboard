@@ -508,6 +508,60 @@ const Store = {
     }
   },
 
+  // 本番移行用のテストデータ消去（仕訳・案件等のみ。顧客・担当者・店舗等は維持）
+  clearTestDataForProduction() {
+    if (!confirm('【本番移行データの初期化】\n\nテスト用に登録した「仕訳データ」および「案件データ（および関連する請求・タスク・予定・メールBOX）」をすべて消去します。\n\n※ 顧客情報、担当者、店舗/場所マスターは削除されずそのまま残ります。\n本当に実行してよろしいですか？')) {
+      return;
+    }
+    
+    if (!confirm('本当に消去してよろしいですか？（実行前に念のためバックアップファイルをダウンロード保存しておくことを強くお勧めします）')) {
+      return;
+    }
+
+    try {
+      // 1. 案件データをクリア
+      this._set(this.KEYS.CASES, []);
+
+      // 2. 仕訳データをクリア
+      localStorage.setItem('gyosei_journals', JSON.stringify([]));
+
+      // 3. 請求・入金レコードをクリア
+      localStorage.setItem('gyosei_payments', JSON.stringify([]));
+
+      // 4. スケジュール (gyosei_events) をクリア
+      this._set(this.KEYS.EVENTS, []);
+
+      // 5. タスク (gyosei_todos) をクリア
+      this._set(this.KEYS.TODOS, []);
+
+      // 6. 登録前BOX (gyosei_inbox) をクリア
+      this._set(this.KEYS.INBOX, []);
+
+      // 7. 履歴ログ (gyosei_activity_log) をクリア
+      localStorage.setItem('gyosei_activity_log', JSON.stringify([]));
+
+      // 8. 定型仕訳 (gyosei_recurring) をクリア
+      localStorage.setItem('gyosei_recurring', JSON.stringify([]));
+
+      if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+        alert('ローカルのテストデータ消去が完了しました。\n\n⚠️ 重要：Googleスプレッドシート連携が設定されているため、このまま同期するとスプレッドシート上のテストデータが再ダウンロードされます。スプレッドシート側（案件シート、仕訳シートなど）からも手動でテスト用の行を削除するか、新しい本番用スプレッドシートへURLを変更してください。');
+      } else {
+        alert('仕訳および案件データ（テスト用）の消去が完了しました！\n顧客、店舗、担当者、場所情報は維持されています。');
+      }
+
+      // 画面をダッシュボードにリフレッシュして再描画
+      const modal = document.getElementById('syncSettingsModal');
+      if (modal) modal.remove();
+      
+      if (typeof App !== 'undefined') {
+        App.navigate('dashboard');
+        App.showToast('テストデータを消去しました');
+      }
+    } catch (err) {
+      alert('エラーが発生しました: ' + err.message);
+    }
+  },
+
   // ---- 統計 ----
   getStats() {
     const cases = this.getCases();
