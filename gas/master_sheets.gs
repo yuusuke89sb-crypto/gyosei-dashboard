@@ -1712,7 +1712,22 @@ function updateCaseHeaders_() {
 // ── LINE Messaging API 用ヘルパー関数群 ──
 
 function sendLineMessage_(message, accessToken, userId) {
-  if (!accessToken || !userId) return;
+  if (!accessToken || !userId) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const logSheet = ss.getSheetByName(SHEET_NAMES.LOG || '操作ログ');
+    if (logSheet) {
+      logSheet.appendRow([
+        new Date(),
+        'LINE送信スキップ',
+        'システム',
+        '-',
+        'LINE 連携デバッグ',
+        '-',
+        '理由: トークン(' + (accessToken ? '設定済' : '未設定') + ') または ユーザーID(' + (userId ? '設定済' : '未設定') + ') が不足しています'
+      ]);
+    }
+    return;
+  }
   const url = 'https://api.line.me/v2/bot/message/push';
   const payload = {
     to: userId,
@@ -1734,9 +1749,36 @@ function sendLineMessage_(message, accessToken, userId) {
   };
   try {
     const response = UrlFetchApp.fetch(url, options);
-    Logger.log('LINE Send Response: ' + response.getContentText());
+    const resText = response.getContentText();
+    
+    // スプレッドシートの「操作ログ」に記録
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const logSheet = ss.getSheetByName(SHEET_NAMES.LOG || '操作ログ');
+    if (logSheet) {
+      logSheet.appendRow([
+        new Date(),
+        'LINE送信結果',
+        'システム',
+        '-',
+        'LINE 連携デバッグ',
+        '-',
+        'レスポンス: ' + resText
+      ]);
+    }
   } catch (err) {
-    Logger.log('LINE Send Error: ' + err.toString());
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const logSheet = ss.getSheetByName(SHEET_NAMES.LOG || '操作ログ');
+    if (logSheet) {
+      logSheet.appendRow([
+        new Date(),
+        'LINE送信例外エラー',
+        'システム',
+        '-',
+        'LINE 連携デバッグ',
+        '-',
+        'エラー: ' + err.toString()
+      ]);
+    }
   }
 }
 
