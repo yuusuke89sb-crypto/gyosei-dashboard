@@ -93,6 +93,9 @@ const App = {
           <span class="nav-icon">📥</span><span class="nav-label">登録前BOX</span>
           ${this.getInboxBadgeHtml()}
         </a>
+        <a class="nav-item ${this.currentPage === 'formats' ? 'active' : ''}" onclick="App.navigate('formats')">
+          <span class="nav-icon">📂</span><span class="nav-label">書式ライブラリ</span>
+        </a>
       </nav>
       <div class="sidebar-tools">
         <button class="btn btn-ghost briefing-sidebar-btn" onclick="Briefing.show()" title="今日のブリーフィング">☀️ 今日のブリーフィング</button>
@@ -106,7 +109,6 @@ const App = {
         <button class="btn btn-ghost" onclick="ReferralAnalysis.show()" title="紹介元分析">🤝 紹介元</button>
         <button class="btn btn-ghost" onclick="StaffManager.show()" title="担当者管理">👥 担当者管理</button>
         <button class="btn btn-ghost" onclick="LocationManager.show()" title="場所マスター管理">📍 場所管理</button>
-        <button class="btn btn-ghost" onclick="window.open('書式集パック_プレゼンシート.html', '_blank')" title="書式パック要約">📂 書式パック要約</button>
       </div>
       <div class="sidebar-tools" style="border-top:1px solid var(--border-color);padding-top:4px">
         <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">連携ツール</div>
@@ -138,6 +140,7 @@ const App = {
       case 'calendar': content.innerHTML = Calendar.render(); break;
       case 'accounting': content.innerHTML = Accounting.render(); break;
       case 'inbox': content.innerHTML = InboxManager.render(); break;
+      case 'formats': content.innerHTML = Formats.render(); Formats.init(); break;
     }
   },
 
@@ -145,7 +148,7 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
     const navItems = document.querySelectorAll('.nav-item');
-    const pages = ['dashboard', 'clients', 'cases', 'calendar', 'accounting', 'inbox'];
+    const pages = ['dashboard', 'clients', 'cases', 'calendar', 'accounting', 'inbox', 'formats'];
     const idx = pages.indexOf(this.currentPage);
     if (navItems[idx]) navItems[idx].classList.add('active');
     const bottomItems = document.querySelectorAll('.bottom-nav-item');
