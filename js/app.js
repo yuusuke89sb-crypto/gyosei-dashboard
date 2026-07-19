@@ -96,6 +96,9 @@ const App = {
         <a class="nav-item ${this.currentPage === 'formats' ? 'active' : ''}" onclick="App.navigate('formats')">
           <span class="nav-icon">📂</span><span class="nav-label">書式ライブラリ</span>
         </a>
+        <a class="nav-item ${this.currentPage === 'analytics' ? 'active' : ''}" onclick="App.navigate('analytics')">
+          <span class="nav-icon">📈</span><span class="nav-label">ビジュアル分析</span>
+        </a>
       </nav>
       <div class="sidebar-tools">
         <button class="btn btn-ghost briefing-sidebar-btn" onclick="Briefing.show()" title="今日のブリーフィング">☀️ 今日のブリーフィング</button>
@@ -141,6 +144,7 @@ const App = {
       case 'accounting': content.innerHTML = Accounting.render(); break;
       case 'inbox': content.innerHTML = InboxManager.render(); break;
       case 'formats': content.innerHTML = Formats.render(); Formats.init(); break;
+      case 'analytics': content.innerHTML = Analytics.render(); Analytics.init(); break;
     }
   },
 
@@ -148,7 +152,7 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
     const navItems = document.querySelectorAll('.nav-item');
-    const pages = ['dashboard', 'clients', 'cases', 'calendar', 'accounting', 'inbox', 'formats'];
+    const pages = ['dashboard', 'clients', 'cases', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
     const idx = pages.indexOf(this.currentPage);
     if (navItems[idx]) navItems[idx].classList.add('active');
     const bottomItems = document.querySelectorAll('.bottom-nav-item');
