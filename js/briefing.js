@@ -129,13 +129,18 @@ const Briefing = {
       <div class="modal-content modal-large briefing-modal">
 
         <!-- ヘッダー -->
-        <div class="briefing-header">
+        <div class="briefing-header" style="display:flex; justify-content:space-between; align-items:center;">
           <div class="briefing-header-text">
             <div class="briefing-date">${dateStr}</div>
             <h2 class="briefing-title">${greeting}</h2>
           </div>
-          <button class="modal-close" style="color:#fff"
-            onclick="document.getElementById('briefingModal').remove()">✕</button>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button type="button" class="btn" onclick="Briefing.sendToLine()" style="background:#16a34a; color:#fff; font-size:0.8rem; padding:6px 12px; font-weight:600; border-radius:4px; border:none; cursor:pointer;">
+              💬 LINEに送る
+            </button>
+            <button class="modal-close" style="color:#fff; background:none; border:none; font-size:1.2rem; cursor:pointer;"
+              onclick="document.getElementById('briefingModal').remove()">✕</button>
+          </div>
         </div>
 
         <div class="briefing-body">
@@ -289,5 +294,61 @@ const Briefing = {
   // ─── 手動で今日のブリーフィングを表示（サイドバーボタン用） ─
   show() {
     this.showModal();
+  },
+
+  // ─── 本日のブリーフィング情報をLINEへ送信する ──
+  sendToLine() {
+    const { cases, events } = this.getTodayItems();
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('ja-JP', {
+      month: 'short', day: 'numeric', weekday: 'short'
+    });
+    
+    let msg = `\n【☀️ 本日のブリーフィング】\n${dateStr}の業務まとめ\n`;
+    
+    // 1. 本日の予定
+    msg += `\n📅 本日の予定 (${events.length}件):\n`;
+    if (events.length === 0) {
+      msg += '・予定はありません\n';
+    } else {
+      events.forEach(e => {
+        msg += `・[${e.time || '終日'}] ${e.title}\n`;
+      });
+    }
+    
+    // 2. 本日の案件
+    msg += `\n📋 本日の案件・期限 (${cases.length}件):\n`;
+    if (cases.length === 0) {
+      msg += '・対象案件はありません\n';
+    } else {
+      cases.forEach(c => {
+        const client = Store.getClient(c.clientId);
+        const clientText = client ? ` (${client.name}様)` : '';
+        const deadlineText = c.deadline ? ` (期限: ${c.deadline.slice(5)})` : '';
+        msg += `・[${c.status === 'applying' ? '申請中' : '期限'}] ${c.title}${clientText}${deadlineText}\n`;
+      });
+    }
+    
+    // 3. 登録前BOX
+    const inbox = (typeof Store !== 'undefined' && Store.getInbox) ? Store.getInbox() : [];
+    const unprocessedInbox = inbox.filter(item => item.status === '未対応');
+    if (unprocessedInbox.length > 0) {
+      msg += `\n📥 登録前BOX (未対応): ${unprocessedInbox.length}件あります。\n`;
+    }
+    
+    msg += '\n今日も一日頑張りましょう！';
+    
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('sendLineNotification', { message: msg })
+        .then(res => {
+          if (res && !res.error) {
+            App.showToast('✅ LINEへ本日の予定を送信しました');
+          } else {
+            App.showToast('❌ 送信失敗: 連携設定のLINEトークンまたはIDを確認してください');
+          }
+        });
+    } else {
+      App.showToast('⚠️ スプレッドシート連携が未設定です');
+    }
   },
 };

@@ -582,8 +582,36 @@ function doGet(e) {
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
+    
+    // ── LINE Messaging API Webhook の検知とユーザーID自動記録 ──
+    if (body.events && body.events.length > 0) {
+      const event = body.events[0];
+      if (event.source && event.source.userId) {
+        const userId = event.source.userId;
+        const msgText = (event.message && event.message.text) ? event.message.text : '（メッセージ受信）';
+        
+        // スプレッドシートの「操作ログ」に記録
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const logSheet = ss.getSheetByName(SHEET_NAMES.LOG || '操作ログ');
+        if (logSheet) {
+          logSheet.appendRow([
+            new Date(),
+            'LINE Webhook: ' + msgText,
+            'システム',
+            '-',
+            'LINE連携設定用',
+            '-',
+            'あなたのユーザーID: ' + userId
+          ]);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     const action = body.action;
     const data = body.data;
+    const lineToken = body.lineToken; // LINE公式チャネルアクセストークン
+    const lineUserId = body.lineUserId; // 送信先ユーザーID
     let result = {};
 
     switch (action) {
@@ -598,8 +626,8 @@ function doPost(e) {
       case 'sendFax': result = sendFax_(data); break;
       case 'checkFax': result = checkIncomingFax_(); break;
       case 'checkInbox': result = checkIncomingInbox_(); break;
-      case 'upsertInboxItem': result = upsertInboxItem_(data); break;
-      case 'upsertCase': result = upsertCase_(data); break;
+      case 'upsertInboxItem': result = upsertInboxItem_(data, lineToken, lineUserId); break;
+      case 'upsertCase': result = upsertCase_(data, lineToken, lineUserId); break;
       case 'deleteCase': result = deleteRow_(SHEET_NAMES.CASES, data.id); break;
       case 'upsertJournal': result = upsertJournal_(data); break;
       case 'deleteJournal': result = deleteRow_(SHEET_NAMES.JOURNALS, data.id); break;
@@ -609,6 +637,10 @@ function doPost(e) {
       case 'deleteCaseDocument': result = deleteCaseDocument_(data); break;
       case 'upsertLocation': result = upsertLocation_(data); break;
       case 'deleteLocation': result = deleteRow_(SHEET_NAMES.LOCATION, data.id); break;
+      case 'sendLineNotification':
+        sendLineMessage_(data.message, lineToken, lineUserId);
+        result = { success: true };
+        break;
       default: result = { error: '不明なアクション: ' + action };
     }
 
@@ -763,7 +795,7 @@ function deleteRow_(sheetName, id) {
   return { success: true, action: 'deleted', id: id };
 }
 
-function upsertCase_(data) {
+function upsertCase_(data, lineToken, lineUserId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAMES.CASES);
   if (!sheet) {
@@ -782,6 +814,8 @@ function upsertCase_(data) {
       const rowIdx = ids.indexOf(data.id);
       if (rowIdx !== -1) {
         const row = rowIdx + 2;
+        const oldStatus = sheet.getRange(row, 6).getValue(); // Column 6 (F) is status
+
         CASE_HEADERS.forEach(function(header, col) {
           const key = keyMap[header];
           if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
@@ -791,6 +825,18 @@ function upsertCase_(data) {
           }
         });
         sheet.getRange(row, 13).setValue(now); // Column 13 is 更新日 (updatedAt)
+
+        // 案件完了時の通知
+        if (data.status === 'done' && oldStatus !== 'done' && lineToken && lineUserId) {
+          const clientName = data.clientId ? (getClientName_(data.clientId) || '') : '';
+          const msg = '\n【🎉 案件完了】\n' + 
+                      (clientName ? clientName + ' 様：' : '') + data.title + '\n' +
+                      'カテゴリ：' + getCategoryLabel_(data.category) + '\n' +
+                      '報酬額：' + (data.fee ? Number(data.fee).toLocaleString() + '円' : '未設定') + '\n' +
+                      '今月の目標に向けて一歩前進しました！';
+          sendLineMessage_(msg, lineToken, lineUserId);
+        }
+
         return { success: true, action: 'updated', id: data.id };
       }
     }
@@ -1200,7 +1246,7 @@ function getFaxLog_(count) {
 //  インボックス連携 & 自動受信スキャン
 // ============================================================
 
-function upsertInboxItem_(data) {
+function upsertInboxItem_(data, lineToken, lineUserId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAMES.INBOX);
   if (!sheet) return { error: 'インボックスシートが見つかりません' };
@@ -1236,6 +1282,17 @@ function upsertInboxItem_(data) {
     return data[key] || '';
   });
   sheet.appendRow(rowData);
+
+  // 新着資料・FAXの通知
+  if (lineToken && lineUserId) {
+    const msg = '\n【📥 新着資料受信】\n' +
+                '種別：' + (data.type || '不明') + '\n' +
+                '送信元：' + (data.sender || '不明') + '\n' +
+                '件名：' + (data.subject || 'なし') + '\n' +
+                'ダッシュボードを開いて確認してください。';
+    sendLineMessage_(msg, lineToken, lineUserId);
+  }
+
   return { success: true, action: 'added', id: newId };
 }
 
@@ -1650,4 +1707,61 @@ function updateCaseHeaders_() {
   if (sheet) {
     sheet.getRange(1, 1, 1, CASE_HEADERS.length).setValues([CASE_HEADERS]);
   }
+}
+
+// ── LINE Messaging API 用ヘルパー関数群 ──
+
+function sendLineMessage_(message, accessToken, userId) {
+  if (!accessToken || !userId) return;
+  const url = 'https://api.line.me/v2/bot/message/push';
+  const payload = {
+    to: userId,
+    messages: [
+      {
+        type: 'text',
+        text: message
+      }
+    ]
+  };
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Authorization: 'Bearer ' + accessToken
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    Logger.log('LINE Send Response: ' + response.getContentText());
+  } catch (err) {
+    Logger.log('LINE Send Error: ' + err.toString());
+  }
+}
+
+function getClientName_(clientId) {
+  if (!clientId) return '';
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.CUSTOMER);
+  if (!sheet) return '';
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return '';
+  const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
+  const idx = ids.indexOf(clientId);
+  if (idx !== -1) {
+    return sheet.getRange(idx + 2, 2).getValue(); // Column 2 is 氏名 (name)
+  }
+  return '';
+}
+
+function getCategoryLabel_(cat) {
+  const cats = {
+    'garage_oss': '車庫証明（OSS）',
+    'garage_paper': '車庫証明（書面）',
+    'seal': '丁種封印',
+    'inheritance': '相続手続き',
+    'other': 'その他業務'
+  };
+  return cats[cat] || cat;
 }

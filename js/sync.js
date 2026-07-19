@@ -162,16 +162,23 @@ const SpreadsheetSync = {
         }
     },
 
-    // ---- データ送信（Push）----
     async push(action, data) {
         const url = this.getGasUrl();
         if (!url) return null;  // 未設定なら何もしない
+
+        const config = this.getConfig();
+        const payload = {
+            action,
+            data,
+            lineToken: config.lineToken || '',
+            lineUserId: config.lineUserId || ''
+        };
 
         try {
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },  // GAS の CORS 制限回避
-                body: JSON.stringify({ action, data }),
+                body: JSON.stringify(payload),
             });
 
             const result = await response.json();
@@ -231,6 +238,31 @@ const SpreadsheetSync = {
               value="${config.gasUrl || ''}"
               style="width:100%;margin-top:4px">
             <p class="form-hint">Apps Script のデプロイ URL を入力してください</p>
+          </div>
+
+          <!-- LINE Messaging API 設定 -->
+          <div style="border-top:1px solid var(--border-color);margin-top:16px;padding-top:16px">
+            <h3 style="font-size:0.9rem;margin-bottom:6px;color:var(--accent-orange);display:flex;align-items:center;gap:6px">💬 LINE Messaging API 連携（Bot通知）</h3>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px;line-height:1.4">
+              LINE公式アカウントのBot機能経由で、スマートフォンのLINE宛てに業務通知や完了リマインダーをPush送信します。
+            </p>
+            <div class="form-group">
+              <label style="font-size:0.75rem">LINE チャネルアクセストークン</label>
+              <input type="password" id="syncLineToken" class="search-input" 
+                placeholder="LINE Developersで発行したアクセストークンを入力"
+                value="${config.lineToken || ''}"
+                style="width:100%;margin-top:2px">
+            </div>
+            <div class="form-group" style="margin-top:10px">
+              <label style="font-size:0.75rem">LINE 送信先ユーザーID (Your User ID)</label>
+              <input type="text" id="syncLineUserId" class="search-input" 
+                placeholder="Uから始まる32桁のユーザーIDを入力"
+                value="${config.lineUserId || ''}"
+                style="width:100%;margin-top:2px">
+              <p class="form-hint" style="margin-top:4px;font-size:0.68rem;line-height:1.35;color:var(--text-muted)">
+                ※ ユーザーIDが不明な場合、友だち追加したBotへスマホから適当な言葉（例:「ID」）を送信後、Googleスプレッドシートの「**操作ログ**」シートを開くと、あなたのユーザーIDが自動で記録されています。
+              </p>
+            </div>
           </div>
 
           <div class="form-actions" style="gap:8px">
@@ -305,12 +337,16 @@ const SpreadsheetSync = {
 
     onSaveSettings() {
         const url = document.getElementById('syncGasUrl').value.trim();
+        const lineToken = document.getElementById('syncLineToken') ? document.getElementById('syncLineToken').value.trim() : '';
+        const lineUserId = document.getElementById('syncLineUserId') ? document.getElementById('syncLineUserId').value.trim() : '';
         this.saveConfig({
             ...this.getConfig(),
             gasUrl: url,
+            lineToken: lineToken,
+            lineUserId: lineUserId
         });
         document.getElementById('syncSettingsModal').remove();
-        App.showToast(url ? '連携設定を保存しました' : '連携設定をクリアしました');
+        App.showToast('連携設定を保存しました');
     },
 
     // ---- ワンクリック同期 ----
