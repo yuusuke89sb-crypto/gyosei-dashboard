@@ -85,7 +85,7 @@ const Accounting = {
 
     const debitOptions = this.getAllAccounts().map(a => `<option value="${a}">${a}</option>`).join('');
     const creditOptions = debitOptions;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = Store.getLocalDateStr();
 
     return `
       <div class="accounting-page">
@@ -227,7 +227,7 @@ const Accounting = {
     setTimeout(() => {
       document.getElementById('journalModalTitle').textContent = '仕訳追加';
       document.getElementById('journalForm').reset();
-      document.getElementById('jf_date').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('jf_date').value = Store.getLocalDateStr();
       document.getElementById('journalDeleteBtn').style.display = 'none';
       document.getElementById('journalModal').style.display = 'flex';
     }, 0);

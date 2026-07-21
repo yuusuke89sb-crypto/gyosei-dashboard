@@ -308,7 +308,7 @@ const Cases = {
   renderModal() {
     const clients = Store.getClients();
     const staffList = Store.getStaff();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = Store.getLocalDateStr();
     return `
       <div id="caseModal" class="modal" style="display:none">
         <div class="modal-overlay" onclick="Cases.closeModal()"></div>
@@ -579,7 +579,7 @@ const Cases = {
 
       // 注文書№ 自動連番付与 (PO-YYYYMMDD-XXX)
       const nextNum = Store.getCases().length + 1;
-      const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
       const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
       document.getElementById('csf_orderNo').value = autoOrderNo;
 

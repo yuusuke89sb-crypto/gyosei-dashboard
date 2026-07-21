@@ -66,7 +66,7 @@ const Invoice = {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
-    const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().slice(0, 10);
+    const endOfMonth = Store.getLocalDateStr(new Date(currentYear, currentMonth, 0));
 
     // 未請求案件のリスト生成
     const unbilledCases = this.getUnbilledCases(clientId);
@@ -134,7 +134,7 @@ const Invoice = {
             <div class="form-row">
               <div class="form-group">
                 <label>発行日</label>
-                <input type="date" id="invoiceDate" value="${now.toISOString().slice(0, 10)}">
+                <input type="date" id="invoiceDate" value="${Store.getLocalDateStr(now)}">
               </div>
               <div class="form-group" style="${docType === 'estimate' ? 'display:none' : ''}">
                 <label>支払期限</label>
@@ -382,7 +382,7 @@ const Invoice = {
     // 過去の支払いレコードから期限日と税率を取得（存在すれば）
     let dueDate = '';
     let taxRate = 10; // デフォルトは10%
-    let issueDate = new Date().toISOString().slice(0, 10);
+    let issueDate = Store.getLocalDateStr();
     if (typeof Payments !== 'undefined') {
       const p = Payments.getByClient(clientId).find(x => x.invoiceNo === invoiceNo);
       if (p) {
@@ -836,7 +836,7 @@ const Invoice = {
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) => sum + (c.advances || []).reduce((s,a) => s + Number(a.amount || 0), 0), 0);
     const total = p.amount;
-    const paidAt = p.paidAt ? p.paidAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const paidAt = p.paidAt ? p.paidAt.slice(0, 10) : Store.getLocalDateStr();
     
     const html = this.buildInvoiceHTML({
       invoiceNo, issueDate: paidAt, dueDate: '', year: new Date(paidAt).getFullYear(), month: new Date(paidAt).getMonth() + 1,

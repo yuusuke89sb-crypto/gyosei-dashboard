@@ -389,7 +389,7 @@ const Clients = {
     const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = Store.getLocalDateStr();
     const a = document.createElement('a');
     a.href = url;
     a.download = `顧客リスト_${todayStr}.csv`;

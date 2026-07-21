@@ -57,7 +57,7 @@ const Payments = {
     const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
     journals.push({
       id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-      date: new Date().toISOString().slice(0, 10),
+      date: Store.getLocalDateStr(),
       debit: '普通預金',
       credit: '売掛金',
       amount: p.amount,
@@ -370,7 +370,7 @@ const InheritanceDeadlines = {
       if (def.years) dl.setFullYear(dl.getFullYear() + def.years);
       const today = new Date(); today.setHours(0,0,0,0);
       const diffDays = Math.ceil((dl - today) / (1000 * 60 * 60 * 24));
-      return { ...def, date: dl.toISOString().slice(0,10), diffDays };
+      return { ...def, date: Store.getLocalDateStr(dl), diffDays };
     });
   },
 
@@ -546,7 +546,7 @@ const Reminders = {
     dayAfter.setDate(dayAfter.getDate() + 3);
 
     const lastNotified = localStorage.getItem('gyosei_last_reminder') || '';
-    const todayStr = today.toISOString().slice(0, 10);
+    const todayStr = Store.getLocalDateStr(today);
     if (lastNotified === todayStr) return; // 1日1回
     localStorage.setItem('gyosei_last_reminder', todayStr);
 
@@ -1207,7 +1207,7 @@ const MonthlyReport = {
     const unpaid = payments.filter(p => p.status === 'unpaid');
     const totalUnpaid = unpaid.reduce((s, p) => s + (p.amount || 0), 0);
     // 期限超過の未収金
-    const today = new Date().toISOString().slice(0, 10);
+    const today = Store.getLocalDateStr();
     const overduePayments = unpaid.filter(p => p.dueDate && p.dueDate < today);
 
     const expenseByAccount = {};
@@ -1297,7 +1297,7 @@ const MonthlyReport = {
       unpaidDetailHtml = d.unpaid.map(p => {
         const client = Store.getClient(p.clientId);
         const clientName = client ? (client.companyName || client.name) : '—';
-        const today = new Date().toISOString().slice(0, 10);
+        const today = Store.getLocalDateStr();
         const isOverdue = p.dueDate && p.dueDate < today;
         const daysOver = isOverdue ? Math.ceil((new Date(today) - new Date(p.dueDate)) / (1000 * 60 * 60 * 24)) : 0;
         return `<tr style="${isOverdue ? 'background:rgba(255,107,107,0.08)' : ''}">
@@ -1519,7 +1519,7 @@ const MonthlyReport = {
       d.unpaid.forEach(p => {
         const client = Store.getClient(p.clientId);
         const clientName = client ? (client.companyName || client.name) : '';
-        const today = new Date().toISOString().slice(0, 10);
+        const today = Store.getLocalDateStr();
         const isOverdue = p.dueDate && p.dueDate < today;
         rows.push([p.invoiceNo || '', clientName, p.amount || 0, p.dueDate || '', isOverdue ? '期限超過' : '期限内']);
       });
@@ -1570,7 +1570,7 @@ const MonthlyReport = {
     const unpaidRows = d.unpaid.map(p => {
       const client = Store.getClient(p.clientId);
       const clientName = client ? (client.companyName || client.name) : '—';
-      const today = new Date().toISOString().slice(0, 10);
+      const today = Store.getLocalDateStr();
       const isOverdue = p.dueDate && p.dueDate < today;
       const daysOver = isOverdue ? Math.ceil((new Date(today) - new Date(p.dueDate)) / (1000 * 60 * 60 * 24)) : 0;
       return `<tr ${isOverdue ? 'style="background:#fff5f5"' : ''}>
@@ -1918,7 +1918,7 @@ const GarageScheduleWidget = {
 
     // スケジュール一覧を生成し、直近の日付順に並べ替え
     const schedules = [];
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = Store.getLocalDateStr();
     const today = new Date(todayStr);
 
     cases.forEach(c => {

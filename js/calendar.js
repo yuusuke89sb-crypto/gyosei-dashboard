@@ -243,7 +243,7 @@ const Calendar = {
     const catOptions = this.EVENT_CATEGORIES.map(c =>
       `<option value="${c.key}">${c.label}</option>`
     ).join('');
-    const today = new Date().toISOString().slice(0, 10);
+    const today = Store.getLocalDateStr();
 
     return `
       <div id="eventModal" class="modal" style="display:none" onclick="Calendar.closeEventModal()">
@@ -316,7 +316,7 @@ const Calendar = {
       document.getElementById('eventModalTitle').textContent = '予定追加';
       document.getElementById('eventForm').reset();
       if (dateStr) document.getElementById('evf_date').value = dateStr;
-      else document.getElementById('evf_date').value = new Date().toISOString().slice(0, 10);
+      else document.getElementById('evf_date').value = Store.getLocalDateStr();
       // フィルタ中なら担当者を自動選択
       if (this.filterStaffId !== 'all') {
         document.getElementById('evf_staffId').value = this.filterStaffId;
@@ -953,7 +953,7 @@ const Calendar = {
     const a = document.createElement('a');
     a.href = url;
     const staffSuffix = this.filterStaffId !== 'all' ? `_${Store.getStaffName(this.filterStaffId)}` : '';
-    a.download = `gyosei_schedule${staffSuffix}_${new Date().toISOString().slice(0, 10)}.ics`;
+    a.download = `gyosei_schedule${staffSuffix}_${Store.getLocalDateStr()}.ics`;
     a.click();
     URL.revokeObjectURL(url);
     App.showToast(`📤 ${total}件の予定をエクスポートしました`);

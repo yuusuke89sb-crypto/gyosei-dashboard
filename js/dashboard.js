@@ -29,9 +29,17 @@ function renderDashboard() {
     .reduce((sum, j) => sum + (j.amount || 0), 0);
 
   // 今日の予定
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = Store.getLocalDateStr(now);
   const todayEvents = typeof Store !== 'undefined' ? Store.getEvents().filter(e => e.date === todayStr) : [];
-  const todayCases = allCases.filter(c => c.deadline === todayStr && c.status !== 'done');
+  const todayCases = allCases.filter(c => {
+    if (c.status === 'done') return false;
+    return c.deadline === todayStr ||
+           c.surveyDate === todayStr ||
+           c.applyDate === todayStr ||
+           c.policeDeliveryDate === todayStr ||
+           c.storeDeliveryDate === todayStr ||
+           c.registrationDate === todayStr;
+  });
 
   // 期限間近
   let urgentHtml = '';
@@ -84,7 +92,13 @@ function renderDashboard() {
     todayScheduleHtml = '<p class="empty-message">今日の予定はありません</p>';
   } else {
     todayCases.forEach(c => {
-      todayScheduleHtml += `<div class="today-item" onclick="App.navigate('cases')"><span class="today-icon">📋</span>${c.title}</div>`;
+      let actionLabel = '期限';
+      if (c.surveyDate === todayStr) actionLabel = '現調';
+      else if (c.applyDate === todayStr) actionLabel = '申請';
+      else if (c.policeDeliveryDate === todayStr) actionLabel = '交付';
+      else if (c.storeDeliveryDate === todayStr) actionLabel = '店届';
+      else if (c.registrationDate === todayStr) actionLabel = '登録';
+      todayScheduleHtml += `<div class="today-item" onclick="App.navigate('cases')"><span class="today-icon">📋</span>[${actionLabel}] ${c.title}</div>`;
     });
     todayEvents.forEach(e => {
       const time = e.time ? `${e.time} ` : '';

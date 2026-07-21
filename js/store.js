@@ -15,6 +15,13 @@ const Store = {
   },
 
   // ---- ユーティリティ ----
+  getLocalDateStr(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
   _generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
   },
@@ -203,7 +210,7 @@ const Store = {
     const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
     journals.push({
       id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-      date: new Date().toISOString().slice(0, 10),
+      date: this.getLocalDateStr(),
       debit: '売掛金',
       credit: '売上高',
       amount: Number(c.fee),
