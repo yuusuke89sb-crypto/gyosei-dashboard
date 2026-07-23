@@ -106,7 +106,17 @@ const Calendar = {
 
     // 期限リスト（案件イベント + 予定 + 相続期限を統合）
     const upcomingItems = [];
-    caseEvents.filter(ce => ce.status !== 'done').forEach(ce => {
+    caseEvents.filter(ce => {
+      if (ce.status === 'done') return false;
+      // 申請中 (applying) の場合、すでに完了している過去の工程 (申請日、現調日) は除外する
+      if (ce.status === 'applying') {
+        const isPastStep = (ce.type === 'case-apply' || ce.type === 'case-survey' || ce.type === 'case-apply-delivery');
+        if (isPastStep && Store.getDiffDays(ce.date) < 0) {
+          return false;
+        }
+      }
+      return true;
+    }).forEach(ce => {
       upcomingItems.push({ type: 'case-event', date: ce.date, data: ce });
     });
     events.filter(e => new Date(e.date) >= today).forEach(e => {
@@ -175,10 +185,10 @@ const Calendar = {
             const ce = item.data;
             const client = Store.getClient(Store.getCase(ce.caseId)?.clientId);
             const staffName = Store.getStaffName(ce.staffId);
-            const dl = new Date(ce.date);
-            const diff = Math.ceil((dl - today) / (1000 * 60 * 60 * 24));
-            const urgencyClass = diff < 0 ? 'overdue' : diff <= 3 ? 'urgent' : diff <= 7 ? 'soon' : '';
-            const urgencyLabel = diff < 0 ? `${Math.abs(diff)}日超過` : diff === 0 ? '本日' : `あと${diff}日`;
+            const diff = Store.getDiffDays(ce.date);
+            const isApplyingOrDone = ce.status === 'done' || (ce.status === 'applying' && (ce.type === 'case-apply' || ce.type === 'case-survey' || ce.type === 'case-apply-delivery'));
+            const urgencyClass = isApplyingOrDone ? (ce.status === 'done' ? 'done' : 'applying') : (diff < 0 ? 'overdue' : diff <= 3 ? 'urgent' : diff <= 7 ? 'soon' : '');
+            const urgencyLabel = isApplyingOrDone ? (ce.status === 'done' ? '完了' : '申請中') : (diff < 0 ? `${Math.abs(diff)}日超過` : diff === 0 ? '本日' : `あと${diff}日`);
             return `
                         <div class="timeline-item ${urgencyClass}" onclick="Cases.showEditModal('${ce.caseId}'); App.navigate('cases')">
                           <div class="timeline-date">${ce.date}<br><span class="timeline-diff">${urgencyLabel}</span></div>
@@ -187,6 +197,7 @@ const Calendar = {
                             <div class="timeline-meta">
                               ${client ? `👤 ${client.name}` : '—'}
                               ${ce.staffId ? ` ・ 🏷️ ${staffName}` : ''}
+                              ${ce.memo && ce.memo.trim() ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;word-break:break-word;">📝 ${ce.memo.trim()}</div>` : ''}
                             </div>
                           </div>
                         </div>`;
@@ -195,9 +206,8 @@ const Calendar = {
             const staffName = Store.getStaffName(e.staffId);
             const cat = this.EVENT_CATEGORIES.find(ec => ec.key === e.category);
             const icon = cat ? cat.label.split(' ')[0] : '📌';
-            const dl = new Date(e.date);
-            const diff = Math.ceil((dl - today) / (1000 * 60 * 60 * 24));
-            const urgencyLabel = diff === 0 ? '本日' : `あと${diff}日`;
+            const diff = Store.getDiffDays(e.date);
+            const urgencyLabel = diff < 0 ? `${Math.abs(diff)}日超過` : diff === 0 ? '本日' : `あと${diff}日`;
             return `
                         <div class="timeline-item timeline-event" onclick="Calendar.showEventEditModal('${e.id}')" style="border-left-color:${cat ? cat.color : '#f59e0b'}">
                           <div class="timeline-date">${e.date}${e.time ? '<br>' + e.time : ''}<br><span class="timeline-diff">${urgencyLabel}</span></div>
@@ -205,7 +215,7 @@ const Calendar = {
                             <div class="timeline-title">${icon} ${e.title}</div>
                             <div class="timeline-meta">
                               ${e.staffId ? `🏷️ ${staffName}` : ''}
-                              ${e.memo ? ` ・ ${e.memo.substring(0, 20)}` : ''}
+                              ${e.memo && e.memo.trim() ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;word-break:break-word;">📝 ${e.memo.trim()}</div>` : ''}
                             </div>
                           </div>
                         </div>`;

@@ -1924,7 +1924,7 @@ const GarageScheduleWidget = {
     cases.forEach(c => {
       const client = Store.getClient(c.clientId);
       if (c.surveyDate) {
-        const diff = Math.ceil((new Date(c.surveyDate) - today) / (1000 * 60 * 60 * 24));
+        const diff = Store.getDiffDays(c.surveyDate);
         schedules.push({
           type: 'survey',
           date: c.surveyDate,
@@ -1936,8 +1936,8 @@ const GarageScheduleWidget = {
           label: '🔍 現地調査'
         });
       }
-      if (c.applyDate) {
-        const diff = Math.ceil((new Date(c.applyDate) - today) / (1000 * 60 * 60 * 24));
+      if (c.applyDate && c.status !== 'applying') {
+        const diff = Store.getDiffDays(c.applyDate);
         schedules.push({
           type: 'apply',
           date: c.applyDate,
@@ -1950,7 +1950,7 @@ const GarageScheduleWidget = {
         });
       }
       if (c.policeDeliveryDate) {
-        const diff = Math.ceil((new Date(c.policeDeliveryDate) - today) / (1000 * 60 * 60 * 24));
+        const diff = Store.getDiffDays(c.policeDeliveryDate);
         schedules.push({
           type: 'delivery',
           date: c.policeDeliveryDate,
@@ -1963,7 +1963,7 @@ const GarageScheduleWidget = {
         });
       }
       if (c.storeDeliveryDate) {
-        const diff = Math.ceil((new Date(c.storeDeliveryDate) - today) / (1000 * 60 * 60 * 24));
+        const diff = Store.getDiffDays(c.storeDeliveryDate);
         schedules.push({
           type: 'store_delivery',
           date: c.storeDeliveryDate,

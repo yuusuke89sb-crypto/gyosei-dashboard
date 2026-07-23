@@ -53,13 +53,17 @@ const Briefing = {
     // 期限が今日 or 各日付（現調・申請・交付・店届・登録）が今日
     const todayCases = cases.filter(c => {
       if (c.status === 'done') return false;
+      if (c.status === 'applying') {
+        return c.policeDeliveryDate === today ||
+               c.storeDeliveryDate === today ||
+               c.registrationDate === today;
+      }
       return c.deadline === today ||
              c.surveyDate === today ||
              c.applyDate === today ||
              c.policeDeliveryDate === today ||
              c.storeDeliveryDate === today ||
-             c.registrationDate === today ||
-             c.status === 'applying';
+             c.registrationDate === today;
     });
 
     // ダッシュボード内カレンダーイベント（今日分）
@@ -285,13 +289,13 @@ const Briefing = {
                   const addr = client?.address || '';
                   const actionBadges = [];
                   if (c.surveyDate === today) actionBadges.push('<span class="status-badge" style="background:#3b82f6;color:white;font-weight:600">🔍 現調</span>');
-                  if (c.applyDate === today) actionBadges.push('<span class="status-badge" style="background:#10b981;color:white;font-weight:600">📝 申請</span>');
+                  if (c.applyDate === today && c.status !== 'applying') actionBadges.push('<span class="status-badge" style="background:#10b981;color:white;font-weight:600">📝 申請</span>');
                   if (c.policeDeliveryDate === today) actionBadges.push('<span class="status-badge" style="background:#f59e0b;color:white;font-weight:600">🚚 交付</span>');
                   if (c.storeDeliveryDate === today) actionBadges.push('<span class="status-badge" style="background:#8b5cf6;color:white;font-weight:600">🚚 店届</span>');
                   if (c.registrationDate === today) actionBadges.push('<span class="status-badge" style="background:#ec4899;color:white;font-weight:600">🚗 登録</span>');
-                  if (c.deadline === today) actionBadges.push('<span class="status-badge status-applying" style="background:#ef4444;color:white;font-weight:600">⏰ 期限</span>');
-                  if (actionBadges.length === 0 && c.status === 'applying') {
-                    actionBadges.push('<span class="status-badge status-applying">⏰ 申請中</span>');
+                  if (c.deadline === today && c.status !== 'applying') actionBadges.push('<span class="status-badge status-applying" style="background:#ef4444;color:white;font-weight:600">⏰ 期限</span>');
+                  if (c.status === 'applying' && actionBadges.length === 0) {
+                    actionBadges.push('<span class="status-badge" style="background:#3b82f6;color:white;font-weight:600">⏳ 交付待ち</span>');
                   }
                   const actionBadgeHtml = actionBadges.join(' ');
                   
@@ -721,7 +725,8 @@ const Briefing = {
             locText = ` 📍${loc.name}`;
           }
         }
-        msg += `・[${e.time || '終日'}] ${e.title}${locText}\n`;
+        const memoText = e.memo && e.memo.trim() ? `\n   📝 ${e.memo.trim().replace(/\n/g, ' ')}` : '';
+        msg += `・[${e.time || '終日'}] ${e.title}${locText}${memoText}\n`;
       });
     }
     
@@ -737,6 +742,7 @@ const Briefing = {
         const client = Store.getClient(c.clientId);
         const clientText = client ? ` (${client.name}様)` : '';
         const todayStr = Store.getLocalDateStr();
+        const caseMemo = c.memo || '';
         
         if (c.surveyDate === todayStr) {
           allActions.push({
@@ -746,10 +752,11 @@ const Briefing = {
             clientText,
             locId: c.surveyLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline
+            deadline: c.deadline,
+            memo: caseMemo
           });
         }
-        if (c.applyDate === todayStr) {
+        if (c.applyDate === todayStr && c.status !== 'applying' && c.status !== 'done') {
           allActions.push({
             type: 'apply',
             label: '申請',
@@ -757,7 +764,8 @@ const Briefing = {
             clientText,
             locId: c.policeLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline
+            deadline: c.deadline,
+            memo: caseMemo
           });
         }
         if (c.policeDeliveryDate === todayStr) {
@@ -768,7 +776,8 @@ const Briefing = {
             clientText,
             locId: c.policeLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline
+            deadline: c.deadline,
+            memo: caseMemo
           });
         }
         if (c.storeDeliveryDate === todayStr) {
@@ -779,7 +788,8 @@ const Briefing = {
             clientText,
             locId: c.locationId,
             timeLabel: c.storeDeliveryTime ? `【${c.storeDeliveryTime}】` : '',
-            deadline: c.deadline
+            deadline: c.deadline,
+            memo: caseMemo
           });
         }
         if (c.registrationDate === todayStr) {
@@ -790,7 +800,8 @@ const Briefing = {
             clientText,
             locId: c.landTransportLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline
+            deadline: c.deadline,
+            memo: caseMemo
           });
         }
         
@@ -802,7 +813,7 @@ const Briefing = {
           c.storeDeliveryDate !== todayStr &&
           c.registrationDate !== todayStr
         ) {
-          const label = c.deadline === todayStr ? '期限' : (c.status === 'applying' ? '申請中' : '期限');
+          const label = (c.status === 'applying') ? '交付待ち' : '期限';
           const locId = (label === '申請中') ? (c.policeLocationId || c.locationId) : (c.landTransportLocationId || c.locationId);
           allActions.push({
             type: 'deadlineOrOther',
@@ -811,7 +822,8 @@ const Briefing = {
             clientText,
             locId: locId,
             timeLabel: '',
-            deadline: c.deadline
+            deadline: c.deadline,
+            memo: caseMemo
           });
         }
       });
@@ -841,7 +853,8 @@ const Briefing = {
             const deadlineText = act.deadline ? ` (期限: ${act.deadline.slice(5)})` : '';
             // 指定時間がある場合は、箇条書きの先頭にわかりやすく表示
             const prefix = act.timeLabel ? `${act.timeLabel} ` : '';
-            msg += `・${prefix}${act.title}${act.clientText}${locText}${deadlineText}\n`;
+            const memoText = act.memo && act.memo.trim() ? `\n   📝 ${act.memo.trim().replace(/\n/g, ' ')}` : '';
+            msg += `・${prefix}${act.title}${act.clientText}${locText}${deadlineText}${memoText}\n`;
             printedCount++;
           });
         }

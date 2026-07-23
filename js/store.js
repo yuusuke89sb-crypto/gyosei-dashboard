@@ -22,6 +22,16 @@ const Store = {
     return `${year}-${month}-${day}`;
   },
 
+  getDiffDays(dateStr) {
+    if (!dateStr) return 0;
+    const parts = dateStr.slice(0, 10).split('-');
+    if (parts.length < 3) return 0;
+    const target = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((target - today) / (1000 * 60 * 60 * 24));
+  },
+
   _generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
   },
@@ -45,6 +55,12 @@ const Store = {
 
   getClient(id) {
     return this.getClients().find(c => c.id == id) || null;
+  },
+
+  getClientName(id) {
+    if (!id) return '';
+    const client = this.getClient(id);
+    return client ? client.name : '';
   },
 
   addClient(data) {
@@ -279,6 +295,7 @@ const Store = {
       endTime: data.endTime || '',
       staffId: data.staffId || '',
       locationId: data.locationId || '',
+      clientId: data.clientId || '',
       category: data.category || 'other',
       memo: data.memo || '',
       createdAt: new Date().toISOString(),
@@ -588,12 +605,13 @@ const Store = {
     in7Days.setDate(in7Days.getDate() + 7);
 
     const activeCases = cases.filter(c => c.status !== 'done');
-    const urgentCases = activeCases.filter(c => {
+    const unappliedCases = cases.filter(c => c.status !== 'done' && c.status !== 'applying');
+    const urgentCases = unappliedCases.filter(c => {
       if (!c.deadline) return false;
       const dl = new Date(c.deadline);
       return dl <= in3Days;
     });
-    const upcomingCases = activeCases.filter(c => {
+    const upcomingCases = unappliedCases.filter(c => {
       if (!c.deadline) return false;
       const dl = new Date(c.deadline);
       return dl > in3Days && dl <= in7Days;

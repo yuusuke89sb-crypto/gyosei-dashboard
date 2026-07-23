@@ -30,15 +30,23 @@ const Cases = {
     const cases = Store.getCases();
     let filtered = cases;
     if (this.filterCategory !== 'all') filtered = filtered.filter(c => c.category === this.filterCategory);
-    if (this.filterStatus !== 'all') filtered = filtered.filter(c => c.status === this.filterStatus);
+    
+    if (this.filterStatus === 'active') {
+      filtered = filtered.filter(c => c.status !== 'done');
+    } else if (this.filterStatus !== 'all' && this.filterStatus !== 'done') {
+      filtered = filtered.filter(c => c.status === this.filterStatus);
+    } else if (this.filterStatus === 'done') {
+      filtered = filtered.filter(c => c.status === 'done');
+    }
 
-    // 完了から7日以上経過した案件を自動非表示（フィルターで「完了」を選択時は表示）
-    if (this.filterStatus !== 'done') {
+    // 完了から7日以上経過した案件を「すべて」選択時に自動非表示（「完了」フィルター選択時は全表示）
+    if (this.filterStatus === 'all') {
       const now = Date.now();
       const HIDE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7日
       filtered = filtered.filter(c => {
-        if (c.status !== 'done' || !c.completedAt) return true;
-        return (now - new Date(c.completedAt).getTime()) < HIDE_AFTER_MS;
+        if (c.status !== 'done') return true;
+        const doneTime = c.completedAt ? new Date(c.completedAt).getTime() : (c.updatedAt ? new Date(c.updatedAt).getTime() : 0);
+        return doneTime > 0 ? (now - doneTime) < HIDE_AFTER_MS : true;
       });
     }
 
@@ -65,7 +73,8 @@ const Cases = {
           <div class="filter-group">
             <label>ステータス:</label>
             <select id="filterStatus" onchange="Cases.onFilterChange()" class="filter-select">
-              <option value="all" ${this.filterStatus === 'all' ? 'selected' : ''}>すべて</option>
+              <option value="all" ${this.filterStatus === 'all' ? 'selected' : ''}>すべて（進行中＋直近完了）</option>
+              <option value="active" ${this.filterStatus === 'active' ? 'selected' : ''}>⚡ 進行中のみ（未完了）</option>
               ${this.STATUSES.map(s => `<option value="${s.key}" ${this.filterStatus === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}
             </select>
           </div>
@@ -81,8 +90,17 @@ const Cases = {
     return `
       <div class="kanban-board">
         ${this.STATUSES.map(status => {
-      const statusCases = cases.filter(c => c.status === status.key);
-      return `
+          let statusCases = cases.filter(c => c.status === status.key);
+          let extraFooterHtml = '';
+          if (status.key === 'done' && this.filterStatus === 'all' && statusCases.length > 5) {
+            const totalDoneCount = statusCases.length;
+            statusCases = [...statusCases].sort((a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)).slice(0, 5);
+            extraFooterHtml = `
+              <div style="text-align:center;padding:10px 4px;font-size:0.78rem;color:var(--primary);cursor:pointer;font-weight:600;background:rgba(99,102,241,0.06);border-radius:6px;margin-top:6px" onclick="Cases.filterStatus='done';App.refreshView();">
+                過去の完了案件を見る (${totalDoneCount}件) ➔
+              </div>`;
+          }
+          return `
             <div class="kanban-column" data-status="${status.key}"
               ondragover="event.preventDefault(); this.classList.add('drag-over')"
               ondragleave="this.classList.remove('drag-over')"
@@ -93,13 +111,14 @@ const Cases = {
               </div>
               <div class="kanban-cards">
                 ${statusCases.length === 0
-          ? '<div class="kanban-empty">案件なし</div>'
-          : statusCases.map(c => this.renderKanbanCard(c)).join('')
-        }
+                  ? '<div class="kanban-empty">案件なし</div>'
+                  : statusCases.map(c => this.renderKanbanCard(c)).join('')
+                }
+                ${extraFooterHtml}
               </div>
             </div>
           `;
-    }).join('')}
+        }).join('')}
       </div>
     `;
   },
@@ -142,7 +161,7 @@ const Cases = {
   renderKanbanCard(c) {
     const client = Store.getClient(c.clientId);
     const catLabel = this.CATEGORIES.find(cat => cat.key === c.category);
-    const deadlineClass = this.getDeadlineClass(c.deadline);
+    const deadlineClass = this.getDeadlineClass(c.deadline, c.status);
     const staffName = Store.getStaffName(c.staffId);
     const contactName = c.clientContactId ? Store.getClientContact(c.clientContactId)?.name : '';
     
@@ -212,10 +231,13 @@ const Cases = {
           ${locationsHtml}
           ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
           ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
+          ${c.registrationDate ? `<span style="color:#d97706;font-weight:600">🚗 登録: ${c.registrationDate.slice(5)}</span>` : ''}
           ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
           ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
+          ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
         </div>
         ${milestoneHtml}
+        ${c.memo && c.memo.trim() ? `<div class="kanban-card-memo" style="font-size:0.75rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;" title="${c.memo.replace(/"/g, '&quot;')}">📝 ${c.memo.trim()}</div>` : ''}
         ${c.createdAt ? `<div class="kanban-card-date">📋 ${c.createdAt.slice(0, 10)}</div>` : ''}
         ${c.fee ? `<div class="kanban-card-fee">💰 報酬 ${Number(c.fee).toLocaleString()}円${(c.advances||[]).length > 0 ? ` + 立替 ${(c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0).toLocaleString()}円` : ''}</div>` : ''}
       </div>
@@ -235,7 +257,7 @@ const Cases = {
           const client = Store.getClient(c.clientId);
           const statusInfo = this.STATUSES.find(s => s.key === c.status);
           const catLabel = this.CATEGORIES.find(cat => cat.key === c.category);
-          const deadlineClass = this.getDeadlineClass(c.deadline);
+          const deadlineClass = this.getDeadlineClass(c.deadline, c.status);
 
           // 複数目的地のバッジを組み立て
           const locNames = [];
@@ -286,10 +308,13 @@ const Cases = {
                       ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
                       ${c.createdAt ? `<span>📋 ${c.createdAt.slice(0, 10)}</span>` : ''}
                       ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
+                      ${c.registrationDate ? `<span style="color:#d97706;font-weight:600">🚗 登録: ${c.registrationDate.slice(5)}</span>` : ''}
                       ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
                       ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
+                      ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
                       ${c.fee ? `<span>💰 ${Number(c.fee).toLocaleString()}円</span>` : ''}
                     </div>
+                  ${c.memo && c.memo.trim() ? `<div class="case-list-memo" style="font-size:0.78rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;">📝 ${c.memo.trim()}</div>` : ''}
                   <div class="case-list-status-controls">
                     ${this.STATUSES.map(s => `
                       <button class="status-step-btn ${c.status === s.key ? 'active' : ''}"
@@ -524,11 +549,9 @@ const Cases = {
     `;
   },
 
-  getDeadlineClass(deadline) {
-    if (!deadline) return '';
-    const dl = new Date(deadline);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const diff = (dl - today) / (1000 * 60 * 60 * 24);
+  getDeadlineClass(deadline, status) {
+    if (!deadline || status === 'done' || status === 'applying') return '';
+    const diff = Store.getDiffDays(deadline);
     if (diff < 0) return 'deadline-overdue';
     if (diff <= 3) return 'deadline-urgent';
     if (diff <= 7) return 'deadline-soon';

@@ -33,6 +33,11 @@ function renderDashboard() {
   const todayEvents = typeof Store !== 'undefined' ? Store.getEvents().filter(e => e.date === todayStr) : [];
   const todayCases = allCases.filter(c => {
     if (c.status === 'done') return false;
+    if (c.status === 'applying') {
+      return c.policeDeliveryDate === todayStr ||
+             c.storeDeliveryDate === todayStr ||
+             c.registrationDate === todayStr;
+    }
     return c.deadline === todayStr ||
            c.surveyDate === todayStr ||
            c.applyDate === todayStr ||
@@ -48,11 +53,10 @@ function renderDashboard() {
   } else {
     urgentHtml = stats.urgentCases.map(c => {
       const client = Store.getClient(c.clientId);
-      const dl = new Date(c.deadline);
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((dl - today) / (1000 * 60 * 60 * 24));
+      const diffDays = Store.getDiffDays(c.deadline);
       const urgencyClass = diffDays <= 0 ? 'overdue' : 'warning';
       const urgencyLabel = diffDays < 0 ? `${Math.abs(diffDays)}日超過` : diffDays === 0 ? '本日期限' : `あと${diffDays}日`;
+      const memoHtml = c.memo && c.memo.trim() ? `<div class="urgent-item-memo" style="font-size:0.75rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;">📝 ${c.memo.trim()}</div>` : '';
       return `
         <div class="urgent-item ${urgencyClass}" onclick="App.navigate('cases')">
           <div class="urgent-item-header">
@@ -61,6 +65,7 @@ function renderDashboard() {
           </div>
           <div class="urgent-item-title">${c.title}</div>
           <div class="urgent-item-client">${client ? client.name : '—'} ｜ 期限: ${c.deadline}</div>
+          ${memoHtml}
         </div>`;
     }).join('');
   }
@@ -72,15 +77,15 @@ function renderDashboard() {
   } else {
     upcomingHtml = stats.upcomingCases.map(c => {
       const client = Store.getClient(c.clientId);
-      const dl = new Date(c.deadline);
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil((dl - today) / (1000 * 60 * 60 * 24));
+      const diffDays = Store.getDiffDays(c.deadline);
+      const memoHtml = c.memo && c.memo.trim() ? `<div class="upcoming-item-memo" style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;word-break:break-word;">📝 ${c.memo.trim()}</div>` : '';
       return `
         <div class="upcoming-item" onclick="App.navigate('cases')">
           <span class="upcoming-days">あと${diffDays}日</span>
           <div>
             <div class="upcoming-title">${c.title}</div>
             <div class="upcoming-client">${client ? client.name : '—'}</div>
+            ${memoHtml}
           </div>
         </div>`;
     }).join('');
@@ -93,16 +98,27 @@ function renderDashboard() {
   } else {
     todayCases.forEach(c => {
       let actionLabel = '期限';
-      if (c.surveyDate === todayStr) actionLabel = '現調';
-      else if (c.applyDate === todayStr) actionLabel = '申請';
-      else if (c.policeDeliveryDate === todayStr) actionLabel = '交付';
+      if (c.policeDeliveryDate === todayStr) actionLabel = '交付';
       else if (c.storeDeliveryDate === todayStr) actionLabel = '店届';
       else if (c.registrationDate === todayStr) actionLabel = '登録';
-      todayScheduleHtml += `<div class="today-item" onclick="App.navigate('cases')"><span class="today-icon">📋</span>[${actionLabel}] ${c.title}</div>`;
+      else if (c.surveyDate === todayStr) actionLabel = '現調';
+      else if (c.applyDate === todayStr && c.status !== 'applying') actionLabel = '申請';
+      else if (c.status === 'applying') actionLabel = '交付待ち';
+      const memoHtml = c.memo && c.memo.trim() ? `<div style="font-size:0.75rem;color:var(--text-muted);padding-left:24px;white-space:pre-wrap;word-break:break-word;">📝 ${c.memo.trim()}</div>` : '';
+      todayScheduleHtml += `
+        <div class="today-item" onclick="App.navigate('cases')" style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">
+          <div><span class="today-icon">📋</span>[${actionLabel}] ${c.title}</div>
+          ${memoHtml}
+        </div>`;
     });
     todayEvents.forEach(e => {
       const time = e.time ? `${e.time} ` : '';
-      todayScheduleHtml += `<div class="today-item" onclick="App.navigate('calendar')"><span class="today-icon">📌</span>${time}${e.title}</div>`;
+      const memoHtml = e.memo && e.memo.trim() ? `<div style="font-size:0.75rem;color:var(--text-muted);padding-left:24px;white-space:pre-wrap;word-break:break-word;">📝 ${e.memo.trim()}</div>` : '';
+      todayScheduleHtml += `
+        <div class="today-item" onclick="App.navigate('calendar')" style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">
+          <div><span class="today-icon">📌</span>${time}${e.title}</div>
+          ${memoHtml}
+        </div>`;
     });
   }
 
