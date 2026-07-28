@@ -9,8 +9,8 @@ const Progress = {
 
   COLUMNS: [
     { key: 'title',       label: '案件名',   sortable: true,  type: 'text' },
-    { key: 'clientName',  label: '顧客名',   sortable: true,  type: 'text' },
-    { key: 'staffName',   label: '担当者',   sortable: true,  type: 'text' },
+    { key: 'clientStore', label: '顧客店舗', sortable: true,  type: 'text' },
+    { key: 'clientContact', label: '顧客担当者', sortable: true, type: 'text' },
     { key: 'categoryLabel', label: '業務',   sortable: true,  type: 'text' },
     { key: 'createdAt',   label: '登録日',   sortable: true,  type: 'date-readonly' },
     { key: 'surveyDate',  label: '現調日',   sortable: true,  type: 'date' },
@@ -66,7 +66,7 @@ const Progress = {
             </thead>
             <tbody>
               ${rows.length === 0
-                ? '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-muted);">案件がありません</td></tr>'
+                ? '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text-muted);">案件がありません</td></tr>'
                 : rows.map(row => this.renderRow(row)).join('')}
             </tbody>
           </table>
@@ -89,8 +89,8 @@ const Progress = {
       const staff = c.staffId ? Store.getStaffName(c.staffId) : '';
       return {
         ...c,
-        clientName: client ? (client.companyName || client.name) : '',
-        staffName: staff || '',
+        clientStore: client ? (client.companyName || '') : '',
+        clientContact: client ? (client.name || '') : '',
         categoryLabel: this.CATEGORY_LABELS[c.category] || c.category || '',
       };
     });
@@ -119,8 +119,8 @@ const Progress = {
         <td class="cell-title" onclick="Cases.showEditModal('${row.id}')" title="クリックで案件詳細を開く">
           ${this.escHtml(row.title || '(無題)')}
         </td>
-        <td class="cell-text">${this.escHtml(row.clientName)}</td>
-        <td class="cell-text">${this.escHtml(row.staffName)}</td>
+        <td class="cell-text">${this.escHtml(row.clientStore)}</td>
+        <td class="cell-text">${this.escHtml(row.clientContact)}</td>
         <td class="cell-category">${this.escHtml(row.categoryLabel)}</td>
         <td class="cell-date readonly">${this.formatDate(row.createdAt)}</td>
         ${this.renderDateCell(row, 'surveyDate')}
