@@ -130,6 +130,28 @@ const SpreadsheetSync = {
                 Store._set(Store.KEYS.LOCATIONS, data.locations);
             }
 
+            // 顧客担当者データをマージ（ローカル既存データを保持 + ローカルのみのデータをSSへPush）
+            {
+                var localContacts = JSON.parse(localStorage.getItem('gyosei_client_contacts') || '[]');
+                var remoteContacts = data.clientContacts || [];
+                var remoteContactIds = {};
+                remoteContacts.forEach(function(c){ remoteContactIds[c.id] = true; });
+                var localOnlyContacts = localContacts.filter(function(c){ return !remoteContactIds[c.id]; });
+
+                // ローカルのみの担当者をスプレッドシートへ自動Push
+                if (localOnlyContacts.length > 0) {
+                    console.log('📤 ローカル専用の顧客担当者を同期:', localOnlyContacts.length, '件');
+                    localOnlyContacts.forEach(function(c) {
+                        SpreadsheetSync.push('upsertClientContact', c).catch(function(e) {
+                            console.warn('顧客担当者Push失敗:', c.name, e);
+                        });
+                    });
+                }
+
+                var mergedContacts = remoteContacts.concat(localOnlyContacts);
+                localStorage.setItem('gyosei_client_contacts', JSON.stringify(mergedContacts));
+            }
+
             // 帳簿データをマージ（ローカル専用データを保持）
             if (data.journals) {
                 var local = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
@@ -153,6 +175,7 @@ const SpreadsheetSync = {
                 journals: (data.journals || []).length,
                 inbox: (data.inbox || []).length,
                 locations: (data.locations || []).length,
+                clientContacts: (data.clientContacts || []).length,
                 syncedAt: data.syncedAt,
             };
 
@@ -379,7 +402,7 @@ const SpreadsheetSync = {
         try {
             const result = await this.pull();
             App.refreshView();
-            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 場所${result.locations}件 / 案件${result.cases}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`);
+            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 顧客担当者${result.clientContacts || 0}件 / 場所${result.locations}件 / 案件${result.cases}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`);
         } catch (err) {
             App.showToast('❌ 同期エラー: ' + err.message);
         }

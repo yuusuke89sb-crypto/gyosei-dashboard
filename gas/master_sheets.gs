@@ -33,6 +33,7 @@ const SHEET_NAMES = {
   LOG:      '操作ログ',
   INBOX:    'インボックス',
   LOCATION: '場所マスタ',
+  CLIENT_CONTACT: '顧客担当者マスタ',
 };
 
 const CUSTOMER_HEADERS = [
@@ -54,7 +55,7 @@ const CASE_HEADERS = [
   '備考', '完了日', '登録日', '更新日',
   '被相続人死亡日', '現地調査予定日', '申請予定日', '交付予定日', '店舗届ける予定日', '店舗届ける時間',
   '現地調査場所ID', '警察署場所ID', '陸運局場所ID',
-  '登録予定日',
+  '登録予定日', '顧客担当者ID',
 ];
 
 const JOURNAL_HEADERS = [
@@ -76,6 +77,10 @@ const INBOX_HEADERS = [
 
 const LOCATION_HEADERS = [
   '場所ID', '場所名', '住所', '備考', '登録日', '更新日',
+];
+
+const CLIENT_CONTACT_HEADERS = [
+  '担当者ID', '顧客ID', '氏名', '電話番号', 'メールアドレス', '備考', '登録日', '更新日',
 ];
 
 // ============================================================
@@ -116,6 +121,7 @@ function initialSetup() {
   setupLogSheet_();
   setupInboxSheet_();
   setupLocationMaster_();
+  setupClientContactMaster_();
   updateCaseHeaders_();
   applySecurity();
 
@@ -337,6 +343,36 @@ function setupLocationMaster_() {
     ]);
     sheet.getRange(2, 1, rows.length, LOCATION_HEADERS.length).setValues(rows);
   }
+}
+
+// ============================================================
+//  顧客担当者マスタ セットアップ
+// ============================================================
+
+function setupClientContactMaster_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.CLIENT_CONTACT);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.CLIENT_CONTACT);
+  }
+
+  const headerRange = sheet.getRange(1, 1, 1, CLIENT_CONTACT_HEADERS.length);
+  headerRange.setValues([CLIENT_CONTACT_HEADERS]);
+  headerRange.setBackground('#6a1b9a').setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+
+  const widths = [110, 90, 120, 130, 200, 250, 110, 110];
+  widths.forEach((w, i) => sheet.setColumnWidth(i + 1, w));
+
+  sheet.getRange('D2:D1000').setNumberFormat('@'); // 電話番号
+  sheet.getRange('E2:E1000').setNumberFormat('@'); // メールアドレス
+  sheet.getRange('G2:G1000').setNumberFormat('yyyy/mm/dd'); // 登録日
+  sheet.getRange('H2:H1000').setNumberFormat('yyyy/mm/dd'); // 更新日
+
+  if (!sheet.getFilter()) {
+    sheet.getRange(1, 1, sheet.getMaxRows(), CLIENT_CONTACT_HEADERS.length).createFilter();
+  }
+  sheet.setFrozenRows(1);
 }
 
 // ============================================================
@@ -563,6 +599,7 @@ function doGet(e) {
     if (type === 'journals' || type === 'all') result.journals = getSheetDataAsJson_(SHEET_NAMES.JOURNALS, JOURNAL_HEADERS);
     if (type === 'inbox' || type === 'all') result.inbox = getSheetDataAsJson_(SHEET_NAMES.INBOX, INBOX_HEADERS);
     if (type === 'locations' || type === 'all') result.locations = getSheetDataAsJson_(SHEET_NAMES.LOCATION, LOCATION_HEADERS);
+    if (type === 'clientContacts' || type === 'all') result.clientContacts = getSheetDataAsJson_(SHEET_NAMES.CLIENT_CONTACT, CLIENT_CONTACT_HEADERS);
     
     if (type === 'events' || type === 'all') {
       const daysBack = parseInt((e && e.parameter && e.parameter.daysBack) || '7');
@@ -659,6 +696,8 @@ function doPost(e) {
       case 'deleteCaseDocument': result = deleteCaseDocument_(data); break;
       case 'upsertLocation': result = upsertLocation_(data); break;
       case 'deleteLocation': result = deleteRow_(SHEET_NAMES.LOCATION, data.id); break;
+      case 'upsertClientContact': result = upsertClientContact_(data); break;
+      case 'deleteClientContact': result = deleteRow_(SHEET_NAMES.CLIENT_CONTACT, data.id); break;
       case 'syncCaseCalendar': result = syncCaseCalendar_(data); break;
       case 'deleteCaseCalendarEvents': result = deleteCaseCalendarEvents_(data); break;
       case 'ocr': result = performOcrAction_(body); break;
@@ -808,10 +847,11 @@ function getSheetDataAsJson_(sheetName, headers) {
 function getKeyMap_(sheetName) {
   if (sheetName === SHEET_NAMES.CUSTOMER) return {'顧客ID': 'id','氏名': 'name','フリガナ': 'nameKana','区分': 'type','電話番号': 'phone','FAX番号': 'fax','メールアドレス': 'email','郵便番号': 'zip','住所': 'address','生年月日': 'birthday','法人名': 'companyName','法人番号': 'companyNumber','紹介元': 'referral','担当者ID': 'staffId','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
   if (sheetName === SHEET_NAMES.STAFF) return {'担当者ID': 'id','氏名': 'name','フリガナ': 'nameKana','役職': 'role','電話番号': 'phone','メールアドレス': 'email','担当業務': 'duties','ステータス': 'status','登録日': 'createdAt','更新日': 'updatedAt'};
-  if (sheetName === SHEET_NAMES.CASES) return {'案件ID': 'id','顧客ID': 'clientId','案件名': 'title','注文書№': 'orderNo','カテゴリ': 'category','ステータス': 'status','期限': 'deadline','報酬': 'fee','担当者ID': 'staffId','備考': 'memo','完了日': 'completedAt','登録日': 'createdAt','更新日': 'updatedAt','被相続人死亡日': 'deathDate','現地調査予定日': 'surveyDate','申請予定日': 'applyDate','交付予定日': 'policeDeliveryDate','店舗届ける予定日': 'storeDeliveryDate','店舗届ける時間': 'storeDeliveryTime','現地調査場所ID': 'surveyLocationId','警察署場所ID': 'policeLocationId','陸運局場所ID': 'landTransportLocationId','登録予定日': 'registrationDate'};
+  if (sheetName === SHEET_NAMES.CASES) return {'案件ID': 'id','顧客ID': 'clientId','案件名': 'title','注文書№': 'orderNo','カテゴリ': 'category','ステータス': 'status','期限': 'deadline','報酬': 'fee','担当者ID': 'staffId','備考': 'memo','完了日': 'completedAt','登録日': 'createdAt','更新日': 'updatedAt','被相続人死亡日': 'deathDate','現地調査予定日': 'surveyDate','申請予定日': 'applyDate','交付予定日': 'policeDeliveryDate','店舗届ける予定日': 'storeDeliveryDate','店舗届ける時間': 'storeDeliveryTime','現地調査場所ID': 'surveyLocationId','警察署場所ID': 'policeLocationId','陸運局場所ID': 'landTransportLocationId','登録予定日': 'registrationDate','顧客担当者ID': 'clientContactId'};
   if (sheetName === SHEET_NAMES.JOURNALS) return {'伝票ID': 'id','日付': 'date','借方': 'debit','貸方': 'credit','金額': 'amount','摘要': 'description','案件ID': 'caseId','自動': 'auto','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.INBOX) return {'インボックスID': 'id','日時': 'date','種別': 'type','送信元': 'sender','件名': 'subject','本文': 'body','添付ファイル': 'attachments','ステータス': 'status','案件ID': 'caseId','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.LOCATION) return {'場所ID': 'id','場所名': 'name','住所': 'address','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
+  if (sheetName === SHEET_NAMES.CLIENT_CONTACT) return {'担当者ID': 'id','顧客ID': 'clientId','氏名': 'name','電話番号': 'phone','メールアドレス': 'email','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
   return {};
 }
 
@@ -1820,6 +1860,68 @@ function upsertLocation_(data) {
   });
   sheet.appendRow(rowData);
   return { success: true, action: 'added', id: newId };
+}
+
+// ---- 顧客担当者 upsert ----
+function upsertClientContact_(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.CLIENT_CONTACT);
+  if (!sheet) {
+    // シートがない場合は自動作成
+    setupClientContactMaster_();
+    sheet = ss.getSheetByName(SHEET_NAMES.CLIENT_CONTACT);
+  }
+  if (!sheet) return { error: '顧客担当者マスタシートが見つかりません' };
+
+  const now = new Date();
+  const keyMap = getKeyMap_(SHEET_NAMES.CLIENT_CONTACT);
+
+  if (data.id) {
+    const lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
+      const rowIdx = ids.indexOf(data.id);
+      if (rowIdx !== -1) {
+        const row = rowIdx + 2;
+        CLIENT_CONTACT_HEADERS.forEach((header, col) => {
+          const key = keyMap[header];
+          if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
+            let val = data[key];
+            if (key === 'phone' && typeof val === 'string' && val.startsWith('0') && /^\d+$/.test(val)) {
+              val = "'" + val;
+            }
+            sheet.getRange(row, col + 1).setValue(val);
+          }
+        });
+        sheet.getRange(row, 8).setValue(now); // 更新日
+        return { success: true, action: 'updated', id: data.id };
+      }
+    }
+  }
+
+  // 新規追加（ローカルIDをそのまま使う、または新規ID採番）
+  const newId = data.id || generateClientContactId_(sheet);
+  const rowData = CLIENT_CONTACT_HEADERS.map(header => {
+    const key = keyMap[header];
+    if (key === 'id') return newId;
+    if (key === 'createdAt' || key === 'updatedAt') return now;
+    let val = data[key] || '';
+    if (key === 'phone' && typeof val === 'string' && val.startsWith('0') && /^\d+$/.test(val)) {
+      val = "'" + val;
+    }
+    return val;
+  });
+  sheet.appendRow(rowData);
+  return { success: true, action: 'added', id: newId };
+}
+
+function generateClientContactId_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 'CC-0001';
+  const ids = sheet.getRange('A2:A' + lastRow).getValues().flat().filter(v => String(v).startsWith('CC-'));
+  if (ids.length === 0) return 'CC-0001';
+  const maxNum = Math.max(...ids.map(id => parseInt(String(id).replace('CC-', ''), 10) || 0));
+  return 'CC-' + String(maxNum + 1).padStart(4, '0');
 }
 
 function setupDefaultCustomers_() {

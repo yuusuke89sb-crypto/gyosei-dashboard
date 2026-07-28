@@ -512,12 +512,17 @@ const Clients = {
       email: (document.getElementById('ccf_email')?.value || '').trim(),
       memo: (document.getElementById('ccf_memo')?.value || '').trim(),
     };
+    let savedContact;
     if (contactId) {
-      Store.updateClientContact(contactId, data);
+      savedContact = Store.updateClientContact(contactId, data);
       App.showToast('担当者を更新しました');
     } else {
-      Store.addClientContact(data);
+      savedContact = Store.addClientContact(data);
       App.showToast('担当者を追加しました');
+    }
+    // スプレッドシートへ同期
+    if (savedContact) {
+      SpreadsheetSync.push('upsertClientContact', savedContact).catch(e => console.warn('担当者同期エラー:', e));
     }
     this.cancelContactForm(clientId);
     this._refreshContactArea(clientId);
@@ -528,6 +533,8 @@ const Clients = {
     if (!c) return;
     if (confirm(`「${c.name}」を削除しますか？`)) {
       Store.deleteClientContact(contactId);
+      // スプレッドシートからも削除
+      SpreadsheetSync.push('deleteClientContact', { id: contactId }).catch(e => console.warn('担当者削除同期エラー:', e));
       this._refreshContactArea(clientId);
       App.showToast('担当者を削除しました');
     }

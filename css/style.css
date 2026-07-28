@@ -3310,7 +3310,7 @@ form select:focus {
   font-weight: 600;
   color: var(--text-primary, #f1f5f9);
   cursor: pointer;
-  max-width: 180px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -3321,7 +3321,7 @@ form select:focus {
 
 .cell-text {
   color: var(--text-secondary, #cbd5e1);
-  max-width: 100px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -3469,4 +3469,24 @@ form select:focus {
 .progress-footer {
   padding: 8px 24px 20px;
   text-align: right;
+}
+
+/* -- 進捗テーブル モバイル対応 -- */
+@media (max-width: 768px) {
+  .progress-table {
+    min-width: 800px;
+  }
+  .progress-table td.cell-title,
+  .progress-table td.cell-text {
+    white-space: normal;
+    word-break: break-all;
+  }
+  .cell-title {
+    max-width: 160px;
+    min-width: 100px;
+  }
+  .cell-text {
+    max-width: 140px;
+    min-width: 80px;
+  }
 }
