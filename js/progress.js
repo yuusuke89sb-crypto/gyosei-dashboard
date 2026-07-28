@@ -90,7 +90,8 @@ const Progress = {
       return {
         ...c,
         clientStore: client ? (client.name || '') : '',
-        clientContact: client ? (client.companyName || '') : '',
+        clientContact: c.clientContactId && typeof Store.getClientContact === 'function'
+          ? (Store.getClientContact(c.clientContactId)?.name || '') : '',
         categoryLabel: this.CATEGORY_LABELS[c.category] || c.category || '',
       };
     });
