@@ -16,6 +16,8 @@ const App = {
       setTimeout(() => { const pw = document.getElementById('authPassword'); if (pw) pw.focus(); }, 100);
       return; // 初期化を中断
     }
+    // 旧ステータスの自動変換
+    if (typeof Store !== 'undefined') Store._migrateStatuses();
     this.renderSidebar();
     this.renderContent();
     // セッションタイムアウト監視を開始
@@ -156,11 +158,13 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
     const navItems = document.querySelectorAll('.nav-item');
-    const pages = ['dashboard', 'clients', 'cases', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
-    const idx = pages.indexOf(this.currentPage);
-    if (navItems[idx]) navItems[idx].classList.add('active');
+    const sidebarPages = ['dashboard', 'clients', 'cases', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
+    const sidebarIdx = sidebarPages.indexOf(this.currentPage);
+    if (navItems[sidebarIdx]) navItems[sidebarIdx].classList.add('active');
     const bottomItems = document.querySelectorAll('.bottom-nav-item');
-    if (bottomItems[idx]) bottomItems[idx].classList.add('active');
+    const bottomPages = ['dashboard', 'cases', 'progress', 'calendar', 'accounting'];
+    const bottomIdx = bottomPages.indexOf(this.currentPage);
+    if (bottomItems[bottomIdx]) bottomItems[bottomIdx].classList.add('active');
   },
 
   getInboxBadgeHtml() {

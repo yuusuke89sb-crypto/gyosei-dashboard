@@ -14,6 +14,15 @@ const Store = {
     INBOX: 'gyosei_inbox',
   },
 
+  // 旧ステータスの自動マイグレーション（hearing→applying, documents→delivery）
+  _migrateStatuses() {
+    const MAP = { hearing: 'applying', documents: 'delivery' };
+    const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
+    let changed = false;
+    cases.forEach(c => { if (MAP[c.status]) { c.status = MAP[c.status]; changed = true; } });
+    if (changed) localStorage.setItem('gyosei_cases', JSON.stringify(cases));
+  },
+
   // ---- ユーティリティ ----
   getLocalDateStr(date = new Date()) {
     const year = date.getFullYear();
