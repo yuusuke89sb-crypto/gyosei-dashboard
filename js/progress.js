@@ -89,8 +89,8 @@ const Progress = {
       const staff = c.staffId ? Store.getStaffName(c.staffId) : '';
       return {
         ...c,
-        clientStore: client ? (client.companyName || '') : '',
-        clientContact: client ? (client.name || '') : '',
+        clientStore: client ? (client.name || '') : '',
+        clientContact: client ? (client.companyName || '') : '',
         categoryLabel: this.CATEGORY_LABELS[c.category] || c.category || '',
       };
     });
