@@ -83,6 +83,9 @@ const App = {
         <a class="nav-item ${this.currentPage === 'cases' ? 'active' : ''}" onclick="App.navigate('cases')">
           <span class="nav-icon">📋</span><span class="nav-label">案件管理</span>
         </a>
+        <a class="nav-item ${this.currentPage === 'progress' ? 'active' : ''}" onclick="App.navigate('progress')">
+          <span class="nav-icon">📊</span><span class="nav-label">進捗管理</span>
+        </a>
         <a class="nav-item ${this.currentPage === 'calendar' ? 'active' : ''}" onclick="App.navigate('calendar')">
           <span class="nav-icon">📅</span><span class="nav-label">スケジュール</span>
         </a>
@@ -140,6 +143,7 @@ const App = {
       case 'dashboard': content.innerHTML = renderDashboard(); break;
       case 'clients': content.innerHTML = Clients.render(); break;
       case 'cases': content.innerHTML = Cases.render(); break;
+      case 'progress': content.innerHTML = Progress.render(); break;
       case 'calendar': content.innerHTML = Calendar.render(); break;
       case 'accounting': content.innerHTML = Accounting.render(); break;
       case 'inbox': content.innerHTML = InboxManager.render(); break;
@@ -152,7 +156,7 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
     const navItems = document.querySelectorAll('.nav-item');
-    const pages = ['dashboard', 'clients', 'cases', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
+    const pages = ['dashboard', 'clients', 'cases', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
     const idx = pages.indexOf(this.currentPage);
     if (navItems[idx]) navItems[idx].classList.add('active');
     const bottomItems = document.querySelectorAll('.bottom-nav-item');

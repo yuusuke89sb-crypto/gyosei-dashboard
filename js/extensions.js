@@ -890,6 +890,10 @@ const RecurringExpenses = {
     }
   },
 
+  openKoteihiTool() {
+    window.open('../../固定費/index.html', '_blank');
+  },
+
   show() {
     let items = this.getAll();
 
@@ -927,8 +931,13 @@ const RecurringExpenses = {
     modal.innerHTML = `
       <div class="modal-overlay" onclick="document.getElementById('recurringModal').remove()"></div>
       <div class="modal-content modal-large">
-        <div class="modal-header">
-          <h2>🔄 定型仕訳</h2>
+        <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <h2 style="margin:0;">🔄 定型仕訳</h2>
+            <button class="btn btn-secondary" onclick="RecurringExpenses.openKoteihiTool()" style="font-size:0.8rem; padding:4px 10px; border:1px solid rgba(245,158,11,0.4); color:var(--accent-gold); background:rgba(245,158,11,0.1); cursor:pointer;" title="固定費計算＆ライフプランニングツールを開きます">
+              ⚙️ 固定費ツールを開く ↗
+            </button>
+          </div>
           <button class="modal-close" onclick="document.getElementById('recurringModal').remove()">✕</button>
         </div>
         <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px">
@@ -937,9 +946,17 @@ const RecurringExpenses = {
         ${hasKoteihi ? `
         <div style="margin-bottom:12px;padding:10px 14px;background:rgba(45,212,168,0.1);border:1px solid rgba(45,212,168,0.3);border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <span style="font-size:0.82rem;color:#2dd4a8">💰 固定費ツールのデータを検出しました</span>
-          <button class="btn btn-secondary" style="font-size:0.8rem;padding:4px 12px" onclick="RecurringExpenses.syncFromKoteihi()">📥 固定費を取り込む</button>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-ghost" style="font-size:0.8rem;padding:4px 10px;border:1px solid rgba(45,212,168,0.4);color:#2dd4a8" onclick="RecurringExpenses.openKoteihiTool()">⚙️ 固定費ツールを開く ↗</button>
+            <button class="btn btn-secondary" style="font-size:0.8rem;padding:4px 12px" onclick="RecurringExpenses.syncFromKoteihi()">📥 最新データを取り込む</button>
+          </div>
         </div>
-        ` : ''}
+        ` : `
+        <div style="margin-bottom:12px;padding:10px 14px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span style="font-size:0.82rem;color:var(--text-secondary)">💡 固定費ツールで毎月の家賃・光熱費・サブスク等の項目をシミュレーション編集できます</span>
+          <button class="btn btn-ghost" style="font-size:0.8rem;padding:4px 10px;border:1px solid rgba(59,130,246,0.4);color:#3b82f6" onclick="RecurringExpenses.openKoteihiTool()">⚙️ 固定費ツールを開く ↗</button>
+        </div>
+        `}
         <div style="margin-bottom:16px;display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap">
           <div style="display:flex;align-items:center;gap:8px">
             <label style="font-size:0.85rem;font-weight:600">記帳月:</label>

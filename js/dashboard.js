@@ -3,7 +3,7 @@
  */
 function renderDashboard() {
   const stats = Store.getStats();
-  const STATUS_LABELS = { received: '受付', hearing: 'ヒアリング', documents: '書類作成', applying: '申請中', done: '完了' };
+  const STATUS_LABELS = { received: '受付', applying: '申請', delivery: '交付', registration: '登録', done: '完了' };
   const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続' };
   const CATEGORY_COLORS = { garage_oss: '#3b82f6', garage_paper: '#60a5fa', seal: '#f59e0b', inheritance: '#8b5cf6' };
 

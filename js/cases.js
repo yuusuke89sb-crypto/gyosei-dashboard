@@ -9,9 +9,9 @@ const Cases = {
 
   STATUSES: [
     { key: 'received', label: '受付', icon: '📥' },
-    { key: 'hearing', label: 'ヒアリング', icon: '🎤' },
-    { key: 'documents', label: '書類作成', icon: '📝' },
-    { key: 'applying', label: '申請中', icon: '📤' },
+    { key: 'applying', label: '申請', icon: '📝' },
+    { key: 'delivery', label: '交付', icon: '📋' },
+    { key: 'registration', label: '登録', icon: '🚗' },
     { key: 'done', label: '完了', icon: '✅' },
   ],
 
@@ -57,9 +57,14 @@ const Cases = {
       <div class="cases-page">
         <div class="page-header">
           <h1>案件管理</h1>
-          <button class="btn btn-primary" onclick="Cases.showAddModal()">
-            <span class="btn-icon">＋</span> 新規案件
-          </button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-ghost" onclick="Cases.syncAllCasesToCalendar()" title="進行中の全案件をGoogleカレンダーに一括同期" style="font-size:0.82rem;">
+              📅 カレンダー一括同期
+            </button>
+            <button class="btn btn-primary" onclick="Cases.showAddModal()">
+              <span class="btn-icon">＋</span> 新規案件
+            </button>
+          </div>
         </div>
 
         <div class="filter-bar">
@@ -246,7 +251,7 @@ const Cases = {
 
   renderList(cases) {
     const sorted = cases.sort((a, b) => {
-      const statusOrder = ['received', 'hearing', 'documents', 'applying', 'done'];
+      const statusOrder = ['received', 'applying', 'delivery', 'registration', 'done'];
       return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
     });
     return `
@@ -847,14 +852,121 @@ const Cases = {
       }).catch(err => console.warn('Google Drive フォルダ自動生成に失敗しました:', err));
     }
 
+    // Googleカレンダーへ案件日程を自動同期
+    this.syncCaseDatesToCalendar(savedCase);
+
     this.closeModal();
     App.refreshView();
     App.showToast(this.editingId ? '案件を更新しました' : '案件を登録しました');
   },
 
+  // 案件の各日程をGoogleカレンダーに自動同期する（Promiseを返す）
+  syncCaseDatesToCalendar(caseData) {
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) return Promise.resolve();
+    
+    // 最新の案件データを読み直す（calendarEventIdsが更新されている可能性）
+    const latestCase = Store.getCase(caseData.id) || caseData;
+
+    // 日付が1つも設定されていなければスキップ
+    const hasAnyDate = latestCase.surveyDate || latestCase.applyDate || 
+                       latestCase.policeDeliveryDate || latestCase.storeDeliveryDate || 
+                       latestCase.registrationDate;
+    const hasExistingIds = latestCase.calendarEventIds && Object.values(latestCase.calendarEventIds).some(id => id);
+    
+    if (!hasAnyDate && !hasExistingIds) return Promise.resolve();
+
+    const client = Store.getClient(latestCase.clientId);
+    const clientName = client ? (client.companyName || client.name) : '';
+
+    const resolveLoc = (locId) => {
+      if (!locId) return '';
+      const loc = Store.getLocation(locId);
+      return loc ? loc.name : '';
+    };
+
+    const syncData = {
+      caseId: latestCase.id,
+      caseTitle: latestCase.title,
+      clientName: clientName,
+      calendarEventIds: latestCase.calendarEventIds || {},
+      surveyDate: latestCase.surveyDate || '',
+      applyDate: latestCase.applyDate || '',
+      policeDeliveryDate: latestCase.policeDeliveryDate || '',
+      storeDeliveryDate: latestCase.storeDeliveryDate || '',
+      storeDeliveryTime: latestCase.storeDeliveryTime || '',
+      registrationDate: latestCase.registrationDate || '',
+      surveyLocationName: resolveLoc(latestCase.surveyLocationId),
+      policeLocationName: resolveLoc(latestCase.policeLocationId),
+      locationName: resolveLoc(latestCase.locationId),
+      landTransportLocationName: resolveLoc(latestCase.landTransportLocationId),
+    };
+
+    return SpreadsheetSync.push('syncCaseCalendar', syncData).then(res => {
+      if (res && res.success && res.calendarEventIds) {
+        // calendarEventIdsの保存はlocalStorageに直接書き込む
+        // （Store.updateCaseを使うとupsertCaseがGASに再送されてawaitが崩れるため）
+        const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
+        const idx = cases.findIndex(c => c.id === latestCase.id);
+        if (idx !== -1) {
+          cases[idx].calendarEventIds = res.calendarEventIds;
+          localStorage.setItem('gyosei_cases', JSON.stringify(cases));
+        }
+        console.log('📅 タスク同期完了:', latestCase.title, res.calendarEventIds);
+      }
+    }).catch(err => console.warn('案件タスク同期に失敗:', err));
+  },
+
+  // 全案件を一括でGoogleカレンダーに同期（応答を待ってから次へ進む）
+  async syncAllCasesToCalendar() {
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
+      App.showToast('⚠️ スプレッドシート連携が未設定です');
+      return;
+    }
+    const allCases = Store.getCases().filter(c => c.status !== 'done');
+    const targets = allCases.filter(c =>
+      c.surveyDate || c.applyDate || c.policeDeliveryDate || c.storeDeliveryDate || c.registrationDate
+    );
+
+    if (targets.length === 0) {
+      App.showToast('日程が設定されている案件がありません');
+      return;
+    }
+
+    if (!confirm(`進行中の ${targets.length} 件の案件日程をGoogleカレンダーに一括同期します。\nよろしいですか？`)) return;
+
+    App.showToast(`📅 ${targets.length} 件の案件を同期中...しばらくお待ちください`);
+    let successCount = 0;
+
+    for (const c of targets) {
+      try {
+        // GASの応答を完全に待ってからcalendarEventIdsを保存 → 次へ
+        await this.syncCaseDatesToCalendar(c);
+        successCount++;
+      } catch (err) {
+        console.warn(`案件 ${c.title} の同期に失敗:`, err);
+      }
+    }
+
+    App.showToast(`📅 ${successCount}/${targets.length} 件の案件をカレンダーに同期しました！`);
+  },
+
   onDelete() {
     if (!this.editingId) return;
     if (confirm('この案件を削除してもよろしいですか？')) {
+      const existing = Store.getCase(this.editingId);
+      
+      // Googleカレンダーから案件の予定を一括削除
+      if (existing && existing.calendarEventIds && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+        const hasIds = Object.values(existing.calendarEventIds).some(id => id);
+        if (hasIds) {
+          SpreadsheetSync.push('deleteCaseCalendarEvents', {
+            calendarEventIds: existing.calendarEventIds
+          }).then(res => {
+            if (res && res.success) console.log('📅 案件のカレンダー予定を一括削除しました');
+          }).catch(err => console.warn('案件カレンダー削除に失敗:', err));
+        }
+      }
+      
       Store.deleteCase(this.editingId);
       this.closeModal();
       App.refreshView();

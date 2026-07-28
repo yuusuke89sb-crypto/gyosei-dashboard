@@ -3243,3 +3243,230 @@ form select:focus {
   }
 }
 
+/* ============================================================
+   進捗管理テーブル
+   ============================================================ */
+.progress-page { padding: 0; }
+.progress-page .page-header { padding: 20px 24px 12px; }
+
+.progress-table-wrap {
+  overflow-x: auto;
+  padding: 0 16px 16px;
+}
+
+.progress-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 900px;
+}
+
+.progress-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card, #1e293b);
+  color: var(--text-muted, #94a3b8);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 8px;
+  border-bottom: 2px solid var(--border-color, #334155);
+  white-space: nowrap;
+  text-align: left;
+  user-select: none;
+}
+
+.progress-table thead th.sortable {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.progress-table thead th.sortable:hover {
+  color: var(--accent, #f59e0b);
+}
+.progress-table thead th.sorted {
+  color: var(--accent, #f59e0b);
+}
+
+.progress-table tbody tr {
+  border-bottom: 1px solid var(--border-color, #334155);
+  transition: background 0.12s;
+}
+.progress-table tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+.progress-table tbody tr.done {
+  opacity: 0.45;
+}
+
+.progress-table td {
+  padding: 8px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* -- セルタイプ別 -- */
+.cell-title {
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+  cursor: pointer;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cell-title:hover {
+  color: var(--accent, #f59e0b);
+  text-decoration: underline;
+}
+
+.cell-text {
+  color: var(--text-secondary, #cbd5e1);
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-category {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.75rem;
+}
+
+.cell-date {
+  text-align: center;
+  color: var(--text-secondary, #cbd5e1);
+  min-width: 58px;
+  position: relative;
+}
+.cell-date.editable {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+.cell-date.editable:hover {
+  background: rgba(245,158,11,0.1);
+}
+.cell-date.today {
+  background: rgba(59,130,246,0.15);
+  font-weight: 700;
+  color: #60a5fa;
+}
+.cell-date.past {
+  color: var(--text-muted, #94a3b8);
+}
+.cell-date.completed {
+  color: #10b981;
+  font-size: 0.75rem;
+}
+.cell-date.overdue {
+  color: #ef4444;
+  background: rgba(239,68,68,0.08);
+  font-weight: 600;
+}
+.cell-date.readonly {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.75rem;
+}
+
+.empty-date {
+  color: var(--text-muted, #475569);
+  font-size: 0.72rem;
+}
+
+/* -- 日付ピッカー -- */
+.progress-datepicker {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: var(--bg-card, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.progress-datepicker input[type="date"] {
+  background: var(--bg-main, #0f172a);
+  color: var(--text-primary, #f1f5f9);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  outline: none;
+}
+.btn-clear-date {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.btn-clear-date:hover { background: rgba(239,68,68,0.15); }
+
+/* -- ステータスバッジ -- */
+.cell-status {
+  cursor: pointer;
+  position: relative;
+}
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--status-color) 18%, transparent);
+  color: var(--status-color);
+  border: 1px solid color-mix(in srgb, var(--status-color) 30%, transparent);
+  white-space: nowrap;
+  transition: transform 0.1s;
+}
+.cell-status:hover .status-badge {
+  transform: scale(1.05);
+}
+
+/* -- ステータスピッカー -- */
+.progress-status-picker {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-card, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  min-width: 120px;
+}
+.status-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  color: var(--status-color);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+  white-space: nowrap;
+}
+.status-option:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.progress-footer {
+  padding: 8px 24px 20px;
+  text-align: right;
+}

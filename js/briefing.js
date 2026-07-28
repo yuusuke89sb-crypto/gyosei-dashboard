@@ -180,7 +180,7 @@ const Briefing = {
       garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続'
     };
     const STATUSES = {
-      received: '受付', hearing: 'ヒアリング', documents: '書類作成', applying: '申請中', done: '完了'
+      received: '受付', applying: '申請', delivery: '交付', registration: '登録', done: '完了'
     };
 
     // インボックスの未対応件数を取得
@@ -732,7 +732,7 @@ const Briefing = {
     
     msg += `━━━━━━━━━━━━━━━━\n`;
     
-    // 2. 本日のタスク（カテゴリごとにグループ化・優先度順）
+    // 2. 本日のタスク（行き先ごとにグループ化）
     msg += `📋 本日のタスク (${cases.length}件)\n`;
     if (cases.length === 0) {
       msg += '・本日のタスクはありません\n';
@@ -746,7 +746,6 @@ const Briefing = {
         
         if (c.surveyDate === todayStr) {
           allActions.push({
-            type: 'deliveryOrRegOrSurvey',
             label: '現調',
             title: c.title,
             clientText,
@@ -758,7 +757,6 @@ const Briefing = {
         }
         if (c.applyDate === todayStr && c.status !== 'applying' && c.status !== 'done') {
           allActions.push({
-            type: 'apply',
             label: '申請',
             title: c.title,
             clientText,
@@ -770,7 +768,6 @@ const Briefing = {
         }
         if (c.policeDeliveryDate === todayStr) {
           allActions.push({
-            type: 'deliveryOrRegOrSurvey',
             label: '交付',
             title: c.title,
             clientText,
@@ -781,20 +778,25 @@ const Briefing = {
           });
         }
         if (c.storeDeliveryDate === todayStr) {
+          // 店届は顧客店舗ごとにグループ化するため、locId が空なら顧客名をフォールバック
+          const client = Store.getClient(c.clientId);
+          const storeLocId = c.locationId || null;
+          const storeLocFallback = client ? `🚚 ${client.name}様` : '🚚 店届先';
           allActions.push({
-            type: c.storeDeliveryTime ? 'storeDeliveryWithTime' : 'storeDelivery',
             label: '店届',
             title: c.title,
             clientText,
-            locId: c.locationId,
+            locId: storeLocId,
+            locFallbackName: storeLocFallback,
+            isStoreDelivery: true,
             timeLabel: c.storeDeliveryTime ? `【${c.storeDeliveryTime}】` : '',
             deadline: c.deadline,
-            memo: caseMemo
+            memo: caseMemo,
+            priority: c.storeDeliveryTime ? 1 : 0
           });
         }
         if (c.registrationDate === todayStr) {
           allActions.push({
-            type: 'deliveryOrRegOrSurvey',
             label: '登録',
             title: c.title,
             clientText,
@@ -805,7 +807,7 @@ const Briefing = {
           });
         }
         
-        // どのアクション日程にも当てはまらない場合（例：単なる申請中ステータスでの抽出や期限日）
+        // どのアクション日程にも当てはまらない場合
         if (
           c.surveyDate !== todayStr &&
           c.applyDate !== todayStr &&
@@ -814,13 +816,11 @@ const Briefing = {
           c.registrationDate !== todayStr
         ) {
           const label = (c.status === 'applying') ? '交付待ち' : '期限';
-          const locId = (label === '申請中') ? (c.policeLocationId || c.locationId) : (c.landTransportLocationId || c.locationId);
           allActions.push({
-            type: 'deadlineOrOther',
             label: label,
             title: c.title,
             clientText,
-            locId: locId,
+            locId: c.policeLocationId || c.landTransportLocationId || c.locationId,
             timeLabel: '',
             deadline: c.deadline,
             memo: caseMemo
@@ -828,37 +828,64 @@ const Briefing = {
         }
       });
 
-      // 表示グループ定義 (時間指定付き店舗届を最優先に)
-      const groups = [
-        { key: 'storeDeliveryWithTime', name: '⭐ 店届 (優先・時間指定あり)' },
-        { key: 'storeDelivery', name: '🚚 店届 (通常)' },
-        { key: 'apply', name: '📝 申請' },
-        { key: 'deliveryOrRegOrSurvey', name: '🏢 登録・交付・現調' },
-        { key: 'deadlineOrOther', name: '⏰ 期限・その他' }
-      ];
+      // ── 行き先ごとにグループ化 ──
+      const locationGroups = {};  // locName => actions[]
+      const noLocationActions = [];
 
-      let printedCount = 0;
-      groups.forEach(g => {
-        const items = allActions.filter(act => act.type === g.key);
-        if (items.length > 0) {
-          msg += `\n【${g.name}】\n`;
-          items.forEach(act => {
-            let locText = '';
-            if (act.locId) {
-              const loc = Store.getLocation(act.locId);
-              if (loc) {
-                locText = ` 📍${loc.name}`;
-              }
-            }
-            const deadlineText = act.deadline ? ` (期限: ${act.deadline.slice(5)})` : '';
-            // 指定時間がある場合は、箇条書きの先頭にわかりやすく表示
-            const prefix = act.timeLabel ? `${act.timeLabel} ` : '';
-            const memoText = act.memo && act.memo.trim() ? `\n   📝 ${act.memo.trim().replace(/\n/g, ' ')}` : '';
-            msg += `・${prefix}${act.title}${act.clientText}${locText}${deadlineText}${memoText}\n`;
-            printedCount++;
-          });
+      allActions.forEach(act => {
+        let locName = null;
+
+        if (act.locId) {
+          const loc = Store.getLocation(act.locId);
+          locName = loc ? loc.name : act.locId;
+        } else if (act.locFallbackName) {
+          // 店届など：locationId未設定でも顧客名でグループ化
+          locName = act.locFallbackName;
+        }
+
+        if (locName) {
+          if (!locationGroups[locName]) {
+            locationGroups[locName] = [];
+          }
+          locationGroups[locName].push(act);
+        } else {
+          noLocationActions.push(act);
         }
       });
+
+      // 行き先ごとに出力（時間指定があるタスクを含むグループを上に）
+      const sortedLocations = Object.keys(locationGroups).sort((a, b) => {
+        const aPriority = locationGroups[a].some(act => act.priority) ? 0 : 1;
+        const bPriority = locationGroups[b].some(act => act.priority) ? 0 : 1;
+        return aPriority - bPriority;
+      });
+
+      let printedCount = 0;
+      sortedLocations.forEach(locName => {
+        const actions = locationGroups[locName];
+        // 同じ行き先内でも時間指定を上に
+        actions.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+        msg += `\n📍 ${locName} (${actions.length}件)\n`;
+        actions.forEach(act => {
+          const deadlineText = act.deadline ? ` (期限: ${act.deadline.slice(5)})` : '';
+          const prefix = act.timeLabel ? `${act.timeLabel} ` : '';
+          const memoText = act.memo && act.memo.trim() ? `\n   📝 ${act.memo.trim().replace(/\n/g, ' ')}` : '';
+          msg += `・${prefix}[${act.label}] ${act.title}${act.clientText}${deadlineText}${memoText}\n`;
+          printedCount++;
+        });
+      });
+
+      // 行き先未設定のタスク
+      if (noLocationActions.length > 0) {
+        msg += `\n🏠 事務所・その他 (${noLocationActions.length}件)\n`;
+        noLocationActions.forEach(act => {
+          const deadlineText = act.deadline ? ` (期限: ${act.deadline.slice(5)})` : '';
+          const memoText = act.memo && act.memo.trim() ? `\n   📝 ${act.memo.trim().replace(/\n/g, ' ')}` : '';
+          msg += `・[${act.label}] ${act.title}${act.clientText}${deadlineText}${memoText}\n`;
+          printedCount++;
+        });
+      }
       
       if (printedCount === 0) {
         msg += '・タスクはありません\n';

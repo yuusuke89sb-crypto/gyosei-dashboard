@@ -89,9 +89,12 @@ const Accounting = {
 
     return `
       <div class="accounting-page">
-        <div class="page-header">
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <h1>💹 帳簿</h1>
-          <button class="btn btn-primary" onclick="Accounting.showAddModal()">＋ 仕訳追加</button>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" onclick="ReceiptOCR.showModal('accounting')" style="background:rgba(245,158,11,0.15); border:1px solid var(--accent-gold); color:var(--accent-gold); font-weight:700;">🤖 AIレシートOCR</button>
+            <button class="btn btn-primary" onclick="Accounting.showAddModal()">＋ 仕訳追加</button>
+          </div>
         </div>
 
         <!-- タブコントロール -->
@@ -130,27 +133,31 @@ const Accounting = {
             </div>
           </div>
 
-          <div class="acc-table-wrap">
-            <table class="acc-table">
+          <div class="table-container">
+            <table class="data-table">
               <thead>
                 <tr>
                   <th>日付</th>
                   <th>借方</th>
                   <th>貸方</th>
                   <th>金額</th>
-                  <th>摘要</th>
+                  <th>摘要 / インボイス番号</th>
                 </tr>
               </thead>
               <tbody>
-                ${filtered.length === 0
-                  ? '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">この月の仕訳はありません</td></tr>'
-                  : filtered.map(j => `
+                ${filtered.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">仕訳データがありません</td></tr>` :
+                  filtered.map(j => `
                       <tr onclick="Accounting.showEditModal('${j.id}')" style="cursor:pointer">
                         <td>${j.date}</td>
                         <td>${j.debit}</td>
                         <td>${j.credit}</td>
                         <td class="amount-cell">¥${j.amount.toLocaleString()}</td>
-                        <td>${j.auto ? '<span class="auto-badge">自動</span> ' : ''}${j.description || ''}</td>
+                        <td>
+                          ${j.auto ? '<span class="auto-badge">自動</span> ' : ''}
+                          ${j.isReimbursement ? '<span class="badge" style="background:#3b82f6;color:#fff;font-size:0.7rem;margin-right:4px;">立替金</span>' : ''}
+                          ${j.invoiceNo ? `<span class="badge" style="background:#10b981;color:#fff;font-size:0.7rem;margin-right:4px;" title="インボイス番号: ${j.invoiceNo}">適格 ${j.invoiceNo}</span>` : ''}
+                          ${j.description || ''}
+                        </td>
                       </tr>
                     `).join('')
                 }

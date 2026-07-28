@@ -571,6 +571,11 @@ function doGet(e) {
     }
     if (type === 'faxLog') result.faxLog = getFaxLog_(50);
 
+    // iOSショートカット連携: 本日のタスク一覧
+    if (type === 'todayTasks') {
+      result.tasks = getTodayTasks_();
+    }
+
     result.syncedAt = new Date().toISOString();
 
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -654,6 +659,9 @@ function doPost(e) {
       case 'deleteCaseDocument': result = deleteCaseDocument_(data); break;
       case 'upsertLocation': result = upsertLocation_(data); break;
       case 'deleteLocation': result = deleteRow_(SHEET_NAMES.LOCATION, data.id); break;
+      case 'syncCaseCalendar': result = syncCaseCalendar_(data); break;
+      case 'deleteCaseCalendarEvents': result = deleteCaseCalendarEvents_(data); break;
+      case 'ocr': result = performOcrAction_(body); break;
       case 'sendLineNotification':
         sendLineMessage_(data.message, lineToken, lineUserId);
         result = { success: true };
@@ -664,6 +672,105 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ error: err.message })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ── 完全無料・設定不要のGAS Drive OCR解析処理 ──
+function performOcrAction_(body) {
+  try {
+    var imageBase64 = body.image || '';
+    var mimeType = body.mimeType || 'image/jpeg';
+    if (imageBase64.indexOf(',') !== -1) {
+      imageBase64 = imageBase64.split(',')[1];
+    }
+    
+    // スコープ自重検出用（DriveAppの呼び出し）
+    DriveApp.getRootFolder();
+    var token = ScriptApp.getOAuthToken();
+    
+    // アップロードする画像のメタデータ（mimeTypeは元画像のもの）
+    var metadata = {
+      title: 'Temp_OCR_Image_' + Date.now(),
+      mimeType: mimeType
+    };
+
+    var boundary = '-------314159265358979323846';
+    var delimiter = "\r\n--" + boundary + "\r\n";
+    var close_delim = "\r\n--" + boundary + "--";
+
+    var requestBody = delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: ' + mimeType + '\r\n' +
+      'Content-Transfer-Encoding: base64\r\n\r\n' +
+      imageBase64 +
+      close_delim;
+
+    // convert=true & ocr=true でGoogleドキュメントへ自動OCR変換
+    var url = 'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&convert=true&ocr=true&ocrLanguage=ja';
+    var response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'multipart/mixed; boundary="' + boundary + '"',
+      headers: {
+        Authorization: 'Bearer ' + token
+      },
+      payload: requestBody,
+      muteHttpExceptions: true
+    });
+
+    var resJson = JSON.parse(response.getContentText());
+
+    if (!resJson.id) {
+      throw new Error('Drive OCRに失敗しました: ' + (resJson.error ? resJson.error.message : response.getContentText()));
+    }
+
+    var docId = resJson.id;
+
+    // UrlFetchAppを使ってテキスト内容を直で取得（DocumentApp権限エラーを100%回避）
+    var exportUrl = 'https://www.googleapis.com/drive/v2/files/' + docId + '/export?mimeType=text/plain';
+    var textResponse = UrlFetchApp.fetch(exportUrl, {
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+
+    var fullText = textResponse.getContentText();
+
+    // 一時ドキュメントをゴミ箱へ移動して削除
+    try { DriveApp.getFileById(docId).setTrashed(true); } catch (e) {}
+
+    // テキスト解析（金額、インボイス番号、日付、品目）
+    var amountMatch = fullText.match(/[¥￥]?\s*([0-9,]{3,})/);
+    var amount = amountMatch ? parseInt(amountMatch[1].replace(/,/g, ''), 10) : 0;
+
+    var invoiceMatch = fullText.match(/T\d{13}/);
+    var invoiceNo = invoiceMatch ? invoiceMatch[0] : '';
+
+    var dateMatch = fullText.match(/(\d{4})[年\/\.-](\d{1,2})[月\/\.-](\d{1,2})/);
+    var dateStr = dateMatch 
+      ? dateMatch[1] + '-' + String(dateMatch[2]).padStart(2, '0') + '-' + String(dateMatch[3]).padStart(2, '0')
+      : new Date().toISOString().split('T')[0];
+
+    var lines = fullText.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 0; });
+    var vendor = lines[0] || '領収書';
+
+    return {
+      success: true,
+      data: {
+        date: dateStr,
+        vendor: vendor,
+        amount: amount,
+        debitAccount: '消耗品費',
+        invoiceNumber: invoiceNo,
+        description: lines.slice(0, 3).join(' '),
+        isReimbursement: false
+      }
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: 'GAS OCRエラー: ' + err.toString()
+    };
   }
 }
 
@@ -1100,7 +1207,207 @@ function getOrCreateClientFolder_(clientName, subFolderName) {
 }
 
 // ============================================================
-//  Googleカレンダー連携
+//  iOSショートカット連携: 本日のタスク一覧取得
+// ============================================================
+function getTodayTasks_() {
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var cases = getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
+  var customers = getSheetDataAsJson_(SHEET_NAMES.CUSTOMER, CUSTOMER_HEADERS);
+  var locations = getSheetDataAsJson_(SHEET_NAMES.LOCATION, LOCATION_HEADERS);
+
+  // ヘルパー: 顧客名を取得
+  function getClientName(clientId) {
+    if (!clientId) return '';
+    for (var i = 0; i < customers.length; i++) {
+      if (customers[i].id === clientId) return customers[i].name || '';
+    }
+    return '';
+  }
+
+  // ヘルパー: 場所名を取得
+  function getLocName(locId) {
+    if (!locId) return '';
+    for (var i = 0; i < locations.length; i++) {
+      if (locations[i].id === locId) return locations[i].name || '';
+    }
+    return '';
+  }
+
+  var tasks = [];
+
+  // 日程の定義: { dateKey, label, icon, locKey }
+  var dateChecks = [
+    { dateKey: 'surveyDate',        label: '現調', icon: '🔍', locKey: 'surveyLocationId' },
+    { dateKey: 'applyDate',         label: '申請', icon: '📝', locKey: 'policeLocationId' },
+    { dateKey: 'policeDeliveryDate', label: '交付', icon: '📋', locKey: 'policeLocationId' },
+    { dateKey: 'storeDeliveryDate', label: '店届', icon: '🚚', locKey: 'locationId' },
+    { dateKey: 'registrationDate',  label: '登録', icon: '🚗', locKey: 'landTransportLocationId' },
+  ];
+
+  for (var i = 0; i < cases.length; i++) {
+    var c = cases[i];
+    if (c.status === 'done') continue; // 完了済みはスキップ
+
+    var clientName = getClientName(c.clientId);
+
+    for (var j = 0; j < dateChecks.length; j++) {
+      var dc = dateChecks[j];
+      var dateVal = c[dc.dateKey] || '';
+
+      // 日付文字列を yyyy-MM-dd に正規化（スプレッドシートのDate型対応）
+      if (dateVal && typeof dateVal === 'object' && dateVal.getTime) {
+        dateVal = Utilities.formatDate(dateVal, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else if (dateVal) {
+        dateVal = String(dateVal).slice(0, 10);
+      }
+
+      if (dateVal === today) {
+        var locName = getLocName(c[dc.locKey]);
+        var timeStr = (dc.dateKey === 'storeDeliveryDate' && c.storeDeliveryTime) ? c.storeDeliveryTime : '';
+        var title = dc.icon + '【' + dc.label + '】' + (c.title || '案件');
+        var notes = '';
+        if (clientName) notes += clientName + '様';
+        if (locName) notes += (notes ? ' / ' : '') + '📍' + locName;
+        if (timeStr) notes += (notes ? ' / ' : '') + '⏰' + timeStr;
+        if (c.memo) notes += (notes ? '\n' : '') + c.memo;
+
+        tasks.push({
+          title: title,
+          notes: notes,
+          location: locName,
+          time: timeStr,
+          caseId: c.id,
+          clientName: clientName,
+          label: dc.label,
+        });
+      }
+    }
+  }
+
+  // カレンダーの予定も追加
+  try {
+    var cal = CalendarApp.getDefaultCalendar();
+    var todayDate = new Date(today + 'T00:00:00');
+    var tomorrowDate = new Date(todayDate.getTime() + 24 * 60 * 60 * 1000);
+    var events = cal.getEvents(todayDate, tomorrowDate);
+    for (var k = 0; k < events.length; k++) {
+      var ev = events[k];
+      var desc = ev.getDescription() || '';
+      // ダッシュボードからの案件同期イベントは除外（二重表示防止）
+      if (desc.indexOf('自動同期') !== -1) continue;
+      var evStart = ev.getStartTime();
+      var evTime = ev.isAllDayEvent() ? '' : Utilities.formatDate(evStart, Session.getScriptTimeZone(), 'HH:mm');
+      tasks.push({
+        title: '📅 ' + ev.getTitle(),
+        notes: evTime ? '⏰' + evTime : '終日',
+        location: '',
+        time: evTime,
+        caseId: '',
+        clientName: '',
+        label: '予定',
+      });
+    }
+  } catch (e) { /* カレンダー取得エラーは無視 */ }
+
+  return tasks;
+}
+
+// ============================================================
+//  案件日程 → Google Tasks 一括同期（Taska対応）
+//  ※ Apps Scriptエディタで「サービス」→「Tasks API」を追加してください
+// ============================================================
+function syncCaseCalendar_(data) {
+  try {
+    var caseTitle = data.caseTitle || '案件';
+    var clientName = data.clientName || '';
+    var clientLabel = clientName ? ' (' + clientName + '様)' : '';
+    var taskListId = '@default'; // デフォルトのタスクリスト
+
+    // 同期対象の日程定義
+    var dateFields = [
+      { key: 'survey',        icon: '🔍', label: '現調',  dateField: 'surveyDate',        locationField: 'surveyLocationName' },
+      { key: 'apply',         icon: '📝', label: '申請',  dateField: 'applyDate',         locationField: 'policeLocationName' },
+      { key: 'delivery',      icon: '📋', label: '交付',  dateField: 'policeDeliveryDate', locationField: 'policeLocationName' },
+      { key: 'storeDelivery', icon: '🚚', label: '店届',  dateField: 'storeDeliveryDate', locationField: 'locationName', timeField: 'storeDeliveryTime' },
+      { key: 'registration',  icon: '🚗', label: '登録',  dateField: 'registrationDate',  locationField: 'landTransportLocationName' },
+    ];
+
+    var existingIds = data.calendarEventIds || {};
+    var newIds = {};
+
+    for (var i = 0; i < dateFields.length; i++) {
+      var df = dateFields[i];
+      var dateValue = data[df.dateField] || '';
+      var existingTaskId = existingIds[df.key] || '';
+
+      if (!dateValue) {
+        // 日付が空 → 既存タスクがあれば削除
+        if (existingTaskId) {
+          try { Tasks.Tasks.remove(taskListId, existingTaskId); } catch (e) {}
+        }
+        newIds[df.key] = '';
+        continue;
+      }
+
+      // タイトル組み立て
+      var locName = data[df.locationField] || '';
+      var locText = locName ? ' @' + locName : '';
+      var storeTime = (df.timeField && data[df.timeField]) ? data[df.timeField] : '';
+      var timeText = storeTime ? ' ' + storeTime : '';
+      var title = df.icon + ' 【' + df.label + '】' + caseTitle + clientLabel + locText + timeText;
+      var notes = '案件ID: ' + (data.caseId || '') + '\n自動同期: ダッシュボードの案件データと連動';
+
+      // Google Tasks の期限日（RFC 3339形式）
+      var dueDate = dateValue + 'T00:00:00.000Z';
+
+      if (existingTaskId) {
+        // 既存タスクを更新
+        try {
+          var existingTask = Tasks.Tasks.get(taskListId, existingTaskId);
+          existingTask.title = title;
+          existingTask.notes = notes;
+          existingTask.due = dueDate;
+          existingTask.status = 'needsAction'; // 未完了に戻す
+          Tasks.Tasks.update(existingTask, taskListId, existingTaskId);
+          newIds[df.key] = existingTaskId;
+        } catch (e) {
+          // タスクが見つからない場合は新規作成
+          var fallback = Tasks.Tasks.insert({ title: title, notes: notes, due: dueDate, status: 'needsAction' }, taskListId);
+          newIds[df.key] = fallback.id;
+        }
+      } else {
+        // 新規作成
+        var created = Tasks.Tasks.insert({ title: title, notes: notes, due: dueDate, status: 'needsAction' }, taskListId);
+        newIds[df.key] = created.id;
+      }
+    }
+
+    return { success: true, calendarEventIds: newIds };
+  } catch (err) {
+    return { error: '案件タスク同期エラー: ' + err.message + '（Tasks APIが有効か確認してください）' };
+  }
+}
+
+// 案件削除時にGoogle Tasksも一括削除
+function deleteCaseCalendarEvents_(data) {
+  try {
+    var ids = data.calendarEventIds || {};
+    var taskListId = '@default';
+    var keys = Object.keys(ids);
+    for (var i = 0; i < keys.length; i++) {
+      var taskId = ids[keys[i]];
+      if (taskId) {
+        try { Tasks.Tasks.remove(taskListId, taskId); } catch (e) {}
+      }
+    }
+    return { success: true };
+  } catch (err) {
+    return { error: '案件タスク削除エラー: ' + err.message };
+  }
+}
+
+// ============================================================
+//  Googleカレンダー連携（スケジュール予定）
 // ============================================================
 function createCalendarEvent_(data) {
   if (!data.title || !data.date) return { error: 'タイトルと日付は必須です' };

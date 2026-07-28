@@ -580,7 +580,7 @@ const Calendar = {
       inheritanceItems = inheritanceItems.filter(item => item.staffId == this.filterStaffId);
     }
 
-    const STATUS_LABELS = { received: '受付', hearing: 'ヒアリング', documents: '書類作成', applying: '申請中', done: '完了' };
+    const STATUS_LABELS = { received: '受付', applying: '申請', delivery: '交付', registration: '登録', done: '完了' };
     const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続' };
 
     // 終日アイテム（時間指定なし）

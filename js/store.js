@@ -155,7 +155,7 @@ const Store = {
       clientId: data.clientId || '',
       title: data.title || '',
       category: data.category || 'garage_oss',      // garage_oss | garage_paper | seal | inheritance
-      status: data.status || 'received',         // received | hearing | documents | applying | done
+      status: data.status || 'received',         // received | applying | delivery | registration | done
       deadline: data.deadline || '',
       fee: data.fee || '',
       advances: data.advances || [],             // [{label, amount}] 立替金
@@ -178,6 +178,7 @@ const Store = {
       carPolice: data.carPolice || '',           // 所轄警察署
       faxId: data.faxId || '',                   // 受信FAXとの紐付け用ID
       inboxId: data.inboxId || '',               // インボックス連携用ID
+      calendarEventIds: data.calendarEventIds || {},  // { survey, apply, delivery, storeDelivery, registration } カレンダー同期用
       memo: data.memo || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -619,9 +620,9 @@ const Store = {
 
     const statusCounts = {
       received: cases.filter(c => c.status === 'received').length,
-      hearing: cases.filter(c => c.status === 'hearing').length,
-      documents: cases.filter(c => c.status === 'documents').length,
       applying: cases.filter(c => c.status === 'applying').length,
+      delivery: cases.filter(c => c.status === 'delivery').length,
+      registration: cases.filter(c => c.status === 'registration').length,
       done: cases.filter(c => c.status === 'done').length,
     };
 
