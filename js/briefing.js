@@ -869,7 +869,7 @@ const Briefing = {
           const clientPart = (!isLocStore && act.shortClientName) ? `　${act.shortClientName}` : '';
           // 担当者名
           const contactPart = act.contactName ? `　担当${act.contactName}` : '';
-          const memoText = act.memo && act.memo.trim() ? `\n   📝 ${act.memo.trim().replace(/\n/g, ' ')}` : '';
+          const memoText = act.memo && act.memo.trim() ? `\n※${act.memo.trim().replace(/\n/g, ' ')}` : '';
           msg += `・${prefix}[${act.label}] ${act.title}${clientPart}${contactPart}${memoText}\n`;
           printedCount++;
         });
@@ -881,7 +881,7 @@ const Briefing = {
         noLocationActions.forEach(act => {
           const clientPart = act.shortClientName ? `　${act.shortClientName}` : '';
           const contactPart = act.contactName ? `　担当${act.contactName}` : '';
-          const memoText = act.memo && act.memo.trim() ? `\n   📝 ${act.memo.trim().replace(/\n/g, ' ')}` : '';
+          const memoText = act.memo && act.memo.trim() ? `\n※${act.memo.trim().replace(/\n/g, ' ')}` : '';
           msg += `・[${act.label}] ${act.title}${clientPart}${contactPart}${memoText}\n`;
           printedCount++;
         });
