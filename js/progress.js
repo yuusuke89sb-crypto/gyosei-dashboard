@@ -231,13 +231,31 @@ const Progress = {
     const picker = document.createElement('div');
     picker.className = 'progress-datepicker';
     picker.innerHTML = `
-      <input type="date" value="${currentVal}" autofocus
-        onchange="Progress.updateDate('${caseId}', '${field}', this.value)"
-        onblur="setTimeout(() => this.parentElement?.remove(), 150)">
+      <input type="date" value="${currentVal}"
+        onchange="Progress.updateDate('${caseId}', '${field}', this.value)">
       ${currentVal ? `<button class="btn-clear-date" onclick="Progress.updateDate('${caseId}', '${field}', '');this.parentElement.remove();">✕</button>` : ''}
     `;
     cell.appendChild(picker);
-    picker.querySelector('input').focus();
+
+    // 日付inputにフォーカスしてカレンダーを自動オープン
+    const input = picker.querySelector('input');
+    requestAnimationFrame(() => {
+      input.focus();
+      // PC: showPickerが使えるブラウザならカレンダーを自動展開
+      if (typeof input.showPicker === 'function') {
+        try { input.showPicker(); } catch(e) { /* ignore */ }
+      }
+    });
+
+    // 外側クリックで閉じる
+    setTimeout(() => {
+      document.addEventListener('click', function closePicker(e) {
+        if (!picker.contains(e.target) && !cell.contains(e.target)) {
+          picker.remove();
+          document.removeEventListener('click', closePicker);
+        }
+      });
+    }, 10);
   },
 
   updateDate(caseId, field, value) {
