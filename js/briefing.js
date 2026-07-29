@@ -709,14 +709,11 @@ const Briefing = {
       month: 'short', day: 'numeric', weekday: 'short'
     });
     
-    let msg = `\n【☀️ 本日のブリーフィング】\n${dateStr}の業務まとめ\n`;
-    msg += `━━━━━━━━━━━━━━━━\n`;
+    let msg = '';
     
-    // 1. 本日の予定
-    msg += `📅 本日の予定 (${events.length}件)\n`;
-    if (events.length === 0) {
-      msg += '・予定はありません\n';
-    } else {
+    // 1. 本日の予定（あるときだけ表示）
+    if (events.length > 0) {
+      msg += `📅 本日の予定 (${events.length}件)\n`;
       events.forEach(e => {
         let locText = '';
         if (e.locationId) {
@@ -728,9 +725,8 @@ const Briefing = {
         const memoText = e.memo && e.memo.trim() ? `\n   📝 ${e.memo.trim().replace(/\n/g, ' ')}` : '';
         msg += `・[${e.time || '終日'}] ${e.title}${locText}${memoText}\n`;
       });
+      msg += `\n`;
     }
-    
-    msg += `━━━━━━━━━━━━━━━━\n`;
     
     // 2. 本日のタスク（行き先ごとにグループ化）
     msg += `📋 本日のタスク (${cases.length}件)\n`;
@@ -740,18 +736,26 @@ const Briefing = {
       const allActions = [];
       cases.forEach(c => {
         const client = Store.getClient(c.clientId);
-        const clientText = client ? ` (${client.name}様)` : '';
+        const clientName = client ? client.name : '';
+        // 店舗名を短縮（「愛知トヨタ 」を省略して店舗名だけに）
+        const shortClientName = clientName.replace(/^愛知トヨタ\s*/, '');
         const todayStr = Store.getLocalDateStr();
         const caseMemo = c.memo || '';
+        
+        // 顧客担当者名を取得
+        let contactName = '';
+        if (c.clientContactId && typeof Store.getClientContact === 'function') {
+          const contact = Store.getClientContact(c.clientContactId);
+          if (contact && contact.name) contactName = contact.name;
+        }
         
         if (c.surveyDate === todayStr) {
           allActions.push({
             label: '現調',
             title: c.title,
-            clientText,
+            clientName, shortClientName, contactName,
             locId: c.surveyLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline,
             memo: caseMemo
           });
         }
@@ -759,10 +763,9 @@ const Briefing = {
           allActions.push({
             label: '申請',
             title: c.title,
-            clientText,
+            clientName, shortClientName, contactName,
             locId: c.policeLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline,
             memo: caseMemo
           });
         }
@@ -770,27 +773,23 @@ const Briefing = {
           allActions.push({
             label: '交付',
             title: c.title,
-            clientText,
+            clientName, shortClientName, contactName,
             locId: c.policeLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline,
             memo: caseMemo
           });
         }
         if (c.storeDeliveryDate === todayStr) {
-          // 店届は顧客店舗ごとにグループ化するため、locId が空なら顧客名をフォールバック
-          const client = Store.getClient(c.clientId);
           const storeLocId = c.locationId || null;
-          const storeLocFallback = client ? `🚚 ${client.name}様` : '🚚 店届先';
+          const storeLocFallback = clientName ? `🚚 ${clientName}様` : '🚚 店届先';
           allActions.push({
             label: '店届',
             title: c.title,
-            clientText,
+            clientName, shortClientName, contactName,
             locId: storeLocId,
             locFallbackName: storeLocFallback,
             isStoreDelivery: true,
             timeLabel: c.storeDeliveryTime ? `【${c.storeDeliveryTime}】` : '',
-            deadline: c.deadline,
             memo: caseMemo,
             priority: c.storeDeliveryTime ? 1 : 0
           });
@@ -799,10 +798,9 @@ const Briefing = {
           allActions.push({
             label: '登録',
             title: c.title,
-            clientText,
+            clientName, shortClientName, contactName,
             locId: c.landTransportLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline,
             memo: caseMemo
           });
         }
@@ -819,17 +817,16 @@ const Briefing = {
           allActions.push({
             label: label,
             title: c.title,
-            clientText,
+            clientName, shortClientName, contactName,
             locId: c.policeLocationId || c.landTransportLocationId || c.locationId,
             timeLabel: '',
-            deadline: c.deadline,
             memo: caseMemo
           });
         }
       });
 
       // ── 行き先ごとにグループ化 ──
-      const locationGroups = {};  // locName => actions[]
+      const locationGroups = {};
       const noLocationActions = [];
 
       allActions.forEach(act => {
@@ -839,7 +836,6 @@ const Briefing = {
           const loc = Store.getLocation(act.locId);
           locName = loc ? loc.name : act.locId;
         } else if (act.locFallbackName) {
-          // 店届など：locationId未設定でも顧客名でグループ化
           locName = act.locFallbackName;
         }
 
@@ -863,15 +859,18 @@ const Briefing = {
       let printedCount = 0;
       sortedLocations.forEach(locName => {
         const actions = locationGroups[locName];
-        // 同じ行き先内でも時間指定を上に
         actions.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
         msg += `\n📍 ${locName} (${actions.length}件)\n`;
         actions.forEach(act => {
-          const deadlineText = act.deadline ? ` (期限: ${act.deadline.slice(5)})` : '';
           const prefix = act.timeLabel ? `${act.timeLabel} ` : '';
+          // 店舗名: 行き先ヘッダーが店舗名なら省略、そうでなければ短縮名を表示
+          const isLocStore = locName.includes(act.clientName) || (act.isStoreDelivery && act.locFallbackName);
+          const clientPart = (!isLocStore && act.shortClientName) ? `　${act.shortClientName}` : '';
+          // 担当者名
+          const contactPart = act.contactName ? `　担当${act.contactName}` : '';
           const memoText = act.memo && act.memo.trim() ? `\n   📝 ${act.memo.trim().replace(/\n/g, ' ')}` : '';
-          msg += `・${prefix}[${act.label}] ${act.title}${act.clientText}${deadlineText}${memoText}\n`;
+          msg += `・${prefix}[${act.label}] ${act.title}${clientPart}${contactPart}${memoText}\n`;
           printedCount++;
         });
       });
@@ -880,9 +879,10 @@ const Briefing = {
       if (noLocationActions.length > 0) {
         msg += `\n🏠 事務所・その他 (${noLocationActions.length}件)\n`;
         noLocationActions.forEach(act => {
-          const deadlineText = act.deadline ? ` (期限: ${act.deadline.slice(5)})` : '';
+          const clientPart = act.shortClientName ? `　${act.shortClientName}` : '';
+          const contactPart = act.contactName ? `　担当${act.contactName}` : '';
           const memoText = act.memo && act.memo.trim() ? `\n   📝 ${act.memo.trim().replace(/\n/g, ' ')}` : '';
-          msg += `・[${act.label}] ${act.title}${act.clientText}${deadlineText}${memoText}\n`;
+          msg += `・[${act.label}] ${act.title}${clientPart}${contactPart}${memoText}\n`;
           printedCount++;
         });
       }
@@ -892,17 +892,12 @@ const Briefing = {
       }
     }
     
-    msg += `━━━━━━━━━━━━━━━━\n`;
-    
     // 3. 登録前BOX
     const inbox = (typeof Store !== 'undefined' && Store.getInbox) ? Store.getInbox() : [];
     const unprocessedInbox = inbox.filter(item => item.status === '未対応');
     if (unprocessedInbox.length > 0) {
-      msg += `📥 登録前BOX (未対応): ${unprocessedInbox.length}件あります。\n`;
-      msg += `━━━━━━━━━━━━━━━━\n`;
+      msg += `\n📥 登録前BOX (未対応): ${unprocessedInbox.length}件あります。\n`;
     }
-    
-    msg += '今日も一日頑張りましょう！';
     
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('sendLineNotification', { message: msg })
