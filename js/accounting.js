@@ -32,10 +32,10 @@ const Accounting = {
       '雑費',
     ],
     asset: [
-      '現金', '普通預金', '売掛金', '事業主貸',
+      '現金', '普通預金', '売掛金', '開業費', '創立費', '事業主貸',
     ],
     liability: [
-      '未払金', '事業主借',
+      '未払金', '事業主借', '役員借入金', '資本金', '元本',
     ],
   },
 
@@ -550,12 +550,14 @@ const Accounting = {
 
     const header = rows[0].map(h => h.replace(/^"+|"+$/g, '').trim());
 
+    let colNo = header.findIndex(h => h.includes('取引No') || h.includes('仕訳No') || h.includes('No'));
     let colDate = header.findIndex(h => h.includes('取引日') || h.includes('日付'));
     let colDebit = header.findIndex(h => h.includes('借方勘定科目') || h.includes('借方科目') || h === '借方');
     let colDebitAmt = header.findIndex(h => h.includes('借方金額') || h === '金額');
     let colCredit = header.findIndex(h => h.includes('貸方勘定科目') || h.includes('貸方科目') || h === '貸方');
     let colCreditAmt = header.findIndex(h => h.includes('貸方金額'));
     let colDesc = header.findIndex(h => h.includes('摘要') || h.includes('内容') || h.includes('品名'));
+    let colMemo = header.findIndex(h => h.includes('メモ') || h.includes('仕訳メモ'));
 
     if (colDate === -1) colDate = 0;
     if (colDebit === -1) colDebit = 1;
@@ -567,10 +569,15 @@ const Accounting = {
     const newJournals = [];
     let skipCount = 0;
 
+    let lastTxNo = null;
+    let lastDebit = '未分類';
+    let lastCredit = '未分類';
+
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length <= Math.max(colDate, colDebitAmt)) continue;
 
+      const txNo = colNo !== -1 ? row[colNo] : '';
       let rawDate = row[colDate] || '';
       rawDate = rawDate.replace(/\//g, '-').trim();
       const dateParts = rawDate.split('-');
@@ -583,8 +590,21 @@ const Accounting = {
 
       if (!rawDate || rawDate.length < 8) continue;
 
-      const debit = row[colDebit] || '未分類';
-      const credit = row[colCredit] || '未分類';
+      let debit = row[colDebit] || '';
+      let credit = row[colCredit] || '';
+
+      // マネーフォワード等の複合仕訳（同一取引No）における勘定科目の継承補完
+      if (txNo && txNo === lastTxNo) {
+        if (!debit) debit = lastDebit;
+        if (!credit) credit = lastCredit;
+      } else {
+        lastTxNo = txNo;
+        if (debit) lastDebit = debit;
+        if (credit) lastCredit = credit;
+      }
+
+      if (!debit) debit = '未分類';
+      if (!credit) credit = '未分類';
 
       let amountStr = row[colDebitAmt] || (colCreditAmt !== -1 ? row[colCreditAmt] : '0');
       amountStr = amountStr.replace(/[^0-9.]/g, '');
@@ -592,9 +612,15 @@ const Accounting = {
       if (amount <= 0) continue;
 
       const desc = row[colDesc] || '';
+      const memo = colMemo !== -1 ? row[colMemo] : '';
+      
+      let fullDesc = desc;
+      if (memo) {
+        fullDesc = desc ? `${desc} (${memo})` : memo;
+      }
 
       const isDup = existingJournals.some(j =>
-        j.date === rawDate && j.debit === debit && j.credit === credit && j.amount === amount && (j.description || '') === desc
+        j.date === rawDate && j.debit === debit && j.credit === credit && j.amount === amount && (j.description || '') === fullDesc
       );
 
       if (isDup) {
@@ -608,7 +634,7 @@ const Accounting = {
         debit: debit,
         credit: credit,
         amount: amount,
-        description: desc,
+        description: fullDesc,
         auto: false,
         createdAt: new Date().toISOString()
       });
