@@ -12,6 +12,7 @@ const Store = {
     CLIENT_CONTACTS: 'gyosei_client_contacts',
     LOCATIONS: 'gyosei_locations',
     INBOX: 'gyosei_inbox',
+    INHERITANCE_FILES: 'gyosei_inheritance_files',
   },
 
   // 旧ステータスの自動マイグレーション（hearing→applying, documents→delivery）
@@ -465,6 +466,56 @@ const Store = {
     }
   },
 
+  // ---- 相続事件簿 CRUD ----
+  getInheritanceFiles() {
+    return this._get(this.KEYS.INHERITANCE_FILES);
+  },
+
+  getInheritanceFile(id) {
+    return this.getInheritanceFiles().find(f => f.id === id) || null;
+  },
+
+  getInheritanceFileByCase(caseId) {
+    return this.getInheritanceFiles().find(f => f.caseId === caseId) || null;
+  },
+
+  addInheritanceFile(data) {
+    const files = this.getInheritanceFiles();
+    const now = new Date().toISOString();
+    const file = {
+      id: 'inh_' + this._generateId(),
+      caseId: data.caseId || '',
+      createdAt: now,
+      updatedAt: now,
+      acceptanceInfo: data.acceptanceInfo || {},
+      deceasedName: data.deceasedName || '',
+      deathDate: data.deathDate || '',
+      deathCertificateCopies: data.deathCertificateCopies || '',
+      heirs: data.heirs || [],
+      registryInfo: data.registryInfo || {},
+      banks: data.banks || [],
+      realEstateProps: data.realEstateProps || [],
+      otherInfo: data.otherInfo || {},
+    };
+    files.push(file);
+    this._set(this.KEYS.INHERITANCE_FILES, files);
+    return file;
+  },
+
+  updateInheritanceFile(id, data) {
+    const files = this.getInheritanceFiles();
+    const idx = files.findIndex(f => f.id === id);
+    if (idx === -1) return null;
+    files[idx] = { ...files[idx], ...data, updatedAt: new Date().toISOString() };
+    this._set(this.KEYS.INHERITANCE_FILES, files);
+    return files[idx];
+  },
+
+  deleteInheritanceFile(id) {
+    const files = this.getInheritanceFiles().filter(f => f.id !== id);
+    this._set(this.KEYS.INHERITANCE_FILES, files);
+  },
+
   // ---- インボックス CRUD ----
   getInbox() {
     return this._get(this.KEYS.INBOX);
@@ -498,6 +549,7 @@ const Store = {
       payments: JSON.parse(localStorage.getItem('gyosei_payments') || '[]'),
       activityLog: JSON.parse(localStorage.getItem('gyosei_activity_log') || '[]'),
       recurring: JSON.parse(localStorage.getItem('gyosei_recurring') || '[]'),
+      inheritanceFiles: this.getInheritanceFiles(),
       goals: JSON.parse(localStorage.getItem('gyosei_goals') || 'null'),
       koteihi: JSON.parse(localStorage.getItem('koteihi_data') || 'null'),
       koteihiLifeplan: JSON.parse(localStorage.getItem('koteihi_lifeplan') || 'null'),
@@ -532,6 +584,7 @@ const Store = {
       if (data.payments) localStorage.setItem('gyosei_payments', JSON.stringify(data.payments));
       if (data.activityLog) localStorage.setItem('gyosei_activity_log', JSON.stringify(data.activityLog));
       if (data.recurring) localStorage.setItem('gyosei_recurring', JSON.stringify(data.recurring));
+      if (data.inheritanceFiles) this._set(this.KEYS.INHERITANCE_FILES, data.inheritanceFiles);
       if (data.goals) localStorage.setItem('gyosei_goals', JSON.stringify(data.goals));
       if (data.koteihi) localStorage.setItem('koteihi_data', JSON.stringify(data.koteihi));
       if (data.koteihiLifeplan) localStorage.setItem('koteihi_lifeplan', JSON.stringify(data.koteihiLifeplan));

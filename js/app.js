@@ -85,6 +85,9 @@ const App = {
         <a class="nav-item ${this.currentPage === 'cases' ? 'active' : ''}" onclick="App.navigate('cases')">
           <span class="nav-icon">📋</span><span class="nav-label">案件管理</span>
         </a>
+        <a class="nav-item ${this.currentPage === 'inheritance-casefile' ? 'active' : ''}" onclick="App.navigate('inheritance-casefile')">
+          <span class="nav-icon">📜</span><span class="nav-label">相続事件簿</span>
+        </a>
         <a class="nav-item ${this.currentPage === 'progress' ? 'active' : ''}" onclick="App.navigate('progress')">
           <span class="nav-icon">📊</span><span class="nav-label">進捗管理</span>
         </a>
@@ -145,6 +148,7 @@ const App = {
       case 'dashboard': content.innerHTML = renderDashboard(); break;
       case 'clients': content.innerHTML = Clients.render(); break;
       case 'cases': content.innerHTML = Cases.render(); break;
+      case 'inheritance-casefile': content.innerHTML = InheritanceCasefile.render(); break;
       case 'progress': content.innerHTML = Progress.render(); break;
       case 'calendar': content.innerHTML = Calendar.render(); break;
       case 'accounting': content.innerHTML = Accounting.render(); break;
@@ -158,7 +162,7 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
     const navItems = document.querySelectorAll('.nav-item');
-    const sidebarPages = ['dashboard', 'clients', 'cases', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
+    const sidebarPages = ['dashboard', 'clients', 'cases', 'inheritance-casefile', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
     const sidebarIdx = sidebarPages.indexOf(this.currentPage);
     if (navItems[sidebarIdx]) navItems[sidebarIdx].classList.add('active');
     const bottomItems = document.querySelectorAll('.bottom-nav-item');

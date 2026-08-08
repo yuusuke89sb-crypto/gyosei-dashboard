@@ -3490,3 +3490,398 @@ form select:focus {
     min-width: 80px;
   }
 }
+
+/* ==========================================
+   相続事件簿
+   ========================================== */
+
+/* ---- 一覧画面 ---- */
+.inh-page { padding: 0; }
+
+.inh-empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-muted);
+}
+.inh-empty-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+.inh-empty h3 {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.inh-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+.inh-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 16px;
+  cursor: pointer;
+  transition: all var(--transition);
+  border-left: 4px solid var(--accent-purple);
+}
+.inh-card:hover {
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.inh-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+.inh-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.inh-card-icon {
+  font-size: 1.5rem;
+  opacity: 0.7;
+}
+.inh-card-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.inh-card-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.inh-card-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.inh-card-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.inh-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(139, 92, 246, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.inh-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-purple), #a78bfa);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.inh-progress-text {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-purple);
+  min-width: 36px;
+  text-align: right;
+}
+
+.inh-card-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ---- 詳細画面 ---- */
+.inh-detail-page { padding-bottom: 60px; }
+
+.inh-detail-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inh-link-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 16px;
+  background: rgba(139, 92, 246, 0.06);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+.inh-link-bar label {
+  font-weight: 600;
+  color: var(--accent-purple);
+  white-space: nowrap;
+}
+
+/* ---- セクション（アコーディオン） ---- */
+.inh-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.inh-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: rgba(139, 92, 246, 0.05);
+  border-bottom: 1px solid transparent;
+  transition: background var(--transition);
+  user-select: none;
+}
+.inh-section.open .inh-section-header {
+  border-bottom-color: var(--border-color);
+  background: rgba(139, 92, 246, 0.08);
+}
+.inh-section-header:hover {
+  background: rgba(139, 92, 246, 0.12);
+}
+.inh-section-arrow {
+  font-size: 0.7rem;
+  color: var(--accent-purple);
+  min-width: 12px;
+}
+.inh-section-title { flex: 1; }
+.inh-section-body { padding: 16px; }
+
+/* ---- フォーム要素 ---- */
+.inh-form-grid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.inh-field {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.inh-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.inh-field input,
+.inh-field select,
+.inh-field textarea {
+  padding: 6px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+.inh-field input:focus,
+.inh-field select:focus,
+.inh-field textarea:focus {
+  border-color: var(--accent-purple);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+}
+.inh-field textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.inh-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.inh-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-purple);
+}
+
+.inh-subtitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent-purple);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(139, 92, 246, 0.3);
+}
+
+.inh-check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+}
+.inh-check-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.inh-check-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-purple);
+}
+
+/* ---- 相続人テーブル ---- */
+.inh-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.inh-heirs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 700px;
+}
+.inh-heirs-table th {
+  text-align: center;
+  padding: 6px 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(139, 92, 246, 0.06);
+  border-bottom: 2px solid rgba(139, 92, 246, 0.2);
+  white-space: nowrap;
+}
+.inh-heirs-table td {
+  padding: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+.inh-heirs-table input[type="text"] {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+}
+.inh-heirs-table input[type="text"]:focus {
+  border-color: var(--accent-purple);
+  outline: none;
+}
+.inh-heirs-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-purple);
+}
+.inh-td-center {
+  text-align: center !important;
+}
+
+/* ---- 銀行カード ---- */
+.inh-bank-card {
+  background: rgba(59, 130, 246, 0.04);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.inh-bank-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.inh-bank-num {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--accent-blue);
+}
+
+/* ---- 不動産カード ---- */
+.inh-re-card {
+  background: rgba(16, 185, 129, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.inh-re-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.inh-re-num {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--accent-green);
+}
+
+/* ---- 削除ボタン（小） ---- */
+.btn-icon-sm {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  transition: all var(--transition);
+}
+.btn-danger-ghost {
+  color: var(--text-muted);
+}
+.btn-danger-ghost:hover {
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ---- モバイル対応 ---- */
+@media (max-width: 768px) {
+  .inh-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .inh-form-grid {
+    flex-direction: column;
+  }
+  .inh-card-stats {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .inh-link-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .inh-link-bar select {
+    max-width: 100% !important;
+    width: 100%;
+  }
+  .inh-detail-progress {
+    display: none;
+  }
+  .inh-check-grid {
+    flex-direction: column;
+  }
+}
