@@ -155,9 +155,17 @@ const SpreadsheetSync = {
             // 帳簿データをマージ（ローカル専用データを保持）
             if (data.journals) {
                 var local = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
-                var remoteIds = {};
-                data.journals.forEach(function(j){ remoteIds[j.id] = true; });
-                var localOnly = local.filter(function(j){ return !remoteIds[j.id]; });
+                var remoteKeys = {};
+                data.journals.forEach(function(j){
+                    if (j.id) remoteKeys[j.id] = true;
+                    var key = (j.date || '') + '_' + (j.debit || '') + '_' + (j.credit || '') + '_' + (j.amount || 0) + '_' + (j.description || '');
+                    remoteKeys[key] = true;
+                });
+                var localOnly = local.filter(function(j){
+                    if (j.id && remoteKeys[j.id]) return false;
+                    var key = (j.date || '') + '_' + (j.debit || '') + '_' + (j.credit || '') + '_' + (j.amount || 0) + '_' + (j.description || '');
+                    return !remoteKeys[key];
+                });
                 var merged = data.journals.concat(localOnly);
                 localStorage.setItem('gyosei_journals', JSON.stringify(merged));
             }

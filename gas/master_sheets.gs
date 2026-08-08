@@ -596,7 +596,7 @@ function doGet(e) {
     if (type === 'customers' || type === 'all') result.customers = getSheetDataAsJson_(SHEET_NAMES.CUSTOMER, CUSTOMER_HEADERS);
     if (type === 'staff' || type === 'all') result.staff = getSheetDataAsJson_(SHEET_NAMES.STAFF, STAFF_HEADERS);
     if (type === 'cases' || type === 'all') result.cases = getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
-    if (type === 'journals' || type === 'all') result.journals = getSheetDataAsJson_(SHEET_NAMES.JOURNALS, JOURNAL_HEADERS);
+    if (type === 'journals' || type === 'all') result.journals = getJournalsSheetData_();
     if (type === 'inbox' || type === 'all') result.inbox = getSheetDataAsJson_(SHEET_NAMES.INBOX, INBOX_HEADERS);
     if (type === 'locations' || type === 'all') result.locations = getSheetDataAsJson_(SHEET_NAMES.LOCATION, LOCATION_HEADERS);
     if (type === 'clientContacts' || type === 'all') result.clientContacts = getSheetDataAsJson_(SHEET_NAMES.CLIENT_CONTACT, CLIENT_CONTACT_HEADERS);
@@ -853,6 +853,97 @@ function getKeyMap_(sheetName) {
   if (sheetName === SHEET_NAMES.LOCATION) return {'場所ID': 'id','場所名': 'name','住所': 'address','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
   if (sheetName === SHEET_NAMES.CLIENT_CONTACT) return {'担当者ID': 'id','顧客ID': 'clientId','氏名': 'name','電話番号': 'phone','メールアドレス': 'email','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
   return {};
+}
+
+function getJournalsSheetData_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.JOURNALS) ||
+              ss.getSheetByName('仕訳帳') ||
+              ss.getSheetByName('仕訳') ||
+              ss.getSheetByName('経費') ||
+              ss.getSheetByName('帳簿データ');
+  if (!sheet) return [];
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  let colNo = headers.findIndex(h => h.includes('伝票ID') || h.includes('取引No') || h.includes('仕訳No') || h === 'ID');
+  let colDate = headers.findIndex(h => h.includes('日付') || h.includes('取引日'));
+  let colDebit = headers.findIndex(h => h.includes('借方勘定科目') || h.includes('借方科目') || h === '借方');
+  let colDebitAmt = headers.findIndex(h => h.includes('借方金額') || h === '金額');
+  let colCredit = headers.findIndex(h => h.includes('貸方勘定科目') || h.includes('貸方科目') || h === '貸方');
+  let colCreditAmt = headers.findIndex(h => h.includes('貸方金額'));
+  let colDesc = headers.findIndex(h => h.includes('摘要') || h.includes('内容') || h.includes('品名'));
+  let colMemo = headers.findIndex(h => h.includes('メモ') || h.includes('仕訳メモ'));
+
+  if (colDate === -1) colDate = 1;
+  if (colDebit === -1) colDebit = 2;
+  if (colCredit === -1) colCredit = 3;
+  if (colDebitAmt === -1) colDebitAmt = 4;
+  if (colDesc === -1) colDesc = 5;
+
+  const journals = [];
+  let lastTxNo = null;
+  let lastDebit = '未分類';
+  let lastCredit = '未分類';
+
+  data.forEach((row, rIdx) => {
+    const txNo = colNo !== -1 ? String(row[colNo]).trim() : '';
+    let rawDate = row[colDate];
+    let dateStr = '';
+    if (rawDate instanceof Date) {
+      dateStr = Utilities.formatDate(rawDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    } else if (rawDate) {
+      dateStr = String(rawDate).replace(/\//g, '-').trim();
+    }
+
+    if (!dateStr || dateStr.length < 8) return;
+
+    let debit = colDebit !== -1 ? String(row[colDebit]).trim() : '';
+    let credit = colCredit !== -1 ? String(row[colCredit]).trim() : '';
+
+    if (txNo && txNo === lastTxNo) {
+      if (!debit) debit = lastDebit;
+      if (!credit) credit = lastCredit;
+    } else {
+      lastTxNo = txNo;
+      if (debit) lastDebit = debit;
+      if (credit) lastCredit = credit;
+    }
+
+    if (!debit) debit = '未分類';
+    if (!credit) credit = '未分類';
+
+    let amtDebit = colDebitAmt !== -1 ? Number(String(row[colDebitAmt]).replace(/[^0-9.]/g, '')) || 0 : 0;
+    let amtCredit = colCreditAmt !== -1 ? Number(String(row[colCreditAmt]).replace(/[^0-9.]/g, '')) || 0 : 0;
+    let amount = amtDebit > 0 ? amtDebit : amtCredit;
+
+    if (amount <= 0) return;
+
+    let desc = colDesc !== -1 ? String(row[colDesc]).trim() : '';
+    let memo = colMemo !== -1 ? String(row[colMemo]).trim() : '';
+    let fullDesc = desc;
+    if (memo) fullDesc = desc ? `${desc} (${memo})` : memo;
+
+    let id = txNo ? ('j_ss_' + txNo + '_' + rIdx) : ('j_ss_' + rIdx);
+
+    journals.push({
+      id: id,
+      date: dateStr,
+      debit: debit,
+      credit: credit,
+      amount: amount,
+      description: fullDesc,
+      auto: false,
+      createdAt: new Date().toISOString()
+    });
+  });
+
+  return journals;
 }
 
 function upsertCustomer_(data) {
