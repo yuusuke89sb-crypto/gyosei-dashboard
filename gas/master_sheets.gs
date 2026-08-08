@@ -689,6 +689,7 @@ function doPost(e) {
       case 'upsertCase': result = upsertCase_(data, lineToken, lineUserId, lineNotifyCase); break;
       case 'deleteCase': result = deleteRow_(SHEET_NAMES.CASES, data.id); break;
       case 'upsertJournal': result = upsertJournal_(data); break;
+      case 'bulkUpsertJournals': result = bulkUpsertJournals_(data); break;
       case 'deleteJournal': result = deleteRow_(SHEET_NAMES.JOURNALS, data.id); break;
       case 'createCaseFolder': result = createCaseFolder_(data); break;
       case 'saveGeneratedPdf': result = saveGeneratedPdf_(data); break;
@@ -1146,6 +1147,65 @@ function upsertJournal_(data) {
   });
   sheet.appendRow(rowData);
   return { success: true, action: 'added', id: newId };
+}
+
+function bulkUpsertJournals_(journals) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.JOURNALS) || ss.getSheetByName('仕訳帳') || ss.getSheetByName('仕訳');
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.JOURNALS);
+    sheet.appendRow(JOURNAL_HEADERS);
+    sheet.getRange('1:1').setFontWeight('bold');
+  }
+
+  if (!Array.isArray(journals) || journals.length === 0) {
+    return { success: true, count: 0 };
+  }
+
+  const keyMap = getKeyMap_(SHEET_NAMES.JOURNALS);
+  const now = new Date();
+
+  const lastRow = sheet.getLastRow();
+  const existingRowMap = {};
+  if (lastRow >= 2) {
+    const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
+    ids.forEach((id, idx) => {
+      if (id) existingRowMap[String(id)] = idx + 2;
+    });
+  }
+
+  const newRows = [];
+  let updatedCount = 0;
+
+  journals.forEach(data => {
+    const id = data.id || ('J-' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+    data.id = id;
+
+    if (existingRowMap[id]) {
+      const row = existingRowMap[id];
+      JOURNAL_HEADERS.forEach((header, col) => {
+        const key = keyMap[header];
+        if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
+          sheet.getRange(row, col + 1).setValue(data[key]);
+        }
+      });
+      updatedCount++;
+    } else {
+      const rowData = JOURNAL_HEADERS.map(header => {
+        const key = keyMap[header];
+        if (key === 'id') return id;
+        if (key === 'createdAt') return data.createdAt || now;
+        return data[key] !== undefined ? data[key] : '';
+      });
+      newRows.push(rowData);
+    }
+  });
+
+  if (newRows.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, JOURNAL_HEADERS.length).setValues(newRows);
+  }
+
+  return { success: true, added: newRows.length, updated: updatedCount, total: journals.length };
 }
 
 

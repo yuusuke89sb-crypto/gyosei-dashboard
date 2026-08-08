@@ -693,11 +693,9 @@ const Accounting = {
     const updated = [...journals, ...this.pendingImportJournals];
     this.saveJournals(updated);
 
-    // スプレッドシート同期が設定されていれば、新しく取り込んだ仕訳をスプレッドシートへ自動Push
+    // スプレッドシート同期が設定されていれば、新しく取り込んだ仕訳をスプレッドシートへ一括Push
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-      this.pendingImportJournals.forEach(j => {
-        SpreadsheetSync.push('upsertJournal', j).catch(e => console.warn('SS仕訳Pushエラー:', e));
-      });
+      SpreadsheetSync.push('bulkUpsertJournals', this.pendingImportJournals).catch(e => console.warn('SS仕訳一括Pushエラー:', e));
     }
 
     const count = this.pendingImportJournals.length;
@@ -718,15 +716,14 @@ const Accounting = {
       return;
     }
 
-    App.showToast(`スプレッドシートへ ${journals.length}件 の仕訳を送信中...`);
-    let count = 0;
-    const promises = journals.map(j =>
-      SpreadsheetSync.push('upsertJournal', j).then(res => {
-        if (res && res.success) count++;
-      })
-    );
-    Promise.all(promises).then(() => {
-      App.showToast(`✅ スプレッドシート「帳簿」へ ${count}件 の仕訳を送信・同期しました！`);
+    App.showToast(`スプレッドシートへ ${journals.length}件 の仕訳を一括送信中...`);
+    
+    SpreadsheetSync.push('bulkUpsertJournals', journals).then(res => {
+      if (res && res.success) {
+        App.showToast(`✅ スプレッドシート「帳簿」へ ${journals.length}件 の仕訳を一括同期しました！`);
+      } else {
+        App.showToast('スプレッドシート送信エラー: ' + ((res && res.error) || '未知のエラー'));
+      }
     }).catch(err => {
       App.showToast('スプレッドシート送信中にエラーが発生しました');
       console.error(err);
