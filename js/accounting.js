@@ -103,7 +103,7 @@ const Accounting = {
           <button class="btn btn-ghost" style="font-weight:700; font-size:0.95rem; border-radius:var(--radius-sm); ${this.activeTab === 'trial_balance' ? 'background:rgba(245,158,11,0.15); color:var(--accent-gold); border-bottom:2px solid var(--accent-gold);' : ''}" onclick="Accounting.setActiveTab('trial_balance')">📊 合計残高試算表</button>
         </div>
 
-        <div class="acc-controls">
+        <div class="acc-controls" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <div class="acc-period">
             <select class="filter-select" onchange="Accounting.filterYear=Number(this.value); App.refreshView()">
               ${sortedYears.map(y =>
@@ -114,7 +114,13 @@ const Accounting = {
               ${months.join('')}
             </select>
           </div>
-          ${this.activeTab === 'journals' ? `<button class="btn btn-secondary btn-small" onclick="Accounting.exportCSV()">📥 CSV出力</button>` : ''}
+          ${this.activeTab === 'journals' ? `
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-small" onclick="Accounting.exportMFCSV()" style="border-color:rgba(245,158,11,0.5); color:var(--accent-gold); font-weight:600;" title="マネーフォワード形式でCSVエクスポート">🧡 MF用CSV出力</button>
+              <button class="btn btn-secondary btn-small" onclick="Accounting.showMFImportModal()" style="border-color:rgba(59,130,246,0.5); color:var(--accent-blue); font-weight:600;" title="マネーフォワード等からのCSVインポート">📥 MF用CSV取込</button>
+              <button class="btn btn-secondary btn-small" onclick="Accounting.exportCSV()" title="汎用CSV出力">📄 汎用CSV出力</button>
+            </div>
+          ` : ''}
         </div>
 
         ${this.activeTab === 'journals' ? `
@@ -300,27 +306,346 @@ const Accounting = {
     }
   },
 
+  // マネーフォワード形式 CSVエクスポート
+  exportMFCSV() {
+    const journals = this.getJournals();
+    if (journals.length === 0) {
+      App.showToast('出力する仕訳データがありません');
+      return;
+    }
+    const ym = `${this.filterYear}-${String(this.filterMonth).padStart(2, '0')}`;
+    const filtered = journals.filter(j => j.date && j.date.startsWith(ym));
+    const list = filtered.length > 0 ? filtered : journals;
+    list.sort((a, b) => a.date.localeCompare(b.date));
+
+    const headers = [
+      "取引No", "取引日", "借方勘定科目", "借方補助科目", "借方税区分", "借方金額(円)", "借方税額(円)",
+      "貸方勘定科目", "貸方補助科目", "貸方税区分", "貸方金額(円)", "貸方税額(円)",
+      "摘要", "仕訳メモ", "タグ", "MF仕訳タイプ", "決算整理仕訳"
+    ];
+
+    const rows = [headers.map(h => `"${h}"`).join(',')];
+
+    list.forEach(j => {
+      const dateFormatted = j.date ? j.date.replace(/-/g, '/') : '';
+      const amount = j.amount || 0;
+      const desc = (j.description || '').replace(/"/g, '""');
+      const memo = (j.invoiceNo ? `適格No:${j.invoiceNo}` : '').replace(/"/g, '""');
+      const debit = (j.debit || '').replace(/"/g, '""');
+      const credit = (j.credit || '').replace(/"/g, '""');
+
+      const row = [
+        '""',
+        `"${dateFormatted}"`,
+        `"${debit}"`,
+        '""',
+        '""',
+        `"${amount}"`,
+        '""',
+        `"${credit}"`,
+        '""',
+        '""',
+        `"${amount}"`,
+        '""',
+        `"${desc}"`,
+        `"${memo}"`,
+        '""',
+        '""',
+        '""'
+      ];
+      rows.push(row.join(','));
+    });
+
+    const csvContent = '\uFEFF' + rows.join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `MF_仕訳データ_${this.filterYear}${String(this.filterMonth).padStart(2, '0')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    App.showToast(`マネーフォワード形式CSV (${list.length}件) をダウンロードしました`);
+  },
+
+  // 汎用 CSVエクスポート
   exportCSV() {
     const journals = this.getJournals();
     const ym = `${this.filterYear}-${String(this.filterMonth).padStart(2, '0')}`;
     const filtered = journals.filter(j => j.date && j.date.startsWith(ym));
-    filtered.sort((a, b) => a.date.localeCompare(b.date));
+    const list = filtered.length > 0 ? filtered : journals;
+    list.sort((a, b) => a.date.localeCompare(b.date));
 
-    if (filtered.length === 0) {
-      App.showToast('この月の仕訳がありません');
+    if (list.length === 0) {
+      App.showToast('出力する仕訳データがありません');
       return;
     }
 
-    const rows = [['日付', '借方', '貸方', '金額', '摘要']];
-    filtered.forEach(j => {
-      rows.push([j.date, j.debit, j.credit, j.amount, j.description || '']);
+    const rows = [['日付', '借方', '貸方', '金額', '摘要', 'インボイス番号']];
+    list.forEach(j => {
+      const desc = (j.description || '').replace(/"/g, '""');
+      rows.push([
+        `"${j.date || ''}"`,
+        `"${j.debit || ''}"`,
+        `"${j.credit || ''}"`,
+        `"${j.amount || 0}"`,
+        `"${desc}"`,
+        `"${j.invoiceNo || ''}"`
+      ]);
     });
 
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const csv = rows.map(r => r.join(',')).join('\r\n');
     const bom = '\uFEFF';
-    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `仕訳帳_${this.filterYear}${String(this.filterMonth).padStart(2, '0')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    App.showToast(`📥 ${filtered.length}件の仕訳をCSV出力しました`);
+    App.showToast(`📥 ${list.length}件の仕訳をCSV出力しました`);
+  },
+
+  // マネーフォワード・CSV仕訳インポート モーダル表示
+  showMFImportModal() {
+    let modal = document.getElementById('mfImportModal');
+    if (!modal) {
+      const div = document.createElement('div');
+      div.id = 'mfImportModalContainer';
+      div.innerHTML = `
+        <div id="mfImportModal" class="modal" style="display:none">
+          <div class="modal-overlay" onclick="Accounting.closeMFImportModal()"></div>
+          <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header">
+              <h2>🧡 マネーフォワード・CSV仕訳取込</h2>
+              <button class="modal-close" onclick="Accounting.closeMFImportModal()">✕</button>
+            </div>
+            <div style="padding:16px 0;">
+              <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">
+                マネーフォワードの仕訳CSVまたは汎用形式CSVを選択してください。自動的にフォーマットを認識して取込対象を表示します。
+              </p>
+              <div style="border:2px dashed var(--border-color); border-radius:8px; padding:20px; text-align:center; background:rgba(245,158,11,0.05); margin-bottom:16px;">
+                <input type="file" id="mfCsvFileInput" accept=".csv" onchange="Accounting.handleCSVFileSelect(event)" style="display:none">
+                <button class="btn btn-secondary" onclick="document.getElementById('mfCsvFileInput').click()">📁 CSVファイルを選択</button>
+                <div id="mfCsvFileName" style="font-size:0.85rem; color:var(--text-color); margin-top:8px; font-weight:bold;"></div>
+              </div>
+              <div id="mfImportPreviewArea" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span id="mfImportStats" style="font-size:0.85rem; font-weight:bold; color:var(--accent-gold);"></span>
+                  <span id="mfSkipStats" style="font-size:0.8rem; color:var(--text-muted);"></span>
+                </div>
+                <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                  <table class="data-table" style="font-size:0.8rem;">
+                    <thead>
+                      <tr>
+                        <th>日付</th>
+                        <th>借方</th>
+                        <th>貸方</th>
+                        <th>金額</th>
+                        <th>摘要</th>
+                      </tr>
+                    </thead>
+                    <tbody id="mfImportPreviewBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="Accounting.closeMFImportModal()">キャンセル</button>
+              <button type="button" class="btn btn-primary" id="mfImportSubmitBtn" style="display:none; background:var(--accent-gold); border-color:var(--accent-gold);" onclick="Accounting.executeImport()">📥 取込を実行</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(div);
+      modal = document.getElementById('mfImportModal');
+    }
+    this.pendingImportJournals = [];
+    document.getElementById('mfCsvFileInput').value = '';
+    document.getElementById('mfCsvFileName').textContent = '';
+    document.getElementById('mfImportPreviewArea').style.display = 'none';
+    document.getElementById('mfImportSubmitBtn').style.display = 'none';
+    modal.style.display = 'flex';
+  },
+
+  closeMFImportModal() {
+    const modal = document.getElementById('mfImportModal');
+    if (modal) modal.style.display = 'none';
+    this.pendingImportJournals = [];
+  },
+
+  handleCSVFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('mfCsvFileName').textContent = file.name;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target.result;
+      this.parseAndPreviewCSV(text);
+    };
+    reader.readAsText(file, 'UTF-8');
+  },
+
+  parseCSVLines(text) {
+    const lines = [];
+    let curLine = [];
+    let curCell = '';
+    let inQuotes = false;
+    
+    if (text.charCodeAt(0) === 0xFEFF) {
+      text = text.slice(1);
+    }
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const nextCh = text[i + 1];
+
+      if (inQuotes) {
+        if (ch === '"') {
+          if (nextCh === '"') {
+            curCell += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          curCell += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          curLine.push(curCell.trim());
+          curCell = '';
+        } else if (ch === '\r' || ch === '\n') {
+          if (ch === '\r' && nextCh === '\n') i++;
+          curLine.push(curCell.trim());
+          if (curLine.some(c => c.length > 0)) {
+            lines.push(curLine);
+          }
+          curLine = [];
+          curCell = '';
+        } else {
+          curCell += ch;
+        }
+      }
+    }
+    if (curCell || curLine.length > 0) {
+      curLine.push(curCell.trim());
+      if (curLine.some(c => c.length > 0)) lines.push(curLine);
+    }
+    return lines;
+  },
+
+  parseAndPreviewCSV(csvText) {
+    const rows = this.parseCSVLines(csvText);
+    if (rows.length < 2) {
+      App.showToast('CSVに有効なデータが含まれていません');
+      return;
+    }
+
+    const header = rows[0].map(h => h.replace(/^"+|"+$/g, '').trim());
+
+    let colDate = header.findIndex(h => h.includes('取引日') || h.includes('日付'));
+    let colDebit = header.findIndex(h => h.includes('借方勘定科目') || h.includes('借方科目') || h === '借方');
+    let colDebitAmt = header.findIndex(h => h.includes('借方金額') || h === '金額');
+    let colCredit = header.findIndex(h => h.includes('貸方勘定科目') || h.includes('貸方科目') || h === '貸方');
+    let colCreditAmt = header.findIndex(h => h.includes('貸方金額'));
+    let colDesc = header.findIndex(h => h.includes('摘要') || h.includes('内容') || h.includes('品名'));
+
+    if (colDate === -1) colDate = 0;
+    if (colDebit === -1) colDebit = 1;
+    if (colCredit === -1) colCredit = 2;
+    if (colDebitAmt === -1) colDebitAmt = 3;
+    if (colDesc === -1) colDesc = 4;
+
+    const existingJournals = this.getJournals();
+    const newJournals = [];
+    let skipCount = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length <= Math.max(colDate, colDebitAmt)) continue;
+
+      let rawDate = row[colDate] || '';
+      rawDate = rawDate.replace(/\//g, '-').trim();
+      const dateParts = rawDate.split('-');
+      if (dateParts.length === 3) {
+        const y = dateParts[0].padStart(4, '20');
+        const m = dateParts[1].padStart(2, '0');
+        const d = dateParts[2].padStart(2, '0');
+        rawDate = `${y}-${m}-${d}`;
+      }
+
+      if (!rawDate || rawDate.length < 8) continue;
+
+      const debit = row[colDebit] || '未分類';
+      const credit = row[colCredit] || '未分類';
+
+      let amountStr = row[colDebitAmt] || (colCreditAmt !== -1 ? row[colCreditAmt] : '0');
+      amountStr = amountStr.replace(/[^0-9.]/g, '');
+      const amount = Number(amountStr) || 0;
+      if (amount <= 0) continue;
+
+      const desc = row[colDesc] || '';
+
+      const isDup = existingJournals.some(j =>
+        j.date === rawDate && j.debit === debit && j.credit === credit && j.amount === amount && (j.description || '') === desc
+      );
+
+      if (isDup) {
+        skipCount++;
+        continue;
+      }
+
+      newJournals.push({
+        id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + i,
+        date: rawDate,
+        debit: debit,
+        credit: credit,
+        amount: amount,
+        description: desc,
+        auto: false,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    this.pendingImportJournals = newJournals;
+
+    const tbody = document.getElementById('mfImportPreviewBody');
+    tbody.innerHTML = newJournals.slice(0, 10).map(j => `
+      <tr>
+        <td>${j.date}</td>
+        <td>${j.debit}</td>
+        <td>${j.credit}</td>
+        <td style="text-align:right;">¥${j.amount.toLocaleString()}</td>
+        <td>${j.description || '—'}</td>
+      </tr>
+    `).join('');
+
+    if (newJournals.length > 10) {
+      tbody.innerHTML += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">…他 ${newJournals.length - 10} 件</td></tr>`;
+    }
+
+    document.getElementById('mfImportStats').textContent = `取込対象: ${newJournals.length} 件`;
+    document.getElementById('mfSkipStats').textContent = skipCount > 0 ? `(重複によりスキップ: ${skipCount}件)` : '';
+    document.getElementById('mfImportPreviewArea').style.display = 'block';
+    document.getElementById('mfImportSubmitBtn').style.display = newJournals.length > 0 ? 'inline-block' : 'none';
+  },
+
+  executeImport() {
+    if (!this.pendingImportJournals || this.pendingImportJournals.length === 0) return;
+    const journals = this.getJournals();
+    const updated = [...journals, ...this.pendingImportJournals];
+    this.saveJournals(updated);
+    const count = this.pendingImportJournals.length;
+    this.closeMFImportModal();
+    App.refreshView();
+    App.showToast(`マネーフォワード/CSVから ${count} 件の仕訳を取り込みました！`);
   },
 
   setTrialBalancePeriod(period) {
