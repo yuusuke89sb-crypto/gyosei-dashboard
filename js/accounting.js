@@ -487,10 +487,30 @@ const Accounting = {
 
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const text = evt.target.result;
+      const buffer = evt.target.result;
+      let text = '';
+      
+      // まず UTF-8 (strict) でデコード試行
+      try {
+        const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+        text = utf8Decoder.decode(buffer);
+      } catch (err) {
+        // Shift-JIS (CP932) の場合
+        const sjisDecoder = new TextDecoder('shift-jis');
+        text = sjisDecoder.decode(buffer);
+      }
+
+      // ヘッダーキーワード確認 (取引/日付/借方/金額)
+      if (!text.includes('取引') && !text.includes('日付') && !text.includes('借方') && !text.includes('金額')) {
+        try {
+          const sjisDecoder = new TextDecoder('shift-jis');
+          text = sjisDecoder.decode(buffer);
+        } catch (e2) {}
+      }
+
       this.parseAndPreviewCSV(text);
     };
-    reader.readAsText(file, 'UTF-8');
+    reader.readAsArrayBuffer(file);
   },
 
   parseCSVLines(text) {
