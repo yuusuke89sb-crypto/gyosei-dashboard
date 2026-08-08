@@ -121,6 +121,7 @@ const Accounting = {
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               <button class="btn btn-secondary btn-small" onclick="Accounting.exportMFCSV()" style="border-color:rgba(245,158,11,0.5); color:var(--accent-gold); font-weight:600;" title="マネーフォワード形式でCSVエクスポート">🧡 MF用CSV出力</button>
               <button class="btn btn-secondary btn-small" onclick="Accounting.showMFImportModal()" style="border-color:rgba(59,130,246,0.5); color:var(--accent-blue); font-weight:600;" title="マネーフォワード等からのCSVインポート">📥 MF用CSV取込</button>
+              <button class="btn btn-secondary btn-small" onclick="Accounting.pushAllJournalsToSS()" style="border-color:rgba(16,185,129,0.5); color:var(--accent-green); font-weight:600;" title="ダッシュボードの全仕訳をGoogleスプレッドシートへ一括送信">☁️ SSへ仕訳送信</button>
               <button class="btn btn-secondary btn-small" onclick="Accounting.exportCSV()" title="汎用CSV出力">📄 汎用CSV出力</button>
             </div>
           ` : ''}
@@ -691,10 +692,45 @@ const Accounting = {
     const journals = this.getJournals();
     const updated = [...journals, ...this.pendingImportJournals];
     this.saveJournals(updated);
+
+    // スプレッドシート同期が設定されていれば、新しく取り込んだ仕訳をスプレッドシートへ自動Push
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      this.pendingImportJournals.forEach(j => {
+        SpreadsheetSync.push('upsertJournal', j).catch(e => console.warn('SS仕訳Pushエラー:', e));
+      });
+    }
+
     const count = this.pendingImportJournals.length;
     this.closeMFImportModal();
     App.refreshView();
     App.showToast(`マネーフォワード/CSVから ${count} 件の仕訳を取り込みました！`);
+  },
+
+  // ダッシュボード上の全仕訳をGoogleスプレッドシートの「帳簿」シートへ一括Push送信
+  pushAllJournalsToSS() {
+    const journals = this.getJournals();
+    if (journals.length === 0) {
+      App.showToast('送信する仕訳データがありません');
+      return;
+    }
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
+      App.showToast('スプレッドシート同期が設定されていません');
+      return;
+    }
+
+    App.showToast(`スプレッドシートへ ${journals.length}件 の仕訳を送信中...`);
+    let count = 0;
+    const promises = journals.map(j =>
+      SpreadsheetSync.push('upsertJournal', j).then(res => {
+        if (res && res.success) count++;
+      })
+    );
+    Promise.all(promises).then(() => {
+      App.showToast(`✅ スプレッドシート「帳簿」へ ${count}件 の仕訳を送信・同期しました！`);
+    }).catch(err => {
+      App.showToast('スプレッドシート送信中にエラーが発生しました');
+      console.error(err);
+    });
   },
 
   setTrialBalancePeriod(period) {
