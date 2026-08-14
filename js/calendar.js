@@ -1048,7 +1048,7 @@ const Calendar = {
   getCaseEvents() {
     const cases = Store.getCases();
     const caseEvents = [];
-    const CATEGORY_LABELS = { garage_oss: '車庫(OSS)', garage_paper: '車庫(紙)', seal: '封印', inheritance: '相続' };
+    const CATEGORY_LABELS = { garage_oss: '車庫(OSS)', garage_paper: '車庫(紙)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
 
     cases.forEach(c => {
       const catLabel = CATEGORY_LABELS[c.category] || '案件';
@@ -1067,21 +1067,6 @@ const Calendar = {
           locationId: c.landTransportLocationId || c.locationId || '',
           icon: isExplicitDeadline ? '⏰' : '🚗',
           type: 'case-deadline'
-        });
-      }
-      // 2. 現地調査 (Survey)
-      if (c.surveyDate) {
-        caseEvents.push({
-          id: `${c.id}-survey`,
-          caseId: c.id,
-          date: c.surveyDate,
-          title: `🔍現調: ${c.title}`,
-          category: c.category,
-          status: c.status,
-          staffId: c.staffId || '',
-          locationId: c.surveyLocationId || c.locationId || '',
-          icon: '🔍',
-          type: 'case-survey'
         });
       }
       // 3. 申請 ＆ 4. 交付 (同日の場合は合算して1行にまとめる。さらに交付と店届が同日の場合は店届へマージする)

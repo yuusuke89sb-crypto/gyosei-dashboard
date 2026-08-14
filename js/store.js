@@ -164,21 +164,20 @@ const Store = {
       id: this._generateId(),
       clientId: data.clientId || '',
       title: data.title || '',
-      category: data.category || 'garage_oss',      // garage_oss | garage_paper | seal | inheritance
-      status: data.status || 'received',         // received | applying | delivery | registration | done
+      category: data.category || 'garage_oss',      // garage_oss | garage_paper | seal | car_reg_standard | car_reg_light
+      subCategory: data.subCategory || '',          // 登録種別（新規、移転、変更、抹消等）
+      status: data.status || 'received',            // received | applying | delivery | done
       deadline: data.deadline || '',
       fee: data.fee || '',
       advances: data.advances || [],             // [{label, amount}] 立替金
       docs: data.docs || [],                     // [{id, name, driveUrl, ...}] 添付書類
       deathDate: data.deathDate || '',
-      surveyDate: data.surveyDate || '',
       applyDate: data.applyDate || '',
       policeDeliveryDate: data.policeDeliveryDate || '',
       storeDeliveryDate: data.storeDeliveryDate || '',
       storeDeliveryTime: data.storeDeliveryTime || '',
       locationId: data.locationId || '',
       clientContactId: data.clientContactId || '',
-      surveyLocationId: data.surveyLocationId || '',
       policeLocationId: data.policeLocationId || '',
       landTransportLocationId: data.landTransportLocationId || '',
       registrationDate: data.registrationDate || '',
@@ -188,7 +187,7 @@ const Store = {
       carPolice: data.carPolice || '',           // 所轄警察署
       faxId: data.faxId || '',                   // 受信FAXとの紐付け用ID
       inboxId: data.inboxId || '',               // インボックス連携用ID
-      calendarEventIds: data.calendarEventIds || {},  // { survey, apply, delivery, storeDelivery, registration } カレンダー同期用
+      calendarEventIds: data.calendarEventIds || {},  // { apply, delivery, storeDelivery, registration } カレンダー同期用
       memo: data.memo || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -234,7 +233,7 @@ const Store = {
     // 同一案件の重複チェック
     if (journals.some(j => j.caseId === c.id)) return;
     const client = this.getClient(c.clientId);
-    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
     journals.push({
       id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       date: this.getLocalDateStr(),
@@ -627,10 +626,9 @@ const Store = {
       // 7. 履歴ログ (gyosei_activity_log) をクリア
       localStorage.setItem('gyosei_activity_log', JSON.stringify([]));
 
-      // 8. 定型仕訳 (gyosei_recurring) をクリア
-      localStorage.setItem('gyosei_recurring', JSON.stringify([]));
+      // ※定型仕訳・固定費設定 (gyosei_recurring) は設定マスタのため保持します
 
-      // 9. 案件に紐づく地図メーカーの画像・ベクターデータをクリア
+      // 8. 案件に紐づく地図メーカーの画像・ベクターデータをクリア
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('gyosei_case_map_')) {
           localStorage.removeItem(key);
@@ -684,12 +682,11 @@ const Store = {
       received: cases.filter(c => c.status === 'received').length,
       applying: cases.filter(c => c.status === 'applying').length,
       delivery: cases.filter(c => c.status === 'delivery').length,
-      registration: cases.filter(c => c.status === 'registration').length,
       done: cases.filter(c => c.status === 'done').length,
     };
 
     const categoryCounts = {};
-    const cats = ['garage_oss', 'garage_paper', 'seal', 'inheritance'];
+    const cats = ['garage_oss', 'garage_paper', 'seal', 'car_reg_standard', 'car_reg_light'];
     cats.forEach(cat => {
       const count = cases.filter(c => c.category === cat).length;
       if (count > 0) categoryCounts[cat] = count;

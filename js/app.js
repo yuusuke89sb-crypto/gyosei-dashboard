@@ -67,6 +67,8 @@ const App = {
 
   renderSidebar() {
     const sidebar = document.getElementById('sidebar');
+    const isAdmin = typeof Auth !== 'undefined' && typeof Auth.isAdminMode === 'function' ? Auth.isAdminMode() : false;
+
     sidebar.innerHTML = `
       <div class="sidebar-header" style="display:flex;align-items:center;justify-content:space-between">
         <div class="sidebar-logo">
@@ -85,8 +87,8 @@ const App = {
         <a class="nav-item ${this.currentPage === 'cases' ? 'active' : ''}" onclick="App.navigate('cases')">
           <span class="nav-icon">📋</span><span class="nav-label">案件管理</span>
         </a>
-        <a class="nav-item ${this.currentPage === 'inheritance-casefile' ? 'active' : ''}" onclick="App.navigate('inheritance-casefile')">
-          <span class="nav-icon">📜</span><span class="nav-label">相続事件簿</span>
+        <a class="nav-item ${this.currentPage === 'advances' ? 'active' : ''}" onclick="App.navigate('advances')">
+          <span class="nav-icon">💰</span><span class="nav-label">立替・一括消込</span>
         </a>
         <a class="nav-item ${this.currentPage === 'progress' ? 'active' : ''}" onclick="App.navigate('progress')">
           <span class="nav-icon">📊</span><span class="nav-label">進捗管理</span>
@@ -109,34 +111,52 @@ const App = {
         </a>
       </nav>
       <div class="sidebar-tools">
+        <button class="btn btn-ghost" onclick="GlobalSearch.show()" title="検索 (Ctrl+K)">🔍 案件・顧客検索</button>
         <button class="btn btn-ghost briefing-sidebar-btn" onclick="Briefing.show()" title="今日のブリーフィング">☀️ 今日のブリーフィング</button>
-        <button class="btn btn-ghost" onclick="GlobalSearch.show()" title="検索 (Ctrl+K)">🔍 検索</button>
-        <button class="btn btn-ghost" onclick="Payments.showPaymentList()" title="入金管理">💴 入金管理</button>
-        <button class="btn btn-ghost" onclick="AnnualReport.show()" title="年間収支">📊 年間収支</button>
-        <button class="btn btn-ghost" onclick="TaxHelper.show()" title="確定申告集計">📊 確定申告集計</button>
-        <button class="btn btn-ghost" onclick="SalarySimulator.show()" title="役員報酬シミュレーション">⚖️ 役員報酬シミュレーター</button>
-        <button class="btn btn-ghost" onclick="MonthlyReport.show()" title="月次レポート">📄 月次レポート</button>
-        <button class="btn btn-ghost" onclick="RecurringExpenses.show()" title="定型仕訳">🔄 定型仕訳</button>
-        <button class="btn btn-ghost" onclick="ReferralAnalysis.show()" title="紹介元分析">🤝 紹介元</button>
-        <button class="btn btn-ghost" onclick="StaffManager.show()" title="担当者管理">👥 担当者管理</button>
-        <button class="btn btn-ghost" onclick="LocationManager.show()" title="場所マスター管理">📍 場所管理</button>
+        
+        ${isAdmin ? `
+          <!-- 管理者（代表者）専用メニュー -->
+          <div style="border-top:1px dashed var(--border-color);margin:6px 0 4px 0;padding-top:4px;font-size:0.68rem;color:var(--accent-gold);font-weight:700;padding-left:8px">
+            👑 管理者メニュー
+          </div>
+          <button class="btn btn-ghost" onclick="Payments.showPaymentList()" title="入金管理">💴 入金管理</button>
+          <button class="btn btn-ghost" onclick="AnnualReport.show()" title="年間収支">📊 年間収支</button>
+          <button class="btn btn-ghost" onclick="TaxHelper.show()" title="確定申告集計">📊 確定申告集計</button>
+          <button class="btn btn-ghost" onclick="SalarySimulator.show()" title="役員報酬シミュレーション">⚖️ 役員報酬シミュレーター</button>
+          <button class="btn btn-ghost" onclick="MonthlyReport.show()" title="月次レポート">📄 月次レポート</button>
+          <button class="btn btn-ghost" onclick="RecurringExpenses.show()" title="定型仕訳">🔄 定型仕訳</button>
+          <button class="btn btn-ghost" onclick="ReferralAnalysis.show()" title="紹介元分析">🤝 紹介元分析</button>
+          <button class="btn btn-ghost" onclick="StaffManager.show()" title="担当者管理">👥 担当者管理</button>
+          <button class="btn btn-ghost" onclick="LocationManager.show()" title="場所マスター管理">📍 場所管理</button>
+          <button class="btn btn-ghost" onclick="Auth.showChangeAdminPinModal()" title="PINコード変更">🔢 PIN変更</button>
+          <button class="btn btn-ghost" onclick="Auth.toggleAdminMode()" style="color:var(--text-muted);font-size:0.75rem;margin-top:4px" title="スタッフ表示に切り替え">
+            🔒 スタッフ表示に戻す
+          </button>
+        ` : `
+          <!-- 一般スタッフ向け：管理者メニュー解除ボタン -->
+          <button class="btn btn-ghost" onclick="Auth.toggleAdminMode()" style="color:var(--accent-gold);font-size:0.75rem;margin-top:6px;border:1px dashed rgba(245,158,11,0.3)" title="代表者PINを入力して管理者メニューを開く">
+            🔐 管理者メニュー（要PIN）
+          </button>
+        `}
       </div>
+
       <div class="sidebar-tools" style="border-top:1px solid var(--border-color);padding-top:4px">
         <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">連携ツール</div>
         <a class="btn btn-ghost" href="map-maker/index.html" target="_blank" style="text-decoration:none;display:block;text-align:left">🗺️ 地図メーカー</a>
         <a class="btn btn-ghost" href="bot/index.html" style="text-decoration:none;display:block;text-align:left">💬 AIチャット</a>
-        <a class="btn btn-ghost" href="bot/inquiry.html" style="text-decoration:none;display:block;text-align:left">📞 問い合わせ</a>
-        <a class="btn btn-ghost" href="bot/news.html" style="text-decoration:none;display:block;text-align:left">📰 ニュース</a>
       </div>
+
       <div class="sidebar-footer">
-        <button class="btn btn-ghost" onclick="SpreadsheetSync.syncNow()" title="スプレッドシート同期">🔄 同期</button>
-        <button class="btn btn-ghost" onclick="SpreadsheetSync.showSettingsModal()" title="連携設定">⚙️ 設定</button>
-        <button class="btn btn-ghost" onclick="Store.exportData()" title="データバックアップ">💾 バックアップ</button>
-        <label class="btn btn-ghost" title="データ復元">
-          📂 復元
-          <input type="file" accept=".json" style="display:none" onchange="App.onImport(event)">
-        </label>
-        <button class="btn btn-ghost" onclick="Auth.showChangePasswordModal()" title="パスワード変更">🔑 PW変更</button>
+        ${isAdmin ? `
+          <button class="btn btn-ghost" onclick="SpreadsheetSync.syncNow()" title="スプレッドシート同期">🔄 同期</button>
+          <button class="btn btn-ghost" onclick="SpreadsheetSync.showSettingsModal()" title="連携設定">⚙️ 設定</button>
+          <button class="btn btn-ghost" onclick="Store.exportData()" title="データバックアップ">💾 バックアップ</button>
+          <label class="btn btn-ghost" title="データ復元">
+            📂 復元
+            <input type="file" accept=".json" style="display:none" onchange="App.onImport(event)">
+          </label>
+          <button class="btn btn-ghost" onclick="Auth.showChangePasswordModal()" title="パスワード変更">🔑 PW変更</button>
+        ` : ''}
         <button class="btn btn-ghost" onclick="Auth.logout()" title="ログアウト">🚪 ログアウト</button>
       </div>
     `;
@@ -148,6 +168,7 @@ const App = {
       case 'dashboard': content.innerHTML = renderDashboard(); break;
       case 'clients': content.innerHTML = Clients.render(); break;
       case 'cases': content.innerHTML = Cases.render(); break;
+      case 'advances': content.innerHTML = Advances.render(); break;
       case 'inheritance-casefile': content.innerHTML = InheritanceCasefile.render(); break;
       case 'progress': content.innerHTML = Progress.render(); break;
       case 'calendar': content.innerHTML = Calendar.render(); break;
@@ -162,7 +183,7 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
     const navItems = document.querySelectorAll('.nav-item');
-    const sidebarPages = ['dashboard', 'clients', 'cases', 'inheritance-casefile', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
+    const sidebarPages = ['dashboard', 'clients', 'cases', 'advances', 'inheritance-casefile', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
     const sidebarIdx = sidebarPages.indexOf(this.currentPage);
     if (navItems[sidebarIdx]) navItems[sidebarIdx].classList.add('active');
     const bottomItems = document.querySelectorAll('.bottom-nav-item');

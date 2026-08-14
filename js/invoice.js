@@ -304,7 +304,7 @@ const Invoice = {
       sum + (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0), 0);
     const total = feeSubtotal + tax + advanceTotal;
 
-    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
 
     // 顧客担当者名を取得（案件に紐づく担当者をユニーク化）
     const contactNames = [...new Set(
@@ -593,35 +593,32 @@ const Invoice = {
         ${client.zip ? '〒' + client.zip + '<br>' : ''}
         ${client.address || ''}
       </div>
-      ${contactNames.length > 0 ? `<div style="margin-top:8px;font-size:13px;color:#333">ご担当：<strong>${contactNames.join('・')}</strong> 様</div>` : ''}
+<div class="invoice-container">
+  <div class="header">
+    <div class="doc-title">${docTitle}</div>
+    <table class="meta-table">
+      <tr><td>発行番号:</td><td>${invoiceNo}</td></tr>
+      <tr><td>発行日:</td><td>${issueDate}</td></tr>
+      ${dueDate && !isEstimate ? `<tr><td>お支払期限:</td><td>${dueDate}</td></tr>` : ''}
+    </table>
+  </div>
+
+  <div class="two-col">
+    <div class="client-side">
+      <div class="client-name">${client ? client.name : '御中'}　御中</div>
+      ${contactNames && contactNames.length > 0 ? `<div style="font-size:12px;color:#555;margin-top:4px">ご担当：${contactNames.join(' 様、')} 様</div>` : ''}
+      <div style="font-size:12px;color:#555;margin-top:6px">${year}年${month}月度 ご請求分</div>
     </div>
-    <div class="invoice-office">
-      <div class="office-name">${office.name}</div>
-      <div class="office-detail">
-        ${office.representative ? office.representative + '<br>' : ''}
-        ${office.zip ? '〒' + office.zip + '<br>' : ''}
-        ${office.address ? office.address + '<br>' : ''}
-        ${office.tel ? 'TEL: ' + office.tel + '<br>' : ''}
-        ${office.email ? office.email + '<br>' : ''}
-        ${office.registrationNumber ? '登録番号: ' + office.registrationNumber : ''}
-      </div>
-      <div class="stamp-area">印</div>
+    <div class="office-side">
+      <div class="office-name">${office.name || '行政書士事務所'}</div>
+      <div>〒${office.zip || ''} ${office.address || ''}</div>
+      ${office.tel ? `<div>TEL: ${office.tel}</div>` : ''}
+      ${office.email ? `<div>Email: ${office.email}</div>` : ''}
+      ${office.invoiceNumber ? `<div style="font-size:11px;color:#4b5563;margin-top:2px">登録番号: ${office.invoiceNumber}</div>` : ''}
+      ${office.repName ? `<div style="margin-top:4px">代表行政書士　${office.repName} <span class="seal-space">職印</span></div>` : ''}
     </div>
   </div>
 
-  <div class="date-info">
-    <div>${docType === 'receipt' ? '領収日' : '発行日'}: <span>${issueDate}</span></div>
-    ${dueDate ? `<div>お支払期限: <span>${dueDate}</span></div>` : ''}
-    <div>対象期間: <span>${year}年${month}月分</span></div>
-  </div>
-
-  ${docType === 'receipt' ? `
-  <div class="total-box" style="background:none; border:none; border-bottom:2px solid #1a1a2e; border-radius:0; padding:16px 0; justify-content:center; margin-bottom:8px">
-    <div class="total-label" style="font-size:18px; margin-right:16px">領収金額（税込）</div>
-    <div class="total-amount" style="font-size:32px; border-bottom:1px solid #1a1a2e; padding:0 24px">¥${total.toLocaleString()}-</div>
-  </div>
-  <div style="text-align:center; font-size:0.9rem; font-weight:600; margin-bottom:32px; color:#374151">但し、上記正に領収いたしました</div>
-  ` : `
   <div class="total-box">
     <div class="total-label">${docType === 'estimate' ? 'ご見積金額（税込）' : 'ご請求金額（税込）'}</div>
     <div class="total-amount">${total.toLocaleString()}</div>
@@ -840,7 +837,7 @@ const Invoice = {
     
     const html = this.buildInvoiceHTML({
       invoiceNo, issueDate: paidAt, dueDate: '', year: new Date(paidAt).getFullYear(), month: new Date(paidAt).getMonth() + 1,
-      client, office, cases, CATS: { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' },
+      client, office, cases, CATS: { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' },
       feeSubtotal, tax, taxRate, advanceTotal, total, note: '領収証として上記正に領収いたしました。',
       docType: 'receipt', contactNames: []
     });

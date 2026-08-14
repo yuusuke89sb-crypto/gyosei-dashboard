@@ -8,7 +8,38 @@ const Auth = {
   STORAGE_KEY: 'gyosei_auth_hash',
   SESSION_KEY: 'gyosei_auth_session',
   SESSION_TS_KEY: 'gyosei_auth_last_active',
-  SESSION_TIMEOUT_MS: 30 * 60 * 1000, // 30分
+  SESSION_TIMEOUT_MS: 30 * 24 * 60 * 60 * 1000, // 30日間保持
+
+  // 代表者（管理者）PINコード
+  DEFAULT_ADMIN_PIN: '0813',
+  ADMIN_PIN_KEY: 'gyosei_admin_pin',
+  ADMIN_MODE_KEY: 'gyosei_admin_mode_unlocked',
+
+  isAdminMode() {
+    return localStorage.getItem(this.ADMIN_MODE_KEY) === 'true';
+  },
+
+  setAdminMode(unlocked) {
+    if (unlocked) {
+      localStorage.setItem(this.ADMIN_MODE_KEY, 'true');
+    } else {
+      localStorage.removeItem(this.ADMIN_MODE_KEY);
+    }
+  },
+
+  toggleAdminMode() {
+    if (this.isAdminMode()) {
+      this.setAdminMode(false);
+      App.refreshView();
+      App.showToast('👤 一般スタッフ表示に切り替えました');
+    } else {
+      this.promptAdminPin(() => {
+        this.setAdminMode(true);
+        App.refreshView();
+        App.showToast('👑 管理者モードを有効にしました');
+      }, '管理者メニューの解除');
+    }
+  },
 
   // ログイン試行制限
   MAX_ATTEMPTS: 5,
@@ -31,10 +62,121 @@ const Auth = {
     return localStorage.getItem(this.STORAGE_KEY) || this.hashPassword(this.DEFAULT_PASSWORD);
   },
 
+  getStoredAdminPin() {
+    return localStorage.getItem(this.ADMIN_PIN_KEY) || this.DEFAULT_ADMIN_PIN;
+  },
+
+  setAdminPin(newPin) {
+    if (!newPin || newPin.length < 4) return false;
+    localStorage.setItem(this.ADMIN_PIN_KEY, newPin);
+    return true;
+  },
+
+  verifyAdminPin(pin) {
+    return pin === this.getStoredAdminPin();
+  },
+
+  // 管理者PIN認証モーダルを開いてコールバックを実行
+  promptAdminPin(callback, promptTitle = '管理者認証') {
+    const existing = document.getElementById('adminPinModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'adminPinModal';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-overlay" onclick="document.getElementById('adminPinModal').remove()"></div>
+      <div class="modal-content" style="max-width:340px;text-align:center;padding:24px 28px">
+        <div style="font-size:36px;margin-bottom:8px">🔐</div>
+        <h3 style="margin:0 0 6px;font-size:1.1rem">${promptTitle}</h3>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 16px">代表者PINコード（4桁）を入力してください</p>
+        <input type="password" id="adminPinInput" maxlength="8" placeholder="••••"
+          style="width:100%;font-size:1.4rem;text-align:center;letter-spacing:8px;padding:10px;border:1px solid var(--border-color);border-radius:8px;box-sizing:border-box;margin-bottom:12px">
+        <div id="adminPinError" style="color:#ef4444;font-size:0.8rem;margin-bottom:12px;display:none"></div>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('adminPinModal').remove()">キャンセル</button>
+          <button type="button" class="btn btn-primary" id="adminPinSubmitBtn">確認</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const input = document.getElementById('adminPinInput');
+    const submitBtn = document.getElementById('adminPinSubmitBtn');
+    const errorEl = document.getElementById('adminPinError');
+
+    const check = () => {
+      const val = input.value.trim();
+      if (Auth.verifyAdminPin(val)) {
+        modal.remove();
+        if (typeof callback === 'function') callback();
+      } else {
+        errorEl.textContent = '❌ PINコードが正しくありません';
+        errorEl.style.display = 'block';
+        input.value = '';
+        input.focus();
+      }
+    };
+
+    submitBtn.onclick = check;
+    input.onkeydown = (e) => { if (e.key === 'Enter') check(); };
+    setTimeout(() => input.focus(), 50);
+  },
+
+  // PIN変更モーダル
+  showChangeAdminPinModal() {
+    this.promptAdminPin(() => {
+      const existing = document.getElementById('changePinModal');
+      if (existing) existing.remove();
+
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.id = 'changePinModal';
+      modal.style.display = 'flex';
+      modal.innerHTML = `
+        <div class="modal-overlay" onclick="document.getElementById('changePinModal').remove()"></div>
+        <div class="modal-content" style="max-width:340px;text-align:center;padding:24px 28px">
+          <div style="font-size:36px;margin-bottom:8px">🔢</div>
+          <h3 style="margin:0 0 6px;font-size:1.1rem">代表者PINコード変更</h3>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 16px">新しい4桁以上のPINコードを入力してください</p>
+          <input type="password" id="newPinInput" maxlength="8" placeholder="新しいPIN"
+            style="width:100%;font-size:1.3rem;text-align:center;letter-spacing:6px;padding:10px;border:1px solid var(--border-color);border-radius:8px;box-sizing:border-box;margin-bottom:12px">
+          <div id="newPinError" style="color:#ef4444;font-size:0.8rem;margin-bottom:12px;display:none"></div>
+          <div style="display:flex;gap:8px;justify-content:center">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('changePinModal').remove()">キャンセル</button>
+            <button type="button" class="btn btn-primary" id="newPinSubmitBtn">保存</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const input = document.getElementById('newPinInput');
+      const submitBtn = document.getElementById('newPinSubmitBtn');
+      const errorEl = document.getElementById('newPinError');
+
+      const save = () => {
+        const val = input.value.trim();
+        if (val.length < 4) {
+          errorEl.textContent = '❌ PINは4桁以上にしてください';
+          errorEl.style.display = 'block';
+          return;
+        }
+        Auth.setAdminPin(val);
+        modal.remove();
+        App.showToast('✅ 代表者PINコードを変更しました');
+      };
+
+      submitBtn.onclick = save;
+      input.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+      setTimeout(() => input.focus(), 50);
+    }, '現在のPINを確認');
+  },
+
   isAuthenticated() {
-    if (sessionStorage.getItem(this.SESSION_KEY) !== 'true') return false;
-    // セッションタイムアウト判定
-    const lastActive = parseInt(sessionStorage.getItem(this.SESSION_TS_KEY) || '0', 10);
+    if (localStorage.getItem(this.SESSION_KEY) !== 'true') return false;
+    // セッションタイムアウト判定（30日間）
+    const lastActive = parseInt(localStorage.getItem(this.SESSION_TS_KEY) || '0', 10);
     if (lastActive && (Date.now() - lastActive > this.SESSION_TIMEOUT_MS)) {
       this.logout();
       return false;
@@ -44,27 +186,18 @@ const Auth = {
 
   // 最終操作時刻を更新
   touchSession() {
-    if (sessionStorage.getItem(this.SESSION_KEY) === 'true') {
-      sessionStorage.setItem(this.SESSION_TS_KEY, String(Date.now()));
+    if (localStorage.getItem(this.SESSION_KEY) === 'true') {
+      localStorage.setItem(this.SESSION_TS_KEY, String(Date.now()));
     }
   },
 
   // セッションタイムアウト監視を開始
   startSessionTimer() {
-    // ユーザー操作で最終操作時刻をリセット
     const touch = () => this.touchSession();
     ['mousemove', 'keydown', 'touchstart', 'click'].forEach(evt =>
       document.addEventListener(evt, touch, { passive: true })
     );
     this.touchSession();
-    // 1分ごとにタイムアウトチェック
-    setInterval(() => {
-      if (!this.isAuthenticated()) return;
-      const lastActive = parseInt(sessionStorage.getItem(this.SESSION_TS_KEY) || '0', 10);
-      if (lastActive && (Date.now() - lastActive > this.SESSION_TIMEOUT_MS)) {
-        this.logout();
-      }
-    }, 60 * 1000);
   },
 
   isLockedOut() {
@@ -81,7 +214,7 @@ const Auth = {
     const storedHash = this.getStoredHash();
     if (inputHash === storedHash) {
       this._failCount = 0;
-      sessionStorage.setItem(this.SESSION_KEY, 'true');
+      localStorage.setItem(this.SESSION_KEY, 'true');
       this.touchSession();
       return true;
     }
@@ -94,7 +227,8 @@ const Auth = {
   },
 
   logout() {
-    sessionStorage.removeItem(this.SESSION_KEY);
+    localStorage.removeItem(this.SESSION_KEY);
+    localStorage.removeItem(this.SESSION_TS_KEY);
     location.reload();
   },
 

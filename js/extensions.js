@@ -294,22 +294,11 @@ const GlobalSearch = {
 // ============================================================
 const CaseTemplates = {
   TEMPLATES: {
-    garage_oss: {
-      fee: 8000,
-      memo: '【車庫証明（OSS）】\n\n📋 お客様からの受領書類\n□ 車検証コピー（or 車両情報）\n□ 住民票 or 印鑑証明書\n□ 駐車場の契約書コピー（月極の場合）\n□ 委任状（署名済み）\n\n📝 作成書類\n□ 保管場所の所在図・配置図\n□ 保管場所使用権原疎明書面（自認書）or 使用承諾証明書\n\n🏢 申請・受取\n□ 警察署での標章受取',
-    },
-    garage_paper: {
-      fee: 8000,
-      memo: '【車庫証明（紙）】\n\n📋 お客様からの受領書類\n□ 車検証コピー（or 車両情報）\n□ 住民票 or 印鑑証明書\n□ 駐車場の契約書コピー（月極の場合）\n□ 委任状（署名済み）\n\n📝 作成書類\n□ 自動車保管場所証明申請書\n□ 保管場所標章交付申請書\n□ 保管場所の所在図・配置図\n□ 保管場所使用権原疎明書面（自認書）or 使用承諾証明書\n\n🏢 申請・受取\n□ 管轄警察署の確認\n□ 申請書類の最終チェック\n□ 警察署に申請（証紙代 ¥2,100〜¥2,200）\n□ 標章代（¥500〜¥610）\n□ 交付受取（3〜7営業日後）\n□ お客様への納品',
-    },
-    seal: {
-      fee: 12000,
-      memo: '【丁種封印】\n\n📋 確認事項\n□ 確約書の有無\n□ 封印委託書の受領\n□ 車検証原本の受領\n□ ナンバープレートの受領（必要な場合）\n\n📝 作業\n□ 封印の受領\n□ お客様との日程調整\n□ 車両への施封作業\n□ 写真撮影・報告（車台番号と封印状態）',
-    },
-    inheritance: {
-      fee: 50000,
-      memo: '【相続手続き】\n\n📋 基本情報の確認\n□ 被相続人の死亡日確認\n□ 相続人の確定\n\n📄 戸籍収集\n□ 被相続人の出生〜死亡までの戸籍\n□ 相続人全員の現在戸籍\n□ 相続人全員の住民票\n\n💰 財産調査\n□ 不動産（登記簿謄本の取得）\n□ 預貯金（各銀行への残高証明請求）\n□ 有価証券\n□ 生命保険\n□ 自動車（車検証確認）\n□ 負債の確認\n\n📝 書類作成\n□ 相続関係説明図\n□ 財産目録\n□ 遺産分割協議書\n\n✍️ 署名捺印\n□ 相続人への協議書送付\n□ 全員の署名捺印回収\n\n🏦 名義変更手続き\n□ 不動産（司法書士引継ぎ or 自分で対応）\n□ 預貯金\n□ 自動車',
-    },
+    garage_oss: { fee: 6600 },
+    garage_paper: { fee: 6600 },
+    seal: { fee: 11000 },
+    car_reg_standard: { fee: 5500 },
+    car_reg_light: { fee: 5500 },
   },
 
   _lastAppliedCategory: null,
@@ -318,31 +307,14 @@ const CaseTemplates = {
     const tmpl = this.TEMPLATES[category];
     if (!tmpl) return;
     const feeEl = document.getElementById('csf_fee');
-    const memoEl = document.getElementById('csf_memo');
 
-    // 現在のメモ・報酬が別テンプレートの内容かどうかを判定
-    const currentMemo = memoEl ? memoEl.value : '';
+    // 報酬額が空または他テンプレート由来なら初期値をセット
     const currentFee = feeEl ? feeEl.value : '';
-    const isTemplateMemo = !currentMemo || Object.values(this.TEMPLATES).some(t => t.memo === currentMemo);
     const isTemplateFee = !currentFee || Object.values(this.TEMPLATES).some(t => String(t.fee) === currentFee);
 
-    // テンプレート由来の値なら新カテゴリのテンプレートで上書き
     if (feeEl && isTemplateFee && tmpl.fee) feeEl.value = tmpl.fee;
-    if (memoEl && isTemplateMemo) memoEl.value = tmpl.memo || '';
 
     this._lastAppliedCategory = category;
-
-    // 相続の場合は死亡日フィールドを表示
-    const deathDateGroup = document.getElementById('csf_deathDate_group');
-    if (deathDateGroup) {
-      deathDateGroup.style.display = category === 'inheritance' ? '' : 'none';
-    }
-
-    // 車庫証明・丁種封印の場合は現地調査・交付予定日を表示
-    const garageDatesGroup = document.getElementById('csf_garageDates_group');
-    if (garageDatesGroup) {
-      garageDatesGroup.style.display = ['garage_oss', 'garage_paper', 'seal'].includes(category) ? '' : 'none';
-    }
   },
 };
 

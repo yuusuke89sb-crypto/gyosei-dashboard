@@ -9,21 +9,32 @@ const Cases = {
 
   STATUSES: [
     { key: 'received', label: '受付', icon: '📥' },
-    { key: 'applying', label: '申請', icon: '📝' },
-    { key: 'delivery', label: '交付', icon: '📋' },
-    { key: 'registration', label: '登録', icon: '🚗' },
-    { key: 'done', label: '完了', icon: '✅' },
+    { key: 'applying', label: '申請中', icon: '📝' },
+    { key: 'delivery', label: '交付・受取', icon: '📋' },
+    { key: 'done', label: '完了・納品', icon: '✅' },
   ],
 
   CATEGORIES: [
     { key: 'garage_oss', label: '🚗 車庫証明（OSS）' },
-    { key: 'garage_paper', label: '🚗 車庫証明（紙）' },
-    { key: 'seal', label: '🚙 丁種封印' },
-    { key: 'inheritance', label: '📜 相続' },
-    { key: 'realestate', label: '🏢 宅建業新規免許' },
-    { key: 'antiques', label: '💎 古物商許可' },
-    { key: 'cabaret', label: '🍷 風俗営業1号' },
-    { key: 'visa_work', label: '🌍 就労在留資格' },
+    { key: 'garage_paper', label: '📄 車庫証明（紙）' },
+    { key: 'seal', label: '🔩 出張封印' },
+    { key: 'car_reg_standard', label: '🚘 普通自動車登録' },
+    { key: 'car_reg_light', label: '🚙 軽自動車登録' },
+  ],
+
+  SUB_CATEGORIES: [
+    { key: '', label: '— 登録種別を選択（任意） —' },
+    { key: '新規登録', label: '新規登録（新車・中古新規）' },
+    { key: '移転登録（名義変更）', label: '移転登録（名義変更・管轄変更なし）' },
+    { key: '移転登録（出張封印）', label: '移転登録（管轄変更あり・出張封印）' },
+    { key: '変更登録', label: '変更登録（住所・氏名等）' },
+    { key: '抹消登録', label: '抹消登録（一時抹消・永久抹消）' },
+    { key: '希望ナンバー', label: '希望ナンバー申し込み' },
+    { key: 'ナンバー再交付', label: 'ナンバー再交付（破損・汚損）' },
+    { key: '車検証・標章再交付', label: '車検証 / 検査標章 再交付' },
+    { key: '登録事項証明書', label: '登録事項等証明書（現在・詳細）' },
+    { key: '減免申請', label: '減免申請（身体障害者等）' },
+    { key: 'その他', label: 'その他' },
   ],
 
   render() {
@@ -227,6 +238,7 @@ const Cases = {
         onclick="Cases.showEditModal('${c.id}')">
         <div class="kanban-card-cat">
           <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : c.category}</span>
+          ${c.subCategory ? `<span style="font-size:0.7rem;background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:3px;margin-left:4px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
         </div>
         <div class="kanban-card-title">${c.title}</div>
         <div class="kanban-card-meta">
@@ -237,7 +249,6 @@ const Cases = {
           ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
           ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
           ${c.registrationDate ? `<span style="color:#d97706;font-weight:600">🚗 登録: ${c.registrationDate.slice(5)}</span>` : ''}
-          ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
           ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
           ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
         </div>
@@ -251,7 +262,7 @@ const Cases = {
 
   renderList(cases) {
     const sorted = cases.sort((a, b) => {
-      const statusOrder = ['received', 'applying', 'delivery', 'registration', 'done'];
+      const statusOrder = ['received', 'applying', 'delivery', 'done'];
       return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
     });
     return `
@@ -266,10 +277,6 @@ const Cases = {
 
           // 複数目的地のバッジを組み立て
           const locNames = [];
-          if (c.surveyLocationId) {
-            const loc = Store.getLocationName(c.surveyLocationId);
-            if (loc) locNames.push(`現調:${loc}`);
-          }
           if (c.policeLocationId) {
             const loc = Store.getLocationName(c.policeLocationId);
             if (loc) locNames.push(`警察:${loc}`);
@@ -286,22 +293,15 @@ const Cases = {
 
           let milestoneHtml = '';
           const mIndex = c.milestoneIndex !== undefined ? Number(c.milestoneIndex) : 0;
-          if (this.filterCategory === 'all') {
-            if (c.category !== 'inheritance') {
-              milestoneHtml = `<span style="font-size:0.75rem;color:var(--accent-blue);background:rgba(59,130,246,0.08);padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/3</span>`;
-            }
-          } else if (this.filterCategory === 'inheritance') {
-            milestoneHtml = `<span style="font-size:0.75rem;color:var(--accent-purple);background:rgba(139,92,246,0.08);padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/4</span>`;
-          } else {
-            const colorVar = c.category === 'seal' ? 'var(--accent-gold)' : 'var(--accent-blue)';
-            const bgVar = c.category === 'seal' ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)';
-            milestoneHtml = `<span style="font-size:0.75rem;color:${colorVar};background:${bgVar};padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/3</span>`;
-          }
+          const colorVar = c.category === 'seal' ? 'var(--accent-gold)' : 'var(--accent-blue)';
+          const bgVar = c.category === 'seal' ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)';
+          milestoneHtml = `<span style="font-size:0.75rem;color:${colorVar};background:${bgVar};padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/3</span>`;
 
           return `
                 <div class="case-list-item ${deadlineClass}" onclick="Cases.showEditModal('${c.id}')">
                   <div class="case-list-top">
                     <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : ''}</span>
+                    ${c.subCategory ? `<span style="font-size:0.75rem;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
                     <span class="status-badge status-${c.status}">${statusInfo ? statusInfo.icon + ' ' + statusInfo.label : ''}</span>
                     ${milestoneHtml}
                   </div>
@@ -314,7 +314,6 @@ const Cases = {
                       ${c.createdAt ? `<span>📋 ${c.createdAt.slice(0, 10)}</span>` : ''}
                       ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
                       ${c.registrationDate ? `<span style="color:#d97706;font-weight:600">🚗 登録: ${c.registrationDate.slice(5)}</span>` : ''}
-                      ${c.surveyDate ? `<span style="color:#059669;font-weight:600">📍 調査: ${c.surveyDate.slice(5)}</span>` : ''}
                       ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
                       ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
                       ${c.fee ? `<span>💰 ${Number(c.fee).toLocaleString()}円</span>` : ''}
@@ -359,7 +358,7 @@ const Cases = {
               </div>
             </div>
 
-            <!-- マイルストーン表示エリア (相続のみ) -->
+            <!-- マイルストーン表示エリア -->
             <div id="csf_milestone_stepper_wrap" style="display:none; margin-bottom: 20px;"></div>
 
             <!-- カテゴリとステータス -->
@@ -378,25 +377,20 @@ const Cases = {
               </div>
             </div>
 
-            <!-- 現地調査 (車庫証明等) - 一旦非表示 -->
-            <div class="form-row" id="csf_garageDates_group" style="display:none !important">
-              <div class="form-group">
-                <label>現地調査の場所</label>
-                <select name="surveyLocationId" id="csf_surveyLocationId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+            <!-- 登録種別（やること）サブカテゴリ -->
+            <div class="form-row" id="csf_subCategory_group" style="display:none">
+              <div class="form-group" style="flex:1">
+                <label>登録種別（やること）</label>
+                <select name="subCategory" id="csf_subCategory" class="form-select" onchange="Cases.onSubCategoryChange(this.value)">
+                  ${this.SUB_CATEGORIES.map(sc => `<option value="${sc.key}">${sc.label}</option>`).join('')}
                 </select>
-              </div>
-              <div class="form-group">
-                <label>現地調査予定日</label>
-                <input type="date" name="surveyDate" id="csf_surveyDate">
               </div>
             </div>
 
             <!-- 申請先、申請日 -->
-            <div class="form-row" id="csf_garageDates_group_police_apply" style="display:none">
+            <div class="form-row" id="csf_garageDates_group_police_apply">
               <div class="form-group">
-                <label>申請先</label>
+                <label>申請先（警察署など）</label>
                 <select name="policeLocationId" id="csf_policeLocationId" class="form-select">
                   <option value="">— 未選択 —</option>
                   ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
@@ -409,7 +403,7 @@ const Cases = {
             </div>
 
             <!-- 交付日 -->
-            <div class="form-row" id="csf_garageDates_group_police_delivery" style="display:none">
+            <div class="form-row" id="csf_garageDates_group_police_delivery">
               <div class="form-group">
                 <label>交付日 <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は申請日と同日)</span></label>
                 <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
@@ -417,9 +411,9 @@ const Cases = {
             </div>
 
             <!-- 登録先、登録予定日 -->
-            <div class="form-row" id="csf_garageDates_group_land_transport" style="display:none">
+            <div class="form-row" id="csf_garageDates_group_land_transport">
               <div class="form-group">
-                <label>登録先</label>
+                <label>登録先（陸運支局・軽検協）</label>
                 <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
                   <option value="">— 未選択 —</option>
                   ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
@@ -432,7 +426,7 @@ const Cases = {
             </div>
 
             <!-- 店舗届ける予定日、店舗届ける時間帯 -->
-            <div class="form-row" id="csf_garageDates_group2" style="display:none">
+            <div class="form-row" id="csf_garageDates_group2">
               <div class="form-group">
                 <label>店舗届ける予定日</label>
                 <input type="date" name="storeDeliveryDate" id="csf_storeDeliveryDate">
@@ -538,8 +532,8 @@ const Cases = {
               </div>
             </div>
             <div class="form-group">
-              <label>メモ</label>
-              <textarea name="memo" id="csf_memo" rows="3" placeholder="案件に関するメモ..."></textarea>
+              <label>📝 メモ・特記事項</label>
+              <textarea name="memo" id="csf_memo" rows="4" style="min-height:110px;resize:vertical;font-size:0.88rem;line-height:1.5;width:100%;box-sizing:border-box" placeholder="案件に関するメモ、特記事項、連絡事項など..."></textarea>
             </div>
             <div id="caseExtArea"></div>
             <div class="form-actions">
@@ -552,6 +546,16 @@ const Cases = {
         </div>
       </div>
     `;
+  },
+
+  onSubCategoryChange(val) {
+    if (!val) return;
+    const titleInput = document.getElementById('csf_title');
+    if (titleInput && (!titleInput.value || titleInput.value.startsWith('【'))) {
+      const clientSelect = document.getElementById('csf_clientId');
+      const clientName = clientSelect && clientSelect.selectedIndex > 0 ? clientSelect.options[clientSelect.selectedIndex].text : '';
+      titleInput.value = `【${val}】${clientName ? clientName + ' ' : ''}`;
+    }
   },
 
   getDeadlineClass(deadline, status) {
@@ -667,6 +671,8 @@ const Cases = {
       document.getElementById('csf_staffId').value = c.staffId || '';
       document.getElementById('csf_registeredAt').value = c.registeredAt || c.createdAt?.slice(0, 10) || '';
       document.getElementById('csf_category').value = c.category;
+      const subCatEl = document.getElementById('csf_subCategory');
+      if (subCatEl) subCatEl.value = c.subCategory || '';
       document.getElementById('csf_status').value = c.status;
       const deadlineEl = document.getElementById('csf_deadline');
       if (deadlineEl) deadlineEl.value = c.deadline || '';
@@ -684,26 +690,12 @@ const Cases = {
       // 立替金を読み込み
       this.advanceDraft = Array.isArray(c.advances) ? JSON.parse(JSON.stringify(c.advances)) : [];
       this.renderAdvanceRows();
-      // 死亡日フィールド表示制御
-      const deathDateGroup = document.getElementById('csf_deathDate_group');
-      if (deathDateGroup) {
-        deathDateGroup.style.display = c.category === 'inheritance' ? '' : 'none';
-      }
+
+      // カテゴリに応じたフィールド表示制御
+      Cases.toggleCategoryFields(c.category);
+
       const deathDateEl = document.getElementById('csf_deathDate');
       if (deathDateEl) deathDateEl.value = c.deathDate || '';
-
-      // 車庫関係フィールド表示制御
-      const isGarage = ['garage_oss', 'garage_paper', 'seal'].includes(c.category);
-      const garageDatesGroup = document.getElementById('csf_garageDates_group');
-      if (garageDatesGroup) garageDatesGroup.style.display = isGarage ? '' : 'none';
-      const garageDatesGroupPoliceApply = document.getElementById('csf_garageDates_group_police_apply');
-      if (garageDatesGroupPoliceApply) garageDatesGroupPoliceApply.style.display = isGarage ? '' : 'none';
-      const garageDatesGroupPoliceDelivery = document.getElementById('csf_garageDates_group_police_delivery');
-      if (garageDatesGroupPoliceDelivery) garageDatesGroupPoliceDelivery.style.display = isGarage ? '' : 'none';
-      const garageDatesGroupLandTransport = document.getElementById('csf_garageDates_group_land_transport');
-      if (garageDatesGroupLandTransport) garageDatesGroupLandTransport.style.display = isGarage ? '' : 'none';
-      const garageDatesGroup2 = document.getElementById('csf_garageDates_group2');
-      if (garageDatesGroup2) garageDatesGroup2.style.display = isGarage ? '' : 'none';
 
       const surveyDateEl = document.getElementById('csf_surveyDate');
       if (surveyDateEl) surveyDateEl.value = c.surveyDate || '';
@@ -724,7 +716,7 @@ const Cases = {
       const storeDeliveryTimeEl = document.getElementById('csf_storeDeliveryTime');
       if (storeDeliveryTimeEl) storeDeliveryTimeEl.value = c.storeDeliveryTime || '';
 
-      // マイルストーン表示制御 (全カテゴリ)
+      // マイルストーン表示制御
       Cases.renderMilestoneStepper(id);
 
       // 対応履歴・チェックリスト・期限アラートを追加
@@ -773,21 +765,17 @@ const Cases = {
       locationId: form.locationId ? form.locationId.value : '',
       registeredAt: form.registeredAt.value,
       category: form.category.value,
+      subCategory: form.subCategory ? form.subCategory.value : '',
       status: form.status.value,
       deadline: (form.deadline && form.deadline.value) ? form.deadline.value : '',
       driveFolderUrl: form.driveFolderUrl.value.trim(),
       fee: form.fee.value,
       advances: this.advanceDraft.filter(a => a.label || Number(a.amount) > 0),
-      deathDate: form.deathDate ? form.deathDate.value : '',
-      surveyDate: form.surveyDate ? form.surveyDate.value : '',
-      surveyLocationId: form.surveyLocationId ? form.surveyLocationId.value : '',
       applyDate: form.applyDate ? form.applyDate.value : '',
       policeDeliveryDate: (form.policeDeliveryDate && form.policeDeliveryDate.value) ? form.policeDeliveryDate.value : (form.applyDate ? form.applyDate.value : ''),
       policeLocationId: form.policeLocationId ? form.policeLocationId.value : '',
       registrationDate: form.registrationDate ? form.registrationDate.value : '',
       landTransportLocationId: form.landTransportLocationId ? form.landTransportLocationId.value : '',
-      storeDeliveryDate: form.storeDeliveryDate ? form.storeDeliveryDate.value : '',
-      storeDeliveryTime: form.storeDeliveryTime ? form.storeDeliveryTime.value.trim() : '',
       carName: form.carName ? form.carName.value.trim() : '',
       carAddress: form.carAddress ? form.carAddress.value.trim() : '',
       carNumber: form.carNumber ? form.carNumber.value.trim() : '',
@@ -799,9 +787,7 @@ const Cases = {
 
     // マイルストーン同期ロジック (全カテゴリ)
     let milestoneVal = 0;
-    let totalSteps = 4;
-    if (data.category === 'cabaret') totalSteps = 5;
-    else if (['seal', 'garage_oss', 'garage_paper'].includes(data.category)) totalSteps = 3;
+    const totalSteps = 3;
 
     if (this.editingId) {
       const existing = Store.getCase(this.editingId);
@@ -975,23 +961,11 @@ const Cases = {
   },
 
   toggleCategoryFields(category) {
-    const isGarage = ['garage_oss', 'garage_paper', 'seal'].includes(category);
-    const garageDatesGroup = document.getElementById('csf_garageDates_group');
-    if (garageDatesGroup) garageDatesGroup.style.display = isGarage ? '' : 'none';
-    const garageDatesGroupPoliceApply = document.getElementById('csf_garageDates_group_police_apply');
-    if (garageDatesGroupPoliceApply) garageDatesGroupPoliceApply.style.display = isGarage ? '' : 'none';
-    const garageDatesGroupPoliceDelivery = document.getElementById('csf_garageDates_group_police_delivery');
-    if (garageDatesGroupPoliceDelivery) garageDatesGroupPoliceDelivery.style.display = isGarage ? '' : 'none';
-    const garageDatesGroupLandTransport = document.getElementById('csf_garageDates_group_land_transport');
-    if (garageDatesGroupLandTransport) garageDatesGroupLandTransport.style.display = isGarage ? '' : 'none';
-    const garageDatesGroup2 = document.getElementById('csf_garageDates_group2');
-    if (garageDatesGroup2) garageDatesGroup2.style.display = isGarage ? '' : 'none';
+    const isCarReg = ['car_reg_standard', 'car_reg_light'].includes(category);
+    const subCatGroup = document.getElementById('csf_subCategory_group');
+    if (subCatGroup) subCatGroup.style.display = isCarReg ? '' : 'none';
 
-    const isInheritance = category === 'inheritance';
-    const deathDateGroup = document.getElementById('csf_deathDate_group');
-    if (deathDateGroup) deathDateGroup.style.display = isInheritance ? '' : 'none';
-
-    // マイルストーン表示の動的切り替え (全カテゴリで表示)
+    // マイルストーン表示の動的切り替え
     const wrap = document.getElementById('csf_milestone_stepper_wrap');
     if (wrap) {
       if (this.editingId) {
@@ -1013,22 +987,12 @@ const Cases = {
     wrap.style.display = 'block';
 
     let steps = [];
-    if (c.category === 'inheritance') {
-      steps = ['相続人特定', '財産調査', '協議書捺印', '手続完了'];
-    } else if (c.category === 'seal') {
+    if (c.category === 'seal') {
       steps = ['書類受領', '日程調整', '施封完了'];
-    } else if (c.category === 'realestate') {
-      steps = ['要件診断', '書類収集', '役所申請', '免許受領'];
-    } else if (c.category === 'antiques') {
-      steps = ['管理者選定', '書類作成', '警察署申請', '許可受領'];
-    } else if (c.category === 'cabaret') {
-      steps = ['現地調査', '図面作成', '警察署申請', '実地検査', '許可受領'];
-    } else if (c.category === 'visa_work') {
-      steps = ['書類作成', '申請準備', '入管申請', '結果受領'];
-    } else if (['garage_oss', 'garage_paper'].includes(c.category)) {
-      steps = ['配置図作成', '承諾書回収', '警察署申請'];
+    } else if (['car_reg_standard', 'car_reg_light'].includes(c.category)) {
+      steps = ['書類確認', '陸事申請/登録', '納品完了'];
     } else {
-      steps = ['ヒアリング', '書類準備', '申請中', '手続完了'];
+      steps = ['配置図作成', '警察署申請', '交付受取'];
     }
 
     const totalSteps = steps.length;
@@ -1040,7 +1004,7 @@ const Cases = {
       if (mIndex === totalSteps) pct = 100;
     }
     
-    const activeColor = c.category === 'inheritance' ? 'var(--accent-purple)' : c.category === 'seal' ? 'var(--accent-gold)' : 'var(--accent-blue)';
+    const activeColor = c.category === 'seal' ? 'var(--accent-gold)' : 'var(--accent-blue)';
 
     wrap.innerHTML = `
       <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600">🏁 進捗マイルストーン (クリックして進捗を更新)</label>
@@ -1070,7 +1034,7 @@ const Cases = {
     const c = Store.getCase(caseId);
     if (!c) return;
 
-    const totalSteps = c.category === 'inheritance' ? 4 : 3;
+    const totalSteps = 3;
     const updates = { milestoneIndex: milestoneVal };
     if (milestoneVal === totalSteps) {
       updates.status = 'done';

@@ -1058,6 +1058,16 @@ a {
   color: var(--accent-gold);
 }
 
+.category-car_reg_standard {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.category-car_reg_light {
+  background: rgba(20, 184, 166, 0.15);
+  color: #0d9488;
+}
+
 .category-inheritance {
   background: rgba(139, 92, 246, 0.15);
   color: var(--accent-purple);

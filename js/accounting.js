@@ -110,8 +110,8 @@ const Accounting = {
           <div class="acc-period">
             <select class="filter-select" onchange="Accounting.filterYear=Number(this.value); App.refreshView()">
               ${sortedYears.map(y =>
-                `<option value="${y}" ${y === this.filterYear ? 'selected' : ''}>${y}年</option>`
-              ).join('')}
+      `<option value="${y}" ${y === this.filterYear ? 'selected' : ''}>${y}年</option>`
+    ).join('')}
             </select>
             <select class="filter-select" onchange="Accounting.filterMonth=Number(this.value); App.refreshView()">
               ${months.join('')}
@@ -156,7 +156,7 @@ const Accounting = {
               </thead>
               <tbody>
                 ${filtered.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">仕訳データがありません</td></tr>` :
-                  filtered.map(j => `
+          filtered.map(j => `
                       <tr onclick="Accounting.showEditModal('${j.id}')" style="cursor:pointer">
                         <td>${j.date}</td>
                         <td>${j.debit}</td>
@@ -170,7 +170,7 @@ const Accounting = {
                         </td>
                       </tr>
                     `).join('')
-                }
+        }
               </tbody>
             </table>
           </div>
@@ -490,7 +490,7 @@ const Accounting = {
     reader.onload = (evt) => {
       const buffer = evt.target.result;
       let text = '';
-      
+
       // まず UTF-8 (strict) でデコード試行
       try {
         const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
@@ -506,7 +506,7 @@ const Accounting = {
         try {
           const sjisDecoder = new TextDecoder('shift-jis');
           text = sjisDecoder.decode(buffer);
-        } catch (e2) {}
+        } catch (e2) { }
       }
 
       this.parseAndPreviewCSV(text);
@@ -519,7 +519,7 @@ const Accounting = {
     let curLine = [];
     let curCell = '';
     let inQuotes = false;
-    
+
     if (text.charCodeAt(0) === 0xFEFF) {
       text = text.slice(1);
     }
@@ -574,14 +574,17 @@ const Accounting = {
 
     const header = rows[0].map(h => h.replace(/^"+|"+$/g, '').trim());
 
-    let colNo = header.findIndex(h => h.includes('取引No') || h.includes('仕訳No') || h.includes('No'));
+    let colNo = header.findIndex(h => h.includes('取引No') || h.includes('仕訳No') || h.includes('明細番号'));
     let colDate = header.findIndex(h => h.includes('取引日') || h.includes('日付'));
-    let colDebit = header.findIndex(h => h.includes('借方勘定科目') || h.includes('借方科目') || h === '借方');
-    let colDebitAmt = header.findIndex(h => h.includes('借方金額') || h === '金額');
+    let colDebit = header.findIndex(h => h.includes('借方勘定科目') || h.includes('借方科目') || h.includes('経費科目') || h === '借方');
+    let colDebitAmt = header.findIndex(h => h.includes('借方金額') || h.includes('金額（税込）') || h.includes('円換算金額') || h === '金額');
     let colCredit = header.findIndex(h => h.includes('貸方勘定科目') || h.includes('貸方科目') || h === '貸方');
     let colCreditAmt = header.findIndex(h => h.includes('貸方金額'));
-    let colDesc = header.findIndex(h => h.includes('摘要') || h.includes('内容') || h.includes('品名'));
+    let colDesc = header.findIndex(h => h.includes('摘要') || h.includes('支払先・内容') || h.includes('内容') || h.includes('品名'));
     let colMemo = header.findIndex(h => h.includes('メモ') || h.includes('仕訳メモ'));
+
+    // 経費明細CSV（MFクラウド経費）かどうかの判別
+    const isExpenseDetailCSV = header.includes('支払先・内容') && header.includes('経費科目');
 
     if (colDate === -1) colDate = 0;
     if (colDebit === -1) colDebit = 1;
@@ -596,6 +599,9 @@ const Accounting = {
     let lastTxNo = null;
     let lastDebit = '未分類';
     let lastCredit = '未分類';
+
+    // 設立日判定用 (2026-08-08以前は「創立費」)
+    const ESTABLISHMENT_DATE = '2026-08-08';
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
@@ -617,14 +623,24 @@ const Accounting = {
       let debit = row[colDebit] || '';
       let credit = row[colCredit] || '';
 
-      // マネーフォワード等の複合仕訳（同一取引No）における勘定科目の継承補完
-      if (txNo && txNo === lastTxNo) {
-        if (!debit) debit = lastDebit;
-        if (!credit) credit = lastCredit;
+      // 経費明細CSVの場合は創立費/開業費判定 ＆ 貸方は役員借入金
+      if (isExpenseDetailCSV) {
+        if (rawDate <= ESTABLISHMENT_DATE) {
+          debit = '創立費';
+        } else {
+          debit = '開業費';
+        }
+        if (!credit) credit = '役員借入金';
       } else {
-        lastTxNo = txNo;
-        if (debit) lastDebit = debit;
-        if (credit) lastCredit = credit;
+        // 通常仕訳CSVのマッピング
+        if (txNo && txNo === lastTxNo) {
+          if (!debit) debit = lastDebit;
+          if (!credit) credit = lastCredit;
+        } else {
+          lastTxNo = txNo;
+          if (debit) lastDebit = debit;
+          if (credit) lastCredit = credit;
+        }
       }
 
       if (!debit) debit = '未分類';
@@ -637,7 +653,7 @@ const Accounting = {
 
       const desc = row[colDesc] || '';
       const memo = colMemo !== -1 ? row[colMemo] : '';
-      
+
       let fullDesc = desc;
       if (memo) {
         fullDesc = desc ? `${desc} (${memo})` : memo;
@@ -717,7 +733,7 @@ const Accounting = {
     }
 
     App.showToast(`スプレッドシートへ ${journals.length}件 の仕訳を一括送信中...`);
-    
+
     SpreadsheetSync.push('bulkUpsertJournals', journals).then(res => {
       if (res && res.success) {
         App.showToast(`✅ スプレッドシート「帳簿」へ ${journals.length}件 の仕訳を一括同期しました！`);
@@ -837,7 +853,7 @@ const Accounting = {
     }
 
     const checkBalanced = (grandDebit === grandCredit && grandDebitBal === grandCreditBal);
-    const balanceAlertHtml = checkBalanced 
+    const balanceAlertHtml = checkBalanced
       ? `<div style="font-size:0.78rem; color:#2dd4a8; font-weight:600; text-align:right; margin-bottom: 8px;">✅ 貸借整合確認済 (一致しています)</div>`
       : `<div style="font-size:0.78rem; color:var(--accent-red); font-weight:700; text-align:right; margin-bottom: 8px;">⚠️ 警告: 貸借不一致が発生しています。仕訳を確認してください。</div>`;
 

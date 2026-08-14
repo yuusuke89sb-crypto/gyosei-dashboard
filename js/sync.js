@@ -273,6 +273,15 @@ const SpreadsheetSync = {
             <p class="form-hint">Apps Script のデプロイ URL を入力してください</p>
           </div>
 
+          <div class="form-group" style="margin-top:12px">
+            <label>📊 Googleスプレッドシート（原本）のURL</label>
+            <input type="url" id="syncSheetUrl" class="search-input" 
+              placeholder="https://docs.google.com/spreadsheets/d/xxx/edit"
+              value="${config.sheetUrl || ''}"
+              style="width:100%;margin-top:4px">
+            <p class="form-hint">店舗管理ボタンを押した際に開くスプレッドシートのURL</p>
+          </div>
+
           <!-- LINE Messaging API 設定 -->
           <div style="border-top:1px solid var(--border-color);margin-top:16px;padding-top:16px">
             <h3 style="font-size:0.9rem;margin-bottom:6px;color:var(--accent-orange);display:flex;align-items:center;gap:6px">💬 LINE Messaging API 連携（Bot通知）</h3>
@@ -382,6 +391,7 @@ const SpreadsheetSync = {
 
     onSaveSettings() {
         const url = document.getElementById('syncGasUrl').value.trim();
+        const sheetUrl = document.getElementById('syncSheetUrl') ? document.getElementById('syncSheetUrl').value.trim() : '';
         const lineToken = document.getElementById('syncLineToken') ? document.getElementById('syncLineToken').value.trim() : '';
         const lineUserId = document.getElementById('syncLineUserId') ? document.getElementById('syncLineUserId').value.trim() : '';
         const lineNotifyCase = document.getElementById('syncLineNotifyCase') ? document.getElementById('syncLineNotifyCase').checked : false;
@@ -389,6 +399,7 @@ const SpreadsheetSync = {
         this.saveConfig({
             ...this.getConfig(),
             gasUrl: url,
+            sheetUrl: sheetUrl,
             lineToken: lineToken,
             lineUserId: lineUserId,
             lineNotifyCase: lineNotifyCase,
