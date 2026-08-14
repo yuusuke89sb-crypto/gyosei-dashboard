@@ -168,6 +168,9 @@ const SpreadsheetSync = {
                 });
                 var merged = data.journals.concat(localOnly);
                 localStorage.setItem('gyosei_journals', JSON.stringify(merged));
+                if (typeof Accounting !== 'undefined' && typeof Accounting.cleanDuplicates === 'function') {
+                    Accounting.cleanDuplicates();
+                }
             }
 
             // 同期日時を記録

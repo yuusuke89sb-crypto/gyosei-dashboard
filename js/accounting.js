@@ -56,6 +56,59 @@ const Accounting = {
     localStorage.setItem('gyosei_journals', JSON.stringify(data));
   },
 
+  cleanDuplicates() {
+    const journals = this.getJournals();
+    if (!journals || journals.length === 0) {
+      if (typeof App !== 'undefined') App.showToast('仕訳データがありません');
+      return;
+    }
+
+    // 日付 + 金額 + 会社名（摘要から【】を除いた部分）でグループ化
+    const groups = {};
+    journals.forEach((j, idx) => {
+      // 摘要から会社名等のコア部分を抽出
+      const rawDesc = (j.description || '').replace(/【[^】]*】/g, '').trim();
+      const key = `${j.date || ''}_${j.amount || 0}_${rawDesc}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push({ journal: j, originalIndex: idx });
+    });
+
+    const kept = [];
+    let removedCount = 0;
+
+    Object.values(groups).forEach(list => {
+      if (list.length === 1) {
+        kept.push(list[0].journal);
+        return;
+      }
+
+      // 重複グループの中で、摘要に【〇〇費】があるものを最優先
+      // 貸方が「役員借入金」なら加点、「未払金」なら減点
+      list.sort((a, b) => {
+        const descA = a.journal.description || '';
+        const descB = b.journal.description || '';
+        const scoreA = (descA.includes('【') && descA.includes('費】') ? 20 : (descA.includes('【') ? 10 : 0)) +
+                       (a.journal.credit === '役員借入金' ? 5 : 0) -
+                       (a.journal.credit === '未払金' ? 5 : 0);
+        const scoreB = (descB.includes('【') && descB.includes('費】') ? 20 : (descB.includes('【') ? 10 : 0)) +
+                       (b.journal.credit === '役員借入金' ? 5 : 0) -
+                       (b.journal.credit === '未払金' ? 5 : 0);
+        return scoreB - scoreA; // 降順（高スコアが先頭）
+      });
+
+      // 最も優先度の高い1件を残す
+      kept.push(list[0].journal);
+      removedCount += (list.length - 1);
+    });
+
+    this.saveJournals(kept);
+    if (typeof App !== 'undefined') {
+      App.refreshView();
+      App.showToast(`✨ 重複していた仕訳 ${removedCount} 件を削除し、【〇〇費】付きの仕訳を残しました`);
+    }
+    return removedCount;
+  },
+
   render() {
     const journals = this.getJournals();
     const ym = `${this.filterYear}-${String(this.filterMonth).padStart(2, '0')}`;
@@ -91,10 +144,10 @@ const Accounting = {
     const today = Store.getLocalDateStr();
 
     return `
-      <div class="accounting-page">
         <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <h1>💹 帳簿</h1>
           <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" onclick="Accounting.cleanDuplicates()" style="border-color:rgba(239,68,68,0.5); color:#f87171; font-weight:600;" title="同一日付・金額の重複仕訳を整理し【〇〇費】付きを優先して残します">🧹 重複仕訳を整理</button>
             <button class="btn btn-secondary" onclick="ReceiptOCR.showModal('accounting')" style="background:rgba(245,158,11,0.15); border:1px solid var(--accent-gold); color:var(--accent-gold); font-weight:700;">🤖 AIレシートOCR</button>
             <button class="btn btn-primary" onclick="Accounting.showAddModal()">＋ 仕訳追加</button>
           </div>
