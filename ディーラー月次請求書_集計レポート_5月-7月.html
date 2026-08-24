@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ディーラー月次請求書 集計レポート（5月・6月・7月） | 行政書士法人フェリス</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(23, 32, 51, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-light: #60a5fa;
+      --accent: #10b981;
+      --accent-purple: #8b5cf6;
+      --accent-amber: #f59e0b;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --table-hover: rgba(59, 130, 246, 0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+      background: radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.15), transparent 40%),
+                  radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.12), transparent 40%),
+                  var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 2.5rem 2rem;
+      line-height: 1.6;
+    }
+
+    .container { max-width: 1440px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+
+    .header-title h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #60a5fa, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.25rem;
+    }
+
+    .header-title p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .header-actions { display: flex; gap: 0.75rem; }
+
+    .btn {
+      padding: 0.65rem 1.25rem;
+      border-radius: 0.6rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--card-border);
+      color: var(--text-main);
+    }
+    .btn-outline:hover { background: rgba(255, 255, 255, 0.1); }
+
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .kpi-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .kpi-card.cyan::before { background: linear-gradient(90deg, #06b6d4, #38bdf8); }
+    .kpi-card.blue::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .kpi-card.green::before { background: linear-gradient(90deg, #10b981, #34d399); }
+    .kpi-card.amber::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .kpi-card.purple::before { background: linear-gradient(90deg, #8b5cf6, #c084fc); }
+
+    .kpi-label {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.4rem;
+    }
+
+    .kpi-value {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: #ffffff;
+      font-feature-settings: "tnum";
+    }
+
+    .kpi-sub {
+      margin-top: 0.35rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    /* Monthly Comparison Cards */
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .trend-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .trend-grid { grid-template-columns: 1fr; }
+    }
+
+    .trend-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .trend-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(59, 130, 246, 0.4);
+    }
+
+    .trend-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .month-badge {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .count-badge {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--primary-light);
+      padding: 0.25rem 0.65rem;
+      border-radius: 2rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 0.92rem;
+    }
+    .stat-row .label { color: var(--text-muted); }
+    .stat-row .val { font-weight: 700; }
+    .stat-row.total {
+      margin-top: 0.8rem;
+      padding-top: 0.8rem;
+      border-top: 1px dashed rgba(255, 255, 255, 0.1);
+      font-size: 1.05rem;
+      color: #34d399;
+    }
+
+    /* Filters and Controls */
+    .controls-bar {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .search-box input {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--card-border);
+      color: white;
+      padding: 0.55rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.9rem;
+      outline: none;
+      width: 240px;
+      transition: border-color 0.2s;
+    }
+    .search-box input:focus { border-color: var(--primary); }
+
+    /* Table */
+    .table-container {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.92rem;
+    }
+
+    th {
+      background: rgba(15, 23, 42, 0.85);
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 1rem 1.1rem;
+      border-bottom: 1px solid var(--card-border);
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+    }
+
+    th.num, td.num {
+      text-align: right;
+      font-feature-settings: "tnum";
+    }
+
+    td {
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+
+    tbody tr:hover { background: var(--table-hover); }
+
+    .group-tag {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 0.4rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .tag-toyota { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .tag-mitsubishi { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .tag-nissan { background: rgba(234, 88, 12, 0.2); color: #fdba74; }
+
+    .case-count-badge {
+      display: inline-block;
+      background: rgba(14, 165, 233, 0.18);
+      color: #38bdf8;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .grand-total-highlight {
+      font-weight: 800;
+      color: #34d399;
+    }
+
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="header-title">
+      <h1>自動車ディーラー月次請求書 集計ダッシュボード</h1>
+      <p>愛知トヨタWEST（全19店）／ 三菱ふそう（2支店）／ 日産愛知（松降店）件数・報酬・立替金集計（2026年5月・6月・7月）</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+      <button class="btn btn-primary" onclick="downloadCSV()">📥 CSVダウンロード</button>
+    </div>
+  </header>
+
+  <!-- 3ヶ月累計 KPI -->
+  <div class="kpi-grid">
+    <div class="kpi-card cyan">
+      <div class="kpi-label">3ヶ月累計 総取扱件数</div>
+      <div class="kpi-value" id="kpi-cases">1,444 件</div>
+      <div class="kpi-sub">5月: 332件 / 6月: 554件 / 7月: 558件</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">3ヶ月累計 請求総合計</div>
+      <div class="kpi-value" id="kpi-grand-total">¥7,591,536</div>
+      <div class="kpi-sub">5月: 1.75M / 6月: 2.79M / 7月: 3.05M</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">3ヶ月累計 報酬額（税込）</div>
+      <div class="kpi-value" id="kpi-reward-total">¥6,794,550</div>
+      <div class="kpi-sub">税抜報酬合計: ¥6,176,864</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">3ヶ月累計 立替金総額</div>
+      <div class="kpi-value" id="kpi-advance-total">¥796,986</div>
+      <div class="kpi-sub">証紙代・印紙代・諸費用立替</div>
+    </div>
+  </div>
+
+  <!-- 月次推移サマリー -->
+  <div class="section-title">📊 月次実績サマリー（5月・6月・7月）</div>
+  <div class="trend-grid">
+    <div class="trend-card">
+      <div class="trend-card-header">
+        <div class="month-badge">2026年 5月度</div>
+        <div class="count-badge">トヨタ 18店舗</div>
+      </div>
+      <div class="stat-row"><span class="label">取扱件数</span><span class="val" style="color:#38bdf8;">332 件</span></div>
+      <div class="stat-row"><span class="label">報酬額（税抜）</span><span class="val">¥1,438,000</span></div>
+      <div class="stat-row"><span class="label">消費税額</span><span class="val">¥143,800</span></div>
+      <div class="stat-row"><span class="label">報酬額（税込）</span><span class="val">¥1,581,800</span></div>
+      <div class="stat-row"><span class="label">立替金合計</span><span class="val">¥168,510</span></div>
+      <div class="stat-row total"><span class="label">請求総合計</span><span class="val">¥1,750,310</span></div>
+    </div>
+
+    <div class="trend-card">
+      <div class="trend-card-header">
+        <div class="month-badge">2026年 6月度</div>
+        <div class="count-badge">トヨタ 18店舗</div>
+      </div>
+      <div class="stat-row"><span class="label">取扱件数</span><span class="val" style="color:#38bdf8;">554 件</span></div>
+      <div class="stat-row"><span class="label">報酬額（税抜）</span><span class="val">¥2,357,500</span></div>
+      <div class="stat-row"><span class="label">消費税額</span><span class="val">¥235,750</span></div>
+      <div class="stat-row"><span class="label">報酬額（税込）</span><span class="val">¥2,593,250</span></div>
+      <div class="stat-row"><span class="label">立替金合計</span><span class="val">¥198,340</span></div>
+      <div class="stat-row total"><span class="label">請求総合計</span><span class="val">¥2,791,590</span></div>
+    </div>
+
+    <div class="trend-card" style="border-color: rgba(52, 211, 153, 0.4);">
+      <div class="trend-card-header">
+        <div class="month-badge">2026年 7月度</div>
+        <div class="count-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">全22拠点（3社）</div>
+      </div>
+      <div class="stat-row"><span class="label">取扱件数</span><span class="val" style="color:#34d399;">558 件</span></div>
+      <div class="stat-row"><span class="label">報酬額（税抜）</span><span class="val">¥2,381,364</span></div>
+      <div class="stat-row"><span class="label">消費税額</span><span class="val">¥238,136</span></div>
+      <div class="stat-row"><span class="label">報酬額（税込）</span><span class="val">¥2,619,500</span></div>
+      <div class="stat-row"><span class="label">立替金合計</span><span class="val">¥430,136</span></div>
+      <div class="stat-row total"><span class="label">請求総合計</span><span class="val">¥3,049,636</span></div>
+    </div>
+  </div>
+
+  <!-- コントロールバー -->
+  <div class="controls-bar">
+    <div class="filter-tabs">
+      <button class="tab-btn active" onclick="setMonthFilter('all')">全期間（5〜7月）</button>
+      <button class="tab-btn" onclick="setMonthFilter('2026-07')">7月度</button>
+      <button class="tab-btn" onclick="setMonthFilter('2026-06')">6月度</button>
+      <button class="tab-btn" onclick="setMonthFilter('2026-05')">5月度</button>
+    </div>
+    <div class="filter-tabs">
+      <button class="tab-btn active" onclick="setGroupFilter('all')">全得意先</button>
+      <button class="tab-btn" onclick="setGroupFilter('トヨタ')">トヨタWEST</button>
+      <button class="tab-btn" onclick="setGroupFilter('三菱')">三菱ふそう</button>
+      <button class="tab-btn" onclick="setGroupFilter('日産')">日産愛知</button>
+    </div>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="店舗名で絞り込み..." oninput="renderTable()">
+    </div>
+  </div>
+
+  <!-- 明細テーブル -->
+  <div class="table-container">
+    <table id="invoiceTable">
+      <thead>
+        <tr>
+          <th>対象月</th>
+          <th>グループ</th>
+          <th>得意先名</th>
+          <th>店舗 / 支店名</th>
+          <th class="num">取扱件数</th>
+          <th class="num">報酬額（税抜）</th>
+          <th class="num">消費税（10%）</th>
+          <th class="num">報酬額（税込）</th>
+          <th class="num">立替金・諸費用</th>
+          <th class="num">請求総合計</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+      </tbody>
+      <tfoot id="tableFoot" style="background: rgba(15, 23, 42, 0.95); font-weight: bold;">
+      </tfoot>
+    </table>
+  </div>
+
+  <footer>
+    <p>© 2026 行政書士法人フェリス | 月次請求書集計システム</p>
+  </footer>
+</div>
+
+<script>
+let currentMonth = 'all';
+let currentGroup = 'all';
+
+let rawRecords = {
+  "records": [
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮店",
+      "cases_count": 63,
+      "reward_ex": 268500,
+      "tax": 26850,
+      "reward_in": 295350,
+      "advance": 47250,
+      "grand_total": 342600
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "稲沢天池店",
+      "cases_count": 62,
+      "reward_ex": 226500,
+      "tax": 22650,
+      "reward_in": 249150,
+      "advance": 64610,
+      "grand_total": 313760
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "江南店",
+      "cases_count": 42,
+      "reward_ex": 165000,
+      "tax": 16500,
+      "reward_in": 181500,
+      "advance": 14550,
+      "grand_total": 196050
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮三条店",
+      "cases_count": 26,
+      "reward_ex": 140000,
+      "tax": 14000,
+      "reward_in": 154000,
+      "advance": 11500,
+      "grand_total": 165500
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "昭和橋店",
+      "cases_count": 31,
+      "reward_ex": 127000,
+      "tax": 12700,
+      "reward_in": 139700,
+      "advance": 2300,
+      "grand_total": 142000
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮開明店",
+      "cases_count": 28,
+      "reward_ex": 111500,
+      "tax": 11150,
+      "reward_in": 122650,
+      "advance": 13900,
+      "grand_total": 136550
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小牧村中店",
+      "cases_count": 19,
+      "reward_ex": 76500,
+      "tax": 7650,
+      "reward_in": 84150,
+      "advance": 2300,
+      "grand_total": 86450
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "西店",
+      "cases_count": 13,
+      "reward_ex": 71000,
+      "tax": 7100,
+      "reward_in": 78100,
+      "advance": 9000,
+      "grand_total": 87100
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "北名古屋店",
+      "cases_count": 13,
+      "reward_ex": 58500,
+      "tax": 5850,
+      "reward_in": 64350,
+      "advance": 2400,
+      "grand_total": 66750
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "キャラット小牧店",
+      "cases_count": 10,
+      "reward_ex": 50000,
+      "tax": 5000,
+      "reward_in": 55000,
+      "advance": 0,
+      "grand_total": 55000
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "稲沢おりづマイカー",
+      "cases_count": 7,
+      "reward_ex": 35000,
+      "tax": 3500,
+      "reward_in": 38500,
+      "advance": 0,
+      "grand_total": 38500
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小牧南インター店",
+      "cases_count": 4,
+      "reward_ex": 23000,
+      "tax": 2300,
+      "reward_in": 25300,
+      "advance": 0,
+      "grand_total": 25300
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "蟹江店",
+      "cases_count": 3,
+      "reward_ex": 21000,
+      "tax": 2100,
+      "reward_in": 23100,
+      "advance": 700,
+      "grand_total": 23800
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "北店",
+      "cases_count": 4,
+      "reward_ex": 20000,
+      "tax": 2000,
+      "reward_in": 22000,
+      "advance": 0,
+      "grand_total": 22000
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮インター店",
+      "cases_count": 2,
+      "reward_ex": 19000,
+      "tax": 1900,
+      "reward_in": 20900,
+      "advance": 0,
+      "grand_total": 20900
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "津島店",
+      "cases_count": 2,
+      "reward_ex": 10000,
+      "tax": 1000,
+      "reward_in": 11000,
+      "advance": 0,
+      "grand_total": 11000
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小田井店",
+      "cases_count": 2,
+      "reward_ex": 8500,
+      "tax": 850,
+      "reward_in": 9350,
+      "advance": 0,
+      "grand_total": 9350
+    },
+    {
+      "month": "2026-05",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "西春店",
+      "cases_count": 1,
+      "reward_ex": 7000,
+      "tax": 700,
+      "reward_in": 7700,
+      "advance": 0,
+      "grand_total": 7700
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮店",
+      "cases_count": 122,
+      "reward_ex": 470000,
+      "tax": 47000,
+      "reward_in": 517000,
+      "advance": 54120,
+      "grand_total": 571120
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "江南店",
+      "cases_count": 84,
+      "reward_ex": 342000,
+      "tax": 34200,
+      "reward_in": 376200,
+      "advance": 17880,
+      "grand_total": 394080
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "稲沢天池店",
+      "cases_count": 78,
+      "reward_ex": 311500,
+      "tax": 31150,
+      "reward_in": 342650,
+      "advance": 29260,
+      "grand_total": 371910
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "昭和橋店",
+      "cases_count": 47,
+      "reward_ex": 228000,
+      "tax": 22800,
+      "reward_in": 250800,
+      "advance": 24770,
+      "grand_total": 275570
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮開明店",
+      "cases_count": 47,
+      "reward_ex": 179000,
+      "tax": 17900,
+      "reward_in": 196900,
+      "advance": 9880,
+      "grand_total": 206780
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小牧村中店",
+      "cases_count": 32,
+      "reward_ex": 156000,
+      "tax": 15600,
+      "reward_in": 171600,
+      "advance": 14500,
+      "grand_total": 186100
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "西店",
+      "cases_count": 23,
+      "reward_ex": 115500,
+      "tax": 11550,
+      "reward_in": 127050,
+      "advance": 12630,
+      "grand_total": 139680
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮三条店",
+      "cases_count": 29,
+      "reward_ex": 114500,
+      "tax": 11450,
+      "reward_in": 125950,
+      "advance": 9950,
+      "grand_total": 135900
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "キャラット小牧店",
+      "cases_count": 19,
+      "reward_ex": 95000,
+      "tax": 9500,
+      "reward_in": 104500,
+      "advance": 0,
+      "grand_total": 104500
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小牧南インター店",
+      "cases_count": 20,
+      "reward_ex": 82000,
+      "tax": 8200,
+      "reward_in": 90200,
+      "advance": 5590,
+      "grand_total": 95790
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "北名古屋店",
+      "cases_count": 14,
+      "reward_ex": 55000,
+      "tax": 5500,
+      "reward_in": 60500,
+      "advance": 0,
+      "grand_total": 60500
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "稲沢おりづマイカー",
+      "cases_count": 10,
+      "reward_ex": 52000,
+      "tax": 5200,
+      "reward_in": 57200,
+      "advance": 0,
+      "grand_total": 57200
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮インター店",
+      "cases_count": 10,
+      "reward_ex": 43000,
+      "tax": 4300,
+      "reward_in": 47300,
+      "advance": 12860,
+      "grand_total": 60160
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "西春店",
+      "cases_count": 4,
+      "reward_ex": 33000,
+      "tax": 3300,
+      "reward_in": 36300,
+      "advance": 6900,
+      "grand_total": 43200
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小田井店",
+      "cases_count": 4,
+      "reward_ex": 26000,
+      "tax": 2600,
+      "reward_in": 28600,
+      "advance": 0,
+      "grand_total": 28600
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "北店",
+      "cases_count": 5,
+      "reward_ex": 25000,
+      "tax": 2500,
+      "reward_in": 27500,
+      "advance": 0,
+      "grand_total": 27500
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "蟹江店",
+      "cases_count": 5,
+      "reward_ex": 25000,
+      "tax": 2500,
+      "reward_in": 27500,
+      "advance": 0,
+      "grand_total": 27500
+    },
+    {
+      "month": "2026-06",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "津島店",
+      "cases_count": 1,
+      "reward_ex": 5000,
+      "tax": 500,
+      "reward_in": 5500,
+      "advance": 0,
+      "grand_total": 5500
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮店",
+      "cases_count": 90,
+      "reward_ex": 350000,
+      "tax": 35000,
+      "reward_in": 385000,
+      "advance": 55430,
+      "grand_total": 440430
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "稲沢天池店",
+      "cases_count": 74,
+      "reward_ex": 286500,
+      "tax": 28650,
+      "reward_in": 315150,
+      "advance": 42530,
+      "grand_total": 357680
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "江南店",
+      "cases_count": 72,
+      "reward_ex": 278000,
+      "tax": 27800,
+      "reward_in": 305800,
+      "advance": 9200,
+      "grand_total": 315000
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮開明店",
+      "cases_count": 46,
+      "reward_ex": 160500,
+      "tax": 16050,
+      "reward_in": 176550,
+      "advance": 43380,
+      "grand_total": 219930
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "昭和橋店",
+      "cases_count": 29,
+      "reward_ex": 137500,
+      "tax": 13750,
+      "reward_in": 151250,
+      "advance": 16020,
+      "grand_total": 167270
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮三条店",
+      "cases_count": 32,
+      "reward_ex": 127500,
+      "tax": 12750,
+      "reward_in": 140250,
+      "advance": 9200,
+      "grand_total": 149450
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小田井店",
+      "cases_count": 27,
+      "reward_ex": 119500,
+      "tax": 11950,
+      "reward_in": 131450,
+      "advance": 6900,
+      "grand_total": 138350
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "西店",
+      "cases_count": 24,
+      "reward_ex": 106000,
+      "tax": 10600,
+      "reward_in": 116600,
+      "advance": 9200,
+      "grand_total": 125800
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "キャラット小牧店",
+      "cases_count": 19,
+      "reward_ex": 95000,
+      "tax": 9500,
+      "reward_in": 104500,
+      "advance": 0,
+      "grand_total": 104500
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小牧南インター店",
+      "cases_count": 20,
+      "reward_ex": 87000,
+      "tax": 8700,
+      "reward_in": 95700,
+      "advance": 8480,
+      "grand_total": 104180
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "西春店",
+      "cases_count": 17,
+      "reward_ex": 68000,
+      "tax": 6800,
+      "reward_in": 74800,
+      "advance": 6900,
+      "grand_total": 81700
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "北名古屋店",
+      "cases_count": 14,
+      "reward_ex": 60000,
+      "tax": 6000,
+      "reward_in": 66000,
+      "advance": 4600,
+      "grand_total": 70600
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "小牧村中店",
+      "cases_count": 13,
+      "reward_ex": 52500,
+      "tax": 5250,
+      "reward_in": 57750,
+      "advance": 2300,
+      "grand_total": 60050
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "一宮インター店",
+      "cases_count": 12,
+      "reward_ex": 46000,
+      "tax": 4600,
+      "reward_in": 50600,
+      "advance": 16290,
+      "grand_total": 66890
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "稲沢おりづマイカー",
+      "cases_count": 8,
+      "reward_ex": 40000,
+      "tax": 4000,
+      "reward_in": 44000,
+      "advance": 0,
+      "grand_total": 44000
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "蟹江店",
+      "cases_count": 3,
+      "reward_ex": 18000,
+      "tax": 1800,
+      "reward_in": 19800,
+      "advance": 0,
+      "grand_total": 19800
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "津島店",
+      "cases_count": 3,
+      "reward_ex": 15000,
+      "tax": 1500,
+      "reward_in": 16500,
+      "advance": 0,
+      "grand_total": 16500
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "北店",
+      "cases_count": 3,
+      "reward_ex": 15000,
+      "tax": 1500,
+      "reward_in": 16500,
+      "advance": 0,
+      "grand_total": 16500
+    },
+    {
+      "month": "2026-07",
+      "group": "トヨタ",
+      "client": "愛知トヨタWEST(株)",
+      "store": "桜井店",
+      "cases_count": 1,
+      "reward_ex": 5000,
+      "tax": 500,
+      "reward_in": 5500,
+      "advance": 0,
+      "grand_total": 5500
+    },
+    {
+      "month": "2026-07",
+      "group": "三菱",
+      "client": "三菱ふそうトラック・バス(株)",
+      "store": "小牧支店",
+      "cases_count": 25,
+      "reward_ex": 158000,
+      "tax": 15800,
+      "reward_in": 173800,
+      "advance": 97036,
+      "grand_total": 270836
+    },
+    {
+      "month": "2026-07",
+      "group": "三菱",
+      "client": "三菱ふそうトラック・バス(株)",
+      "store": "岐阜支店",
+      "cases_count": 4,
+      "reward_ex": 27000,
+      "tax": 2700,
+      "reward_in": 29700,
+      "advance": 9500,
+      "grand_total": 39200
+    },
+    {
+      "month": "2026-07",
+      "group": "日産",
+      "client": "日産愛知販売(株)",
+      "store": "松降店",
+      "cases_count": 22,
+      "reward_ex": 129364,
+      "tax": 12936,
+      "reward_in": 142300,
+      "advance": 93170,
+      "grand_total": 235470
+    }
+  ],
+  "summary": {
+    "2026-05": {
+      "cases_count": 332,
+      "reward_ex": 1438000,
+      "tax": 143800,
+      "reward_in": 1581800,
+      "advance": 168510,
+      "grand_total": 1750310
+    },
+    "2026-06": {
+      "cases_count": 554,
+      "reward_ex": 2357500,
+      "tax": 235750,
+      "reward_in": 2593250,
+      "advance": 198340,
+      "grand_total": 2791590
+    },
+    "2026-07": {
+      "cases_count": 558,
+      "reward_ex": 2381364,
+      "tax": 238136,
+      "reward_in": 2619500,
+      "advance": 430136,
+      "grand_total": 3049636
+    },
+    "total": {
+      "cases_count": 1444,
+      "reward_ex": 6176864,
+      "tax": 617686,
+      "reward_in": 6794550,
+      "advance": 796986,
+      "grand_total": 7591536
+    }
+  }
+}['records'];
+
+// Embedded data loader
+function initData() {
+  fetch('./data/dealer_invoices_5_6_7.json')
+    .then(res => res.json())
+    .then(data => {
+      rawRecords = data.records;
+      renderTable();
+    })
+    .catch(err => {
+      console.log('Loading fallback from embedded');
+    });
+}
+
+function setMonthFilter(month) {
+  currentMonth = month;
+  document.querySelectorAll('.filter-tabs:first-child .tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if ((month === 'all' && btn.innerText.includes('全期間')) || btn.innerText.includes(month.replace('2026-0', '') + '月')) {
+      btn.classList.add('active');
+    }
+  });
+  renderTable();
+}
+
+function setGroupFilter(group) {
+  currentGroup = group;
+  document.querySelectorAll('.filter-tabs:nth-child(2) .tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if ((group === 'all' && btn.innerText.includes('全得意先')) || btn.innerText.includes(group)) {
+      btn.classList.add('active');
+    }
+  });
+  renderTable();
+}
+
+function renderTable() {
+  const query = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtered = rawRecords.filter(r => {
+    const matchMonth = (currentMonth === 'all' || r.month === currentMonth);
+    const matchGroup = (currentGroup === 'all' || r.group === currentGroup);
+    const matchQuery = !query || r.store.toLowerCase().includes(query) || r.client.toLowerCase().includes(query);
+    return matchMonth && matchGroup && matchQuery;
+  });
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  let sumCases = 0, sumEx = 0, sumTax = 0, sumIn = 0, sumAdv = 0, sumTotal = 0;
+
+  filtered.forEach(r => {
+    const cases = Number(r.cases_count || 0);
+    sumCases += cases;
+    sumEx += r.reward_ex;
+    sumTax += r.tax;
+    sumIn += r.reward_in;
+    sumAdv += r.advance;
+    sumTotal += r.grand_total;
+
+    let tagClass = 'tag-toyota';
+    if (r.group === '三菱') tagClass = 'tag-mitsubishi';
+    if (r.group === '日産') tagClass = 'tag-nissan';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.month}</td>
+      <td><span class="group-tag ${tagClass}">${r.group}</span></td>
+      <td>${r.client}</td>
+      <td><strong>${r.store}</strong></td>
+      <td class="num"><span class="case-count-badge">${cases} 件</span></td>
+      <td class="num">¥${r.reward_ex.toLocaleString()}</td>
+      <td class="num">¥${r.tax.toLocaleString()}</td>
+      <td class="num">¥${r.reward_in.toLocaleString()}</td>
+      <td class="num">¥${r.advance.toLocaleString()}</td>
+      <td class="num grand-total-highlight">¥${r.grand_total.toLocaleString()}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const tfoot = document.getElementById('tableFoot');
+  tfoot.innerHTML = `
+    <tr>
+      <td colspan="4" style="text-align: right;">【表示計: ${filtered.length}拠点】</td>
+      <td class="num" style="color:#38bdf8; font-size:1rem;">${sumCases.toLocaleString()} 件</td>
+      <td class="num">¥${sumEx.toLocaleString()}</td>
+      <td class="num">¥${sumTax.toLocaleString()}</td>
+      <td class="num">¥${sumIn.toLocaleString()}</td>
+      <td class="num">¥${sumAdv.toLocaleString()}</td>
+      <td class="num grand-total-highlight">¥${sumTotal.toLocaleString()}</td>
+    </tr>
+  `;
+}
+
+function downloadCSV() {
+  window.location.href = './data/dealer_invoices_2026_05_06_07.csv';
+}
+
+initData();
+</script>
+
+</body>
+</html>
