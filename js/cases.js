@@ -504,21 +504,26 @@ const Cases = {
               </div>
             </div>
             <div class="form-section" style="background:#f9fafb;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #e5e7eb;">
-              <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px;color:#6b7280;">🚗 車両・申請情報（車庫証明・登録等用）</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div style="font-size:0.85rem;font-weight:600;color:#374151;">🚗 車両・申請情報（車庫証明・登録等用）</div>
+                <button type="button" class="btn btn-secondary" onclick="Cases.openSyakoMapMaker()" style="font-size:0.75rem;padding:3px 10px;background:#2563eb;color:#fff;border-color:#2563eb;font-weight:bold;display:flex;align-items:center;gap:4px;">
+                  🗺️ 所在図・配置図を作成
+                </button>
+              </div>
               <div class="form-row">
                 <div class="form-group">
                   <label>名前（申請者・使用者）</label>
                   <input type="text" name="carName" id="csf_carName" placeholder="例：山田 太郎">
                 </div>
                 <div class="form-group">
-                  <label>住所</label>
-                  <input type="text" name="carAddress" id="csf_carAddress" placeholder="例：東京都港区...">
+                  <label>使用の本拠の位置（自宅住所）</label>
+                  <input type="text" name="carAddress" id="csf_carAddress" placeholder="例：一宮市木曽川町黒田...">
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label>車台番号</label>
-                  <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：ABC-1234567">
+                  <label>保管場所の位置（車庫住所） <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は自宅と同上)</span></label>
+                  <input type="text" name="parkingAddress" id="csf_parkingAddress" placeholder="例：一宮市木曽川町黒田... (空欄時は同上)">
                 </div>
                 <div class="form-group">
                   <label>所轄警察署</label>
@@ -528,6 +533,12 @@ const Cases = {
                       ? Briefing.PRESETS.filter(p => p.group === '警察署').map(p => `<option value="${p.label}">${p.label}</option>`).join('') 
                       : ''}
                   </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>車台番号</label>
+                  <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：ABC-1234567">
                 </div>
               </div>
             </div>
@@ -683,6 +694,8 @@ const Cases = {
       document.getElementById('csf_memo').value = c.memo || '';
       document.getElementById('csf_carName').value = c.carName || '';
       document.getElementById('csf_carAddress').value = c.carAddress || '';
+      const parkAddrEl = document.getElementById('csf_parkingAddress');
+      if (parkAddrEl) parkAddrEl.value = c.parkingAddress || '';
       document.getElementById('csf_carNumber').value = c.carNumber || '';
       document.getElementById('csf_carPolice').value = c.carPolice || '';
       document.getElementById('caseDeleteBtn').style.display = 'block';
@@ -778,6 +791,7 @@ const Cases = {
       landTransportLocationId: form.landTransportLocationId ? form.landTransportLocationId.value : '',
       carName: form.carName ? form.carName.value.trim() : '',
       carAddress: form.carAddress ? form.carAddress.value.trim() : '',
+      parkingAddress: form.parkingAddress ? form.parkingAddress.value.trim() : '',
       carNumber: form.carNumber ? form.carNumber.value.trim() : '',
       carPolice: form.carPolice ? form.carPolice.value.trim() : '',
       faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',
@@ -1056,36 +1070,103 @@ const Cases = {
     App.refreshView();
   },
 
+  openSyakoMapMaker(caseId) {
+    let targetCase = null;
+    if (caseId) {
+      targetCase = Store.getCase(caseId);
+    } else if (this.editingId) {
+      targetCase = Store.getCase(this.editingId);
+    }
+
+    const params = new URLSearchParams();
+    let storeInfo = '';
+
+    if (targetCase) {
+      params.set('caseId', targetCase.id);
+      if (targetCase.title) params.set('title', targetCase.title);
+      if (targetCase.carAddress) params.set('home', targetCase.carAddress);
+      if (targetCase.parkingAddress) params.set('parking', targetCase.parkingAddress);
+      if (targetCase.carName) params.set('name', targetCase.carName);
+      if (targetCase.orderNo) params.set('orderNo', targetCase.orderNo);
+      if (targetCase.carNumber) params.set('regNo', targetCase.carNumber);
+
+      // 顧客マスターから店舗情報を取得
+      if (targetCase.clientId && typeof Store !== 'undefined') {
+        const client = Store.getClient(targetCase.clientId);
+        if (client) {
+          const company = client.companyName || client.name || '';
+          const branch = client.branchName || client.tradeName || client.department || '';
+          const phone = client.phone || client.tel || '';
+          // 例: 愛知トヨタ 江南店 TEL 0587-55-6311
+          storeInfo = [company, branch].filter(Boolean).join(' ');
+          if (phone) storeInfo += (storeInfo ? '　' : '') + 'TEL ' + phone;
+        }
+      }
+      if (storeInfo) params.set('storeInfo', storeInfo);
+    } else {
+      const title = document.getElementById('csf_title')?.value || '';
+      const addr = document.getElementById('csf_carAddress')?.value || '';
+      const parkAddr = document.getElementById('csf_parkingAddress')?.value || '';
+      const name = document.getElementById('csf_carName')?.value || '';
+      const orderNo = document.getElementById('csf_orderNo')?.value || '';
+      const carNo = document.getElementById('csf_carNumber')?.value || '';
+      const clientId = document.getElementById('csf_clientId')?.value || '';
+      if (title) params.set('title', title);
+      if (addr) params.set('home', addr);
+      if (parkAddr) params.set('parking', parkAddr);
+      if (name) params.set('name', name);
+      if (orderNo) params.set('orderNo', orderNo);
+      if (carNo) params.set('regNo', carNo);
+
+      if (clientId && typeof Store !== 'undefined') {
+        const client = Store.getClient(clientId);
+        if (client) {
+          const company = client.companyName || client.name || '';
+          const branch = client.branchName || client.tradeName || client.department || '';
+          const phone = client.phone || client.tel || '';
+          storeInfo = [company, branch].filter(Boolean).join(' ');
+          if (phone) storeInfo += (storeInfo ? '　' : '') + 'TEL ' + phone;
+        }
+      }
+      if (storeInfo) params.set('storeInfo', storeInfo);
+    }
+
+    window.open('syako_map_maker.html?' + params.toString(), '_blank');
+  },
+
   renderMapWidget(caseId) {
     const mapPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
+    const hasMapData = !!localStorage.getItem('syako_case_map_' + caseId);
     
     let mapPreviewHtml = '';
-    if (mapPng) {
+    if (mapPng || hasMapData) {
       mapPreviewHtml = `
-        <div style="margin-bottom:8px; border:1px solid var(--border-color); border-radius:4px; overflow:hidden; background:white; display:flex; align-items:center; justify-content:center; max-height:160px; padding:4px">
+        ${mapPng ? `
+        <div style="margin-bottom:8px; border:1px solid var(--border-color); border-radius:4px; overflow:hidden; background:white; display:flex; align-items:center; justify-content:center; max-height:180px; padding:4px">
           <img src="${mapPng}" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:2px;" />
-        </div>
+        </div>` : '<div style="font-size:0.75rem; color:#059669; font-weight:bold; margin-bottom:6px;">✅ 作図データが保存されています</div>'}
         <div style="display:flex; gap:6px;">
-          <button type="button" class="btn btn-secondary btn-small" onclick="window.open('map-maker/index.html?caseId=${caseId}', '_blank')" style="flex:1; font-size:0.75rem; padding:4px 8px;">🗺️ 再編集</button>
-          <button type="button" class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')" style="flex:1; font-size:0.75rem; padding:4px 8px;">📥 保存</button>
-          <button type="button" class="btn btn-danger btn-small" onclick="Cases.deleteAttachedMap('${caseId}')" style="font-size:0.75rem; padding:4px 8px;" title="削除">🗑️</button>
+          <button type="button" class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}')" style="flex:2; font-size:0.78rem; padding:5px 8px; font-weight:bold;">🗺️ 所在図・配置図を再編集</button>
+          ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">📥 画像保存</button>` : ''}
+          <button type="button" class="btn btn-danger btn-small" onclick="Cases.deleteAttachedMap('${caseId}')" style="font-size:0.75rem; padding:5px 8px;" title="削除">🗑️</button>
         </div>
       `;
     } else {
       mapPreviewHtml = `
         <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; line-height:1.4;">
-          車庫証明の所在図・配置図をブラウザ上で簡単に作成し、この案件へ添付できます。
+          案件の住所（本拠・車庫）を引き継いで、車庫証明の所在図・配置図をブラウザ上で作成・保存できます。
         </p>
-        <button type="button" class="btn btn-secondary btn-small" onclick="window.open('map-maker/index.html?caseId=${caseId}', '_blank')" style="width:100%; font-weight:600; font-size:0.78rem; padding:6px">
-          🗺️ 地図メーカーで図面を作成
+        <button type="button" class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}')" style="width:100%; font-weight:bold; font-size:0.82rem; padding:7px; background:#2563eb; color:#fff;">
+          🗺️ 車庫証明 作図ツールを起動 ➔
         </button>
       `;
     }
 
     return `
       <div class="checklist-widget" style="margin-top:12px; border-left:4px solid var(--accent-orange); padding:12px; border-radius:6px; background:rgba(249,115,22,0.02); border:1px solid var(--border-color)">
-        <h4 style="margin:0 0 8px; font-size:0.88rem; display:flex; align-items:center; gap:6px; color:var(--text-dark)">
-          🗺️ 所在図・配置図
+        <h4 style="margin:0 0 8px; font-size:0.88rem; display:flex; align-items:center; justify-content:space-between; color:var(--text-dark)">
+          <span style="display:flex;align-items:center;gap:6px;">🚗 車庫証明 所在図・配置図</span>
+          ${hasMapData ? '<span style="font-size:0.72rem;background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;font-weight:bold;">作図済</span>' : ''}
         </h4>
         ${mapPreviewHtml}
       </div>
@@ -1097,26 +1178,29 @@ const Cases = {
     if (!mapPng) return;
     const a = document.createElement('a');
     a.href = mapPng;
-    a.download = `case_${caseId}_map.png`;
+    a.download = `車庫証明図面_案件_${caseId}.png`;
     a.click();
   },
 
   deleteAttachedMap(caseId) {
-    if (confirm('添付された地図を削除しますか？\n（ベクター作成データも消去されます）')) {
+    if (confirm('保存された所在図・配置図データを削除しますか？')) {
       localStorage.removeItem('gyosei_case_map_png_' + caseId);
-      localStorage.removeItem('gyosei_case_map_vector_' + caseId);
-      Cases.showEditModal(caseId); // Reload modal
-      App.showToast('地図を削除しました');
+      localStorage.removeItem('syako_case_map_' + caseId);
+      Cases.showEditModal(caseId);
+      App.showToast('作図データを削除しました');
     }
   }
 };
 
 window.addEventListener('message', e => {
   if (e.data && e.data.type === 'MAP_SAVED') {
-    const { caseId, mapDataUrl } = e.data;
+    const { caseId } = e.data;
     if (typeof Cases !== 'undefined' && Cases.editingId === caseId) {
       Cases.showEditModal(caseId);
-      App.showToast('✅ 地図が保存されました');
+    }
+    if (typeof App !== 'undefined') {
+      App.refreshView();
+      App.showToast('✅ 所在図・配置図が案件に保存されました');
     }
   }
 });

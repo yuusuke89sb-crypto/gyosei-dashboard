@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+import os
+
+html_code = """<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -1309,7 +1311,7 @@ function renderStamps() {
     const tag = document.createElement('div');
     tag.className = 'stamp-tag-item';
     tag.innerHTML = `
-      <span class="stamp-tag-text" onclick="addTextStamp('${stamp.replace(/'/g, "\'")}')" title="クリックして配置">${stamp}</span>
+      <span class="stamp-tag-text" onclick="addTextStamp('${stamp.replace(/'/g, "\\'")}')" title="クリックして配置">${stamp}</span>
       <span class="stamp-tag-del" onclick="deleteStamp(${idx})" title="このスタンプを削除">×</span>
     `;
     container.appendChild(tag);
@@ -1478,7 +1480,7 @@ function deleteSelectedItem() {
 // ─── OSS OCR連動 QRコード動的生成 ───
 function updateQRCodes() {
   const ocrInput = document.getElementById('ocrCodeInput');
-  const code = (ocrInput ? ocrInput.value.replace(/\s+/g, '') : '') || '0110470156500000';
+  const code = (ocrInput ? ocrInput.value.replace(/\\s+/g, '') : '') || '0110470156500000';
 
   const sozaiEl = document.getElementById('sozaiQRCode');
   const haichiEl = document.getElementById('haichiQRCode');
@@ -1839,7 +1841,7 @@ function setupCanvasEvents(canvas, targetKey) {
 
     if (currentTool === 'rect-spot') {
       const sNo = document.getElementById('spotNo').value.trim();
-      const labelText = sNo ? `${sNo}\n保管場所` : '保管場所';
+      const labelText = sNo ? `${sNo}\\n保管場所` : '保管場所';
       const w = dragDist < 8 ? 100 : Math.abs(endX - startX);
       const h = dragDist < 8 ? 120 : Math.abs(endY - startY);
       const x = dragDist < 8 ? startX - 50 : Math.min(startX, endX);
@@ -2041,7 +2043,7 @@ function drawElement(ctx, item) {
     ctx.restore();
 
     const labelText = item.label || '保管場所';
-    const lines = labelText.split('\n');
+    const lines = labelText.split('\\n');
     ctx.fillStyle = '#FFFFFF';
     const boxH = lines.length * 15 + 4;
     const boxW = Math.max(...lines.map(l => l.length * 12)) + 12;
@@ -2377,7 +2379,7 @@ async function searchAddress(type) {
     autoSaveDraft();
     showToast(`📍 「${query}」の地図を取得しました`);
   } else {
-    alert(`「${query}」の座標が見つかりませんでした。\n地図をドラッグして位置を調整してください。`);
+    alert(`「${query}」の座標が見つかりませんでした。\\n地図をドラッグして位置を調整してください。`);
   }
 }
 
@@ -2506,7 +2508,7 @@ async function calcDistance(shouldPlot = true) {
   document.getElementById('distanceVal').value = distText;
 
   if (dist > 2000) {
-    alert(`⚠️ 直線距離が約${(dist/1000).toFixed(1)}kmです。\n\n車庫証明の要件として「使用の本拠の位置」と「保管場所」の距離は原則2km以内である必要があります。ご確認ください。`);
+    alert(`⚠️ 直線距離が約${(dist/1000).toFixed(1)}kmです。\\n\\n車庫証明の要件として「使用の本拠の位置」と「保管場所」の距離は原則2km以内である必要があります。ご確認ください。`);
   }
 
   if (shouldPlot) {
@@ -2607,7 +2609,7 @@ function loadKurodaSample() {
       { type: 'compass', x: 80, y: 100, size: 28, angle: 0 },
       { type: 'line-road', x1: 200, y1: 80, x2: hw - 80, y2: 80, angle: 0 },
       { type: 'line-road', x1: 200, y1: 80, x2: 200, y2: hh - 80, angle: 0 },
-      { type: 'text', x: 215, y: 140, text: '5m\n道\n路', fontSize: 13, angle: 0 },
+      { type: 'text', x: 215, y: 140, text: '5m\\n道\\n路', fontSize: 13, angle: 0 },
       { type: 'line-dim', x1: 200, y1: 100, x2: 280, y2: 100, text: '5m', angle: 0 },
       { type: 'line-dim', x1: 230, y1: 200, x2: 230, y2: 440, text: '10m', angle: 0 },
       { type: 'text', x: 240, y: 320, text: '出入口', fontSize: 13, angle: 0 },
@@ -2679,7 +2681,7 @@ function exportJSON() {
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const safeName = (parkAddr || homeAddr || linkedCaseTitle || '車庫証明').replace(/[\s\/\\:;,.*?"<>|]/g, '_').slice(0, 20);
+  const safeName = (parkAddr || homeAddr || linkedCaseTitle || '車庫証明').replace(/[\\s\\/\\\\:;,.*?"<>|]/g, '_').slice(0, 20);
   a.download = `車庫証明データ_${safeName}_${new Date().toISOString().slice(0,10)}.json`;
   a.href = url;
   a.click();
@@ -2835,7 +2837,7 @@ async function exportOSSImage() {
   const page1 = document.getElementById('page1Sozai');
   const page2 = document.getElementById('page2Haichi');
 
-  const addr = (document.getElementById('parkingAddress').value || linkedCaseTitle || '申請地').replace(/[\s\/\\:;,.*?"<>|]/g, '_').slice(0, 25);
+  const addr = (document.getElementById('parkingAddress').value || linkedCaseTitle || '申請地').replace(/[\\s\\/\\\\:;,.*?"<>|]/g, '_').slice(0, 25);
   const dateStr = new Date().toISOString().slice(0,10);
 
   const c1 = await html2canvas(page1, { scale: 2, useCORS: true, logging: false });
@@ -2857,3 +2859,16 @@ async function exportOSSImage() {
 
 </body>
 </html>
+"""
+
+# Write to both locations
+path1 = r"d:\行政書士\開業\gyosei-dashboard\syako_map_maker.html"
+path2 = r"d:\行政書士\車庫証明_所在図・配置図作成ツール.html"
+
+with open(path1, "w", encoding="utf-8") as f:
+    f.write(html_code)
+
+with open(path2, "w", encoding="utf-8") as f:
+    f.write(html_code)
+
+print("Successfully written clean files to both paths.")
