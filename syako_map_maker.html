@@ -533,13 +533,38 @@
 
     <!-- 4. 地図調整 -->
     <div class="sidebar-section">
-      <div class="section-title">🗺️ 4. 背景地図コントロール</div>
-      <div style="font-size:0.8rem; color:#CBD5E1; margin-bottom:6px;">
-        地図をマウスでドラッグまたはホイール回転で自由に移動・ズームできます。
+      <div class="section-title">🗺️ 4. 縮尺・ズーム調整（自由自在）</div>
+      
+      <!-- 所在図ズーム -->
+      <div style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+          <span>📍 所在図 縮尺（広域 ⇄ 詳細）</span>
+          <span id="sozaiZoomLabel" style="font-weight:bold; color:#38BDF8;">Zoom: 15.0</span>
+        </div>
+        <input type="range" id="sozaiZoomSlider" min="5" max="19" step="0.25" value="15" style="width:100%; cursor:pointer;" oninput="onZoomSliderChange('sozai', this.value)">
+        <div style="display:flex; gap:4px; margin-top:4px;">
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('sozai', 12)">広域 (市全体)</button>
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('sozai', 15)">標準 (町・駅)</button>
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('sozai', 17)">詳細 (丁目)</button>
+        </div>
       </div>
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-secondary" style="flex:1; font-size:0.75rem;" onclick="resetSozaiZoom()">所在図 縮尺リセット</button>
-        <button class="btn btn-secondary" style="flex:1; font-size:0.75rem;" onclick="resetHaichiZoom()">配置図 縮尺リセット</button>
+
+      <!-- 配置図ズーム -->
+      <div style="margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+          <span>📐 配置図 縮尺（広域 ⇄ 詳細）</span>
+          <span id="haichiZoomLabel" style="font-weight:bold; color:#38BDF8;">Zoom: 18.0</span>
+        </div>
+        <input type="range" id="haichiZoomSlider" min="10" max="20" step="0.25" value="18" style="width:100%; cursor:pointer;" oninput="onZoomSliderChange('haichi', this.value)">
+        <div style="display:flex; gap:4px; margin-top:4px;">
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 16)">周辺道路</button>
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 18)">敷地・建物</button>
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 19.5)">車庫拡大</button>
+        </div>
+      </div>
+
+      <div style="font-size:0.72rem; color:#94A3B8; margin-top:6px;">
+        💡 マウスホイールやプレビュー右上の「➕」「➖」ボタンでも無制限に微調整できます。
       </div>
     </div>
 
@@ -656,27 +681,75 @@ function initMaps() {
   const kurodaLat = 35.3725;
   const kurodaLng = 136.7820;
 
-  // 1. 所在図マップ（広域・縮尺16）
+  // 1. 所在図マップ（広域対応：minZoom:3 〜 maxZoom:20）
   sozaiMap = L.map('sozaiMap', {
     zoomControl: false,
     attributionControl: false,
-    scrollWheelZoom: true
-  }).setView([kurodaLat, kurodaLng], 16);
+    scrollWheelZoom: true,
+    minZoom: 3,
+    maxZoom: 20,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5
+  }).setView([kurodaLat, kurodaLng], 15);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
+    minZoom: 3,
+    maxZoom: 20,
+    maxNativeZoom: 19
   }).addTo(sozaiMap);
 
-  // 2. 配置図マップ（詳細・縮尺18）
+  // 2. 配置図マップ（詳細対応：minZoom:3 〜 maxZoom:20）
   haichiMap = L.map('haichiMap', {
     zoomControl: false,
     attributionControl: false,
-    scrollWheelZoom: true
+    scrollWheelZoom: true,
+    minZoom: 3,
+    maxZoom: 20,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 18);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
+    minZoom: 3,
+    maxZoom: 20,
+    maxNativeZoom: 19
   }).addTo(haichiMap);
+
+  // ズーム変更時のスライダー連動
+  sozaiMap.on('zoomend', () => {
+    const z = sozaiMap.getZoom();
+    const slider = document.getElementById('sozaiZoomSlider');
+    const label = document.getElementById('sozaiZoomLabel');
+    if (slider) slider.value = z;
+    if (label) label.textContent = `Zoom: ${z.toFixed(1)}`;
+  });
+
+  haichiMap.on('zoomend', () => {
+    const z = haichiMap.getZoom();
+    const slider = document.getElementById('haichiZoomSlider');
+    const label = document.getElementById('haichiZoomLabel');
+    if (slider) slider.value = z;
+    if (label) label.textContent = `Zoom: ${z.toFixed(1)}`;
+  });
+}
+
+function onZoomSliderChange(target, val) {
+  const z = parseFloat(val);
+  if (target === 'sozai') {
+    sozaiMap.setZoom(z);
+    document.getElementById('sozaiZoomLabel').textContent = `Zoom: ${z.toFixed(1)}`;
+  } else {
+    haichiMap.setZoom(z);
+    document.getElementById('haichiZoomLabel').textContent = `Zoom: ${z.toFixed(1)}`;
+  }
+}
+
+function setMapZoomLevel(target, z) {
+  if (target === 'sozai') {
+    sozaiMap.setZoom(z);
+  } else {
+    haichiMap.setZoom(z);
+  }
 }
 
 function zoomMap(target, delta) {
