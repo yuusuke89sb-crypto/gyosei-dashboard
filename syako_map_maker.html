@@ -153,7 +153,38 @@
   }
   .tool-btn-icon { font-size: 1.1rem; }
 
-  /* スタンプボタン */
+  /* 地図ズームコントロールオーバーレイ */
+  .map-zoom-bar {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    display: flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 3px 6px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    border: 1px solid #CBD5E1;
+  }
+  .zoom-btn {
+    width: 26px;
+    height: 26px;
+    background: #FFFFFF;
+    border: 1px solid #94A3B8;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #1E293B;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s;
+  }
+  .zoom-btn:hover { background: #E2E8F0; }
+
+  /* クイックスタンプ */
   .stamp-grid {
     display: flex;
     flex-wrap: wrap;
@@ -262,6 +293,9 @@
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: 2;
+    cursor: grab;
+  }
+  .drawing-canvas.drawing-mode {
     cursor: crosshair;
   }
 
@@ -511,6 +545,10 @@
           <div class="canvas-container" id="sozaiContainer">
             <div id="sozaiMap" class="map-layer"></div>
             <canvas id="sozaiCanvas" class="drawing-canvas"></canvas>
+            <div class="map-zoom-bar print-hide">
+              <button class="zoom-btn" onclick="zoomMap('sozai', 1)" title="拡大">➕</button>
+              <button class="zoom-btn" onclick="zoomMap('sozai', -1)" title="縮小">➖</button>
+            </div>
           </div>
         </div>
 
@@ -520,6 +558,10 @@
           <div class="canvas-container" id="haichiContainer">
             <div id="haichiMap" class="map-layer"></div>
             <canvas id="haichiCanvas" class="drawing-canvas"></canvas>
+            <div class="map-zoom-bar print-hide">
+              <button class="zoom-btn" onclick="zoomMap('haichi', 1)" title="拡大">➕</button>
+              <button class="zoom-btn" onclick="zoomMap('haichi', -1)" title="縮小">➖</button>
+            </div>
           </div>
         </div>
 
@@ -560,7 +602,9 @@ let drawings = {
 
 let activeTarget = 'haichi';
 let isDrawing = false;
+let isPanning = false;
 let startX = 0, startY = 0;
+let lastPanX = 0, lastPanY = 0;
 
 window.addEventListener('DOMContentLoaded', () => {
   initMaps();
@@ -576,7 +620,8 @@ function initMaps() {
   // 1. 所在図マップ（広域・縮尺15）
   sozaiMap = L.map('sozaiMap', {
     zoomControl: false,
-    attributionControl: false
+    attributionControl: false,
+    scrollWheelZoom: true
   }).setView([defaultLat, defaultLng], 15);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -586,12 +631,22 @@ function initMaps() {
   // 2. 配置図マップ（詳細・縮尺18）
   haichiMap = L.map('haichiMap', {
     zoomControl: false,
-    attributionControl: false
+    attributionControl: false,
+    scrollWheelZoom: true
   }).setView([defaultLat, defaultLng], 18);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
   }).addTo(haichiMap);
+}
+
+function zoomMap(target, delta) {
+  const map = target === 'sozai' ? sozaiMap : haichiMap;
+  if (delta > 0) {
+    map.zoomIn();
+  } else {
+    map.zoomOut();
+  }
 }
 
 function initCanvases() {
@@ -621,6 +676,10 @@ function setTool(tool) {
   document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.getElementById(`tool-${tool}`);
   if (btn) btn.classList.add('active');
+
+  const isDraw = tool !== 'select' && tool !== 'eraser';
+  sozaiCanvas.classList.toggle('drawing-mode', isDraw);
+  haichiCanvas.classList.toggle('drawing-mode', isDraw);
 }
 
 function setupEventListeners() {
@@ -629,11 +688,32 @@ function setupEventListeners() {
 }
 
 function setupCanvasEvents(canvas, targetKey) {
+  const map = targetKey === 'sozai' ? sozaiMap : haichiMap;
+
+  // マウスホイールでのズーム連動
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      map.zoomIn(1);
+    } else {
+      map.zoomOut(1);
+    }
+  }, { passive: false });
+
   canvas.addEventListener('mousedown', (e) => {
     activeTarget = targetKey;
     const rect = canvas.getBoundingClientRect();
     startX = e.clientX - rect.left;
     startY = e.clientY - rect.top;
+    lastPanX = e.clientX;
+    lastPanY = e.clientY;
+
+    if (currentTool === 'select') {
+      isPanning = true;
+      canvas.style.cursor = 'grabbing';
+      return;
+    }
+
     isDrawing = true;
 
     if (currentTool === 'text') {
@@ -658,6 +738,15 @@ function setupCanvasEvents(canvas, targetKey) {
   });
 
   canvas.addEventListener('mousemove', (e) => {
+    if (isPanning && currentTool === 'select') {
+      const dx = e.clientX - lastPanX;
+      const dy = e.clientY - lastPanY;
+      map.panBy([-dx, -dy], { animate: false });
+      lastPanX = e.clientX;
+      lastPanY = e.clientY;
+      return;
+    }
+
     if (!isDrawing) return;
     const rect = canvas.getBoundingClientRect();
     const curX = e.clientX - rect.left;
@@ -668,6 +757,12 @@ function setupCanvasEvents(canvas, targetKey) {
   });
 
   canvas.addEventListener('mouseup', (e) => {
+    if (isPanning) {
+      isPanning = false;
+      canvas.style.cursor = 'grab';
+      return;
+    }
+
     if (!isDrawing) return;
     isDrawing = false;
     const rect = canvas.getBoundingClientRect();
