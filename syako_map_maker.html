@@ -213,14 +213,14 @@
     gap: 24px;
   }
 
-  /* 📄 A4縦（2ページ様式） */
-  .a4-page-vertical {
-    width: 800px;
-    height: 1100px;
-    min-height: 1100px;
+  /* 📄 A4横（OSS 2ページ様式） */
+  .a4-page-oss {
+    width: 1050px;
+    height: 742px;
+    min-height: 742px;
     background: #FFFFFF;
     color: #000000;
-    padding: 24px 30px;
+    padding: 20px 24px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     border-radius: 4px;
     display: flex;
@@ -301,7 +301,7 @@
     overflow: hidden;
     background: #FFFFFF;
     border: 2px solid #000;
-    min-height: 840px;
+    min-height: 500px;
   }
 
   /* 地図レイヤー（白黒・公図風） */
@@ -443,11 +443,11 @@
       background: #fff !important;
       gap: 0 !important;
     }
-    .a4-page-vertical {
+    .a4-page-oss {
       width: 100% !important;
-      height: 270mm !important;
-      min-height: 270mm !important;
-      max-height: 270mm !important;
+      height: 190mm !important;
+      min-height: 190mm !important;
+      max-height: 190mm !important;
       box-shadow: none !important;
       border-radius: 0 !important;
       padding: 4mm 6mm !important;
@@ -460,19 +460,19 @@
       break-inside: avoid !important;
       box-sizing: border-box !important;
     }
-    .a4-page-vertical:last-child {
+    .a4-page-oss:last-child {
       page-break-after: auto !important;
       break-after: auto !important;
     }
     .page-canvas-container {
       flex: 1 !important;
-      height: 220mm !important;
-      min-height: 220mm !important;
+      height: 145mm !important;
+      min-height: 145mm !important;
     }
   }
 </style>
 <style id="printPageStyle">
-  @page { size: A4 portrait; margin: 10mm 10mm; }
+  @page { size: A4 landscape; margin: 8mm; }
 </style>
 </head>
 <body>
@@ -484,16 +484,16 @@
     <div>
       <div style="display:flex; align-items:center; gap:8px;">
         <span class="brand-title">車庫証明 OSS 所在図・配置図 作成ツール</span>
-        <span class="brand-badge" id="layoutBadge">A4縦・2ページ様式</span>
+        <span class="brand-badge" id="layoutBadge">A4横・OSS 2ページ様式</span>
       </div>
       <div style="font-size:0.75rem; color:var(--text-muted);">行政書士法人フェリス 自動車登録実務システム</div>
     </div>
   </div>
   <div class="header-actions">
     <!-- 様式切り替え -->
-    <select id="layoutSelect" class="form-input" style="width:185px; background:#1E293B; font-weight:bold; color:#38BDF8;" onchange="switchLayout()">
-      <option value="vertical-2page" selected>📄 A4縦（2ページ OSS様式）</option>
-      <option value="horizontal">📄 A4横（1ページ 警察標準）</option>
+    <select id="layoutSelect" class="form-input" style="width:210px; background:#1E293B; font-weight:bold; color:#38BDF8;" onchange="switchLayout()">
+      <option value="oss-2page" selected>📄 A4横×2ページ（OSS専用様式）</option>
+      <option value="horizontal">📄 A4横×1ページ（警察標準）</option>
     </select>
     <button class="btn btn-secondary" onclick="loadKurodaSample()">🏠 木曽川町黒田サンプル</button>
     <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ クリア</button>
@@ -672,7 +672,7 @@
   <div class="preview-area" id="previewArea">
 
     <!-- 📄 1ページ目：所在図 -->
-    <div class="a4-page-vertical" id="page1Sozai">
+    <div class="a4-page-oss" id="page1Sozai">
       <!-- OSS OCRヘッダー -->
       <div class="oss-ocr-header">
         <div style="display:flex; align-items:center;">
@@ -704,7 +704,7 @@
     </div>
 
     <!-- 📄 2ページ目：配置図 -->
-    <div class="a4-page-vertical" id="page2Haichi">
+    <div class="a4-page-oss" id="page2Haichi">
       <!-- OSS OCRヘッダー -->
       <div class="oss-ocr-header">
         <div style="display:flex; align-items:center;">
@@ -1445,9 +1445,9 @@ function switchLayout() {
   const badge = document.getElementById('layoutBadge');
   const styleEl = document.getElementById('printPageStyle');
 
-  if (mode === 'vertical-2page') {
-    badge.textContent = 'A4縦・2ページ様式';
-    styleEl.innerHTML = `@page { size: A4 portrait; margin: 8mm; }`;
+  if (mode === 'oss-2page') {
+    badge.textContent = 'A4横・OSS 2ページ様式';
+    styleEl.innerHTML = `@page { size: A4 landscape; margin: 8mm; }`;
   } else {
     badge.textContent = 'A4横・1ページ警察標準';
     styleEl.innerHTML = `@page { size: A4 landscape; margin: 8mm; }`;
@@ -1461,7 +1461,7 @@ function switchLayout() {
 }
 
 function loadKurodaSample() {
-  document.getElementById('layoutSelect').value = 'vertical-2page';
+  document.getElementById('layoutSelect').value = 'oss-2page';
   switchLayout();
 
   const addr = '愛知県一宮市木曽川町黒田六ノ通り304番地12';
