@@ -310,6 +310,11 @@
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: 1;
     filter: grayscale(100%) contrast(125%);
+    transition: opacity 0.3s;
+  }
+  .map-layer.blank-mode {
+    opacity: 0;
+    pointer-events: none;
   }
   /* 描画キャンバス */
   .drawing-canvas {
@@ -321,6 +326,58 @@
   .drawing-canvas.drawing-mode {
     cursor: crosshair;
   }
+
+  /* 白紙キャンバスモード時のグリッド背景 */
+  .page-canvas-container.grid-bg {
+    background-image:
+      linear-gradient(rgba(200,210,220,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,210,220,0.3) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* 縮尺バー表示用スタイル */
+  .scale-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 3;
+    background: rgba(255,255,255,0.85);
+    border: 1px solid #333;
+    padding: 2px 8px;
+    font-size: 9pt;
+    font-weight: bold;
+    color: #000;
+    font-family: monospace;
+    pointer-events: none;
+  }
+
+  /* 配置図背景モード切替ボタン */
+  .canvas-mode-toggle {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 10;
+    display: flex;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 3px 6px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    border: 1px solid #CBD5E1;
+  }
+  .mode-btn {
+    padding: 3px 8px;
+    background: #FFFFFF;
+    border: 1px solid #94A3B8;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #1E293B;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mode-btn:hover { background: #E2E8F0; }
+  .mode-btn.active-mode { background: #2563EB; color: #fff; border-color: #2563EB; }
 
   /* 書式フッター */
   .page-footer {
@@ -363,7 +420,7 @@
       padding: 0 !important;
       display: block !important;
     }
-    header, .sidebar, .leaflet-control-container, .print-hide, .map-zoom-bar {
+    header, .sidebar, .leaflet-control-container, .print-hide, .map-zoom-bar, .canvas-mode-toggle, .scale-bar {
       display: none !important;
     }
     .workspace {
@@ -472,7 +529,10 @@
         <label style="font-size:0.8rem; color:#94A3B8; display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" id="sameAddress" checked onchange="toggleSameAddress()"> 自宅と保管場所が同一
         </label>
-        <button class="btn btn-primary" style="font-size:0.75rem; padding:4px 10px;" onclick="autoFetchMaps()">🗺️ 地図を自動取得</button>
+        <div style="display:flex; gap:4px;">
+          <button class="btn btn-primary" style="font-size:0.75rem; padding:4px 10px;" onclick="autoFetchMaps()">🗺️ 地図を自動取得</button>
+          <button class="btn btn-accent" style="font-size:0.75rem; padding:4px 10px;" onclick="calcDistance()">📏 距離算出</button>
+        </div>
       </div>
     </div>
 
@@ -559,6 +619,9 @@
         <button class="stamp-btn" onclick="addTextStamp('5m道路')">5m道路</button>
         <button class="stamp-btn" onclick="addTextStamp('出入口')">出入口</button>
         <button class="stamp-btn" onclick="addTextStamp('🧭 北')">🧭 北</button>
+        <button class="stamp-btn" onclick="addTextStamp('保管場所')">保管場所</button>
+        <button class="stamp-btn" onclick="addTextStamp('駐車場')">駐車場</button>
+        <button class="stamp-btn" onclick="addTextStamp('ガレージ')">ガレージ</button>
         <button class="stamp-btn" onclick="addTextStamp('木曽川環境クリーン')">木曽川環境クリーン</button>
         <button class="stamp-btn" onclick="addTextStamp('卍 福昌寺')">卍 福昌寺</button>
         <button class="stamp-btn" onclick="addTextStamp('JA')">JA</button>
@@ -628,6 +691,7 @@
           <button class="zoom-btn" onclick="zoomMap('sozai', 1)" title="拡大">➕</button>
           <button class="zoom-btn" onclick="zoomMap('sozai', -1)" title="縮小">➖</button>
         </div>
+        <div class="scale-bar" id="sozaiScaleBar">縮尺：約 1:5,000</div>
       </div>
 
       <div class="page-footer">
@@ -659,6 +723,11 @@
           <button class="zoom-btn" onclick="zoomMap('haichi', 1)" title="拡大">➕</button>
           <button class="zoom-btn" onclick="zoomMap('haichi', -1)" title="縮小">➖</button>
         </div>
+        <div class="canvas-mode-toggle print-hide">
+          <button class="mode-btn active-mode" id="modeMap" onclick="setHaichiMode('map')" title="地図背景あり">🗺️ 地図</button>
+          <button class="mode-btn" id="modeBlank" onclick="setHaichiMode('blank')" title="白紙キャンバス（略図用）">📝 白紙</button>
+        </div>
+        <div class="scale-bar" id="haichiScaleBar">縮尺：約 1:500</div>
       </div>
 
       <div class="page-footer">
@@ -693,6 +762,11 @@ let sozaiMap, haichiMap;
 let currentTool = 'select';
 let sozaiCanvas, haichiCanvas;
 let sozaiCtx, haichiCtx;
+let haichiMode = 'map'; // 'map' or 'blank'
+
+// 住所座標キャッシュ（距離計算用）
+let homeCoords = null;
+let parkingCoords = null;
 
 let drawings = {
   sozai: [],
@@ -750,13 +824,18 @@ function initMaps() {
     maxNativeZoom: 19
   }).addTo(haichiMap);
 
-  // ズーム変更時のスライダー連動
+  // 縮尺バーをLeafletのScaleControlで表示
+  L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(sozaiMap);
+  L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(haichiMap);
+
+  // ズーム変更時のスライダー連動 + 縮尺バー更新
   sozaiMap.on('zoomend', () => {
     const z = sozaiMap.getZoom();
     const slider = document.getElementById('sozaiZoomSlider');
     const label = document.getElementById('sozaiZoomLabel');
     if (slider) slider.value = z;
     if (label) label.textContent = `Zoom: ${z.toFixed(1)}`;
+    updateScaleBar('sozai', z);
   });
 
   haichiMap.on('zoomend', () => {
@@ -765,6 +844,7 @@ function initMaps() {
     const label = document.getElementById('haichiZoomLabel');
     if (slider) slider.value = z;
     if (label) label.textContent = `Zoom: ${z.toFixed(1)}`;
+    updateScaleBar('haichi', z);
   });
 }
 
@@ -1243,6 +1323,8 @@ function toggleSameAddress() {
   if (isSame) {
     document.getElementById('parkingAddress').value = document.getElementById('homeAddress').value;
     document.getElementById('distanceVal').value = '同上 (0m)';
+    homeCoords = null;
+    parkingCoords = null;
   } else {
     document.getElementById('distanceVal').value = '約 350m';
   }
@@ -1258,6 +1340,103 @@ function updateShutterDisplay() {
   } else {
     yes.className = '';
     no.className = 'shutter-circle';
+  }
+}
+
+// ─── 配置図の白紙/地図モード切替 ───
+function setHaichiMode(mode) {
+  haichiMode = mode;
+  const mapLayer = document.getElementById('haichiMap');
+  const container = document.getElementById('haichiContainer');
+  const btnMap = document.getElementById('modeMap');
+  const btnBlank = document.getElementById('modeBlank');
+  const scaleBar = document.getElementById('haichiScaleBar');
+
+  if (mode === 'blank') {
+    mapLayer.classList.add('blank-mode');
+    container.classList.add('grid-bg');
+    btnMap.classList.remove('active-mode');
+    btnBlank.classList.add('active-mode');
+    if (scaleBar) scaleBar.style.display = 'none';
+  } else {
+    mapLayer.classList.remove('blank-mode');
+    container.classList.remove('grid-bg');
+    btnMap.classList.add('active-mode');
+    btnBlank.classList.remove('active-mode');
+    if (scaleBar) scaleBar.style.display = 'block';
+  }
+}
+
+// ─── 縮尺バー更新 ───
+function updateScaleBar(target, zoom) {
+  // ZoomレベルとA4用紙の表示面積から概算縮尺を算出
+  const scaleMap = {
+    10: '1:500,000', 11: '1:250,000', 12: '1:150,000',
+    13: '1:70,000', 14: '1:35,000', 15: '1:18,000',
+    16: '1:9,000', 17: '1:4,500', 18: '1:2,000',
+    19: '1:1,000', 20: '1:500', 21: '1:250', 22: '1:125'
+  };
+  const roundedZoom = Math.round(zoom);
+  const scale = scaleMap[roundedZoom] || `Zoom ${zoom.toFixed(1)}`;
+  const barId = target === 'sozai' ? 'sozaiScaleBar' : 'haichiScaleBar';
+  const bar = document.getElementById(barId);
+  if (bar) bar.textContent = `縮尺：約 ${scale}`;
+}
+
+// ─── 直線距離の自動計算（Haversine公式） ───
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // 地球の半径（メートル）
+  const toRad = deg => deg * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+async function calcDistance() {
+  const homeAddr = document.getElementById('homeAddress').value.trim();
+  const parkAddr = document.getElementById('parkingAddress').value.trim();
+  
+  if (!homeAddr || !parkAddr) {
+    alert('「使用の本拠の位置」と「保管場所の位置」の両方を入力してください。');
+    return;
+  }
+
+  // 同一住所チェック
+  if (document.getElementById('sameAddress').checked || homeAddr === parkAddr) {
+    document.getElementById('distanceVal').value = '同上 (0m)';
+    return;
+  }
+
+  // 座標取得
+  const hCoord = await fetchCoords(homeAddr);
+  const pCoord = await fetchCoords(parkAddr);
+
+  if (!hCoord) {
+    alert(`「${homeAddr}」の座標が取得できませんでした。`);
+    return;
+  }
+  if (!pCoord) {
+    alert(`「${parkAddr}」の座標が取得できませんでした。`);
+    return;
+  }
+
+  homeCoords = hCoord;
+  parkingCoords = pCoord;
+
+  const dist = haversineDistance(hCoord.lat, hCoord.lon, pCoord.lat, pCoord.lon);
+  const distText = dist < 1000 
+    ? `約 ${Math.round(dist)}m` 
+    : `約 ${(dist / 1000).toFixed(1)}km`;
+
+  document.getElementById('distanceVal').value = distText;
+
+  // 2km超は車庫証明要件に注意喚起
+  if (dist > 2000) {
+    alert(`⚠️ 直線距離が約${(dist/1000).toFixed(1)}kmです。\n\n車庫証明の要件として「使用の本拠の位置」と「保管場所」の距離は原則2km以内である必要があります。\nご確認ください。`);
   }
 }
 
