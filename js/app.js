@@ -141,7 +141,9 @@ const App = {
       </div>
 
       <div class="sidebar-tools" style="border-top:1px solid var(--border-color);padding-top:4px">
-        <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">連携ツール</div>
+        <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">自動車・実務ツール</div>
+        <a class="btn btn-ghost" href="syako_map_maker.html" target="_blank" style="text-decoration:none;display:block;text-align:left;color:#38bdf8;font-weight:bold;">🚗 車庫証明 所在図・配置図</a>
+        <a class="btn btn-ghost" href="請求書サンプル一覧.html" target="_blank" style="text-decoration:none;display:block;text-align:left">📄 ディーラー請求書サンプル</a>
         <a class="btn btn-ghost" href="map-maker/index.html" target="_blank" style="text-decoration:none;display:block;text-align:left">🗺️ 地図メーカー</a>
         <a class="btn btn-ghost" href="bot/index.html" style="text-decoration:none;display:block;text-align:left">💬 AIチャット</a>
       </div>
