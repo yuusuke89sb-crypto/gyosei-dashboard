@@ -80,7 +80,7 @@
     overflow: hidden;
   }
 
-  /* 左側サイドパネル（入力・ツール） */
+  /* 左側サイドパネル */
   .sidebar {
     width: 380px;
     background: var(--bg-panel);
@@ -205,17 +205,35 @@
   .preview-area {
     flex: 1;
     background: #0B0F19;
-    padding: 20px;
+    padding: 24px;
     overflow: auto;
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
   }
 
-  /* 警察署提出用 A4用紙（デフォルト：A4横） */
-  .a4-paper {
+  /* 📄 A4縦（2ページ様式） */
+  .a4-page-vertical {
+    width: 800px;
+    height: 1100px;
+    min-height: 1100px;
+    background: #FFFFFF;
+    color: #000000;
+    padding: 24px 30px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  /* 📄 A4横（1ページ警察様式） */
+  .a4-paper-horizontal {
     width: 1050px;
     min-height: 742px;
+    height: 742px;
     background: #FFFFFF;
     color: #000000;
     padding: 24px;
@@ -224,122 +242,74 @@
     display: flex;
     flex-direction: column;
     position: relative;
-    user-select: none;
   }
-
-  /* A4縦（OSS専用様式）モード */
-  .a4-paper.oss-vertical-mode {
-    width: 794px;
-    min-height: 1123px;
-    padding: 16px 20px;
+  .horizontal-grid {
+    display: flex;
+    flex: 1;
+    border: 2px solid #000;
   }
-  .a4-paper.oss-vertical-mode .paper-grid {
+  .horizontal-box {
+    width: 50%;
+    display: flex;
     flex-direction: column;
-    height: 1020px;
-    min-height: 1020px;
+    position: relative;
   }
-  .a4-paper.oss-vertical-mode .sozai-box {
-    width: 100%;
-    height: 480px;
-    border-right: none;
-    border-bottom: 2px solid #000;
-  }
-  .a4-paper.oss-vertical-mode .haichi-box {
-    width: 100%;
-    height: 480px;
-  }
-
-  /* 書式ヘッダー */
-  .paper-header {
-    text-align: center;
-    margin-bottom: 12px;
-  }
-  .paper-title {
-    font-size: 16pt;
-    font-weight: bold;
-    letter-spacing: 2px;
-    border-bottom: 2px solid #000;
-    display: inline-block;
-    padding-bottom: 2px;
+  .horizontal-box:first-child {
+    border-right: 2px solid #000;
   }
 
   /* OSS OCR上部バーコード欄 */
   .oss-ocr-header {
-    display: none;
+    display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 2px 4px 6px 4px;
-    border-bottom: 1px solid #000;
-    margin-bottom: 4px;
-  }
-  .oss-vertical-mode .oss-ocr-header {
-    display: flex;
+    padding: 0 4px 6px 4px;
+    border-bottom: 2px solid #000;
+    margin-bottom: 8px;
   }
   .ocr-digits {
     font-family: monospace;
-    font-size: 12pt;
+    font-size: 13pt;
     font-weight: bold;
     letter-spacing: 4px;
     border: 1.5px solid #000;
-    padding: 1px 8px;
+    padding: 2px 10px;
     display: flex;
-    gap: 4px;
   }
   .ocr-code-box {
     border: 1.5px solid #000;
-    padding: 1px 6px;
+    padding: 2px 8px;
     font-weight: bold;
+    font-size: 13pt;
+    margin-left: 8px;
+  }
+
+  .box-title-bar {
     font-size: 12pt;
-    margin-left: 6px;
-  }
-
-  /* 左右分割グリッド */
-  .paper-grid {
-    display: flex;
-    flex: 1;
-    border: 2px solid #000;
-    min-height: 580px;
-  }
-
-  /* 左：所在図欄 */
-  .sozai-box {
-    width: 50%;
-    border-right: 2px solid #000;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-  }
-  /* 右：配置図欄 */
-  .haichi-box {
-    width: 50%;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-  }
-
-  .box-title {
-    font-size: 11pt;
     font-weight: bold;
     text-align: center;
-    padding: 4px 0;
-    border-bottom: 1px solid #000;
+    padding: 6px 0;
+    border: 2px solid #000;
+    border-bottom: none;
     background: #FAFAFA;
-    letter-spacing: 4px;
+    letter-spacing: 6px;
   }
 
-  .canvas-container {
+  .page-canvas-container {
     flex: 1;
     position: relative;
     overflow: hidden;
     background: #FFFFFF;
+    border: 2px solid #000;
+    min-height: 840px;
   }
 
-  /* 地図レイヤー（白黒・ハイコントラスト） */
+  /* 地図レイヤー（白黒・公図風） */
   .map-layer {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: 1;
-    filter: grayscale(100%) contrast(120%);
+    filter: grayscale(100%) contrast(125%);
   }
   /* 描画キャンバス */
   .drawing-canvas {
@@ -353,15 +323,15 @@
   }
 
   /* 書式フッター */
-  .paper-footer {
+  .page-footer {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-top: 8px;
+    align-items: flex-end;
+    margin-top: 10px;
     font-size: 8pt;
   }
   .shutter-box {
-    border: 1px solid #000;
+    border: 1.5px solid #000;
     padding: 3px 8px;
     font-size: 8.5pt;
     display: flex;
@@ -385,8 +355,6 @@
       background: #fff !important;
       color: #000 !important;
       width: 100% !important;
-      height: 100% !important;
-      overflow: visible !important;
       margin: 0 !important;
       padding: 0 !important;
     }
@@ -399,15 +367,20 @@
       background: #fff !important;
       display: block !important;
     }
-    .a4-paper {
+    .a4-page-vertical {
       width: 100% !important;
+      height: 100vh !important;
+      min-height: 100vh !important;
       box-shadow: none !important;
       border-radius: 0 !important;
-      padding: 0 !important;
-      margin: 0 auto !important;
-      page-break-inside: avoid;
+      padding: 10mm 15mm !important;
+      page-break-after: always !important;
+      page-break-inside: avoid !important;
     }
   }
+</style>
+<style id="printPageStyle">
+  @page { size: A4 portrait; margin: 8mm; }
 </style>
 </head>
 <body>
@@ -419,20 +392,20 @@
     <div>
       <div style="display:flex; align-items:center; gap:8px;">
         <span class="brand-title">車庫証明 OSS 所在図・配置図 作成ツール</span>
-        <span class="brand-badge" id="layoutBadge">A4横・警察標準</span>
+        <span class="brand-badge" id="layoutBadge">A4縦・2ページ様式</span>
       </div>
       <div style="font-size:0.75rem; color:var(--text-muted);">行政書士法人フェリス 自動車登録実務システム</div>
     </div>
   </div>
   <div class="header-actions">
     <!-- 様式切り替え -->
-    <select id="layoutSelect" class="form-input" style="width:170px; background:#1E293B; font-weight:bold; color:#38BDF8;" onchange="switchLayout()">
-      <option value="horizontal">📄 A4横（警察署提出用）</option>
-      <option value="vertical" selected>📄 A4縦（OSS専用様式）</option>
+    <select id="layoutSelect" class="form-input" style="width:185px; background:#1E293B; font-weight:bold; color:#38BDF8;" onchange="switchLayout()">
+      <option value="vertical-2page" selected>📄 A4縦（2ページ OSS様式）</option>
+      <option value="horizontal">📄 A4横（1ページ 警察標準）</option>
     </select>
     <button class="btn btn-secondary" onclick="loadKurodaSample()">🏠 木曽川町黒田サンプル</button>
     <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ クリア</button>
-    <button class="btn btn-primary" onclick="exportOSSImage()">🖼️ OSS画像保存</button>
+    <button class="btn btn-primary" onclick="exportOSSImage()">🖼️ OSS画像(2枚)保存</button>
     <button class="btn btn-success" onclick="exportA4PDF()">🖨️ 印刷 / PDF保存</button>
   </div>
 </header>
@@ -449,25 +422,22 @@
       <div class="form-group">
         <label class="form-label">使用の本拠の位置（自宅・営業所）</label>
         <div style="display:flex; gap:6px;">
-          <input type="text" id="homeAddress" class="form-input" placeholder="例: 北名古屋市六ツ師道毛74" value="愛知県北名古屋市六ツ師道毛74番地1">
+          <input type="text" id="homeAddress" class="form-input" placeholder="例: 一宮市木曽川町黒田六ノ通り304-12" value="愛知県一宮市木曽川町黒田六ノ通り304番地12">
           <button class="btn btn-secondary" style="padding:4px 10px;" onclick="searchAddress('home')">検索</button>
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">自動車の保管場所の位置（駐車場）</label>
         <div style="display:flex; gap:6px;">
-          <input type="text" id="parkingAddress" class="form-input" placeholder="例: 北名古屋市六ツ師道毛75" value="愛知県北名古屋市六ツ師道毛75番地">
+          <input type="text" id="parkingAddress" class="form-input" placeholder="例: 一宮市木曽川町黒田六ノ通り304-12" value="愛知県一宮市木曽川町黒田六ノ通り304番地12">
           <button class="btn btn-secondary" style="padding:4px 10px;" onclick="searchAddress('parking')">検索</button>
         </div>
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <label style="font-size:0.8rem; color:#94A3B8; display:flex; align-items:center; gap:6px; cursor:pointer;">
-          <input type="checkbox" id="sameAddress" onchange="toggleSameAddress()"> 自宅と保管場所が同一
+          <input type="checkbox" id="sameAddress" checked onchange="toggleSameAddress()"> 自宅と保管場所が同一
         </label>
-        <button class="btn btn-primary" style="font-size:0.75rem; padding:4px 10px;" onclick="autoFetchMaps()">🗺️ 両方の地図を自動取得</button>
-      </div>
-      <div style="font-size:0.72rem; color:#64748B; margin-top:6px;">
-        💡 建物名や番地で出ない場合は「市区町村＋町名（例: 北名古屋市六ツ師）」で検索してください。
+        <button class="btn btn-primary" style="font-size:0.75rem; padding:4px 10px;" onclick="autoFetchMaps()">🗺️ 地図を自動取得</button>
       </div>
     </div>
 
@@ -477,31 +447,31 @@
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">駐車枠 番号</label>
-          <input type="text" id="spotNo" class="form-input" value="No. 2">
+          <input type="text" id="spotNo" class="form-input" value="">
         </div>
         <div class="form-group">
           <label class="form-label">直線距離（自宅〜車庫）</label>
-          <input type="text" id="distanceVal" class="form-input" value="約 350 m">
+          <input type="text" id="distanceVal" class="form-input" value="同上 (0m)">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">駐車枠寸法（幅 × 奥行）</label>
           <div style="display:flex; gap:4px; align-items:center;">
-            <input type="text" id="spotWidth" class="form-input" value="2.5m" style="text-align:center;">
+            <input type="text" id="spotWidth" class="form-input" value="2.0m" style="text-align:center;">
             <span>×</span>
             <input type="text" id="spotLength" class="form-input" value="5.0m" style="text-align:center;">
           </div>
         </div>
         <div class="form-group">
           <label class="form-label">前面道路 幅員</label>
-          <input type="text" id="roadWidth" class="form-input" value="6.0 m">
+          <input type="text" id="roadWidth" class="form-input" value="5.0 m">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">出入口 幅</label>
-          <input type="text" id="entranceWidth" class="form-input" value="5.0 m">
+          <input type="text" id="entranceWidth" class="form-input" value="10.0 m">
         </div>
         <div class="form-group">
           <label class="form-label">シャッター</label>
@@ -511,7 +481,6 @@
           </select>
         </div>
       </div>
-      <button class="btn btn-secondary" style="width:100%; font-size:0.8rem; margin-top:4px;" onclick="applyAutoParams()">⚡ パラメータを作図キャンバスに一括挿入</button>
     </div>
 
     <!-- 3. 作図ツール -->
@@ -525,7 +494,7 @@
           <span class="tool-btn-icon">🅿️</span>保管場所枠
         </button>
         <button class="tool-btn" id="tool-rect-other" onclick="setTool('rect-other')">
-          <span class="tool-btn-icon">🔲</span>他枠/建物
+          <span class="tool-btn-icon">🔲</span>建物・自宅枠
         </button>
         <button class="tool-btn" id="tool-line-dim" onclick="setTool('line-dim')">
           <span class="tool-btn-icon">📏</span>寸法線(両矢)
@@ -551,14 +520,14 @@
       <div style="font-size:0.78rem; color:#94A3B8; margin:8px 0 4px 0;">クイック文字スタンプ（クリックして配置）：</div>
       <div class="stamp-grid">
         <button class="stamp-btn" onclick="addTextStamp('⬅ 申請地')">⬅ 申請地</button>
-        <button class="stamp-btn" onclick="addTextStamp('自宅')">自宅</button>
-        <button class="stamp-btn" onclick="addTextStamp('道路')">道路</button>
+        <button class="stamp-btn" onclick="addTextStamp('自　宅')">自　宅</button>
+        <button class="stamp-btn" onclick="addTextStamp('5m道路')">5m道路</button>
         <button class="stamp-btn" onclick="addTextStamp('出入口')">出入口</button>
-        <button class="stamp-btn" onclick="addTextStamp('幅員 5.0m')">幅員 5.0m</button>
         <button class="stamp-btn" onclick="addTextStamp('🧭 北')">🧭 北</button>
         <button class="stamp-btn" onclick="addTextStamp('木曽川環境クリーン')">木曽川環境クリーン</button>
         <button class="stamp-btn" onclick="addTextStamp('卍 福昌寺')">卍 福昌寺</button>
         <button class="stamp-btn" onclick="addTextStamp('JA')">JA</button>
+        <button class="stamp-btn" onclick="addTextStamp('鉄工所')">鉄工所</button>
       </div>
     </div>
 
@@ -566,7 +535,7 @@
     <div class="sidebar-section">
       <div class="section-title">🗺️ 4. 背景地図コントロール</div>
       <div style="font-size:0.8rem; color:#CBD5E1; margin-bottom:6px;">
-        地図の縮尺・位置は、プレビュー画面内の地図を直接ドラッグ＆スクロールして調整できます。
+        地図をマウスでドラッグまたはホイール回転で自由に移動・ズームできます。
       </div>
       <div style="display:flex; gap:8px;">
         <button class="btn btn-secondary" style="flex:1; font-size:0.75rem;" onclick="resetSozaiZoom()">所在図 縮尺リセット</button>
@@ -576,76 +545,69 @@
 
   </div>
 
-  <!-- ─── 中央：A4用紙プレビュー ─── -->
-  <div class="preview-area">
+  <!-- ─── 中央：A4用紙プレビューエリア（縦2ページ） ─── -->
+  <div class="preview-area" id="previewArea">
 
-    <div class="a4-paper oss-vertical-mode" id="a4Paper">
-      
-      <!-- タイトル（警察様式用） -->
-      <div class="paper-header" id="paperHeaderStandard" style="display:none;">
-        <div class="paper-title">【保管場所の所在図・配置図】</div>
+    <!-- 📄 1ページ目：所在図 -->
+    <div class="a4-page-vertical" id="page1Sozai">
+      <!-- OSS OCRヘッダー -->
+      <div class="oss-ocr-header">
+        <div style="display:flex; align-items:center;">
+          <div class="ocr-digits">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
+          <div class="ocr-code-box">C</div>
+        </div>
+        <div style="font-size:12pt; font-weight:bold; letter-spacing:4px;">所　在　図</div>
+        <div style="width:38px; height:38px; border:1.5px solid #000; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:bold;">QR</div>
       </div>
 
-      <!-- 所在図・配置図 枠 -->
-      <div class="paper-grid">
-        
-        <!-- 上／左：所在図記載欄 -->
-        <div class="sozai-box" id="sozaiBox">
-          <!-- OSS専用 OCRヘッダー -->
-          <div class="oss-ocr-header">
-            <div style="display:flex; align-items:center;">
-              <div class="ocr-digits">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
-              <div class="ocr-code-box">C</div>
-            </div>
-            <div style="font-size:10pt; font-weight:bold;">所　在　図</div>
-            <div style="width:36px; height:36px; border:1px solid #000; display:flex; align-items:center; justify-content:center; font-size:8px;">QR</div>
-          </div>
-
-          <div class="box-title" id="sozaiTitle">所　在　図　記　載　欄</div>
-          <div class="canvas-container" id="sozaiContainer">
-            <div id="sozaiMap" class="map-layer"></div>
-            <canvas id="sozaiCanvas" class="drawing-canvas"></canvas>
-            <div class="map-zoom-bar print-hide">
-              <button class="zoom-btn" onclick="zoomMap('sozai', 1)" title="拡大">➕</button>
-              <button class="zoom-btn" onclick="zoomMap('sozai', -1)" title="縮小">➖</button>
-            </div>
-          </div>
+      <div class="box-title-bar">所　在　図　記　載　欄</div>
+      <div class="page-canvas-container" id="sozaiContainer">
+        <div id="sozaiMap" class="map-layer"></div>
+        <canvas id="sozaiCanvas" class="drawing-canvas"></canvas>
+        <div class="map-zoom-bar print-hide">
+          <button class="zoom-btn" onclick="zoomMap('sozai', 1)" title="拡大">➕</button>
+          <button class="zoom-btn" onclick="zoomMap('sozai', -1)" title="縮小">➖</button>
         </div>
-
-        <!-- 下／右：配置図記載欄 -->
-        <div class="haichi-box" id="haichiBox">
-          <!-- OSS専用 OCRヘッダー -->
-          <div class="oss-ocr-header">
-            <div style="display:flex; align-items:center;">
-              <div class="ocr-digits">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
-              <div class="ocr-code-box">D</div>
-            </div>
-            <div style="font-size:10pt; font-weight:bold;">配　置　図</div>
-            <div style="width:36px; height:36px; border:1px solid #000; display:flex; align-items:center; justify-content:center; font-size:8px;">QR</div>
-          </div>
-
-          <div class="box-title" id="haichiTitle">配　置　図　記　載　欄</div>
-          <div class="canvas-container" id="haichiContainer">
-            <div id="haichiMap" class="map-layer"></div>
-            <canvas id="haichiCanvas" class="drawing-canvas"></canvas>
-            <div class="map-zoom-bar print-hide">
-              <button class="zoom-btn" onclick="zoomMap('haichi', 1)" title="拡大">➕</button>
-              <button class="zoom-btn" onclick="zoomMap('haichi', -1)" title="縮小">➖</button>
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      <!-- フッター -->
-      <div class="paper-footer" id="paperFooter">
-        <div style="color:#000; line-height:1.3; font-size:7.5pt;">
+      <div class="page-footer">
+        <div style="color:#333; font-size:7.5pt; line-height:1.3;">
+          ※ 使用の本拠の位置（自宅・事業所等）及び保管場所（車庫）の位置を明記してください。<br>
+          ※ 目標となる建物や付近の道路を明記してください。
+        </div>
+        <div style="font-size:9pt; font-weight:bold; color:#666;">（1 / 2 ページ）</div>
+      </div>
+    </div>
+
+    <!-- 📄 2ページ目：配置図 -->
+    <div class="a4-page-vertical" id="page2Haichi">
+      <!-- OSS OCRヘッダー -->
+      <div class="oss-ocr-header">
+        <div style="display:flex; align-items:center;">
+          <div class="ocr-digits">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
+          <div class="ocr-code-box">D</div>
+        </div>
+        <div style="font-size:12pt; font-weight:bold; letter-spacing:4px;">配　置　図</div>
+        <div style="width:38px; height:38px; border:1.5px solid #000; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:bold;">QR</div>
+      </div>
+
+      <div class="box-title-bar">配　置　図　記　載　欄</div>
+      <div class="page-canvas-container" id="haichiContainer">
+        <div id="haichiMap" class="map-layer"></div>
+        <canvas id="haichiCanvas" class="drawing-canvas"></canvas>
+        <div class="map-zoom-bar print-hide">
+          <button class="zoom-btn" onclick="zoomMap('haichi', 1)" title="拡大">➕</button>
+          <button class="zoom-btn" onclick="zoomMap('haichi', -1)" title="縮小">➖</button>
+        </div>
+      </div>
+
+      <div class="page-footer">
+        <div style="color:#000; font-size:7.5pt; line-height:1.3;">
           備考 1. 保管場所に出入りする道路の幅員、保管場所の平面の寸法をメートルで記入すること。<br>
-          　　 2. 複数の自動車を保管する自動車の保管場所の場合は、必要事項を記入するほか配置図を別紙添付すること。<br>
-          　　 3. 使用の本拠の位置（自宅等）と保管場所の位置（車庫）の間を直線で結び、その距離を記載すること。
+          　　 2. 複数の自動車を保管する自動車の保管場所の場合は、必要事項を記入するほか配置図を別紙添付すること。
         </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div style="border:1px solid #000; padding:3px 6px; font-size:8pt; text-align:right; line-height:1.2;">
+        <div style="display:flex; align-items:flex-end; gap:8px;">
+          <div style="border:1.5px solid #000; padding:4px 8px; font-size:8pt; text-align:right; line-height:1.2;">
             <div>作成者：行政書士法人フェリス</div>
             <div>TEL: 0568-26-3713</div>
           </div>
@@ -655,9 +617,9 @@
             <span>・</span>
             <span id="shutterDisplayNo" class="shutter-circle">無</span>
           </div>
+          <div style="font-size:9pt; font-weight:bold; color:#666;">（2 / 2 ページ）</div>
         </div>
       </div>
-
     </div>
 
   </div>
@@ -687,19 +649,19 @@ window.addEventListener('DOMContentLoaded', () => {
   initMaps();
   initCanvases();
   setupEventListeners();
-  loadSampleCase();
+  loadKurodaSample();
 });
 
 function initMaps() {
-  const defaultLat = 35.2575;
-  const defaultLng = 136.8710;
+  const kurodaLat = 35.3725;
+  const kurodaLng = 136.7820;
 
-  // 1. 所在図マップ（広域・縮尺15）
+  // 1. 所在図マップ（広域・縮尺16）
   sozaiMap = L.map('sozaiMap', {
     zoomControl: false,
     attributionControl: false,
     scrollWheelZoom: true
-  }).setView([defaultLat, defaultLng], 15);
+  }).setView([kurodaLat, kurodaLng], 16);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
@@ -710,7 +672,7 @@ function initMaps() {
     zoomControl: false,
     attributionControl: false,
     scrollWheelZoom: true
-  }).setView([defaultLat, defaultLng], 18);
+  }).setView([kurodaLat, kurodaLng], 18);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
@@ -740,10 +702,14 @@ function resizeCanvases() {
   const sContainer = document.getElementById('sozaiContainer');
   const hContainer = document.getElementById('haichiContainer');
 
-  sozaiCanvas.width = sContainer.clientWidth;
-  sozaiCanvas.height = sContainer.clientHeight;
-  haichiCanvas.width = hContainer.clientWidth;
-  haichiCanvas.height = hContainer.clientHeight;
+  if (sContainer && sozaiCanvas) {
+    sozaiCanvas.width = sContainer.clientWidth;
+    sozaiCanvas.height = sContainer.clientHeight;
+  }
+  if (hContainer && haichiCanvas) {
+    haichiCanvas.width = hContainer.clientWidth;
+    haichiCanvas.height = hContainer.clientHeight;
+  }
 
   redrawAll();
 }
@@ -755,8 +721,8 @@ function setTool(tool) {
   if (btn) btn.classList.add('active');
 
   const isDraw = tool !== 'select' && tool !== 'eraser';
-  sozaiCanvas.classList.toggle('drawing-mode', isDraw);
-  haichiCanvas.classList.toggle('drawing-mode', isDraw);
+  if (sozaiCanvas) sozaiCanvas.classList.toggle('drawing-mode', isDraw);
+  if (haichiCanvas) haichiCanvas.classList.toggle('drawing-mode', isDraw);
 }
 
 function setupEventListeners() {
@@ -794,7 +760,7 @@ function setupCanvasEvents(canvas, targetKey) {
     isDrawing = true;
 
     if (currentTool === 'text') {
-      const text = prompt('挿入するテキストを入力してください:', '幅員 6.0m');
+      const text = prompt('挿入するテキストを入力してください:', '幅員 5.0m');
       if (text) {
         drawings[targetKey].push({
           type: 'text',
@@ -855,7 +821,7 @@ function setupCanvasEvents(canvas, targetKey) {
         y: Math.min(startY, endY),
         w: Math.abs(endX - startX),
         h: Math.abs(endY - startY),
-        label: document.getElementById('spotNo').value || 'No.2'
+        label: document.getElementById('spotNo').value || ''
       });
     } else if (currentTool === 'rect-other') {
       drawings[targetKey].push({
@@ -866,7 +832,7 @@ function setupCanvasEvents(canvas, targetKey) {
         h: Math.abs(endY - startY)
       });
     } else if (currentTool === 'line-dim') {
-      const dimText = prompt('寸法を入力（例: 2.5m, 5.0m, 6.0m）:', '5.0m');
+      const dimText = prompt('寸法を入力（例: 2.0m, 5.0m）:', '5.0m');
       drawings[targetKey].push({
         type: 'line-dim',
         x1: startX, y1: startY, x2: endX, y2: endY,
@@ -904,6 +870,7 @@ function redrawAll() {
 function redraw(targetKey) {
   const canvas = targetKey === 'sozai' ? sozaiCanvas : haichiCanvas;
   const ctx = targetKey === 'sozai' ? sozaiCtx : haichiCtx;
+  if (!canvas || !ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const items = drawings[targetKey] || [];
@@ -914,6 +881,7 @@ function redraw(targetKey) {
 
 function drawPreview(targetKey, x1, y1, x2, y2) {
   const ctx = targetKey === 'sozai' ? sozaiCtx : haichiCtx;
+  if (!ctx) return;
   ctx.save();
   ctx.strokeStyle = '#2563EB';
   ctx.fillStyle = 'rgba(37, 99, 235, 0.15)';
@@ -935,15 +903,16 @@ function drawPreview(targetKey, x1, y1, x2, y2) {
 function drawElement(ctx, item) {
   ctx.save();
   if (item.type === 'rect-spot') {
-    ctx.strokeStyle = '#DC2626';
+    // 保管場所枠（黒・斜線ハッチング）
+    ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2.5;
     ctx.strokeRect(item.x, item.y, item.w, item.h);
 
     ctx.save();
-    ctx.strokeStyle = '#DC2626';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    for (let offset = -item.h; offset < item.w; offset += 10) {
+    for (let offset = -item.h; offset < item.w; offset += 8) {
       ctx.moveTo(Math.max(item.x, item.x + offset), Math.max(item.y, item.y - offset));
       ctx.lineTo(Math.min(item.x + item.w, item.x + offset + item.h), Math.min(item.y + item.h, item.y + item.h));
     }
@@ -951,34 +920,34 @@ function drawElement(ctx, item) {
     ctx.restore();
 
     if (item.label) {
-      ctx.fillStyle = '#DC2626';
-      ctx.font = 'bold 13px sans-serif';
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(item.label, item.x + item.w / 2, item.y + item.h / 2 + 5);
     }
   } else if (item.type === 'rect-other') {
-    ctx.strokeStyle = '#1E293B';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
     ctx.strokeRect(item.x, item.y, item.w, item.h);
   } else if (item.type === 'line-dim') {
     drawDimensionLine(ctx, item.x1, item.y1, item.x2, item.y2, item.text);
   } else if (item.type === 'arrow') {
-    drawArrow(ctx, item.x1, item.y1, item.x2, item.y2, '#DC2626', 2.5);
+    drawArrow(ctx, item.x1, item.y1, item.x2, item.y2, '#000000', 2.5);
     if (item.label) {
-      ctx.fillStyle = '#DC2626';
-      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 13px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(item.label, (item.x1 + item.x2) / 2, Math.min(item.y1, item.y2) - 6);
     }
   } else if (item.type === 'line-road') {
     ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(item.x1, item.y1);
     ctx.lineTo(item.x2, item.y2);
     ctx.stroke();
   } else if (item.type === 'dist-line') {
-    ctx.strokeStyle = '#DC2626';
+    ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 3]);
     ctx.beginPath();
@@ -991,18 +960,18 @@ function drawElement(ctx, item) {
       const midX = (item.x1 + item.x2) / 2;
       const midY = (item.y1 + item.y2) / 2;
       ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(midX - 35, midY - 10, 70, 20);
-      ctx.strokeStyle = '#DC2626';
-      ctx.strokeRect(midX - 35, midY - 10, 70, 20);
+      ctx.fillRect(midX - 40, midY - 10, 80, 20);
+      ctx.strokeStyle = '#000000';
+      ctx.strokeRect(midX - 40, midY - 10, 80, 20);
 
-      ctx.fillStyle = '#DC2626';
-      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 13px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(item.text, midX, midY + 4);
     }
   } else if (item.type === 'text') {
     ctx.fillStyle = item.color || '#000000';
-    ctx.font = `bold ${item.fontSize || 13}px sans-serif`;
+    ctx.font = `bold ${item.fontSize || 14}px sans-serif`;
     ctx.textAlign = 'left';
     ctx.fillText(item.text, item.x, item.y);
   }
@@ -1010,7 +979,7 @@ function drawElement(ctx, item) {
 }
 
 function drawArrow(ctx, fromX, fromY, toX, toY, color = '#000', width = 2) {
-  const headLen = 10;
+  const headLen = 12;
   const angle = Math.atan2(toY - fromY, toX - fromX);
   ctx.save();
   ctx.strokeStyle = color;
@@ -1033,16 +1002,16 @@ function drawArrow(ctx, fromX, fromY, toX, toY, color = '#000', width = 2) {
 
 function drawDimensionLine(ctx, x1, y1, x2, y2, text) {
   ctx.save();
-  ctx.strokeStyle = '#DC2626';
-  ctx.fillStyle = '#DC2626';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#000000';
+  ctx.fillStyle = '#000000';
+  ctx.lineWidth = 1.8;
 
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
   ctx.stroke();
 
-  const headLen = 7;
+  const headLen = 8;
   const angle = Math.atan2(y2 - y1, x2 - x1);
 
   ctx.beginPath();
@@ -1062,15 +1031,15 @@ function drawDimensionLine(ctx, x1, y1, x2, y2, text) {
   if (text) {
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2;
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'center';
     
     const textWidth = ctx.measureText(text).width;
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(midX - textWidth / 2 - 3, midY - 8, textWidth + 6, 16);
+    ctx.fillRect(midX - textWidth / 2 - 3, midY - 9, textWidth + 6, 18);
 
-    ctx.fillStyle = '#DC2626';
-    ctx.fillText(text, midX, midY + 4);
+    ctx.fillStyle = '#000000';
+    ctx.fillText(text, midX, midY + 5);
   }
   ctx.restore();
 }
@@ -1082,7 +1051,7 @@ function addTextStamp(text) {
     x: targetCanvas.width / 2 - 40,
     y: targetCanvas.height / 2,
     text: text,
-    fontSize: 13,
+    fontSize: 14,
     color: '#000000'
   });
   redraw(activeTarget);
@@ -1110,79 +1079,18 @@ function deleteNearElement(targetKey, x, y) {
   }
 }
 
-function applyAutoParams() {
-  const spotNo = document.getElementById('spotNo').value || 'No.2';
-  const spotW = document.getElementById('spotWidth').value || '2.5m';
-  const spotL = document.getElementById('spotLength').value || '5.0m';
-  const roadW = document.getElementById('roadWidth').value || '6.0m';
-  const entW = document.getElementById('entranceWidth').value || '5.0m';
-  const isSame = document.getElementById('sameAddress').checked;
-
-  const hw = haichiCanvas.width;
-  const hh = haichiCanvas.height;
-
-  // 配置図（右側）の標準レイアウト
-  drawings.haichi = [
-    { type: 'line-road', x1: 40, y1: hh - 80, x2: hw - 40, y2: hh - 80 },
-    { type: 'line-road', x1: 40, y1: hh - 140, x2: hw - 40, y2: hh - 140 },
-    { type: 'text', x: hw / 2 - 30, y: hh - 105, text: `公道（幅員 ${roadW}）`, fontSize: 12 },
-    { type: 'line-dim', x1: 60, y1: hh - 140, x2: 60, y2: hh - 80, text: roadW },
-
-    { type: 'arrow', x1: hw / 2, y1: hh - 80, x2: hw / 2, y2: hh - 160, label: `出入口 (${entW})` },
-
-    { type: 'rect-other', x: hw / 2 - 110, y: 80, w: 70, h: 120 },
-    { type: 'text', x: hw / 2 - 85, y: 145, text: 'No.1', fontSize: 12 },
-
-    { type: 'rect-spot', x: hw / 2 - 35, y: 80, w: 70, h: 120, label: spotNo },
-
-    { type: 'rect-other', x: hw / 2 + 40, y: 80, w: 70, h: 120 },
-    { type: 'text', x: hw / 2 + 65, y: 145, text: 'No.3', fontSize: 12 },
-
-    { type: 'line-dim', x1: hw / 2 - 35, y1: 65, x2: hw / 2 + 35, y2: 65, text: spotW },
-    { type: 'line-dim', x1: hw / 2 + 120, y1: 80, x2: hw / 2 + 120, y2: 200, text: spotL },
-
-    { type: 'text', x: 50, y: 120, text: '（隣接地：建物）', fontSize: 11 }
-  ];
-
-  // 所在図（左側）のレイアウト
-  const sw = sozaiCanvas.width;
-  const sh = sozaiCanvas.height;
-
-  if (isSame) {
-    // 自宅と保管場所が同一の場合：中央に1つのピンのみ配置（距離線は不要）
-    drawings.sozai = [
-      { type: 'text', x: sw / 2 - 80, y: sh / 2, text: '🏠🅿️ 自宅兼保管場所（同上）', fontSize: 13, color: '#DC2626' }
-    ];
-  } else {
-    // 別々の場所の場合：自宅と保管場所を直線距離で結ぶ
-    const dist = document.getElementById('distanceVal').value || '約350m';
-    drawings.sozai = [
-      { type: 'text', x: 60, y: sh - 80, text: '🏠 自宅（使用の本拠）', fontSize: 12 },
-      { type: 'text', x: sw - 160, y: 100, text: '🅿️ 保管場所（車庫）', fontSize: 12 },
-      { type: 'dist-line', x1: 90, y1: sh - 90, x2: sw - 120, y2: 120, text: dist }
-    ];
-  }
-
-  redrawAll();
-}
-
-// ─── 住所検索（国土地理院API ＋ 段階的フォールバック検索） ───
+// ─── 住所検索 ───
 async function fetchCoords(rawQuery) {
   let q = rawQuery.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).trim();
-  
-  // 1. 国土地理院 住所検索API
   try {
     const gsiRes = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(q)}`);
     const gsiData = await gsiRes.json();
     if (gsiData && gsiData.length > 0) {
-      const coord = gsiData[0].geometry.coordinates; // [lon, lat]
+      const coord = gsiData[0].geometry.coordinates;
       return { lat: coord[1], lon: coord[0] };
     }
-  } catch (e) {
-    console.warn('GSI search failed:', e);
-  }
+  } catch (e) {}
 
-  // 2. 番地・号・丁目を取り除いて町名レベルで再検索
   const simplified = q.replace(/[0-9０-９]+番地?[0-9０-９]*号?.*$/, '')
                       .replace(/[0-9０-９]+-[0-9０-９]+.*$/, '')
                       .replace(/[0-9０-９]+丁目.*$/, '');
@@ -1196,16 +1104,6 @@ async function fetchCoords(rawQuery) {
       }
     } catch (e) {}
   }
-
-  // 3. OpenStreetMap Nominatim フォールバック
-  try {
-    const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(simplified || q)}&countrycodes=jp`);
-    const osmData = await osmRes.json();
-    if (osmData && osmData.length > 0) {
-      return { lat: parseFloat(osmData[0].lat), lon: parseFloat(osmData[0].lon) };
-    }
-  } catch (e) {}
-
   return null;
 }
 
@@ -1217,13 +1115,13 @@ async function searchAddress(type) {
   const coord = await fetchCoords(query);
   if (coord) {
     if (type === 'home') {
-      sozaiMap.setView([coord.lat, coord.lon], 15);
+      sozaiMap.setView([coord.lat, coord.lon], 16);
     } else {
       haichiMap.setView([coord.lat, coord.lon], 18);
-      sozaiMap.setView([coord.lat, coord.lon], 15);
+      sozaiMap.setView([coord.lat, coord.lon], 16);
     }
   } else {
-    alert(`「${query}」の座標が見つかりませんでした。\n番地を省いて「北名古屋市六ツ師」のように町名までで検索するか、地図をドラッグして位置を調整してください。`);
+    alert(`「${query}」の座標が見つかりませんでした。\n地図をドラッグして位置を調整してください。`);
   }
 }
 
@@ -1240,7 +1138,6 @@ function toggleSameAddress() {
   } else {
     document.getElementById('distanceVal').value = '約 350m';
   }
-  applyAutoParams();
 }
 
 function updateShutterDisplay() {
@@ -1258,24 +1155,16 @@ function updateShutterDisplay() {
 
 function switchLayout() {
   const mode = document.getElementById('layoutSelect').value;
-  const paper = document.getElementById('a4Paper');
   const badge = document.getElementById('layoutBadge');
-  const headerStd = document.getElementById('paperHeaderStandard');
-  const styleEl = document.getElementById('printPageStyle') || document.createElement('style');
-  styleEl.id = 'printPageStyle';
+  const styleEl = document.getElementById('printPageStyle');
 
-  if (mode === 'vertical') {
-    paper.classList.add('oss-vertical-mode');
-    badge.textContent = 'A4縦・OSS専用様式';
-    headerStd.style.display = 'none';
+  if (mode === 'vertical-2page') {
+    badge.textContent = 'A4縦・2ページ様式';
     styleEl.innerHTML = `@page { size: A4 portrait; margin: 8mm; }`;
   } else {
-    paper.classList.remove('oss-vertical-mode');
-    badge.textContent = 'A4横・警察標準';
-    headerStd.style.display = 'block';
+    badge.textContent = 'A4横・1ページ警察標準';
     styleEl.innerHTML = `@page { size: A4 landscape; margin: 8mm; }`;
   }
-  document.head.appendChild(styleEl);
 
   setTimeout(() => {
     resizeCanvases();
@@ -1285,7 +1174,7 @@ function switchLayout() {
 }
 
 function loadKurodaSample() {
-  document.getElementById('layoutSelect').value = 'vertical';
+  document.getElementById('layoutSelect').value = 'vertical-2page';
   switchLayout();
 
   const addr = '愛知県一宮市木曽川町黒田六ノ通り304番地12';
@@ -1313,36 +1202,40 @@ function loadKurodaSample() {
     const hw = haichiCanvas.width;
     const hh = haichiCanvas.height;
 
-    // 所在図（上段）：添付画像風「⬅ 申請地」プロット
+    // 1ページ目：所在図（広々としたキャンバスに申請地プロット）
     drawings.sozai = [
-      { type: 'rect-other', x: sw / 2 - 20, y: sh / 2 - 20, w: 40, h: 40 },
-      { type: 'text', x: sw / 2 + 25, y: sh / 2 + 6, text: '⬅ 申請地', fontSize: 14, color: '#000000' }
+      { type: 'rect-other', x: sw / 2 - 25, y: sh / 2 - 25, w: 50, h: 50 },
+      { type: 'text', x: sw / 2 + 35, y: sh / 2 + 6, text: '⬅ 申請地', fontSize: 16, color: '#000000' },
+      { type: 'text', x: 80, y: 150, text: '木曽川環境クリーン', fontSize: 12 },
+      { type: 'text', x: sw - 200, y: 160, text: '卍 福昌寺', fontSize: 12 },
+      { type: 'text', x: sw - 180, y: 280, text: '㈱ 井鉄工所', fontSize: 12 },
+      { type: 'text', x: sw / 2 - 60, y: 220, text: 'JA 自動車', fontSize: 12 }
     ];
 
-    // 配置図（下段）：添付画像完全準拠（敷地・自宅・保管場所・寸法線・方位マーク）
+    // 2ページ目：配置図（添付画像完全準拠：敷地・自宅・保管場所・寸法線・方位マーク）
     drawings.haichi = [
       // 方位マーク
-      { type: 'text', x: 80, y: 70, text: '🧭 北', fontSize: 14, color: '#000000' },
+      { type: 'text', x: 80, y: 120, text: '🧭 北', fontSize: 16, color: '#000000' },
 
       // 前面道路
-      { type: 'line-road', x1: 150, y1: 50, x2: hw - 60, y2: 50 },
-      { type: 'line-road', x1: 150, y1: 50, x2: 150, y2: hh - 40 },
-      { type: 'text', x: 158, y: 80, text: '5m\n道\n路', fontSize: 11 },
-      { type: 'line-dim', x1: 150, y1: 65, x2: 200, y2: 65, text: '5m' },
+      { type: 'line-road', x1: 200, y1: 80, x2: hw - 80, y2: 80 },
+      { type: 'line-road', x1: 200, y1: 80, x2: 200, y2: hh - 80 },
+      { type: 'text', x: 215, y: 140, text: '5m\n道\n路', fontSize: 13 },
+      { type: 'line-dim', x1: 200, y1: 100, x2: 280, y2: 100, text: '5m' },
 
       // 出入口
-      { type: 'line-dim', x1: 170, y1: 110, x2: 170, y2: 240, text: '10m' },
-      { type: 'text', x: 175, y: 175, text: '出入口', fontSize: 11 },
+      { type: 'line-dim', x1: 230, y1: 200, x2: 230, y2: 440, text: '10m' },
+      { type: 'text', x: 240, y: 320, text: '出入口', fontSize: 13 },
 
-      // 敷地・自宅
-      { type: 'rect-other', x: 210, y: 90, w: 180, h: 160 },
-      { type: 'rect-other', x: 270, y: 110, w: 100, h: 120 },
-      { type: 'text', x: 305, y: 175, text: '自　宅', fontSize: 14 },
+      // 敷地境界・自宅建物
+      { type: 'rect-other', x: 280, y: 160, w: 320, h: 360 },
+      { type: 'rect-other', x: 380, y: 200, w: 180, h: 280 },
+      { type: 'text', x: 440, y: 340, text: '自　宅', fontSize: 18 },
 
       // 保管場所（車庫枠 2.0m × 5.0m）
-      { type: 'rect-spot', x: 210, y: 130, w: 60, h: 60, label: '' },
-      { type: 'line-dim', x1: 210, y1: 205, x2: 270, y2: 205, text: '5.0m' },
-      { type: 'line-dim', x1: 280, y1: 130, x2: 280, y2: 190, text: '2.0m' }
+      { type: 'rect-spot', x: 280, y: 240, w: 100, h: 120, label: '' },
+      { type: 'line-dim', x1: 280, y1: 390, x2: 380, y2: 390, text: '5.0m' },
+      { type: 'line-dim', x1: 400, y1: 240, x2: 400, y2: 360, text: '2.0m' }
     ];
 
     redrawAll();
@@ -1359,39 +1252,29 @@ function clearCanvas() {
 function resetSozaiZoom() { sozaiMap.setZoom(16); }
 function resetHaichiZoom() { haichiMap.setZoom(18); }
 
-function loadSampleCase() {
-  document.getElementById('layoutSelect').value = 'horizontal';
-  switchLayout();
-
-  document.getElementById('homeAddress').value = '愛知県北名古屋市六ツ師道毛74番地1';
-  document.getElementById('parkingAddress').value = '愛知県北名古屋市六ツ師道毛75番地';
-  document.getElementById('spotNo').value = 'No. 2';
-  document.getElementById('spotWidth').value = '2.5m';
-  document.getElementById('spotLength').value = '5.0m';
-  document.getElementById('roadWidth').value = '6.0m';
-  document.getElementById('entranceWidth').value = '5.0m';
-  document.getElementById('distanceVal').value = '約 350m';
-
-  applyAutoParams();
-}
-
 function exportA4PDF() {
   window.print();
 }
 
 async function exportOSSImage() {
-  const paper = document.getElementById('a4Paper');
-  
-  const canvas = await html2canvas(paper, {
-    scale: 2,
-    useCORS: true,
-    logging: false
-  });
+  const page1 = document.getElementById('page1Sozai');
+  const page2 = document.getElementById('page2Haichi');
 
-  const link = document.createElement('a');
-  link.download = `車庫証明_所在図配置図_${new Date().toISOString().slice(0,10)}.png`;
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+  // 1ページ目保存
+  const c1 = await html2canvas(page1, { scale: 2, useCORS: true, logging: false });
+  const l1 = document.createElement('a');
+  l1.download = `車庫証明_所在図_一宮市木曽川町黒田_${new Date().toISOString().slice(0,10)}.png`;
+  l1.href = c1.toDataURL('image/png');
+  l1.click();
+
+  // 2ページ目保存
+  setTimeout(async () => {
+    const c2 = await html2canvas(page2, { scale: 2, useCORS: true, logging: false });
+    const l2 = document.createElement('a');
+    l2.download = `車庫証明_配置図_一宮市木曽川町黒田_${new Date().toISOString().slice(0,10)}.png`;
+    l2.href = c2.toDataURL('image/png');
+    l2.click();
+  }, 500);
 }
 </script>
 
