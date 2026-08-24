@@ -201,7 +201,7 @@
   }
   .stamp-btn:hover { background: #334155; border-color: #94A3B8; }
 
-  /* 中央プレビューエリア（A4用紙プレビュー） */
+  /* 中央プレビューエリア */
   .preview-area {
     flex: 1;
     background: #0B0F19;
@@ -212,7 +212,7 @@
     align-items: flex-start;
   }
 
-  /* 警察署提出用 A4用紙（実寸比率 A4横: 297mm × 210mm） */
+  /* 警察署提出用 A4用紙（デフォルト：A4横） */
   .a4-paper {
     width: 1050px;
     min-height: 742px;
@@ -227,6 +227,28 @@
     user-select: none;
   }
 
+  /* A4縦（OSS専用様式）モード */
+  .a4-paper.oss-vertical-mode {
+    width: 794px;
+    min-height: 1123px;
+    padding: 16px 20px;
+  }
+  .a4-paper.oss-vertical-mode .paper-grid {
+    flex-direction: column;
+    height: 1020px;
+    min-height: 1020px;
+  }
+  .a4-paper.oss-vertical-mode .sozai-box {
+    width: 100%;
+    height: 480px;
+    border-right: none;
+    border-bottom: 2px solid #000;
+  }
+  .a4-paper.oss-vertical-mode .haichi-box {
+    width: 100%;
+    height: 480px;
+  }
+
   /* 書式ヘッダー */
   .paper-header {
     text-align: center;
@@ -239,6 +261,36 @@
     border-bottom: 2px solid #000;
     display: inline-block;
     padding-bottom: 2px;
+  }
+
+  /* OSS OCR上部バーコード欄 */
+  .oss-ocr-header {
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 4px 6px 4px;
+    border-bottom: 1px solid #000;
+    margin-bottom: 4px;
+  }
+  .oss-vertical-mode .oss-ocr-header {
+    display: flex;
+  }
+  .ocr-digits {
+    font-family: monospace;
+    font-size: 12pt;
+    font-weight: bold;
+    letter-spacing: 4px;
+    border: 1.5px solid #000;
+    padding: 1px 8px;
+    display: flex;
+    gap: 4px;
+  }
+  .ocr-code-box {
+    border: 1.5px solid #000;
+    padding: 1px 6px;
+    font-weight: bold;
+    font-size: 12pt;
+    margin-left: 6px;
   }
 
   /* 左右分割グリッド */
@@ -282,11 +334,12 @@
     background: #FFFFFF;
   }
 
-  /* 地図レイヤー */
+  /* 地図レイヤー（白黒・ハイコントラスト） */
   .map-layer {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: 1;
+    filter: grayscale(100%) contrast(120%);
   }
   /* 描画キャンバス */
   .drawing-canvas {
@@ -299,38 +352,34 @@
     cursor: crosshair;
   }
 
-  /* 書式フッター（シャッター・注意事項） */
+  /* 書式フッター */
   .paper-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-top: 8px;
-    font-size: 8.5pt;
+    font-size: 8pt;
   }
   .shutter-box {
     border: 1px solid #000;
-    padding: 4px 10px;
-    font-size: 9pt;
+    padding: 3px 8px;
+    font-size: 8.5pt;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
   .shutter-circle {
     display: inline-block;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     border: 1.5px solid #000;
     text-align: center;
-    line-height: 16px;
+    line-height: 14px;
     font-weight: bold;
   }
 
-  /* 印刷用スタイル（A4横に完全最適化） */
-  @page {
-    size: A4 landscape;
-    margin: 8mm 8mm 8mm 8mm;
-  }
+  /* 印刷用スタイル */
   @media print {
     html, body {
       background: #fff !important;
@@ -341,7 +390,7 @@
       margin: 0 !important;
       padding: 0 !important;
     }
-    header, .sidebar, .leaflet-control-container, .print-hide {
+    header, .sidebar, .leaflet-control-container, .print-hide, .map-zoom-bar {
       display: none !important;
     }
     .preview-area {
@@ -352,17 +401,11 @@
     }
     .a4-paper {
       width: 100% !important;
-      height: calc(100vh - 16mm) !important;
-      min-height: 180mm !important;
       box-shadow: none !important;
       border-radius: 0 !important;
       padding: 0 !important;
       margin: 0 auto !important;
       page-break-inside: avoid;
-    }
-    .paper-grid {
-      height: 155mm !important;
-      min-height: 155mm !important;
     }
   }
 </style>
@@ -376,16 +419,21 @@
     <div>
       <div style="display:flex; align-items:center; gap:8px;">
         <span class="brand-title">車庫証明 OSS 所在図・配置図 作成ツール</span>
-        <span class="brand-badge">警察庁・愛知県警対応（A4横）</span>
+        <span class="brand-badge" id="layoutBadge">A4横・警察標準</span>
       </div>
       <div style="font-size:0.75rem; color:var(--text-muted);">行政書士法人フェリス 自動車登録実務システム</div>
     </div>
   </div>
   <div class="header-actions">
-    <button class="btn btn-secondary" onclick="loadSampleCase()">📋 サンプル案件読込</button>
-    <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ キャンバスクリア</button>
-    <button class="btn btn-primary" onclick="exportOSSImage()">🖼️ OSS用 画像保存</button>
-    <button class="btn btn-success" onclick="exportA4PDF()">🖨️ A4横 印刷 / PDF保存</button>
+    <!-- 様式切り替え -->
+    <select id="layoutSelect" class="form-input" style="width:170px; background:#1E293B; font-weight:bold; color:#38BDF8;" onchange="switchLayout()">
+      <option value="horizontal">📄 A4横（警察署提出用）</option>
+      <option value="vertical" selected>📄 A4縦（OSS専用様式）</option>
+    </select>
+    <button class="btn btn-secondary" onclick="loadKurodaSample()">🏠 木曽川町黒田サンプル</button>
+    <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ クリア</button>
+    <button class="btn btn-primary" onclick="exportOSSImage()">🖼️ OSS画像保存</button>
+    <button class="btn btn-success" onclick="exportA4PDF()">🖨️ 印刷 / PDF保存</button>
   </div>
 </header>
 
@@ -502,13 +550,15 @@
       <!-- クイックスタンプ -->
       <div style="font-size:0.78rem; color:#94A3B8; margin:8px 0 4px 0;">クイック文字スタンプ（クリックして配置）：</div>
       <div class="stamp-grid">
-        <button class="stamp-btn" onclick="addTextStamp('出入口')">出入口</button>
+        <button class="stamp-btn" onclick="addTextStamp('⬅ 申請地')">⬅ 申請地</button>
+        <button class="stamp-btn" onclick="addTextStamp('自宅')">自宅</button>
         <button class="stamp-btn" onclick="addTextStamp('道路')">道路</button>
-        <button class="stamp-btn" onclick="addTextStamp('自宅（使用の本拠）')">自宅（使用の本拠）</button>
-        <button class="stamp-btn" onclick="addTextStamp('保管場所（車庫）')">保管場所（車庫）</button>
-        <button class="stamp-btn" onclick="addTextStamp('幅員 6.0m')">幅員 6.0m</button>
-        <button class="stamp-btn" onclick="addTextStamp('ビル')">ビル</button>
-        <button class="stamp-btn" onclick="addTextStamp('空地')">空地</button>
+        <button class="stamp-btn" onclick="addTextStamp('出入口')">出入口</button>
+        <button class="stamp-btn" onclick="addTextStamp('幅員 5.0m')">幅員 5.0m</button>
+        <button class="stamp-btn" onclick="addTextStamp('🧭 北')">🧭 北</button>
+        <button class="stamp-btn" onclick="addTextStamp('木曽川環境クリーン')">木曽川環境クリーン</button>
+        <button class="stamp-btn" onclick="addTextStamp('卍 福昌寺')">卍 福昌寺</button>
+        <button class="stamp-btn" onclick="addTextStamp('JA')">JA</button>
       </div>
     </div>
 
@@ -529,19 +579,29 @@
   <!-- ─── 中央：A4用紙プレビュー ─── -->
   <div class="preview-area">
 
-    <div class="a4-paper" id="a4Paper">
+    <div class="a4-paper oss-vertical-mode" id="a4Paper">
       
-      <!-- タイトル -->
-      <div class="paper-header">
+      <!-- タイトル（警察様式用） -->
+      <div class="paper-header" id="paperHeaderStandard" style="display:none;">
         <div class="paper-title">【保管場所の所在図・配置図】</div>
       </div>
 
       <!-- 所在図・配置図 枠 -->
       <div class="paper-grid">
         
-        <!-- 左：所在図記載欄 -->
+        <!-- 上／左：所在図記載欄 -->
         <div class="sozai-box" id="sozaiBox">
-          <div class="box-title">所　在　図　記　載　欄</div>
+          <!-- OSS専用 OCRヘッダー -->
+          <div class="oss-ocr-header">
+            <div style="display:flex; align-items:center;">
+              <div class="ocr-digits">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
+              <div class="ocr-code-box">C</div>
+            </div>
+            <div style="font-size:10pt; font-weight:bold;">所　在　図</div>
+            <div style="width:36px; height:36px; border:1px solid #000; display:flex; align-items:center; justify-content:center; font-size:8px;">QR</div>
+          </div>
+
+          <div class="box-title" id="sozaiTitle">所　在　図　記　載　欄</div>
           <div class="canvas-container" id="sozaiContainer">
             <div id="sozaiMap" class="map-layer"></div>
             <canvas id="sozaiCanvas" class="drawing-canvas"></canvas>
@@ -552,9 +612,19 @@
           </div>
         </div>
 
-        <!-- 右：配置図記載欄 -->
+        <!-- 下／右：配置図記載欄 -->
         <div class="haichi-box" id="haichiBox">
-          <div class="box-title">配　置　図　記　載　欄</div>
+          <!-- OSS専用 OCRヘッダー -->
+          <div class="oss-ocr-header">
+            <div style="display:flex; align-items:center;">
+              <div class="ocr-digits">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
+              <div class="ocr-code-box">D</div>
+            </div>
+            <div style="font-size:10pt; font-weight:bold;">配　置　図</div>
+            <div style="width:36px; height:36px; border:1px solid #000; display:flex; align-items:center; justify-content:center; font-size:8px;">QR</div>
+          </div>
+
+          <div class="box-title" id="haichiTitle">配　置　図　記　載　欄</div>
           <div class="canvas-container" id="haichiContainer">
             <div id="haichiMap" class="map-layer"></div>
             <canvas id="haichiCanvas" class="drawing-canvas"></canvas>
@@ -568,16 +638,23 @@
       </div>
 
       <!-- フッター -->
-      <div class="paper-footer">
-        <div style="color:#333; line-height:1.4;">
-          ※ 使用の本拠の位置（自宅等）と保管場所（車庫）の間を直線で結び、その距離を記載してください。<br>
-          ※ 車庫の縦・横の寸法、出入口の幅、前面道路の幅員、周囲の建物を明記してください。
+      <div class="paper-footer" id="paperFooter">
+        <div style="color:#000; line-height:1.3; font-size:7.5pt;">
+          備考 1. 保管場所に出入りする道路の幅員、保管場所の平面の寸法をメートルで記入すること。<br>
+          　　 2. 複数の自動車を保管する自動車の保管場所の場合は、必要事項を記入するほか配置図を別紙添付すること。<br>
+          　　 3. 使用の本拠の位置（自宅等）と保管場所の位置（車庫）の間を直線で結び、その距離を記載すること。
         </div>
-        <div class="shutter-box">
-          <span>シャッターの有無</span>
-          <span id="shutterDisplayYes">有</span>
-          <span>・</span>
-          <span id="shutterDisplayNo" class="shutter-circle">無</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="border:1px solid #000; padding:3px 6px; font-size:8pt; text-align:right; line-height:1.2;">
+            <div>作成者：行政書士法人フェリス</div>
+            <div>TEL: 0568-26-3713</div>
+          </div>
+          <div class="shutter-box">
+            <span>シャッター</span>
+            <span id="shutterDisplayYes">有</span>
+            <span>・</span>
+            <span id="shutterDisplayNo" class="shutter-circle">無</span>
+          </div>
         </div>
       </div>
 
@@ -1179,6 +1256,99 @@ function updateShutterDisplay() {
   }
 }
 
+function switchLayout() {
+  const mode = document.getElementById('layoutSelect').value;
+  const paper = document.getElementById('a4Paper');
+  const badge = document.getElementById('layoutBadge');
+  const headerStd = document.getElementById('paperHeaderStandard');
+  const styleEl = document.getElementById('printPageStyle') || document.createElement('style');
+  styleEl.id = 'printPageStyle';
+
+  if (mode === 'vertical') {
+    paper.classList.add('oss-vertical-mode');
+    badge.textContent = 'A4縦・OSS専用様式';
+    headerStd.style.display = 'none';
+    styleEl.innerHTML = `@page { size: A4 portrait; margin: 8mm; }`;
+  } else {
+    paper.classList.remove('oss-vertical-mode');
+    badge.textContent = 'A4横・警察標準';
+    headerStd.style.display = 'block';
+    styleEl.innerHTML = `@page { size: A4 landscape; margin: 8mm; }`;
+  }
+  document.head.appendChild(styleEl);
+
+  setTimeout(() => {
+    resizeCanvases();
+    if (sozaiMap) sozaiMap.invalidateSize();
+    if (haichiMap) haichiMap.invalidateSize();
+  }, 100);
+}
+
+function loadKurodaSample() {
+  document.getElementById('layoutSelect').value = 'vertical';
+  switchLayout();
+
+  const addr = '愛知県一宮市木曽川町黒田六ノ通り304番地12';
+  document.getElementById('homeAddress').value = addr;
+  document.getElementById('parkingAddress').value = addr;
+  document.getElementById('sameAddress').checked = true;
+  document.getElementById('spotNo').value = '';
+  document.getElementById('spotWidth').value = '2.0m';
+  document.getElementById('spotLength').value = '5.0m';
+  document.getElementById('roadWidth').value = '5.0m';
+  document.getElementById('entranceWidth').value = '10.0m';
+  document.getElementById('distanceVal').value = '同上 (0m)';
+  document.getElementById('shutterVal').value = '無';
+  updateShutterDisplay();
+
+  // 一宮市木曽川町黒田の緯度経度へ移動
+  const kurodaLat = 35.3725;
+  const kurodaLng = 136.7820;
+  sozaiMap.setView([kurodaLat, kurodaLng], 16);
+  haichiMap.setView([kurodaLat, kurodaLng], 18);
+
+  setTimeout(() => {
+    const sw = sozaiCanvas.width;
+    const sh = sozaiCanvas.height;
+    const hw = haichiCanvas.width;
+    const hh = haichiCanvas.height;
+
+    // 所在図（上段）：添付画像風「⬅ 申請地」プロット
+    drawings.sozai = [
+      { type: 'rect-other', x: sw / 2 - 20, y: sh / 2 - 20, w: 40, h: 40 },
+      { type: 'text', x: sw / 2 + 25, y: sh / 2 + 6, text: '⬅ 申請地', fontSize: 14, color: '#000000' }
+    ];
+
+    // 配置図（下段）：添付画像完全準拠（敷地・自宅・保管場所・寸法線・方位マーク）
+    drawings.haichi = [
+      // 方位マーク
+      { type: 'text', x: 80, y: 70, text: '🧭 北', fontSize: 14, color: '#000000' },
+
+      // 前面道路
+      { type: 'line-road', x1: 150, y1: 50, x2: hw - 60, y2: 50 },
+      { type: 'line-road', x1: 150, y1: 50, x2: 150, y2: hh - 40 },
+      { type: 'text', x: 158, y: 80, text: '5m\n道\n路', fontSize: 11 },
+      { type: 'line-dim', x1: 150, y1: 65, x2: 200, y2: 65, text: '5m' },
+
+      // 出入口
+      { type: 'line-dim', x1: 170, y1: 110, x2: 170, y2: 240, text: '10m' },
+      { type: 'text', x: 175, y: 175, text: '出入口', fontSize: 11 },
+
+      // 敷地・自宅
+      { type: 'rect-other', x: 210, y: 90, w: 180, h: 160 },
+      { type: 'rect-other', x: 270, y: 110, w: 100, h: 120 },
+      { type: 'text', x: 305, y: 175, text: '自　宅', fontSize: 14 },
+
+      // 保管場所（車庫枠 2.0m × 5.0m）
+      { type: 'rect-spot', x: 210, y: 130, w: 60, h: 60, label: '' },
+      { type: 'line-dim', x1: 210, y1: 205, x2: 270, y2: 205, text: '5.0m' },
+      { type: 'line-dim', x1: 280, y1: 130, x2: 280, y2: 190, text: '2.0m' }
+    ];
+
+    redrawAll();
+  }, 150);
+}
+
 function clearCanvas() {
   if (confirm('作図内容をすべてクリアしますか？')) {
     drawings = { sozai: [], haichi: [] };
@@ -1186,10 +1356,13 @@ function clearCanvas() {
   }
 }
 
-function resetSozaiZoom() { sozaiMap.setZoom(15); }
+function resetSozaiZoom() { sozaiMap.setZoom(16); }
 function resetHaichiZoom() { haichiMap.setZoom(18); }
 
 function loadSampleCase() {
+  document.getElementById('layoutSelect').value = 'horizontal';
+  switchLayout();
+
   document.getElementById('homeAddress').value = '愛知県北名古屋市六ツ師道毛74番地1';
   document.getElementById('parkingAddress').value = '愛知県北名古屋市六ツ師道毛75番地';
   document.getElementById('spotNo').value = 'No. 2';
