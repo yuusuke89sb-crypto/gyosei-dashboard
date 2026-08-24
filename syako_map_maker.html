@@ -355,32 +355,67 @@
       background: #fff !important;
       color: #000 !important;
       width: 100% !important;
+      height: auto !important;
+      min-height: 100% !important;
+      overflow: visible !important;
+      position: static !important;
       margin: 0 !important;
       padding: 0 !important;
+      display: block !important;
     }
     header, .sidebar, .leaflet-control-container, .print-hide, .map-zoom-bar {
       display: none !important;
     }
+    .workspace {
+      display: block !important;
+      height: auto !important;
+      min-height: 100% !important;
+      overflow: visible !important;
+      position: static !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
     .preview-area {
+      display: block !important;
+      height: auto !important;
+      min-height: 100% !important;
+      overflow: visible !important;
+      position: static !important;
       padding: 0 !important;
       margin: 0 !important;
       background: #fff !important;
-      display: block !important;
+      gap: 0 !important;
     }
     .a4-page-vertical {
       width: 100% !important;
-      height: 100vh !important;
-      min-height: 100vh !important;
+      height: 270mm !important;
+      min-height: 270mm !important;
+      max-height: 270mm !important;
       box-shadow: none !important;
       border-radius: 0 !important;
-      padding: 10mm 15mm !important;
+      padding: 4mm 6mm !important;
+      margin: 0 auto !important;
+      display: flex !important;
+      flex-direction: column !important;
       page-break-after: always !important;
+      break-after: page !important;
       page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      box-sizing: border-box !important;
+    }
+    .a4-page-vertical:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+    .page-canvas-container {
+      flex: 1 !important;
+      height: 220mm !important;
+      min-height: 220mm !important;
     }
   }
 </style>
 <style id="printPageStyle">
-  @page { size: A4 portrait; margin: 8mm; }
+  @page { size: A4 portrait; margin: 10mm 10mm; }
 </style>
 </head>
 <body>
