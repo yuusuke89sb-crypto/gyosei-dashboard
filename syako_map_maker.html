@@ -533,7 +533,7 @@
 
     <!-- 4. 地図調整 -->
     <div class="sidebar-section">
-      <div class="section-title">🗺️ 4. 縮尺・ズーム調整（自由自在）</div>
+      <div class="section-title">🗺️ 4. 縮尺・ズーム調整（超拡大対応）</div>
       
       <!-- 所在図ズーム -->
       <div style="margin-bottom:12px;">
@@ -541,30 +541,30 @@
           <span>📍 所在図 縮尺（広域 ⇄ 詳細）</span>
           <span id="sozaiZoomLabel" style="font-weight:bold; color:#38BDF8;">Zoom: 15.0</span>
         </div>
-        <input type="range" id="sozaiZoomSlider" min="5" max="19" step="0.25" value="15" style="width:100%; cursor:pointer;" oninput="onZoomSliderChange('sozai', this.value)">
+        <input type="range" id="sozaiZoomSlider" min="5" max="21" step="0.25" value="15" style="width:100%; cursor:pointer;" oninput="onZoomSliderChange('sozai', this.value)">
         <div style="display:flex; gap:4px; margin-top:4px;">
           <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('sozai', 12)">広域 (市全体)</button>
           <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('sozai', 15)">標準 (町・駅)</button>
-          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('sozai', 17)">詳細 (丁目)</button>
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('sozai', 17.5)">詳細 (丁目)</button>
         </div>
       </div>
 
       <!-- 配置図ズーム -->
       <div style="margin-bottom:8px;">
         <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
-          <span>📐 配置図 縮尺（広域 ⇄ 詳細）</span>
+          <span>📐 配置図 縮尺（敷地・車庫の超拡大）</span>
           <span id="haichiZoomLabel" style="font-weight:bold; color:#38BDF8;">Zoom: 18.0</span>
         </div>
-        <input type="range" id="haichiZoomSlider" min="10" max="20" step="0.25" value="18" style="width:100%; cursor:pointer;" oninput="onZoomSliderChange('haichi', this.value)">
+        <input type="range" id="haichiZoomSlider" min="10" max="22" step="0.25" value="18" style="width:100%; cursor:pointer;" oninput="onZoomSliderChange('haichi', this.value)">
         <div style="display:flex; gap:4px; margin-top:4px;">
-          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 16)">周辺道路</button>
-          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 18)">敷地・建物</button>
-          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 19.5)">車庫拡大</button>
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 17)">周辺道路</button>
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 19)">敷地・建物</button>
+          <button class="stamp-btn" style="flex:1;" onclick="setMapZoomLevel('haichi', 20.5)">🔍 超ドアップ</button>
         </div>
       </div>
 
       <div style="font-size:0.72rem; color:#94A3B8; margin-top:6px;">
-        💡 マウスホイールやプレビュー右上の「➕」「➖」ボタンでも無制限に微調整できます。
+        💡 Zoom: 22 まで超拡大できます！マウスホイールや「➕」ボタンで敷地を画面いっぱいに広げられます。
       </div>
     </div>
 
@@ -681,37 +681,37 @@ function initMaps() {
   const kurodaLat = 35.3725;
   const kurodaLng = 136.7820;
 
-  // 1. 所在図マップ（広域対応：minZoom:3 〜 maxZoom:20）
+  // 1. 所在図マップ（超拡大対応：minZoom:3 〜 maxZoom:23）
   sozaiMap = L.map('sozaiMap', {
     zoomControl: false,
     attributionControl: false,
     scrollWheelZoom: true,
     minZoom: 3,
-    maxZoom: 20,
+    maxZoom: 23,
     zoomSnap: 0.25,
     zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 15);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     minZoom: 3,
-    maxZoom: 20,
+    maxZoom: 23,
     maxNativeZoom: 19
   }).addTo(sozaiMap);
 
-  // 2. 配置図マップ（詳細対応：minZoom:3 〜 maxZoom:20）
+  // 2. 配置図マップ（超拡大対応：minZoom:3 〜 maxZoom:23）
   haichiMap = L.map('haichiMap', {
     zoomControl: false,
     attributionControl: false,
     scrollWheelZoom: true,
     minZoom: 3,
-    maxZoom: 20,
+    maxZoom: 23,
     zoomSnap: 0.25,
     zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 18);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     minZoom: 3,
-    maxZoom: 20,
+    maxZoom: 23,
     maxNativeZoom: 19
   }).addTo(haichiMap);
 
