@@ -387,6 +387,41 @@ function printFrame(frameId) {{
 def generate_individual_invoices():
     """各社の請求書HTML本体を生成"""
     
+    # ─── 共通ボタンスタイル（画面表示時のみ、印刷時は非表示） ───
+    print_bar_style = """
+  @media screen {
+    .print-bar {
+      position: sticky;
+      top: 0;
+      background: #1E3A8A;
+      color: #fff;
+      padding: 10px 16px;
+      margin: -20px -20px 20px -20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      z-index: 1000;
+    }
+    .print-btn {
+      background: #22C55E;
+      color: #fff;
+      border: none;
+      padding: 8px 20px;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .print-btn:hover { background: #16A34A; }
+  }
+  @media print {
+    .print-bar { display: none !important; }
+    body { padding: 0 !important; }
+  }
+"""
+
     # ─── 1. トヨタWEST様式 ───
     toyota_html = f"""<!DOCTYPE html>
 <html lang="ja">
@@ -394,7 +429,7 @@ def generate_individual_invoices():
 <meta charset="UTF-8">
 <title>御請求書 - 愛知トヨタWEST株式会社 一宮店 御中</title>
 <style>
-  @page {{ size: A4 portrait; margin: 15mm 12mm 15mm 12mm; }}
+  @page {{ size: A4 portrait; margin: 12mm 10mm 12mm 10mm; }}
   body {{ font-family: 'MS Gothic', 'Yu Gothic', sans-serif; font-size: 11pt; color: #000; background: #fff; margin: 0; padding: 20px; }}
   .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
   .title {{ font-size: 18pt; font-weight: bold; text-align: center; letter-spacing: 4px; padding-bottom: 8px; border-bottom: 2px solid #000; margin-bottom: 16px; }}
@@ -414,9 +449,15 @@ def generate_individual_invoices():
   .right {{ text-align: right; }}
   
   .bank-box {{ margin-top: 16px; border: 1px solid #000; padding: 8px 12px; font-size: 9pt; line-height: 1.5; }}
+  {print_bar_style}
 </style>
 </head>
 <body>
+
+<div class="print-bar">
+  <span>📄 愛知トヨタWEST専用 請求書（A4縦）</span>
+  <button class="print-btn" onclick="window.print()">🖨️ 印刷する / PDF保存</button>
+</div>
 
 <div class="title">御 請 求 書</div>
 
@@ -486,7 +527,6 @@ def generate_individual_invoices():
       <td class="right">￥3,780</td>
       <td class="right">￥16,980</td>
     </tr>
-    <!-- 合計行 -->
     <tr style="font-weight:bold; background:#fafafa;">
       <td colspan="5" class="center">合　　計</td>
       <td class="right">￥24,500</td>
@@ -524,7 +564,7 @@ def generate_individual_invoices():
 <meta charset="UTF-8">
 <title>御請求書 - 三菱ふそうトラック・バス株式会社 小牧支店 御中</title>
 <style>
-  @page {{ size: A4 portrait; margin: 15mm 12mm 15mm 12mm; }}
+  @page {{ size: A4 portrait; margin: 12mm 10mm 12mm 10mm; }}
   body {{ font-family: 'MS Gothic', 'Yu Gothic', sans-serif; font-size: 11pt; color: #000; background: #fff; margin: 0; padding: 20px; }}
   .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
   .title {{ font-size: 18pt; font-weight: bold; text-align: center; letter-spacing: 4px; padding-bottom: 8px; border-bottom: 2px solid #000; margin-bottom: 16px; }}
@@ -542,9 +582,15 @@ def generate_individual_invoices():
   .right {{ text-align: right; }}
   
   .bank-box {{ margin-top: 16px; border: 1px solid #000; padding: 8px 12px; font-size: 9pt; line-height: 1.5; }}
+  {print_bar_style}
 </style>
 </head>
 <body>
+
+<div class="print-bar">
+  <span>📄 三菱ふそう専用 請求書（A4縦）</span>
+  <button class="print-btn" onclick="window.print()">🖨️ 印刷する / PDF保存</button>
+</div>
 
 <div class="title">御 請 求 書（トラック・バス登録）</div>
 
@@ -638,7 +684,7 @@ def generate_individual_invoices():
 <meta charset="UTF-8">
 <title>御請求書 - 日産愛知自動車販売株式会社 桜井店 御中</title>
 <style>
-  @page {{ size: A4 portrait; margin: 15mm 12mm 15mm 12mm; }}
+  @page {{ size: A4 portrait; margin: 12mm 10mm 12mm 10mm; }}
   body {{ font-family: 'MS Gothic', 'Yu Gothic', sans-serif; font-size: 11pt; color: #000; background: #fff; margin: 0; padding: 20px; }}
   .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
   .title {{ font-size: 18pt; font-weight: bold; text-align: center; letter-spacing: 4px; padding-bottom: 8px; border-bottom: 2px solid #000; margin-bottom: 16px; }}
@@ -656,9 +702,15 @@ def generate_individual_invoices():
   .right {{ text-align: right; }}
   
   .bank-box {{ margin-top: 16px; border: 1px solid #000; padding: 8px 12px; font-size: 9pt; line-height: 1.5; }}
+  {print_bar_style}
 </style>
 </head>
 <body>
+
+<div class="print-bar">
+  <span>📄 日産愛知専用 請求書（A4縦）</span>
+  <button class="print-btn" onclick="window.print()">🖨️ 印刷する / PDF保存</button>
+</div>
 
 <div class="title">御 請 求 書</div>
 
