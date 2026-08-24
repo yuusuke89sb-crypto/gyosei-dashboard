@@ -944,10 +944,12 @@ function applyAutoParams() {
   const spotL = document.getElementById('spotLength').value || '5.0m';
   const roadW = document.getElementById('roadWidth').value || '6.0m';
   const entW = document.getElementById('entranceWidth').value || '5.0m';
+  const isSame = document.getElementById('sameAddress').checked;
 
   const hw = haichiCanvas.width;
   const hh = haichiCanvas.height;
 
+  // 配置図（右側）の標準レイアウト
   drawings.haichi = [
     { type: 'line-road', x1: 40, y1: hh - 80, x2: hw - 40, y2: hh - 80 },
     { type: 'line-road', x1: 40, y1: hh - 140, x2: hw - 40, y2: hh - 140 },
@@ -967,18 +969,27 @@ function applyAutoParams() {
     { type: 'line-dim', x1: hw / 2 - 35, y1: 65, x2: hw / 2 + 35, y2: 65, text: spotW },
     { type: 'line-dim', x1: hw / 2 + 120, y1: 80, x2: hw / 2 + 120, y2: 200, text: spotL },
 
-    { type: 'text', x: 50, y: 120, text: '（隣接地：ビル）', fontSize: 11 }
+    { type: 'text', x: 50, y: 120, text: '（隣接地：建物）', fontSize: 11 }
   ];
 
+  // 所在図（左側）のレイアウト
   const sw = sozaiCanvas.width;
   const sh = sozaiCanvas.height;
-  const dist = document.getElementById('distanceVal').value || '約350m';
 
-  drawings.sozai = [
-    { type: 'text', x: 60, y: sh - 80, text: '🏠 自宅（使用の本拠）', fontSize: 12 },
-    { type: 'text', x: sw - 160, y: 100, text: '🅿️ 保管場所（車庫）', fontSize: 12 },
-    { type: 'dist-line', x1: 90, y1: sh - 90, x2: sw - 120, y2: 120, text: dist }
-  ];
+  if (isSame) {
+    // 自宅と保管場所が同一の場合：中央に1つのピンのみ配置（距離線は不要）
+    drawings.sozai = [
+      { type: 'text', x: sw / 2 - 80, y: sh / 2, text: '🏠🅿️ 自宅兼保管場所（同上）', fontSize: 13, color: '#DC2626' }
+    ];
+  } else {
+    // 別々の場所の場合：自宅と保管場所を直線距離で結ぶ
+    const dist = document.getElementById('distanceVal').value || '約350m';
+    drawings.sozai = [
+      { type: 'text', x: 60, y: sh - 80, text: '🏠 自宅（使用の本拠）', fontSize: 12 },
+      { type: 'text', x: sw - 160, y: 100, text: '🅿️ 保管場所（車庫）', fontSize: 12 },
+      { type: 'dist-line', x1: 90, y1: sh - 90, x2: sw - 120, y2: 120, text: dist }
+    ];
+  }
 
   redrawAll();
 }
@@ -1054,7 +1065,10 @@ function toggleSameAddress() {
   if (isSame) {
     document.getElementById('parkingAddress').value = document.getElementById('homeAddress').value;
     document.getElementById('distanceVal').value = '同上 (0m)';
+  } else {
+    document.getElementById('distanceVal').value = '約 350m';
   }
+  applyAutoParams();
 }
 
 function updateShutterDisplay() {
