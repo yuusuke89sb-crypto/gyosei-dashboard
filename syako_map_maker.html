@@ -508,6 +508,15 @@
   <!-- ─── 左側サイドバー ─── -->
   <div class="sidebar print-hide">
 
+    <!-- 0. OSS OCRコード -->
+    <div class="sidebar-section">
+      <div class="section-title">🔢 0. OSS OCRコード（案件ごとに変更）</div>
+      <div class="form-group">
+        <label class="form-label">OCR番号（16桁・半角スペース区切り）</label>
+        <input type="text" id="ocrCodeInput" class="form-input" value="0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0" oninput="updateOCRDisplay()" style="font-family:monospace; letter-spacing:2px; font-weight:bold;">
+      </div>
+    </div>
+
     <!-- 1. 住所＆地図連動 -->
     <div class="sidebar-section">
       <div class="section-title">📍 1. 住所検索＆自動地図読込</div>
@@ -676,7 +685,7 @@
       <!-- OSS OCRヘッダー -->
       <div class="oss-ocr-header">
         <div style="display:flex; align-items:center;">
-          <div class="ocr-digits">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
+          <div class="ocr-digits" id="ocrDigitsC">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
           <div class="ocr-code-box">C</div>
         </div>
         <div style="font-size:12pt; font-weight:bold; letter-spacing:4px;">所　在　図</div>
@@ -708,7 +717,7 @@
       <!-- OSS OCRヘッダー -->
       <div class="oss-ocr-header">
         <div style="display:flex; align-items:center;">
-          <div class="ocr-digits">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
+          <div class="ocr-digits" id="ocrDigitsD">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
           <div class="ocr-code-box">D</div>
         </div>
         <div style="font-size:12pt; font-weight:bold; letter-spacing:4px;">配　置　図</div>
@@ -776,15 +785,63 @@ let drawings = {
 let activeTarget = 'haichi';
 let isDrawing = false;
 let isPanning = false;
+let isDragging = false;
+let dragTarget = null; // { targetKey, index, offsetX, offsetY }
 let startX = 0, startY = 0;
 let lastPanX = 0, lastPanY = 0;
+
+// ─── Undo/Redo 履歴管理 ───
+const MAX_HISTORY = 50;
+let historyStack = [];
+let historyIndex = -1;
+
+function pushHistory() {
+  // 現在位置より先の履歴を削除
+  historyStack = historyStack.slice(0, historyIndex + 1);
+  // 深いコピーで現在の状態を保存
+  historyStack.push(JSON.stringify(drawings));
+  if (historyStack.length > MAX_HISTORY) historyStack.shift();
+  historyIndex = historyStack.length - 1;
+}
+
+function undo() {
+  if (historyIndex > 0) {
+    historyIndex--;
+    drawings = JSON.parse(historyStack[historyIndex]);
+    redrawAll();
+  }
+}
+
+function redo() {
+  if (historyIndex < historyStack.length - 1) {
+    historyIndex++;
+    drawings = JSON.parse(historyStack[historyIndex]);
+    redrawAll();
+  }
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   initMaps();
   initCanvases();
   setupEventListeners();
+  setupKeyboardShortcuts();
   loadKurodaSample();
 });
+
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+Z = Undo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+    }
+    // Ctrl+Y or Ctrl+Shift+Z = Redo
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      redo();
+    }
+  });
+}
 
 function initMaps() {
   const kurodaLat = 35.3725;
@@ -940,6 +997,32 @@ function setupCanvasEvents(canvas, targetKey) {
     lastPanY = e.clientY;
 
     if (currentTool === 'select') {
+      // まず要素のヒットテストを行い、見つかればドラッグモードに
+      const hitResult = hitTestElement(targetKey, startX, startY);
+      if (hitResult !== null) {
+        isDragging = true;
+        const item = drawings[targetKey][hitResult];
+        let ox = 0, oy = 0;
+        if (item.type.startsWith('rect')) {
+          ox = startX - item.x;
+          oy = startY - item.y;
+        } else if (item.type === 'text') {
+          ox = startX - item.x;
+          oy = startY - item.y;
+        } else {
+          // line系は中心からのオフセット
+          ox = startX - (item.x1 + item.x2) / 2;
+          oy = startY - (item.y1 + item.y2) / 2;
+        }
+        dragTarget = { targetKey, index: hitResult, offsetX: ox, offsetY: oy };
+        pushHistory();
+        canvas.style.cursor = 'move';
+        // 選択中の要素をハイライト
+        redraw(targetKey);
+        drawSelectionHighlight(targetKey, hitResult);
+        return;
+      }
+      // 要素に当たらなかった → パン（地図移動）
       isPanning = true;
       canvas.style.cursor = 'grabbing';
       return;
@@ -950,6 +1033,7 @@ function setupCanvasEvents(canvas, targetKey) {
     if (currentTool === 'text') {
       const text = prompt('挿入するテキストを入力してください:', '幅員 5.0m');
       if (text) {
+        pushHistory();
         drawings[targetKey].push({
           type: 'text',
           x: startX,
@@ -958,17 +1042,47 @@ function setupCanvasEvents(canvas, targetKey) {
           fontSize: 14,
           color: '#000000'
         });
+        pushHistory();
         redraw(targetKey);
       }
       isDrawing = false;
     } else if (currentTool === 'eraser') {
+      pushHistory();
       deleteNearElement(targetKey, startX, startY);
+      pushHistory();
       isDrawing = false;
       redraw(targetKey);
     }
   });
 
   canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const curX = e.clientX - rect.left;
+    const curY = e.clientY - rect.top;
+
+    // ドラッグ中の要素移動
+    if (isDragging && dragTarget && dragTarget.targetKey === targetKey) {
+      const item = drawings[targetKey][dragTarget.index];
+      if (item.type.startsWith('rect')) {
+        item.x = curX - dragTarget.offsetX;
+        item.y = curY - dragTarget.offsetY;
+      } else if (item.type === 'text') {
+        item.x = curX - dragTarget.offsetX;
+        item.y = curY - dragTarget.offsetY;
+      } else {
+        // line系: 中心を移動先に合わせる
+        const cx = (item.x1 + item.x2) / 2;
+        const cy = (item.y1 + item.y2) / 2;
+        const dx = (curX - dragTarget.offsetX) - cx;
+        const dy = (curY - dragTarget.offsetY) - cy;
+        item.x1 += dx; item.y1 += dy;
+        item.x2 += dx; item.y2 += dy;
+      }
+      redraw(targetKey);
+      drawSelectionHighlight(targetKey, dragTarget.index);
+      return;
+    }
+
     if (isPanning && currentTool === 'select') {
       const dx = e.clientX - lastPanX;
       const dy = e.clientY - lastPanY;
@@ -979,15 +1093,22 @@ function setupCanvasEvents(canvas, targetKey) {
     }
 
     if (!isDrawing) return;
-    const rect = canvas.getBoundingClientRect();
-    const curX = e.clientX - rect.left;
-    const curY = e.clientY - rect.top;
 
     redraw(targetKey);
     drawPreview(targetKey, startX, startY, curX, curY);
   });
 
   canvas.addEventListener('mouseup', (e) => {
+    // ドラッグ完了
+    if (isDragging) {
+      isDragging = false;
+      pushHistory();
+      canvas.style.cursor = 'grab';
+      dragTarget = null;
+      redraw(targetKey);
+      return;
+    }
+
     if (isPanning) {
       isPanning = false;
       canvas.style.cursor = 'grab';
@@ -1001,6 +1122,8 @@ function setupCanvasEvents(canvas, targetKey) {
     const endY = e.clientY - rect.top;
 
     if (Math.hypot(endX - startX, endY - startY) < 5 && currentTool !== 'text') return;
+
+    pushHistory();
 
     if (currentTool === 'rect-spot') {
       drawings[targetKey].push({
@@ -1046,8 +1169,57 @@ function setupCanvasEvents(canvas, targetKey) {
       });
     }
 
+    pushHistory();
     redraw(targetKey);
   });
+}
+
+// ─── 要素ヒットテスト（選択ツール用）───
+function hitTestElement(targetKey, x, y) {
+  const items = drawings[targetKey];
+  // 後ろ（上に描画されたもの）から順にテスト
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it.type.startsWith('rect')) {
+      if (x >= it.x - 5 && x <= it.x + it.w + 5 && y >= it.y - 5 && y <= it.y + it.h + 5) {
+        return i;
+      }
+    } else if (it.type === 'text') {
+      if (Math.hypot(it.x - x, it.y - y) < 50) {
+        return i;
+      }
+    } else if (it.type.startsWith('line') || it.type === 'arrow' || it.type === 'dist-line') {
+      const dist = Math.hypot((it.x1 + it.x2) / 2 - x, (it.y1 + it.y2) / 2 - y);
+      if (dist < 30) {
+        return i;
+      }
+    }
+  }
+  return null;
+}
+
+// ─── 選択中要素のハイライト描画 ───
+function drawSelectionHighlight(targetKey, index) {
+  const ctx = targetKey === 'sozai' ? sozaiCtx : haichiCtx;
+  const item = drawings[targetKey][index];
+  if (!ctx || !item) return;
+  ctx.save();
+  ctx.strokeStyle = '#2563EB';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 3]);
+
+  if (item.type.startsWith('rect')) {
+    ctx.strokeRect(item.x - 4, item.y - 4, item.w + 8, item.h + 8);
+  } else if (item.type === 'text') {
+    ctx.strokeRect(item.x - 6, item.y - 16, 100, 22);
+  } else {
+    const mx = (item.x1 + item.x2) / 2;
+    const my = (item.y1 + item.y2) / 2;
+    ctx.beginPath();
+    ctx.arc(mx, my, 20, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function redrawAll() {
@@ -1233,6 +1405,7 @@ function drawDimensionLine(ctx, x1, y1, x2, y2, text) {
 }
 
 function addTextStamp(text) {
+  pushHistory();
   const targetCanvas = activeTarget === 'sozai' ? sozaiCanvas : haichiCanvas;
   drawings[activeTarget].push({
     type: 'text',
@@ -1242,6 +1415,7 @@ function addTextStamp(text) {
     fontSize: 14,
     color: '#000000'
   });
+  pushHistory();
   redraw(activeTarget);
 }
 
@@ -1341,6 +1515,15 @@ function updateShutterDisplay() {
     yes.className = '';
     no.className = 'shutter-circle';
   }
+}
+
+// ─── OCRコード更新 ───
+function updateOCRDisplay() {
+  const val = document.getElementById('ocrCodeInput').value;
+  const digitC = document.getElementById('ocrDigitsC');
+  const digitD = document.getElementById('ocrDigitsD');
+  if (digitC) digitC.textContent = val;
+  if (digitD) digitD.textContent = val;
 }
 
 // ─── 配置図の白紙/地図モード切替 ───
@@ -1531,7 +1714,9 @@ function loadKurodaSample() {
 
 function clearCanvas() {
   if (confirm('作図内容をすべてクリアしますか？')) {
+    pushHistory();
     drawings = { sozai: [], haichi: [] };
+    pushHistory();
     redrawAll();
   }
 }
