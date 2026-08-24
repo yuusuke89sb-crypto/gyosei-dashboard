@@ -292,28 +292,43 @@
     font-weight: bold;
   }
 
-  /* 印刷用スタイル */
+  /* 印刷用スタイル（A4横に完全最適化） */
+  @page {
+    size: A4 landscape;
+    margin: 8mm 8mm 8mm 8mm;
+  }
   @media print {
-    body {
+    html, body {
       background: #fff !important;
       color: #000 !important;
-      height: auto !important;
+      width: 100% !important;
+      height: 100% !important;
       overflow: visible !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
     header, .sidebar, .leaflet-control-container, .print-hide {
       display: none !important;
     }
     .preview-area {
       padding: 0 !important;
+      margin: 0 !important;
       background: #fff !important;
+      display: block !important;
     }
     .a4-paper {
       width: 100% !important;
-      height: 100% !important;
+      height: calc(100vh - 16mm) !important;
+      min-height: 180mm !important;
       box-shadow: none !important;
       border-radius: 0 !important;
-      padding: 10mm !important;
+      padding: 0 !important;
+      margin: 0 auto !important;
       page-break-inside: avoid;
+    }
+    .paper-grid {
+      height: 155mm !important;
+      min-height: 155mm !important;
     }
   }
 </style>
@@ -327,7 +342,7 @@
     <div>
       <div style="display:flex; align-items:center; gap:8px;">
         <span class="brand-title">車庫証明 OSS 所在図・配置図 作成ツール</span>
-        <span class="brand-badge">警察庁・愛知県警対応</span>
+        <span class="brand-badge">警察庁・愛知県警対応（A4横）</span>
       </div>
       <div style="font-size:0.75rem; color:var(--text-muted);">行政書士法人フェリス 自動車登録実務システム</div>
     </div>
@@ -336,7 +351,7 @@
     <button class="btn btn-secondary" onclick="loadSampleCase()">📋 サンプル案件読込</button>
     <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ キャンバスクリア</button>
     <button class="btn btn-primary" onclick="exportOSSImage()">🖼️ OSS用 画像保存</button>
-    <button class="btn btn-success" onclick="exportA4PDF()">📄 A4 所在図・配置図 印刷/PDF</button>
+    <button class="btn btn-success" onclick="exportA4PDF()">🖨️ A4横 印刷 / PDF保存</button>
   </div>
 </header>
 
@@ -352,14 +367,14 @@
       <div class="form-group">
         <label class="form-label">使用の本拠の位置（自宅・営業所）</label>
         <div style="display:flex; gap:6px;">
-          <input type="text" id="homeAddress" class="form-input" placeholder="愛知県一宮市森本..." value="愛知県北名古屋市六ツ師道毛74番地1">
+          <input type="text" id="homeAddress" class="form-input" placeholder="例: 北名古屋市六ツ師道毛74" value="愛知県北名古屋市六ツ師道毛74番地1">
           <button class="btn btn-secondary" style="padding:4px 10px;" onclick="searchAddress('home')">検索</button>
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">自動車の保管場所の位置（駐車場）</label>
         <div style="display:flex; gap:6px;">
-          <input type="text" id="parkingAddress" class="form-input" placeholder="愛知県一宮市森本..." value="愛知県北名古屋市六ツ師道毛75番地">
+          <input type="text" id="parkingAddress" class="form-input" placeholder="例: 北名古屋市六ツ師道毛75" value="愛知県北名古屋市六ツ師道毛75番地">
           <button class="btn btn-secondary" style="padding:4px 10px;" onclick="searchAddress('parking')">検索</button>
         </div>
       </div>
@@ -368,6 +383,9 @@
           <input type="checkbox" id="sameAddress" onchange="toggleSameAddress()"> 自宅と保管場所が同一
         </label>
         <button class="btn btn-primary" style="font-size:0.75rem; padding:4px 10px;" onclick="autoFetchMaps()">🗺️ 両方の地図を自動取得</button>
+      </div>
+      <div style="font-size:0.72rem; color:#64748B; margin-top:6px;">
+        💡 建物名や番地で出ない場合は「市区町村＋町名（例: 北名古屋市六ツ師）」で検索してください。
       </div>
     </div>
 
@@ -535,7 +553,6 @@ let currentTool = 'select';
 let sozaiCanvas, haichiCanvas;
 let sozaiCtx, haichiCtx;
 
-// 作図オブジェクトリスト
 let drawings = {
   sozai: [],
   haichi: []
@@ -545,7 +562,6 @@ let activeTarget = 'haichi';
 let isDrawing = false;
 let startX = 0, startY = 0;
 
-// ─── 初期化 ───
 window.addEventListener('DOMContentLoaded', () => {
   initMaps();
   initCanvases();
@@ -553,7 +569,6 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSampleCase();
 });
 
-// ─── 地図の初期化 (Leaflet.js) ───
 function initMaps() {
   const defaultLat = 35.2575;
   const defaultLng = 136.8710;
@@ -579,7 +594,6 @@ function initMaps() {
   }).addTo(haichiMap);
 }
 
-// ─── キャンバス初期化 ───
 function initCanvases() {
   sozaiCanvas = document.getElementById('sozaiCanvas');
   haichiCanvas = document.getElementById('haichiCanvas');
@@ -602,7 +616,6 @@ function resizeCanvases() {
   redrawAll();
 }
 
-// ─── ツール切り替え ───
 function setTool(tool) {
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -610,7 +623,6 @@ function setTool(tool) {
   if (btn) btn.classList.add('active');
 }
 
-// ─── イベントリスナー設定 ───
 function setupEventListeners() {
   setupCanvasEvents(sozaiCanvas, 'sozai');
   setupCanvasEvents(haichiCanvas, 'haichi');
@@ -712,7 +724,6 @@ function setupCanvasEvents(canvas, targetKey) {
   });
 }
 
-// ─── 描画処理 ───
 function redrawAll() {
   redraw('sozai');
   redraw('haichi');
@@ -972,29 +983,64 @@ function applyAutoParams() {
   redrawAll();
 }
 
+// ─── 住所検索（国土地理院API ＋ 段階的フォールバック検索） ───
+async function fetchCoords(rawQuery) {
+  let q = rawQuery.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).trim();
+  
+  // 1. 国土地理院 住所検索API
+  try {
+    const gsiRes = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(q)}`);
+    const gsiData = await gsiRes.json();
+    if (gsiData && gsiData.length > 0) {
+      const coord = gsiData[0].geometry.coordinates; // [lon, lat]
+      return { lat: coord[1], lon: coord[0] };
+    }
+  } catch (e) {
+    console.warn('GSI search failed:', e);
+  }
+
+  // 2. 番地・号・丁目を取り除いて町名レベルで再検索
+  const simplified = q.replace(/[0-9０-９]+番地?[0-9０-９]*号?.*$/, '')
+                      .replace(/[0-9０-９]+-[0-9０-９]+.*$/, '')
+                      .replace(/[0-9０-９]+丁目.*$/, '');
+  if (simplified && simplified !== q) {
+    try {
+      const gsiRes2 = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(simplified)}`);
+      const gsiData2 = await gsiRes2.json();
+      if (gsiData2 && gsiData2.length > 0) {
+        const coord = gsiData2[0].geometry.coordinates;
+        return { lat: coord[1], lon: coord[0] };
+      }
+    } catch (e) {}
+  }
+
+  // 3. OpenStreetMap Nominatim フォールバック
+  try {
+    const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(simplified || q)}&countrycodes=jp`);
+    const osmData = await osmRes.json();
+    if (osmData && osmData.length > 0) {
+      return { lat: parseFloat(osmData[0].lat), lon: parseFloat(osmData[0].lon) };
+    }
+  } catch (e) {}
+
+  return null;
+}
+
 async function searchAddress(type) {
   const inputId = type === 'home' ? 'homeAddress' : 'parkingAddress';
   const query = document.getElementById(inputId).value.trim();
   if (!query) return;
 
-  try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=jp`);
-    const data = await res.json();
-    if (data && data.length > 0) {
-      const lat = parseFloat(data[0].lat);
-      const lon = parseFloat(data[0].lon);
-
-      if (type === 'home') {
-        sozaiMap.setView([lat, lon], 15);
-      } else {
-        haichiMap.setView([lat, lon], 18);
-        sozaiMap.setView([lat, lon], 15);
-      }
+  const coord = await fetchCoords(query);
+  if (coord) {
+    if (type === 'home') {
+      sozaiMap.setView([coord.lat, coord.lon], 15);
     } else {
-      alert('住所が見つかりませんでした。地図を直接ドラッグして位置を合わせてください。');
+      haichiMap.setView([coord.lat, coord.lon], 18);
+      sozaiMap.setView([coord.lat, coord.lon], 15);
     }
-  } catch (err) {
-    console.error(err);
+  } else {
+    alert(`「${query}」の座標が見つかりませんでした。\n番地を省いて「北名古屋市六ツ師」のように町名までで検索するか、地図をドラッグして位置を調整してください。`);
   }
 }
 
