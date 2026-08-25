@@ -762,6 +762,9 @@
         <button class="tool-btn" id="tool-line-road" onclick="setTool('line-road')">
           <span class="tool-btn-icon">🛣️</span>道路境界線
         </button>
+        <button class="tool-btn" id="tool-line-rail" onclick="setTool('line-rail')">
+          <span class="tool-btn-icon">🚆</span>線路(鉄道記号)
+        </button>
         <button class="tool-btn" id="tool-arrow" onclick="setTool('arrow')">
           <span class="tool-btn-icon">➡️</span>出入口 矢印
         </button>
@@ -800,13 +803,14 @@
     <div class="sidebar-section">
       <div class="section-title">🗺️ 4. 地図・道路の濃さ＆縮尺調整</div>
 
-      <!-- 地図種類（国土地理院 / OSM） -->
+      <!-- 地図種類（国土地理院 / OSM / 交通重視） -->
       <div class="form-group" style="margin-bottom:8px;">
-        <label class="form-label">地図デザイン（道路の太さ・公図感）</label>
+        <label class="form-label">地図デザイン（道路・線路の表示スタイル）</label>
         <select id="mapTileSelect" class="form-input" onchange="changeMapTile(this.value); autoSaveDraft();" style="font-weight:bold; color:#38BDF8;">
-          <option value="gsi-std" selected>🗾 国土地理院 標準（道路・文字クッキリ・公用）</option>
+          <option value="osm-transit" selected>🚆 交通・線路くっきり（警察提出・車庫証明推奨）</option>
+          <option value="gsi-std">🗾 国土地理院 標準（市街地・家形重視）</option>
           <option value="osm">🌐 OpenStreetMap（標準）</option>
-          <option value="gsi-pale">🗺️ 国土地理院 淡色（すっきり薄め）</option>
+          <option value="gsi-pale">🗺️ 国土地理院 淡色（すっきり公図風）</option>
         </select>
       </div>
 
@@ -1315,11 +1319,11 @@ async function saveToCaseDirectly() {
 }
 
 // ─── スタンプ管理（削除・追加・初期化） ───
-const DEFAULT_STAMPS = ['⬅ 申請地', '自　宅', '保管場所', '駐車場', '5m道路', '出入口', 'ガレージ', '来客用', '軽自動車用', '県道186号', '私道', 'ブロック塀', '木曽川環境クリーン', '卍 福昌寺', 'JA', '鉄工所'];
+const DEFAULT_STAMPS = ['⬅ 申請地', '自　宅', '保管場所', '駐車場', '5m道路', '出入口', 'ガレージ', '🚆 JR東海道本線', '🚆 名鉄名古屋本線', '🚧 踏切', '🚉 〇〇駅', '来客用', '軽自動車用', '県道186号', '私道', 'ブロック塀', '木曽川環境クリーン', '卍 福昌寺', 'JA', '鉄工所'];
 
 function loadStamps() {
   try {
-    const saved = localStorage.getItem('syako_map_maker_stamps_v2');
+    const saved = localStorage.getItem('syako_map_maker_stamps_v3');
     if (saved) {
       stampList = JSON.parse(saved);
     } else {
@@ -1352,7 +1356,7 @@ function addNewStamp() {
   if (!text) return;
   if (!stampList.includes(text)) {
     stampList.push(text);
-    localStorage.setItem('syako_map_maker_stamps_v2', JSON.stringify(stampList));
+    localStorage.setItem('syako_map_maker_stamps_v3', JSON.stringify(stampList));
     renderStamps();
     showToast(`🏷️ 「${text}」をスタンプに追加しました`);
   }
@@ -1361,7 +1365,7 @@ function addNewStamp() {
 
 function deleteStamp(index) {
   const removed = stampList.splice(index, 1);
-  localStorage.setItem('syako_map_maker_stamps_v2', JSON.stringify(stampList));
+  localStorage.setItem('syako_map_maker_stamps_v3', JSON.stringify(stampList));
   renderStamps();
   showToast(`🗑️ 「${removed[0]}」を削除しました`);
 }
@@ -1369,7 +1373,7 @@ function deleteStamp(index) {
 function resetDefaultStamps() {
   if (confirm('スタンプ一覧を初期状態に戻しますか？')) {
     stampList = [...DEFAULT_STAMPS];
-    localStorage.setItem('syako_map_maker_stamps_v2', JSON.stringify(stampList));
+    localStorage.setItem('syako_map_maker_stamps_v3', JSON.stringify(stampList));
     renderStamps();
     showToast('🔄 スタンプ一覧を初期化しました');
   }
@@ -1394,6 +1398,7 @@ function showPropertyPanel(targetKey, index) {
     'line-dim': `📏 寸法線: 「${item.text || ''}」`,
     'arrow': '➡️ 出入口矢印',
     'line-road': '🛣️ 道路境界線',
+    'line-rail': `🚆 線路: 「${item.text || ''}」`,
     'dist-line': `📍 距離線: 「${item.text || ''}」`
   };
 
@@ -1481,7 +1486,7 @@ function editSelectedText() {
   const newText = prompt('テキストまたは数値を変更してください:', curText);
   if (newText !== null) {
     pushHistory();
-    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line') {
+    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail') {
       item.text = newText;
     } else if (item.label !== undefined) {
       item.label = newText;
@@ -1544,6 +1549,7 @@ function updateQRCodes() {
 
 let sozaiTileLayer, haichiTileLayer;
 const TILE_URLS = {
+  'osm-transit': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   'gsi-std': 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',
   'osm': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   'gsi-pale': 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'
@@ -1734,7 +1740,8 @@ function setTool(tool) {
     'rect-spot': '保管場所枠 描画（ドラッグまたはクリック）',
     'rect-other': '建物枠 描画（ドラッグまたはクリック）',
     'line-dim': '寸法線 描画（ドラッグまたはクリック）',
-    'line-road': '道路線 描画（ドラッグまたはクリック）',
+    'line-road': '道路境界線 描画（ドラッグまたはクリック）',
+    'line-rail': '線路(鉄道記号) 描画（ドラッグまたはクリック）',
     'arrow': '出入口 矢印（ドラッグまたはクリック）',
     'compass': 'JIS方位記号 配置（クリック）',
     'car': '車両マーク 配置（クリック）',
@@ -1980,6 +1987,17 @@ function setupCanvasEvents(canvas, targetKey) {
         angle: 0
       });
       showToast('🛣️ 道路境界線を描画しました');
+    } else if (currentTool === 'line-rail') {
+      const railName = prompt('路線名を入力（例: JR東海道本線, 名鉄名古屋本線, 踏切など / 空欄可）:', 'JR東海道本線');
+      const eX = dragDist < 8 ? startX + 200 : endX;
+      const eY = dragDist < 8 ? startY : endY;
+      drawings[targetKey].push({
+        type: 'line-rail',
+        x1: startX, y1: startY, x2: eX, y2: eY,
+        text: railName || '',
+        angle: 0
+      });
+      showToast('🚆 線路（鉄道記号）を描画しました');
     } else if (currentTool === 'dist-line') {
       const dist = document.getElementById('distanceVal').value || '約350m';
       const eX = dragDist < 8 ? startX + 150 : endX;
@@ -2163,6 +2181,8 @@ function drawElement(ctx, item) {
     ctx.moveTo(item.x1, item.y1);
     ctx.lineTo(item.x2, item.y2);
     ctx.stroke();
+  } else if (item.type === 'line-rail') {
+    drawRailwayTrack(ctx, item.x1, item.y1, item.x2, item.y2, item.text);
   } else if (item.type === 'dist-line') {
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2;
@@ -2361,6 +2381,68 @@ function drawDimensionLine(ctx, x1, y1, x2, y2, text) {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(midX - textWidth / 2 - 3, midY - 9, textWidth + 6, 18);
 
+    ctx.fillStyle = '#000000';
+    ctx.fillText(text, midX, midY + 5);
+  }
+  ctx.restore();
+}
+
+function drawRailwayTrack(ctx, x1, y1, x2, y2, text) {
+  ctx.save();
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) { ctx.restore(); return; }
+
+  const angle = Math.atan2(dy, dx);
+
+  // 1. 黒の土台ライン
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+
+  // 2. 白の内側点線（黒白のストライプ鉄道記号 ──■──□──）
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 2.4;
+  ctx.setLineDash([12, 12]);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 3. 枕木（クロスライン）
+  const tieSpacing = 16;
+  const tieLen = 10;
+  const nx = -Math.sin(angle) * (tieLen / 2);
+  const ny = Math.cos(angle) * (tieLen / 2);
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  for (let d = 4; d <= len; d += tieSpacing) {
+    const px = x1 + (dx / len) * d;
+    const py = y1 + (dy / len) * d;
+    ctx.moveTo(px - nx, py - ny);
+    ctx.lineTo(px + nx, py + ny);
+  }
+  ctx.stroke();
+
+  // 4. 路線名ラベル
+  if (text) {
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    const tw = ctx.measureText(text).width;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(midX - tw / 2 - 4, midY - 9, tw + 8, 18);
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(midX - tw / 2 - 4, midY - 9, tw + 8, 18);
     ctx.fillStyle = '#000000';
     ctx.fillText(text, midX, midY + 5);
   }
@@ -2681,6 +2763,7 @@ function loadKurodaSample() {
     const hh = haichiCanvas.height || 500;
 
     drawings.sozai = [
+      { type: 'line-rail', x1: 220, y1: 20, x2: 290, y2: sh - 20, text: 'JR東海道本線', angle: 0 },
       { type: 'rect-other', x: sw / 2 - 25, y: sh / 2 - 25, w: 50, h: 50, angle: 0 },
       { type: 'text', x: sw / 2 + 35, y: sh / 2 + 6, text: '⬅ 申請地', fontSize: 16, color: '#000000', angle: 0 },
       { type: 'text', x: 80, y: 150, text: '木曽川環境クリーン', fontSize: 12, angle: 0 },
