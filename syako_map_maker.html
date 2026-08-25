@@ -887,7 +887,9 @@
       <!-- OSS OCRヘッダー -->
       <div class="oss-ocr-header">
         <div style="display:flex; align-items:center;">
-          <div class="ocr-digits" id="ocrDigitsC">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
+          <div class="ocr-digits" id="ocrDigitsC">
+            <div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">4</div><div class="ocr-digit-cell">7</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">6</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div>
+          </div>
           <div class="ocr-code-box">C</div>
         </div>
         <div style="font-size:12pt; font-weight:bold; letter-spacing:4px;">所　在　図</div>
@@ -919,7 +921,9 @@
       <!-- OSS OCRヘッダー -->
       <div class="oss-ocr-header">
         <div style="display:flex; align-items:center;">
-          <div class="ocr-digits" id="ocrDigitsD">0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0</div>
+          <div class="ocr-digits" id="ocrDigitsD">
+            <div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">4</div><div class="ocr-digit-cell">7</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">6</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div>
+          </div>
           <div class="ocr-code-box">D</div>
         </div>
         <div style="font-size:12pt; font-weight:bold; letter-spacing:4px;">配　置　図</div>
@@ -1565,7 +1569,7 @@ function deleteSelectedItem() {
 // ─── OSS OCR連動 QRコード＆マス目表示 ───
 function updateOCRDisplay() {
   const ocrInput = document.getElementById('ocrCodeInput');
-  const raw = (ocrInput ? ocrInput.value.replace(/\s+/g, '') : '') || '0110470156500000';
+  const raw = (ocrInput ? ocrInput.value.replace(/[\s\-_]/g, '') : '') || '';
   const padded = raw.padEnd(16, ' ').slice(0, 16);
   const cellsHtml = padded.split('').map(d => `<div class="ocr-digit-cell">${d === ' ' ? '&nbsp;' : d}</div>`).join('');
   const elC = document.getElementById('ocrDigitsC');
@@ -1575,8 +1579,6 @@ function updateOCRDisplay() {
 }
 
 function updateQRCodes() {
-  const code = 'C';
-
   const sozaiEl = document.getElementById('sozaiQRCode');
   const haichiEl = document.getElementById('haichiQRCode');
 
@@ -1584,7 +1586,7 @@ function updateQRCodes() {
     sozaiEl.innerHTML = '';
     try {
       new QRCode(sozaiEl, {
-        text: code,
+        text: 'C',
         width: 34,
         height: 34,
         colorDark: "#000000",
@@ -1598,7 +1600,7 @@ function updateQRCodes() {
     haichiEl.innerHTML = '';
     try {
       new QRCode(haichiEl, {
-        text: code,
+        text: 'D',
         width: 34,
         height: 34,
         colorDark: "#000000",
