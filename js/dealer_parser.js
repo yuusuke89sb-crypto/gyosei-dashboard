@@ -355,8 +355,15 @@ const DealerDocumentParser = {
         </div>
 
         <div class="modal-body" style="padding:16px 0;">
-          <div style="background:rgba(59, 130, 246, 0.1); border:1px solid rgba(59, 130, 246, 0.3); border-radius:8px; padding:12px; margin-bottom:16px;">
+          <div style="background:rgba(59, 130, 246, 0.1); border:1px solid rgba(59, 130, 246, 0.3); border-radius:8px; padding:12px; margin-bottom:12px;">
             <span style="font-size:0.85rem; color:#93c5fd;">💡 依頼書PDFから主要項目を自動抽出しました。内容を確認し「この内容で案件登録」を押すと、フォームに自動セットされます。</span>
+          </div>
+
+          <!-- 手元ファイル直接選択ボタン -->
+          <div style="margin-bottom:14px; background:rgba(255,255,255,0.03); border:1px dashed var(--border-color); border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.8rem; color:var(--text-muted, #94a3b8);">📁 手元のPDF/画像ファイルから即時AI解析:</span>
+            <input type="file" id="dealer-direct-file-input" accept="application/pdf,image/*,.tif,.tiff" style="display:none" onchange="DealerDocumentParser.handleDirectFile(event)">
+            <button class="btn btn-secondary btn-small" onclick="document.getElementById('dealer-direct-file-input').click()" style="font-size:0.75rem;">📄 PCからファイル選択</button>
           </div>
 
           <table style="width:100%; border-collapse:collapse; font-size:0.9rem; margin-bottom:16px;">
@@ -530,6 +537,23 @@ const DealerDocumentParser = {
       }
     }
     return null;
+  },
+
+  handleDirectFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      App.showToast('🔍 選択したファイルをGemini AIで解析中...');
+      const base64 = ev.target.result;
+      const parsed = await this.parseWithGemini(base64, file.type);
+      if (parsed) {
+        this.showOcrResultModal(parsed);
+      } else {
+        App.showToast('⚠️ 解析できませんでした。APIキーをご確認ください');
+      }
+    };
+    reader.readAsDataURL(file);
   }
 };
 
