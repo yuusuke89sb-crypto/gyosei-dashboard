@@ -301,14 +301,16 @@ const DealerDocumentParser = {
 
     return {
       title: parsed.suggestedTitle,
+      category: 'garage_oss',
+      orderNo: parsed.orderNo || '',
       clientId: parsed.matchedClientId || '',
-      clientName: parsed.matchedClientName || parsed.storeFullName || parsed.dealerName,
-      category: parsed.category || '車庫証明',
+      clientName: parsed.matchedClientName || parsed.storeFullName || parsed.dealerName || '',
+      clientStaff: parsed.staffName || '',
+      clientStaffPhone: parsed.staffPhone || '',
+      deadline: parsed.receivedDate || '',
       status: '受任・書類確認中',
-      deadline: parsed.targetDeliveryDate ? this._formatDeadlineToDate(parsed.targetDeliveryDate) : '',
       receivedDate: parsed.receivedDate || new Date().toISOString().split('T')[0],
       memo: memoLines.join('\n'),
-      orderNo: parsed.orderNo,
       isOss: parsed.isOss,
       applicantName: parsed.applicantName,
       applicantAddress: parsed.applicantAddress,
@@ -432,6 +434,102 @@ const DealerDocumentParser = {
         App.showToast('✅ 案件登録データを準備しました');
       }
     };
+  },
+
+  // ─── 🤖 Gemini Vision による画像/PDFの直接超高精度AI解析 ───
+  async parseWithGemini(base64Data, mimeType, item = {}) {
+    const apiKey = localStorage.getItem('gyosei_gemini_api_key') || '';
+    if (!apiKey) return null;
+
+    const prompt = `あなたは行政書士事務所の自動車登録・車庫証明の専門AIです。
+添付された画像（FAX、依頼書、車検証、手書きの鑑など）を分析してください。画像が横向き（90度回転）や斜めになっていても正しい向きとして読み取ってください。
+
+以下のJSONフォーマットのみを出力してください。Markdown記法や解説文は一切含めないでください。
+
+【抽出項目】
+- orderNo: 注文No（8桁の数字。例: "57500855"）
+- isOss: OSS申請ならtrue、一般申請（書面）ならfalse
+- applicationType: "OSS" または "一般"
+- dealerName: 会社名（例: "愛知トヨタWEST株式会社"）
+- branchName: 店舗名・支店名（例: "一宮開明店"）
+- storeFullName: ディーラー名と店舗名（例: "愛知トヨタWEST 一宮開明店"）
+- staffName: 担当者氏名（例: "安藤 孝太郎"）
+- staffPhone: 担当者連絡先電話番号（携帯またはTEL。例: "090-7912-8900"）
+- receivedDate: 依頼日・提出日 (YYYY-MM-DD。例: "2026-08-25")
+- applicantName: 申請者氏名（個人名または法人名。例: "横田 清"）
+- applicantFurigana: 申請者フリガナ（例: "ヨコタ キヨシ"）
+- applicantPhone: 申請者電話番号（例: "090-6807-9715"）
+- applicantPostal: 郵便番号（例: "494-0003"）
+- applicantAddress: 使用の本拠・住所（例: "一宮市三条 字墓北94-3"）
+- garageAddress: 保管場所の位置（"同上" または 住所）
+- carName: 車名（例: "トヨタ"）
+- carModel: 型式（例: "6AA-ZWR90W"）
+- vin: 車台番号（例: "ZWR90-"）
+- registrationNo: 車両登録番号・ナンバー（例: "一宮350 て 7942"）
+- replaceCar: 代替車情報（例: "一宮350 て 7942"）
+- targetDeliveryDate: 登録予定日・納車予定日（例: "9/11"）
+- memo: 手書きメモや備考（例: "自宅でお願いします / 代替: 一宮350 て 7942"）
+
+【出力JSON例】
+{"orderNo":"57500855","isOss":true,"applicationType":"OSS","dealerName":"愛知トヨタWEST株式会社","branchName":"一宮開明店","storeFullName":"愛知トヨタWEST 一宮開明店","staffName":"安藤 孝太郎","staffPhone":"090-7912-8900","receivedDate":"2026-08-25","applicantName":"横田 清","applicantFurigana":"ヨコタ キヨシ","applicantPhone":"090-6807-9715","applicantPostal":"494-0003","applicantAddress":"一宮市三条 字墓北94-3","garageAddress":"同上（使用の本拠と同じ）","carName":"トヨタ","carModel":"6AA-ZWR90W","vin":"ZWR90-","registrationNo":"","replaceCar":"一宮350 て 7942","targetDeliveryDate":"9/11","memo":"自宅でお願いします"}`;
+
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+    let finalMime = mimeType || 'image/jpeg';
+    if (finalMime.includes('tif')) finalMime = 'image/tiff';
+
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                {
+                  inline_data: {
+                    mime_type: finalMime,
+                    data: cleanBase64
+                  }
+                }
+              ]
+            }],
+            generationConfig: {
+              temperature: 0.1,
+              response_mime_type: 'application/json'
+            }
+          })
+        });
+
+        if (!response.ok) continue;
+        const resData = await response.json();
+        const textContent = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (textContent) {
+          const parsed = JSON.parse(textContent);
+          parsed.rawText = JSON.stringify(parsed);
+          parsed.suggestedTitle = `${parsed.storeFullName || parsed.dealerName || 'ディーラー'} - ${parsed.applicantName || '案件'} 様 (${parsed.applicationType || (parsed.isOss ? 'OSS' : '車庫証明')})`;
+          // 顧客マスタ照合
+          if (typeof Store !== 'undefined' && Store.getClients) {
+            const clients = Store.getClients();
+            const targetStore = (parsed.storeFullName || parsed.dealerName || '').toLowerCase();
+            for (const c of clients) {
+              const cName = (c.name || '').toLowerCase();
+              if (targetStore && (cName.includes(targetStore) || targetStore.includes(cName))) {
+                parsed.matchedClientId = c.id;
+                parsed.matchedClientName = c.name;
+                break;
+              }
+            }
+          }
+          return parsed;
+        }
+      } catch (err) {
+        console.warn(`Gemini model ${model} error:`, err);
+      }
+    }
+    return null;
   }
 };
 

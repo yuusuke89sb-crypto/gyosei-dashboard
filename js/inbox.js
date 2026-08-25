@@ -667,6 +667,29 @@ const InboxManager = {
       try {
         const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
         if (gasUrl && firstAtt.url) {
+          // 1. ファイルのBase64を取得
+          const b64Res = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'getFileBase64',
+              fileUrl: firstAtt.url
+            })
+          });
+          const b64Data = await b64Res.json();
+          
+          if (b64Data && b64Data.success && b64Data.base64) {
+            // 2. Gemini APIキーがある場合は直接Gemini Visionで超高精度AI解析
+            if (DealerDocumentParser.parseWithGemini) {
+              const geminiParsed = await DealerDocumentParser.parseWithGemini(b64Data.base64, b64Data.mimeType, item);
+              if (geminiParsed && geminiParsed.orderNo) {
+                DealerDocumentParser.showOcrResultModal(geminiParsed, firstAtt.url);
+                return;
+              }
+            }
+          }
+
+          // 3. フォールバック: GAS Drive OCR
           const res = await fetch(gasUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
@@ -681,7 +704,7 @@ const InboxManager = {
           }
         }
       } catch (ocrErr) {
-        console.error('Drive OCR呼び出しエラー:', ocrErr);
+        console.error('AI OCR解析エラー:', ocrErr);
       }
 
       // テキスト解析

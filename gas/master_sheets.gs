@@ -702,6 +702,7 @@ function doPost(e) {
       case 'syncCaseCalendar': result = syncCaseCalendar_(data); break;
       case 'deleteCaseCalendarEvents': result = deleteCaseCalendarEvents_(data); break;
       case 'ocr': result = performOcrAction_(body); break;
+      case 'getFileBase64': result = getFileBase64Action_(body); break;
       case 'sendLineNotification':
         sendLineMessage_(data.message, lineToken, lineUserId);
         result = { success: true };
@@ -712,6 +713,24 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ error: err.message })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getFileBase64Action_(body) {
+  try {
+    var fileId = body.fileId;
+    if (!fileId && body.fileUrl) {
+      var match = body.fileUrl.match(/[-\w]{25,}/);
+      if (match) fileId = match[0];
+    }
+    if (!fileId) return { error: 'fileId または fileUrl が必要です' };
+    var file = DriveApp.getFileById(fileId);
+    var blob = file.getBlob();
+    var mime = blob.getContentType() || 'image/jpeg';
+    var b64 = Utilities.base64Encode(blob.getBytes());
+    return { success: true, base64: b64, mimeType: mime, name: file.getName() };
+  } catch (e) {
+    return { error: 'ファイル取得エラー: ' + e.message };
   }
 }
 

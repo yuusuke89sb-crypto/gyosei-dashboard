@@ -285,6 +285,21 @@ const SpreadsheetSync = {
             <p class="form-hint">店舗管理ボタンを押した際に開くスプレッドシートのURL</p>
           </div>
 
+          <!-- 🤖 Gemini API キー (AI OCR・自動解析用) -->
+          <div class="form-group" style="margin-top:12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label style="font-size:0.8rem; font-weight:700; color:var(--accent-gold, #f59e0b);">🔑 Gemini API キー（完全無料・高精度AI OCR用）</label>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" style="font-size:0.72rem; color:var(--accent-gold, #f59e0b); text-decoration:underline;">無料取得↗</a>
+            </div>
+            <input type="password" id="syncGeminiApiKey" class="search-input" 
+              placeholder="AIzaSy... から始まるAPIキーを入力"
+              value="${localStorage.getItem('gyosei_gemini_api_key') || ''}"
+              style="width:100%;margin-top:4px">
+            <p class="form-hint" style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">
+              ※ 入力すると横向きFAXや手書き文字も自動で超高精度認識されます。
+            </p>
+          </div>
+
           <!-- LINE Messaging API 設定 -->
           <div style="border-top:1px solid var(--border-color);margin-top:16px;padding-top:16px">
             <h3 style="font-size:0.9rem;margin-bottom:6px;color:var(--accent-orange);display:flex;align-items:center;gap:6px">💬 LINE Messaging API 連携（Bot通知）</h3>
@@ -399,6 +414,10 @@ const SpreadsheetSync = {
         const lineUserId = document.getElementById('syncLineUserId') ? document.getElementById('syncLineUserId').value.trim() : '';
         const lineNotifyCase = document.getElementById('syncLineNotifyCase') ? document.getElementById('syncLineNotifyCase').checked : false;
         const lineNotifyInbox = document.getElementById('syncLineNotifyInbox') ? document.getElementById('syncLineNotifyInbox').checked : false;
+        const geminiApiKey = document.getElementById('syncGeminiApiKey') ? document.getElementById('syncGeminiApiKey').value.trim() : '';
+        if (geminiApiKey) {
+            localStorage.setItem('gyosei_gemini_api_key', geminiApiKey);
+        }
         this.saveConfig({
             ...this.getConfig(),
             gasUrl: url,
