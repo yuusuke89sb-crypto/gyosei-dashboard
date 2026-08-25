@@ -624,7 +624,7 @@ const Cases = {
       const nextNum = Store.getCases().length + 1;
       const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
       const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
-      document.getElementById('csf_orderNo').value = autoOrderNo;
+      document.getElementById('csf_orderNo').value = (prefills && prefills.orderNo) ? prefills.orderNo : autoOrderNo;
 
       // 受信FAX/メールインボックスからの自動入力（プリフィル）
       if (prefills) {
@@ -635,6 +635,7 @@ const Cases = {
         }
         if (prefills.category) document.getElementById('csf_category').value = prefills.category;
         if (prefills.carPolice) document.getElementById('csf_carPolice').value = prefills.carPolice;
+        if (prefills.deadline) document.getElementById('csf_deadline').value = prefills.deadline;
         if (prefills.memo) document.getElementById('csf_memo').value = prefills.memo;
         
         let faxInput = document.getElementById('csf_faxId');
@@ -828,9 +829,52 @@ const Cases = {
       savedCase = Store.updateCase(this.editingId, data);
     } else {
       savedCase = Store.addCase(data);
-      // インボックスからの移行の場合、ステータスを対応済に更新
+      // インボックスからの移行の場合、ステータスを対応済に更新 ＆ 送信元メールを顧客マスタへ自動学習
       if (data.inboxId && typeof Store.updateInboxStatus === 'function') {
         Store.updateInboxStatus(data.inboxId, '対応済', savedCase.id);
+
+        // 顧客マスタへの送信元メール自動学習処理
+        const inbox = Store.getInbox ? Store.getInbox() : [];
+        const inboxItem = inbox.find(i => i.id === data.inboxId);
+        if (inboxItem && savedCase.clientId) {
+          const client = Store.getClient(savedCase.clientId);
+          if (client) {
+            let parsed = { email: '', contactName: '' };
+            if (typeof InboxManager !== 'undefined' && typeof InboxManager.parseDealerSender === 'function') {
+              parsed = InboxManager.parseDealerSender(inboxItem.sender);
+            } else {
+              const emailMatch = (inboxItem.sender || '').match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+              if (emailMatch) parsed.email = emailMatch[0].toLowerCase();
+            }
+
+            if (parsed.email) {
+              const existingEmails = (client.email || '').split(/[\s,;\n]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
+              if (!existingEmails.includes(parsed.email.toLowerCase())) {
+                const newEmailStr = client.email ? `${client.email}, ${parsed.email}` : parsed.email;
+                Store.updateClient(client.id, { email: newEmailStr });
+                setTimeout(() => {
+                  App.showToast(`💡 顧客「${client.companyName || client.name}」にメール「${parsed.email}」を自動登録しました`);
+                }, 400);
+              }
+            }
+
+            // 担当者名があれば顧客担当者マスターにも未登録なら追加
+            if (parsed.contactName && typeof Store.getClientContacts === 'function' && typeof Store.addClientContact === 'function') {
+              const contacts = Store.getClientContacts(client.id);
+              const exists = contacts.some(c => c.name && (c.name.includes(parsed.contactName) || parsed.contactName.includes(c.name)));
+              if (!exists) {
+                const newContact = Store.addClientContact({
+                  clientId: client.id,
+                  name: parsed.contactName,
+                  email: parsed.email || ''
+                });
+                if (newContact && !savedCase.clientContactId) {
+                  Store.updateCase(savedCase.id, { clientContactId: newContact.id });
+                }
+              }
+            }
+          }
+        }
       }
     }
 

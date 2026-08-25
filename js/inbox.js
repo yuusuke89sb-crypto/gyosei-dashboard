@@ -179,9 +179,12 @@ const InboxManager = {
           : ''
         }
 
-        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px; border-top:1px solid var(--border-color); padding-top:12px">
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px; border-top:1px solid var(--border-color); padding-top:12px; flex-wrap:wrap">
           <button class="btn btn-secondary btn-small" style="color:var(--accent-red,#ef4444); border-color:var(--accent-red,#ef4444)" onclick="InboxManager.ignoreItem('${item.id}')">
             🚫 対象外にする
+          </button>
+          <button class="btn btn-secondary btn-small" style="color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.6); font-weight:bold; background:rgba(245,158,11,0.08)" onclick="InboxManager.ocrAndRegisterCase('${item.id}')">
+            ⚡ OCR解析して登録
           </button>
           <button class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${item.id}')">
             ➕ 案件として登録
@@ -419,10 +422,88 @@ const InboxManager = {
     }
   },
 
-  // 2. 顧客データベースとのマッチングロジック
+  // ─── 送信元文字列から店舗名・担当者名・メールアドレスを高度に自動抽出 ───
+  parseDealerSender(senderStr) {
+    if (!senderStr) return { raw: '', cleanName: '', contactName: '', storeName: '', rawStoreName: '', email: '' };
+
+    // 1. メールアドレスの抽出 (<...> または raw string)
+    let email = '';
+    const emailMatch = senderStr.match(/<([^>]+)>/) || senderStr.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+    if (emailMatch) {
+      email = (emailMatch[1] || emailMatch[0]).trim().toLowerCase();
+    }
+
+    // 2. 表示名からメールアドレス・記号を除去
+    let cleanName = senderStr.replace(/<[^>]+>/g, '').replace(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g, '').trim();
+    // 引用符などをトリム
+    cleanName = cleanName.replace(/^["'「『]+|["'」』]+$/g, '').trim();
+
+    let contactName = '';
+    let storeName = '';
+
+    // パターンA: スラッシュ区切り 「山田 / ATW 一宮店」 「愛知トヨタ 一宮店 / 佐藤」
+    if (cleanName.includes('/') || cleanName.includes('／')) {
+      const parts = cleanName.split(/[\/／]/).map(s => s.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const storeKeywords = ['店', '営業所', '支店', 'センター', 'ATW', 'atw', 'AT', 'at', 'WEST', 'west', 'トヨタ', 'ふそう', '日産', 'ホンダ', 'ダイハツ', 'スズキ', 'マツダ', 'スバル', '本社', '支社'];
+        const p0IsStore = storeKeywords.some(kw => parts[0].includes(kw));
+        const p1IsStore = storeKeywords.some(kw => parts[1].includes(kw));
+
+        if (p0IsStore && !p1IsStore) {
+          storeName = parts[0];
+          contactName = parts[1];
+        } else {
+          contactName = parts[0];
+          storeName = parts[1];
+        }
+      }
+    } else if (cleanName.includes(' ') || cleanName.includes('　')) {
+      // パターンB: スペース区切り 「ATW 一宮店 山田」 「山田 愛知トヨタ 一宮店」
+      const parts = cleanName.split(/[\s　]+/).filter(Boolean);
+      if (parts.length >= 2) {
+        const last = parts[parts.length - 1];
+        const first = parts.slice(0, -1).join(' ');
+        if (['店', '営業所', '支店', 'センター'].some(kw => first.includes(kw))) {
+          storeName = first;
+          contactName = last;
+        } else {
+          contactName = parts[0];
+          storeName = parts.slice(1).join(' ');
+        }
+      }
+    } else {
+      contactName = cleanName;
+    }
+
+    const rawStoreName = storeName.trim();
+
+    // 3. ディーラー略称の正規化 (ATW -> 愛知トヨタWEST, AT -> 愛知トヨタ, MFTBC -> 三菱ふそう 等)
+    let normalizedStore = rawStoreName;
+    if (/^ATW[\s　_-]*/i.test(normalizedStore)) {
+      normalizedStore = normalizedStore.replace(/^ATW[\s　_-]*/i, '愛知トヨタWEST ');
+    } else if (/^AT[\s　_-]*/i.test(normalizedStore)) {
+      normalizedStore = normalizedStore.replace(/^AT[\s　_-]*/i, '愛知トヨタ ');
+    } else if (/^MFTBC[\s　_-]*/i.test(normalizedStore)) {
+      normalizedStore = normalizedStore.replace(/^MFTBC[\s　_-]*/i, '三菱ふそう ');
+    } else if (/^NISSAN[\s　_-]*/i.test(normalizedStore)) {
+      normalizedStore = normalizedStore.replace(/^NISSAN[\s　_-]*/i, '日産愛知 ');
+    }
+
+    return {
+      raw: senderStr,
+      cleanName,
+      contactName: contactName.replace(/(様|さん|氏|係|担当)$/, '').trim(),
+      storeName: (normalizedStore.trim() || rawStoreName),
+      rawStoreName,
+      email
+    };
+  },
+
+  // 2. 顧客データベースとのマッチングロジック（複数メールアドレス・店舗略称対応）
   matchClient(item) {
     if (!item.sender) return null;
     const clients = Store.getClients();
+    const parsed = this.parseDealerSender(item.sender);
     const cleanSender = item.sender.replace(/[^a-zA-Z0-9@\.]/g, '').toLowerCase();
 
     for (const client of clients) {
@@ -443,15 +524,62 @@ const InboxManager = {
         }
       }
       
-      // 2. メールアドレスでのマッチング (メールの場合)
-      if (item.type === 'メール' && client.email) {
-        const cleanEmail = client.email.toLowerCase().trim();
-        if (cleanEmail && cleanSender.includes(cleanEmail)) {
+      // 2. メールアドレスでのマッチング (カンマ・セミコロン・改行区切りの複数メール対応 ＋ 担当者メール対応)
+      if (item.type === 'メール' || parsed.email) {
+        const clientEmailStr = (client.email || '').toLowerCase();
+        // 顧客マスターの全メールアドレスを配列化
+        const clientEmails = clientEmailStr.split(/[\s,;\n]+/).map(e => e.trim()).filter(Boolean);
+        
+        // 顧客担当者マスターの全メールアドレスも取得
+        let contactEmails = [];
+        if (typeof Store.getClientContacts === 'function') {
+          contactEmails = Store.getClientContacts(client.id)
+            .map(c => (c.email || '').toLowerCase().trim())
+            .filter(Boolean);
+        }
+        const allTargetEmails = [...clientEmails, ...contactEmails];
+
+        if (parsed.email && allTargetEmails.some(e => e === parsed.email || parsed.email.includes(e) || e.includes(parsed.email))) {
+          return client;
+        }
+        if (cleanSender && allTargetEmails.some(e => cleanSender.includes(e))) {
           return client;
         }
       }
 
-      // 3. 名前や法人名が件名/本文に含まれているか (緩いマッチング)
+      // 3. 店舗名・ディーラー略称での高精度マッチング (「ATW 一宮店」 -> 「愛知トヨタWEST 一宮店」)
+      const cName = (client.name || '').toLowerCase();
+      const cCompany = (client.companyName || '').toLowerCase();
+      const storeTarget = (parsed.storeName || parsed.rawStoreName || '').toLowerCase();
+
+      if (storeTarget) {
+        // 完全一致または相互含有
+        if (cName && (cName === storeTarget || cName.includes(storeTarget) || storeTarget.includes(cName))) return client;
+        if (cCompany && (cCompany === storeTarget || cCompany.includes(storeTarget) || storeTarget.includes(cCompany))) return client;
+
+        // 店舗部分（例: "一宮店"）とディーラーブランド（例: "愛知トヨタ", "WEST"）の両方を含むか判定
+        const storeMatch = storeTarget.match(/([^\s]+店|[^\s]+営業所|[^\s]+支店)/);
+        if (storeMatch) {
+          const branchName = storeMatch[1];
+          if ((cName.includes(branchName) || cCompany.includes(branchName))) {
+            // ブランドチェック
+            if ((storeTarget.includes('west') || storeTarget.includes('atw')) && (cName.includes('west') || cCompany.includes('west') || cName.includes('愛知トヨタ') || cCompany.includes('愛知トヨタ'))) {
+              return client;
+            }
+            if ((storeTarget.includes('愛知トヨタ') || storeTarget.includes('at')) && (cName.includes('愛知トヨタ') || cCompany.includes('愛知トヨタ'))) {
+              return client;
+            }
+            if ((storeTarget.includes('ふそう') || storeTarget.includes('mftbc')) && (cName.includes('ふそう') || cCompany.includes('ふそう'))) {
+              return client;
+            }
+            if ((storeTarget.includes('日産') || storeTarget.includes('nissan')) && (cName.includes('日産') || cCompany.includes('日産'))) {
+              return client;
+            }
+          }
+        }
+      }
+
+      // 4. 名前や法人名が件名/本文に含まれているか (緩いマッチング)
       if (item.subject) {
         if (client.name && item.subject.includes(client.name)) return client;
         if (client.companyName && item.subject.includes(client.companyName)) return client;
@@ -466,7 +594,11 @@ const InboxManager = {
     const item = inbox.find(i => i.id === itemId);
     if (!item) return;
 
-    // 顧客自動マッチング
+    // ディーラー差出人解析・顧客自動マッチング
+    let parsed = null;
+    if (typeof DealerDocumentParser !== 'undefined') {
+      parsed = DealerDocumentParser.parse(item.body || item.subject || '', item);
+    }
     const client = this.matchClient(item);
 
     // 添付ファイルのテキストリスト作成
@@ -480,10 +612,10 @@ const InboxManager = {
       ? `\n\n【添付書類】\n` + attachments.map(a => `・${a.name}: ${a.url}`).join('\n')
       : '';
 
-    // カテゴリ自動予測 (件名からキーワード推測)
+    // カテゴリ自動予測 (件名・解析結果から判定)
     let category = 'garage_paper'; // デフォルトは紙の車庫証明
     const subject = item.subject || '';
-    if (subject.includes('OSS') || subject.toLowerCase().includes('oss')) {
+    if ((parsed && parsed.isOss) || subject.includes('OSS') || subject.toLowerCase().includes('oss')) {
       category = 'garage_oss';
     } else if (subject.includes('相続') || subject.includes('遺産')) {
       category = 'inheritance';
@@ -492,10 +624,15 @@ const InboxManager = {
     }
 
     const prefills = {
-      title: `${item.type === 'FAX' ? 'FAX' : 'メール'}依頼: ${item.subject || '無題案件'}`,
-      clientId: client ? client.id : '',
+      title: (parsed && parsed.suggestedTitle) ? parsed.suggestedTitle : `${item.type === 'FAX' ? 'FAX' : 'メール'}依頼: ${item.subject || '無題案件'}`,
+      clientId: (client ? client.id : '') || (parsed ? parsed.matchedClientId : ''),
       category: category,
-      memo: `【受信日時】: ${new Date(item.date).toLocaleString('ja-JP')}\n【送信元】: ${item.sender}\n【本文概要】:\n${item.body || 'なし'}${attachmentText}`,
+      orderNo: parsed ? parsed.orderNo : '',
+      applicantName: parsed ? parsed.applicantName : '',
+      applicantAddress: parsed ? parsed.applicantAddress : '',
+      memo: (parsed && parsed.orderNo) 
+        ? (DealerDocumentParser.toCasePrefill(parsed).memo + `\n\n【受信日時】: ${new Date(item.date).toLocaleString('ja-JP')}\n【送信元】: ${item.sender}${attachmentText}`)
+        : `【受信日時】: ${new Date(item.date).toLocaleString('ja-JP')}\n【送信元】: ${item.sender}\n【本文概要】:\n${item.body || 'なし'}${attachmentText}`,
       inboxId: item.id,
       faxId: item.type === 'FAX' ? item.id : '' // FAXログ互換用
     };
@@ -505,6 +642,36 @@ const InboxManager = {
     setTimeout(() => {
       Cases.showAddModal(prefills);
     }, 100);
+  },
+
+  // 3-B. 添付ファイルや本文をOCR解析して案件登録
+  async ocrAndRegisterCase(itemId) {
+    const inbox = Store.getInbox ? Store.getInbox() : [];
+    const item = inbox.find(i => i.id === itemId);
+    if (!item) return;
+
+    let attachments = [];
+    if (item.attachments) {
+      try {
+        attachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+      } catch (e) { attachments = []; }
+    }
+
+    const combinedText = [item.subject, item.body, item.sender].filter(Boolean).join('\n');
+
+    // 添付ファイルがある場合
+    if (attachments.length > 0) {
+      const firstAtt = attachments[0];
+      App.showToast('🔍 添付ファイルと内容をOCR解析中...');
+      
+      // テキスト解析
+      const parsed = DealerDocumentParser.parse(combinedText, item);
+      DealerDocumentParser.showOcrResultModal(parsed, firstAtt.url);
+    } else {
+      // 添付がない場合も本文・件名を解析
+      const parsed = DealerDocumentParser.parse(combinedText, item);
+      DealerDocumentParser.showOcrResultModal(parsed);
+    }
   },
 
   // 4. 不要レコードの除外
