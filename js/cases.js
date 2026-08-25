@@ -341,222 +341,523 @@ const Cases = {
     return `
       <div id="caseModal" class="modal" style="display:none">
         <div class="modal-overlay" onclick="Cases.closeModal()"></div>
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2 id="caseModalTitle">案件登録</h2>
+        <div class="modal-content" id="caseModalContent" style="max-width: 720px; width: 94%; max-height: 92vh; display:flex; flex-direction:column; transition: max-width 0.25s ease;">
+          <div class="modal-header" style="flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <h2 id="caseModalTitle" style="margin:0;">案件登録</h2>
+              <button type="button" id="casePreviewToggleBtn" class="btn btn-secondary btn-small" style="display:none; font-size:0.75rem; padding:3px 8px;" onclick="Cases.toggleAttachmentSplitView()">
+                📑 添付プレビュー切替
+              </button>
+            </div>
             <button class="modal-close" onclick="Cases.closeModal()">✕</button>
           </div>
-          <form id="caseForm" onsubmit="Cases.onSubmit(event)">
-            <div class="form-row">
-              <div class="form-group" style="flex:2">
-                <label>案件名 <span class="required">*</span></label>
-                <input type="text" name="title" id="csf_title" required placeholder="例：田中太郎様 車庫証明申請">
-              </div>
-              <div class="form-group" style="flex:1">
-                <label>注文書№</label>
-                <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：PO-20260501">
-              </div>
-            </div>
 
-            <!-- マイルストーン表示エリア -->
-            <div id="csf_milestone_stepper_wrap" style="display:none; margin-bottom: 20px;"></div>
-
-            <!-- カテゴリとステータス -->
-            <div class="form-row">
-              <div class="form-group">
-                <label>カテゴリ <span class="required">*</span></label>
-                <select name="category" id="csf_category" required class="form-select" onchange="Cases.toggleCategoryFields(this.value); if(!Cases.editingId) CaseTemplates.applyTemplate(this.value)">
-                  ${this.CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>ステータス</label>
-                <select name="status" id="csf_status" class="form-select">
-                  ${this.STATUSES.map(s => `<option value="${s.key}">${s.icon} ${s.label}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-
-            <!-- 登録種別（やること）サブカテゴリ -->
-            <div class="form-row" id="csf_subCategory_group" style="display:none">
-              <div class="form-group" style="flex:1">
-                <label>登録種別（やること）</label>
-                <select name="subCategory" id="csf_subCategory" class="form-select" onchange="Cases.onSubCategoryChange(this.value)">
-                  ${this.SUB_CATEGORIES.map(sc => `<option value="${sc.key}">${sc.label}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-
-            <!-- 申請先、申請日 -->
-            <div class="form-row" id="csf_garageDates_group_police_apply">
-              <div class="form-group">
-                <label>申請先（警察署など）</label>
-                <select name="policeLocationId" id="csf_policeLocationId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>申請日</label>
-                <input type="date" name="applyDate" id="csf_applyDate" onchange="if(!document.getElementById('csf_policeDeliveryDate').value) document.getElementById('csf_policeDeliveryDate').value = this.value">
-              </div>
-            </div>
-
-            <!-- 交付日 -->
-            <div class="form-row" id="csf_garageDates_group_police_delivery">
-              <div class="form-group">
-                <label>交付日 <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は申請日と同日)</span></label>
-                <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
-              </div>
-            </div>
-
-            <!-- 登録先、登録予定日 -->
-            <div class="form-row" id="csf_garageDates_group_land_transport">
-              <div class="form-group">
-                <label>登録先（陸運支局・軽検協）</label>
-                <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>登録予定日</label>
-                <input type="date" name="registrationDate" id="csf_registrationDate">
-              </div>
-            </div>
-
-            <!-- 店舗届ける予定日、店舗届ける時間帯 -->
-            <div class="form-row" id="csf_garageDates_group2">
-              <div class="form-group">
-                <label>店舗届ける予定日</label>
-                <input type="date" name="storeDeliveryDate" id="csf_storeDeliveryDate">
-              </div>
-              <div class="form-group">
-                <label>店舗届ける時間帯</label>
-                <input type="text" name="storeDeliveryTime" id="csf_storeDeliveryTime" placeholder="例：午前中、15:00まで">
-              </div>
-            </div>
-
-            <!-- 顧客店舗、担当者、その他の設定 -->
-            <div class="form-row">
-              <div class="form-group">
-                <label>顧客店舗</label>
-                <select name="clientId" id="csf_clientId" class="form-select" onchange="Cases.onClientChange(this.value)">
-                  <option value="">未選択</option>
-                  ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>顧客担当者</label>
-                <select name="clientContactId" id="csf_clientContactId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>担当者</label>
-                <select name="staffId" id="csf_staffId" class="form-select">
-                  <option value="">— 選択 —</option>
-                  ${staffList.map(s => `<option value="${s.id}">${s.name}${s.role ? ' (' + s.role + ')' : ''}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>📍 訪問場所 (共通/予備)</label>
-                <select name="locationId" id="csf_locationId" class="form-select">
-                  <option value="">— 未選択 —</option>
-                  ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>登録日</label>
-                <input type="date" name="registeredAt" id="csf_registeredAt" value="${today}">
-              </div>
-              <div class="form-group">
-                <label>報酬額（円）</label>
-                <input type="number" name="fee" id="csf_fee" placeholder="例：30000">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>📁 Google Drive 案件フォルダURL</label>
-              <div style="display:flex;gap:8px">
-                <input type="url" name="driveFolderUrl" id="csf_driveFolderUrl" placeholder="https://drive.google.com/drive/folders/..." style="flex:1">
-                <button type="button" class="btn btn-secondary" onclick="const url=document.getElementById('csf_driveFolderUrl').value; if(url) window.open(url, '_blank'); else alert('URLが入力されていません');">🔗 開く</button>
-              </div>
-            </div>
-
-            <div class="form-group" id="csf_advances_section">
-              <label>立替金</label>
-              <div id="csf_advance_rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
-              <button type="button" class="btn btn-secondary" style="font-size:0.8rem;padding:4px 10px"
-                onclick="Cases.addAdvanceRow()">＋ 立替金を追加</button>
-            </div>
-
-            <div class="form-row" id="csf_deathDate_group" style="display:none">
-              <div class="form-group">
-                <label>被相続人死亡日 <span style="font-size:0.75rem;color:var(--text-muted)">(期限自動計算用)</span></label>
-                <input type="date" name="deathDate" id="csf_deathDate">
-              </div>
-            </div>
-            <div class="form-section" style="background:#f9fafb;padding:12px;border-radius:6px;margin-bottom:12px;border:1px solid #e5e7eb;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <div style="font-size:0.85rem;font-weight:600;color:#374151;">🚗 車両・申請情報（車庫証明・登録等用）</div>
-                <button type="button" class="btn btn-secondary" onclick="Cases.openSyakoMapMaker()" style="font-size:0.75rem;padding:3px 10px;background:#2563eb;color:#fff;border-color:#2563eb;font-weight:bold;display:flex;align-items:center;gap:4px;">
-                  🗺️ 所在図・配置図を作成
-                </button>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>名前（申請者・使用者）</label>
-                  <input type="text" name="carName" id="csf_carName" placeholder="例：山田 太郎">
+          <div id="caseModalSplitBody" style="display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; padding: 4px 0;">
+            
+            <!-- ─── 👈 左側: 添付ファイルプレビューワー（FAX・依頼書・車検証） ─── -->
+            <div id="caseAttachmentPane" style="display:none; flex:1.2; min-width:340px; background:var(--bg-secondary, #0f172a); border:1px solid var(--border-color, #334155); border-radius:8px; overflow:hidden; flex-direction:column; max-height:78vh;">
+              <!-- ツールバー / ページタブ -->
+              <div style="background:rgba(0,0,0,0.3); border-bottom:1px solid var(--border-color, #334155); padding:8px 12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; flex-shrink:0;">
+                <div id="caseAttTabs" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+                  <span style="font-size:0.78rem; font-weight:bold; color:var(--accent-gold, #f59e0b);">📄 添付書類:</span>
+                  <div id="caseAttTabList" style="display:flex; gap:4px; flex-wrap:wrap;"></div>
                 </div>
-                <div class="form-group">
-                  <label>使用の本拠の位置（自宅住所）</label>
-                  <input type="text" name="carAddress" id="csf_carAddress" placeholder="例：一宮市木曽川町黒田...">
+                <div style="display:flex; gap:3px; align-items:center;">
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem;" onclick="Cases.zoomViewer(0.2)" title="拡大">🔍＋</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem;" onclick="Cases.zoomViewer(-0.2)" title="縮小">🔍−</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem;" onclick="Cases.rotateViewer()" title="90度回転">🔄回転</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem;" onclick="Cases.resetViewer()" title="リセット">⤢</button>
+                  <input type="file" id="caseViewerFileInput" accept=".tif,.tiff,image/*,.pdf" style="display:none;" onchange="Cases.handleViewerFileSelect(event)">
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem; background:#334155;" onclick="document.getElementById('caseViewerFileInput').click()" title="手元のTIF/PDFを選択">📁開く</button>
                 </div>
               </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>保管場所の位置（車庫住所） <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は自宅と同上)</span></label>
-                  <input type="text" name="parkingAddress" id="csf_parkingAddress" placeholder="例：一宮市木曽川町黒田... (空欄時は同上)">
+              <!-- ビューワー本文 -->
+              <div id="caseViewerContainer" style="flex:1; overflow:auto; position:relative; background:#1e293b; display:flex; align-items:center; justify-content:center; padding:12px; min-height:420px;"
+                   ondragover="event.preventDefault(); this.style.borderColor='var(--accent-gold, #f59e0b)'"
+                   ondrop="event.preventDefault(); if(event.dataTransfer.files[0]) Cases.loadLocalFileToViewer(event.dataTransfer.files[0])">
+                <div id="caseViewerLoading" style="display:none; text-align:center; color:#94a3b8;">
+                  <div class="spinner" style="width:32px; height:32px; border:3px solid rgba(245,158,11,0.2); border-top-color:#f59e0b; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 8px;"></div>
+                  <div style="font-size:0.85rem;">添付ファイル（TIF/PDF）を読み込み中...</div>
                 </div>
-                <div class="form-group">
-                  <label>所轄警察署</label>
-                  <select name="carPolice" id="csf_carPolice" class="form-select">
-                    <option value="">— 選択（任意） —</option>
-                    ${typeof Briefing !== 'undefined' 
-                      ? Briefing.PRESETS.filter(p => p.group === '警察署').map(p => `<option value="${p.label}">${p.label}</option>`).join('') 
-                      : ''}
-                  </select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>車台番号</label>
-                  <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：ABC-1234567">
+                <img id="caseViewerImg" src="" style="display:none; max-width:100%; height:auto; border-radius:4px; box-shadow:0 4px 12px rgba(0,0,0,0.5); transform-origin:center center; transition:transform 0.15s ease;">
+                <iframe id="caseViewerIframe" src="" style="display:none; width:100%; height:100%; min-height:500px; border:none; border-radius:4px;"></iframe>
+                <div id="caseViewerEmpty" style="text-align:center; color:var(--text-muted, #94a3b8); padding:40px 12px;">
+                  <div style="font-size:2.2rem; margin-bottom:8px;">📄 🔍</div>
+                  <div style="font-size:0.9rem; font-weight:bold; color:#e2e8f0;">FAX・依頼書 プレビュー</div>
+                  <div style="font-size:0.75rem; margin-top:6px; color:#94a3b8;">手元のTIF/PDFファイルをドラッグ＆ドロップして表示することも可能です</div>
                 </div>
               </div>
             </div>
-            <div class="form-group">
-              <label>📝 メモ・特記事項</label>
-              <textarea name="memo" id="csf_memo" rows="4" style="min-height:110px;resize:vertical;font-size:0.88rem;line-height:1.5;width:100%;box-sizing:border-box" placeholder="案件に関するメモ、特記事項、連絡事項など..."></textarea>
+
+            <!-- ─── 👉 右側: 案件登録フォーム ─── -->
+            <div id="caseFormPane" style="flex:1; width:100%; max-height:78vh; overflow-y:auto; padding-right:8px;">
+              <form id="caseForm" onsubmit="Cases.onSubmit(event)">
+                <div class="form-row">
+                  <div class="form-group" style="flex:2">
+                    <label>案件名 <span class="required">*</span></label>
+                    <input type="text" name="title" id="csf_title" required placeholder="例：愛知トヨタWEST 一宮開明店 - 横田 清 様 (車庫証明)">
+                  </div>
+                  <div class="form-group" style="flex:1">
+                    <label>注文書№</label>
+                    <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：57500855">
+                  </div>
+                </div>
+
+                <!-- マイルストーン表示エリア -->
+                <div id="csf_milestone_stepper_wrap" style="display:none; margin-bottom: 20px;"></div>
+
+                <!-- カテゴリとステータス -->
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>カテゴリ <span class="required">*</span></label>
+                    <select name="category" id="csf_category" required class="form-select" onchange="Cases.toggleCategoryFields(this.value); if(!Cases.editingId) CaseTemplates.applyTemplate(this.value)">
+                      ${this.CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>ステータス</label>
+                    <select name="status" id="csf_status" class="form-select">
+                      ${this.STATUSES.map(s => `<option value="${s.key}">${s.icon} ${s.label}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+
+                <!-- 登録種別（やること）サブカテゴリ -->
+                <div class="form-row" id="csf_subCategory_group" style="display:none">
+                  <div class="form-group" style="flex:1">
+                    <label>登録種別（やること）</label>
+                    <select name="subCategory" id="csf_subCategory" class="form-select" onchange="Cases.onSubCategoryChange(this.value)">
+                      ${this.SUB_CATEGORIES.map(sc => `<option value="${sc.key}">${sc.label}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+
+                <!-- 申請先、申請日 -->
+                <div class="form-row" id="csf_garageDates_group_police_apply">
+                  <div class="form-group">
+                    <label>申請先（警察署など）</label>
+                    <select name="policeLocationId" id="csf_policeLocationId" class="form-select">
+                      <option value="">— 未選択 —</option>
+                      ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>申請日</label>
+                    <input type="date" name="applyDate" id="csf_applyDate" onchange="if(!document.getElementById('csf_policeDeliveryDate').value) document.getElementById('csf_policeDeliveryDate').value = this.value">
+                  </div>
+                </div>
+
+                <!-- 交付日 -->
+                <div class="form-row" id="csf_garageDates_group_police_delivery">
+                  <div class="form-group">
+                    <label>交付日 <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は申請日と同日)</span></label>
+                    <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
+                  </div>
+                </div>
+
+                <!-- 登録先、登録予定日 -->
+                <div class="form-row" id="csf_garageDates_group_land_transport">
+                  <div class="form-group">
+                    <label>登録先（陸運支局・軽検協）</label>
+                    <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
+                      <option value="">— 未選択 —</option>
+                      ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>登録予定日</label>
+                    <input type="date" name="registrationDate" id="csf_registrationDate">
+                  </div>
+                </div>
+
+                <!-- 店舗届ける予定日、店舗届ける時間帯 -->
+                <div class="form-row" id="csf_garageDates_group2">
+                  <div class="form-group">
+                    <label>店舗届ける予定日</label>
+                    <input type="date" name="storeDeliveryDate" id="csf_storeDeliveryDate">
+                  </div>
+                  <div class="form-group">
+                    <label>店舗届ける時間帯</label>
+                    <input type="text" name="storeDeliveryTime" id="csf_storeDeliveryTime" placeholder="例：午前中、15:00まで">
+                  </div>
+                </div>
+
+                <!-- 顧客店舗、担当者、その他の設定 -->
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>顧客店舗</label>
+                    <select name="clientId" id="csf_clientId" class="form-select" onchange="Cases.onClientChange(this.value)">
+                      <option value="">未選択</option>
+                      ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>顧客担当者</label>
+                    <select name="clientContactId" id="csf_clientContactId" class="form-select">
+                      <option value="">— 未選択 —</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>自所 担当者</label>
+                    <select name="staffId" id="csf_staffId" class="form-select">
+                      <option value="">未定</option>
+                      ${staffList.map(s => `<option value="${s.id}">${s.name}${s.role ? ' (' + s.role + ')' : ''}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>受任日</label>
+                    <input type="date" name="registeredAt" id="csf_registeredAt" value="${today}">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>期日（締切）</label>
+                    <input type="date" name="deadline" id="csf_deadline">
+                  </div>
+                  <div class="form-group">
+                    <label>報酬額（円）</label>
+                    <input type="number" name="fee" id="csf_fee" placeholder="例：55000" min="0" step="1000">
+                  </div>
+                </div>
+
+                <!-- 立替金入力エリア -->
+                <div class="advances-section" style="margin-bottom:16px; border:1px solid var(--border-color); border-radius:6px; padding:12px; background:var(--bg-secondary)">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+                    <label style="font-weight:600; margin:0">💰 立替金（証紙代・印紙代等）</label>
+                    <button type="button" class="btn btn-secondary btn-small" onclick="Cases.addAdvanceRow()">＋ 追加</button>
+                  </div>
+                  <div id="advancesRowsContainer"></div>
+                </div>
+
+                <div class="form-group">
+                  <label>Google Drive フォルダURL</label>
+                  <div style="display:flex; gap:6px">
+                    <input type="url" name="driveFolderUrl" id="csf_driveFolderUrl"
+                      placeholder="https://drive.google.com/..." style="flex:1">
+                    <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openDriveFolder()" title="フォルダを開く">📂</button>
+                  </div>
+                </div>
+
+                <!-- 車両・保管場所情報 -->
+                <div id="csf_car_fields" style="background:rgba(59,130,246,0.05); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:12px; margin-bottom:16px">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+                    <span style="font-weight:600; font-size:0.9rem; color:var(--primary-color)">🚗 車両・保管場所情報</span>
+                    <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openSyakoMapMaker()" style="font-size:0.75rem; background:#2563eb; color:#fff; border-color:#2563eb; font-weight:bold;">
+                      🗺️ 所在図・配置図を作成
+                    </button>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>名前（申請者・使用者）</label>
+                      <input type="text" name="carName" id="csf_carName" placeholder="例：横田 清">
+                    </div>
+                    <div class="form-group">
+                      <label>使用の本拠の位置（自宅住所）</label>
+                      <input type="text" name="carAddress" id="csf_carAddress" placeholder="例：一宮市三条 字墓北94-3">
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>保管場所の位置（車庫住所） <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は自宅と同上)</span></label>
+                      <input type="text" name="parkingAddress" id="csf_parkingAddress" placeholder="例：一宮市三条 字墓北94-3 (空欄時は同上)">
+                    </div>
+                    <div class="form-group">
+                      <label>所轄警察署</label>
+                      <select name="carPolice" id="csf_carPolice" class="form-select">
+                        <option value="">— 選択（任意） —</option>
+                        ${typeof Briefing !== 'undefined' 
+                          ? Briefing.PRESETS.filter(p => p.group === '警察署').map(p => `<option value="${p.label}">${p.label}</option>`).join('') 
+                          : ''}
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>車台番号 / ナンバー</label>
+                      <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：6AA-ZWR90W / ZWR90-0123456">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>📝 メモ・特記事項</label>
+                  <textarea name="memo" id="csf_memo" rows="4" style="min-height:90px;resize:vertical;font-size:0.88rem;line-height:1.5;width:100%;box-sizing:border-box" placeholder="案件に関するメモ、特記事項、連絡事項など..."></textarea>
+                </div>
+                <div id="caseExtArea"></div>
+                <div class="form-actions">
+                  <button type="button" class="btn btn-danger" id="caseDeleteBtn" style="display:none; margin-right:auto"
+                    onclick="Cases.onDelete()">🗑️ 削除</button>
+                  <button type="button" class="btn btn-secondary" onclick="Cases.closeModal()">キャンセル</button>
+                  <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+              </form>
             </div>
-            <div id="caseExtArea"></div>
-            <div class="form-actions">
-              <button type="button" class="btn btn-danger" id="caseDeleteBtn" style="display:none; margin-right:auto"
-                onclick="Cases.onDelete()">🗑️ 削除</button>
-              <button type="button" class="btn btn-secondary" onclick="Cases.closeModal()">キャンセル</button>
-              <button type="submit" class="btn btn-primary">保存</button>
-            </div>
-          </form>
+          </div>
         </div>
       </div>
     `;
+  },
+
+  // ─── 📑 添付ファイル（FAX/依頼書/車検証）スプリットビューワー ───
+  viewerState: {
+    attachments: [],
+    currentIndex: 0,
+    zoom: 1.0,
+    rotation: 0,
+    isOpen: false
+  },
+
+  initAttachmentViewer(attachments = [], preselectIdx = 0) {
+    this.viewerState.attachments = attachments || [];
+    this.viewerState.currentIndex = preselectIdx;
+    this.viewerState.zoom = 1.0;
+    this.viewerState.rotation = 0;
+
+    const pane = document.getElementById('caseAttachmentPane');
+    const content = document.getElementById('caseModalContent');
+    const toggleBtn = document.getElementById('casePreviewToggleBtn');
+    const tabList = document.getElementById('caseAttTabList');
+
+    if (!pane || !content) return;
+
+    if (attachments && attachments.length > 0) {
+      this.viewerState.isOpen = true;
+      pane.style.display = 'flex';
+      content.style.maxWidth = '1360px';
+      content.style.width = '96vw';
+      if (toggleBtn) toggleBtn.style.display = 'inline-flex';
+
+      // ページタブの生成
+      if (tabList) {
+        tabList.innerHTML = attachments.map((att, idx) => `
+          <button type="button" class="btn btn-small ${idx === preselectIdx ? 'btn-primary' : 'btn-secondary'}"
+            style="font-size:0.72rem; padding:2px 8px; border-radius:4px;"
+            onclick="Cases.loadAttachmentByIndex(${idx})">
+            ${idx + 1}枚目${att.name ? ' (' + att.name.replace(/^.*\./, '.') + ')' : ''}
+          </button>
+        `).join('');
+      }
+
+      this.loadAttachmentByIndex(preselectIdx);
+    } else {
+      this.viewerState.isOpen = false;
+      pane.style.display = 'none';
+      content.style.maxWidth = '720px';
+      content.style.width = '94%';
+      if (toggleBtn) toggleBtn.style.display = 'none';
+    }
+  },
+
+  toggleAttachmentSplitView() {
+    const pane = document.getElementById('caseAttachmentPane');
+    const content = document.getElementById('caseModalContent');
+    if (!pane || !content) return;
+
+    if (this.viewerState.isOpen) {
+      pane.style.display = 'none';
+      content.style.maxWidth = '720px';
+      content.style.width = '94%';
+      this.viewerState.isOpen = false;
+    } else {
+      pane.style.display = 'flex';
+      content.style.maxWidth = '1360px';
+      content.style.width = '96vw';
+      this.viewerState.isOpen = true;
+      if (this.viewerState.attachments.length > 0) {
+        this.loadAttachmentByIndex(this.viewerState.currentIndex);
+      }
+    }
+  },
+
+  async loadAttachmentByIndex(idx) {
+    const atts = this.viewerState.attachments;
+    if (!atts || !atts[idx]) return;
+    this.viewerState.currentIndex = idx;
+    this.viewerState.zoom = 1.0;
+    this.viewerState.rotation = 0;
+
+    // タブのアクティブ表示更新
+    const tabList = document.getElementById('caseAttTabList');
+    if (tabList) {
+      const btns = tabList.querySelectorAll('button');
+      btns.forEach((b, i) => {
+        b.className = `btn btn-small ${i === idx ? 'btn-primary' : 'btn-secondary'}`;
+      });
+    }
+
+    const att = atts[idx];
+    const loading = document.getElementById('caseViewerLoading');
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    const emptyEl = document.getElementById('caseViewerEmpty');
+
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (imgEl) imgEl.style.display = 'none';
+    if (iframeEl) iframeEl.style.display = 'none';
+    if (loading) loading.style.display = 'block';
+
+    try {
+      const isTiff = (att.name && att.name.match(/\.tiff?$/i)) || (att.url && att.url.includes('.tif'));
+      const isPdf = (att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf'));
+
+      // 1. Google Drive の TIFFファイルの場合 (GAS経由でBase64取得 & UTIF変換)
+      if (isTiff && att.url) {
+        const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
+        if (gasUrl) {
+          const res = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'getFileBase64',
+              fileUrl: att.url
+            })
+          });
+          const data = await res.json();
+          if (data && data.success && data.base64) {
+            let converted = data.base64;
+            if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+              const cJpg = DealerDocumentParser.convertTiffToJpeg(data.base64);
+              if (cJpg) converted = cJpg;
+            }
+            if (loading) loading.style.display = 'none';
+            if (imgEl) {
+              imgEl.src = converted.startsWith('data:') ? converted : `data:image/jpeg;base64,${converted}`;
+              imgEl.style.display = 'block';
+              this.applyViewerTransform();
+            }
+            return;
+          }
+        }
+      }
+
+      // 2. PDFファイルの場合
+      if (isPdf && att.url) {
+        let previewUrl = att.url;
+        const match = att.url.match(/[-\w]{25,}/);
+        if (match) {
+          previewUrl = `https://drive.google.com/file/d/${match[0]}/preview`;
+        }
+        if (loading) loading.style.display = 'none';
+        if (iframeEl) {
+          iframeEl.src = previewUrl;
+          iframeEl.style.display = 'block';
+        }
+        return;
+      }
+
+      // 3. 一般画像ファイルの場合
+      if (att.url && att.url.match(/\.(png|jpe?g|webp|gif)/i)) {
+        if (loading) loading.style.display = 'none';
+        if (imgEl) {
+          imgEl.src = att.url;
+          imgEl.style.display = 'block';
+          this.applyViewerTransform();
+        }
+        return;
+      }
+
+      // 4. フォールバック
+      if (loading) loading.style.display = 'none';
+      if (emptyEl) {
+        emptyEl.style.display = 'block';
+        emptyEl.innerHTML = `
+          <div style="font-size:2rem; margin-bottom:8px;">📄</div>
+          <div style="font-size:0.85rem; font-weight:bold;">${att.name || '添付ファイル'}</div>
+          <div style="margin-top:10px;"><a href="${att.url}" target="_blank" class="btn btn-secondary btn-small">↗ 別ウィンドウで開く</a></div>
+          <div style="font-size:0.75rem; margin-top:8px; color:#94a3b8;">または手元のTIF/PDFをドラッグ＆ドロップしてください</div>
+        `;
+      }
+    } catch (e) {
+      console.warn('Viewer load error:', e);
+      if (loading) loading.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = 'block';
+    }
+  },
+
+  handleViewerFileSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      this.loadLocalFileToViewer(file);
+    }
+  },
+
+  loadLocalFileToViewer(file) {
+    const loading = document.getElementById('caseViewerLoading');
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    const emptyEl = document.getElementById('caseViewerEmpty');
+
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (imgEl) imgEl.style.display = 'none';
+    if (iframeEl) iframeEl.style.display = 'none';
+    if (loading) loading.style.display = 'block';
+
+    const isTiff = file.name.match(/\.tiff?$/i) || (file.type && file.type.includes('tif'));
+    const isPdf = file.name.match(/\.pdf$/i) || file.type === 'application/pdf';
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (loading) loading.style.display = 'none';
+      const result = ev.target.result;
+
+      if (isTiff) {
+        let converted = result;
+        if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+          const cJpg = DealerDocumentParser.convertTiffToJpeg(result);
+          if (cJpg) converted = cJpg;
+        }
+        if (imgEl) {
+          imgEl.src = converted;
+          imgEl.style.display = 'block';
+          this.applyViewerTransform();
+        }
+      } else if (isPdf) {
+        if (iframeEl) {
+          iframeEl.src = result;
+          iframeEl.style.display = 'block';
+        }
+      } else {
+        if (imgEl) {
+          imgEl.src = result;
+          imgEl.style.display = 'block';
+          this.applyViewerTransform();
+        }
+      }
+      App.showToast(`📄 「${file.name}」をプレビュー表示しました`);
+    };
+
+    if (isTiff) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsDataURL(file);
+    }
+  },
+
+  zoomViewer(delta) {
+    this.viewerState.zoom = Math.max(0.4, Math.min(3.5, this.viewerState.zoom + delta));
+    this.applyViewerTransform();
+  },
+
+  rotateViewer() {
+    this.viewerState.rotation = (this.viewerState.rotation + 90) % 360;
+    this.applyViewerTransform();
+  },
+
+  resetViewer() {
+    this.viewerState.zoom = 1.0;
+    this.viewerState.rotation = 0;
+    this.applyViewerTransform();
+  },
+
+  applyViewerTransform() {
+    const imgEl = document.getElementById('caseViewerImg');
+    if (imgEl) {
+      imgEl.style.transform = `scale(${this.viewerState.zoom}) rotate(${this.viewerState.rotation}deg)`;
+    }
   },
 
   onSubCategoryChange(val) {
@@ -625,6 +926,13 @@ const Cases = {
       const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
       const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
       document.getElementById('csf_orderNo').value = (prefills && prefills.orderNo) ? prefills.orderNo : autoOrderNo;
+
+      // 添付ファイルプレビューワーの初期化（横並び表示）
+      if (prefills && prefills.attachments && prefills.attachments.length > 0) {
+        this.initAttachmentViewer(prefills.attachments, 0);
+      } else {
+        this.initAttachmentViewer([]);
+      }
 
       // 受信FAX/メールインボックスからの自動入力（プリフィル）
       if (prefills) {

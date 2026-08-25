@@ -634,10 +634,12 @@ const InboxManager = {
         ? (DealerDocumentParser.toCasePrefill(parsed).memo + `\n\n【受信日時】: ${new Date(item.date).toLocaleString('ja-JP')}\n【送信元】: ${item.sender}${attachmentText}`)
         : `【受信日時】: ${new Date(item.date).toLocaleString('ja-JP')}\n【送信元】: ${item.sender}\n【本文概要】:\n${item.body || 'なし'}${attachmentText}`,
       inboxId: item.id,
-      faxId: item.type === 'FAX' ? item.id : '' // FAXログ互換用
+      faxId: item.type === 'FAX' ? item.id : '', // FAXログ互換用
+      attachments: attachments,
+      inboxItem: item
     };
 
-    // 案件管理画面へ遷移し、モーダルを開く
+    // 案件管理画面へ遷移し、横並びモーダルを開く
     App.navigate('cases');
     setTimeout(() => {
       Cases.showAddModal(prefills);
