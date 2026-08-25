@@ -111,7 +111,7 @@ const ReceiptOCR = {
                ondragover="event.preventDefault(); this.style.borderColor='var(--accent-gold, #f59e0b)';"
                ondragleave="this.style.borderColor='var(--border-color, rgba(255,255,255,0.2))';"
                ondrop="ReceiptOCR.handleDrop(event)">
-            <input type="file" id="ocr-file-input" accept="image/*,.pdf" style="display:none" onchange="ReceiptOCR.handleFileSelect(event)">
+            <input type="file" id="ocr-file-input" accept="image/*,.pdf,.tif,.tiff" style="display:none" onchange="ReceiptOCR.handleFileSelect(event)">
             <div style="font-size: 2.5rem; margin-bottom: 8px;">📷 🧾</div>
             <div style="font-weight: 700; margin-bottom: 4px;">レシート・請求書画像をアップロード</div>
             <div style="font-size: 0.85rem; color: var(--text-muted, #94a3b8);">ドラッグ＆ドロップ または タップしてファイル選択 / カメラ起動</div>
@@ -242,13 +242,27 @@ const ReceiptOCR = {
   processFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const base64Data = e.target.result;
+      let base64Data = e.target.result;
+      let mimeType = file.type || '';
+
+      // TIFFファイルの場合はブラウザ側でJPEGに変換（プレビュー表示＆Gemini OCR対応）
+      if (file.name.match(/\.tiff?$/i) || mimeType.includes('tif') || base64Data.startsWith('data:image/tif') || base64Data.startsWith('SUkq') || base64Data.startsWith('TU0A')) {
+        if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+          const converted = DealerDocumentParser.convertTiffToJpeg(base64Data);
+          if (converted) {
+            base64Data = converted;
+            mimeType = 'image/jpeg';
+            console.log('✅ レシート/書類 TIFF ➔ JPEG 変換完了');
+          }
+        }
+      }
+
       document.getElementById('ocr-img-preview').src = base64Data;
       document.getElementById('ocr-dropzone').style.display = 'none';
       document.getElementById('ocr-preview-container').style.display = 'block';
       document.getElementById('ocr-loading').style.display = 'block';
 
-      this.analyzeWithAI(base64Data, file.type);
+      this.analyzeWithAI(base64Data, mimeType || 'image/jpeg');
     };
     reader.readAsDataURL(file);
   },
