@@ -556,36 +556,6 @@ html_code = """<!DOCTYPE html>
       flex: 1 !important;
       height: 145mm !important;
       min-height: 145mm !important;
-      position: relative !important;
-      overflow: hidden !important;
-      border: 2px solid #000 !important;
-    }
-    .map-layer {
-      position: absolute !important;
-      top: 0 !important; left: 0 !important;
-      width: 100% !important; height: 100% !important;
-      z-index: 1 !important;
-      display: block !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      filter: none !important;
-    }
-    .leaflet-pane, .leaflet-tile-pane, .leaflet-layer, .leaflet-tile-container {
-      display: block !important;
-      visibility: visible !important;
-    }
-    .leaflet-tile {
-      display: block !important;
-      visibility: visible !important;
-      filter: grayscale(100%) !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-    .drawing-canvas {
-      position: absolute !important;
-      top: 0 !important; left: 0 !important;
-      width: 100% !important; height: 100% !important;
-      z-index: 2 !important;
     }
   }
 </style>
@@ -1826,17 +1796,6 @@ function setupEventListeners() {
     if (e.key === 'Escape') {
       clearSelection();
     }
-  });
-
-  window.addEventListener('beforeprint', () => {
-    clearSelection();
-    if (sozaiMap) sozaiMap.invalidateSize();
-    if (haichiMap) haichiMap.invalidateSize();
-  });
-
-  window.addEventListener('afterprint', () => {
-    if (sozaiMap) sozaiMap.invalidateSize();
-    if (haichiMap) haichiMap.invalidateSize();
   });
 }
 
@@ -3121,11 +3080,7 @@ function restoreDraftFromStorage() {
 
 function exportA4PDF() {
   clearSelection();
-  if (sozaiMap) sozaiMap.invalidateSize();
-  if (haichiMap) haichiMap.invalidateSize();
-  setTimeout(() => {
-    window.print();
-  }, 80);
+  window.print();
 }
 
 async function exportOSSImage() {
