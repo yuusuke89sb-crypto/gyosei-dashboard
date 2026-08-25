@@ -556,6 +556,36 @@ html_code = """<!DOCTYPE html>
       flex: 1 !important;
       height: 145mm !important;
       min-height: 145mm !important;
+      position: relative !important;
+      overflow: hidden !important;
+      border: 2px solid #000 !important;
+    }
+    .map-layer {
+      position: absolute !important;
+      top: 0 !important; left: 0 !important;
+      width: 100% !important; height: 100% !important;
+      z-index: 1 !important;
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      filter: none !important;
+    }
+    .leaflet-pane, .leaflet-tile-pane, .leaflet-layer, .leaflet-tile-container {
+      display: block !important;
+      visibility: visible !important;
+    }
+    .leaflet-tile {
+      display: block !important;
+      visibility: visible !important;
+      filter: grayscale(100%) !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .drawing-canvas {
+      position: absolute !important;
+      top: 0 !important; left: 0 !important;
+      width: 100% !important; height: 100% !important;
+      z-index: 2 !important;
     }
   }
 </style>
@@ -742,6 +772,10 @@ html_code = """<!DOCTYPE html>
           <button class="property-btn" onclick="scaleSelectedItem(0.85)">➖ 縮小</button>
           <button class="property-btn" onclick="scaleSelectedItem(1.18)">➕ 拡大</button>
           <button class="property-btn" onclick="editSelectedText()">✏️ 文字変更</button>
+        </div>
+        <div class="property-row" id="propertyTextRow" style="display:none; margin-top:4px;">
+          <span style="font-size:0.72rem; color:#38BDF8; width:48px;">✏️ 文字:</span>
+          <input type="text" id="propertyTextInput" class="form-input" placeholder="テキストを入力" style="flex:1; padding:3px 6px; font-size:0.75rem;" oninput="onPropertyTextInputChange(this.value)">
         </div>
       </div>
 
@@ -1402,7 +1436,35 @@ function showPropertyPanel(targetKey, index) {
   };
 
   typeLabel.textContent = `🎯 選択中: ${typeNames[item.type] || item.type} (角度: ${Math.round(item.angle || 0)}°)`;
+  
+  const textRow = document.getElementById('propertyTextRow');
+  const textInput = document.getElementById('propertyTextInput');
+  if (textRow && textInput) {
+    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail' || item.label !== undefined) {
+      textRow.style.display = 'flex';
+      textInput.value = item.text || item.label || '';
+    } else {
+      textRow.style.display = 'none';
+    }
+  }
+
   panel.classList.add('active');
+}
+
+function onPropertyTextInputChange(val) {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+
+  if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail') {
+    item.text = val;
+  } else if (item.label !== undefined) {
+    item.label = val;
+  }
+  redraw(targetKey);
+  drawSelectionHighlight(targetKey, index);
+  autoSaveDraft();
 }
 
 function clearSelection() {
@@ -1768,13 +1830,11 @@ function setupEventListeners() {
 
   window.addEventListener('beforeprint', () => {
     clearSelection();
-    resizeCanvases();
     if (sozaiMap) sozaiMap.invalidateSize();
     if (haichiMap) haichiMap.invalidateSize();
   });
 
   window.addEventListener('afterprint', () => {
-    resizeCanvases();
     if (sozaiMap) sozaiMap.invalidateSize();
     if (haichiMap) haichiMap.invalidateSize();
   });
@@ -2032,11 +2092,39 @@ function setupCanvasEvents(canvas, targetKey) {
         angle: 0
       });
       showToast('📍 直線距離線を描画しました');
+    } else if (currentTool === 'text') {
+      const txt = prompt('表示するテキストを入力してください（例: 申請地, 5m道路, 来客用, 自宅など）:', '申請地');
+      if (txt !== null && txt.trim() !== '') {
+        drawings[targetKey].push({
+          type: 'text',
+          x: startX,
+          y: startY,
+          text: txt.trim(),
+          fontSize: 14,
+          color: '#000000',
+          angle: 0
+        });
+        showToast(`🔤 「${txt.trim()}」を配置しました`);
+      } else {
+        return;
+      }
     }
 
     pushHistory();
     redraw(targetKey);
     showPropertyPanel(targetKey, newIndex);
+  });
+
+  canvas.addEventListener('dblclick', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const hitResult = hitTestElement(targetKey, x, y);
+    if (hitResult !== null) {
+      selectedItemRef = { targetKey, index: hitResult };
+      showPropertyPanel(targetKey, hitResult);
+      editSelectedText();
+    }
   });
 }
 
@@ -3033,12 +3121,11 @@ function restoreDraftFromStorage() {
 
 function exportA4PDF() {
   clearSelection();
-  resizeCanvases();
   if (sozaiMap) sozaiMap.invalidateSize();
   if (haichiMap) haichiMap.invalidateSize();
   setTimeout(() => {
     window.print();
-  }, 100);
+  }, 80);
 }
 
 async function exportOSSImage() {
