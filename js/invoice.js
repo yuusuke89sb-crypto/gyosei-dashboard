@@ -768,50 +768,98 @@ const Invoice = {
   </div>
 </div>
 
-<!-- 2ページ目：請求明細書 -->
+<!-- 2ページ目：車庫証明申請等明細書 -->
 <div class="page">
-  <div class="doc-title" style="font-size:22px; margin-bottom:15px;">請 求 明 細 書</div>
-  <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-size:13px;">
-    <div><strong>${clientName} 御中</strong></div>
-    <div>発行日：令和 ${reiwaYear} 年 ${issueM} 月 ${issueD} 日</div>
+  <div class="doc-title" style="font-size:22px; letter-spacing:6px; margin-bottom:15px;">車庫証明申請等明細書</div>
+  
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; font-size:13px;">
+    <div>
+      <div style="font-size:16px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; display:inline-block;">
+        ${clientName}　御中
+      </div>
+    </div>
+    <div style="text-align:right; font-size:12px; line-height:1.6;">
+      <div>〒${office.zip || '481-0033'}</div>
+      <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${issueM} 月分　　NO. 1</div>
+    </div>
   </div>
 
   <table class="grid-table" style="font-size:12px;">
     <thead>
       <tr>
-        <th style="width:5%;">No</th>
-        <th style="width:14%;">受注No.</th>
-        <th style="width:12%;">区分</th>
-        <th style="width:25%;">件名 / 申請者名</th>
-        <th style="width:16%;">管轄 / 備考</th>
-        <th style="width:14%;">報酬額</th>
-        <th style="width:14%;">立替金</th>
+        <th rowspan="2" style="width:7%;">日付</th>
+        <th colspan="4" style="width:65%;">申　請　者</th>
+        <th rowspan="2" style="width:14%;">報酬額</th>
+        <th rowspan="2" style="width:14%;">立替金</th>
+      </tr>
+      <tr>
+        <th style="width:16%;">注文No.</th>
+        <th style="width:21%;">氏　名</th>
+        <th style="width:14%;">管　轄</th>
+        <th style="width:14%;">備　考</th>
       </tr>
     </thead>
     <tbody>
-      ${cases.map((c, i) => {
+      ${cases.map((c) => {
+        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+        let dateStr = '-';
+        if (rawDate) {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+          } else {
+            const parts = String(rawDate).split(/[-/T]/);
+            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+            else dateStr = String(rawDate).slice(5);
+          }
+        }
+        const orderNo = c.orderNo || c.caseNo || '-';
+        const applicant = c.carName || c.applicantName || c.title || '-';
+        
+        let policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+          const loc = Store.getLocation(c.policeLocationId);
+          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+        }
+        if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+
+        let categoryShort = c.subCategory || '';
+        if (!categoryShort) {
+          if (c.category === 'garage_oss') categoryShort = 'OSS';
+          else if (c.category === 'garage_paper') categoryShort = '車庫';
+          else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
+          else if (c.category === 'car_reg_light') categoryShort = '軽登録';
+          else if (c.category === 'seal') categoryShort = '封印';
+          else categoryShort = '';
+        }
+
+        const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+
         return `
         <tr>
-          <td class="col-center">${i + 1}</td>
-          <td class="col-center">${c.orderNo || c.caseNo || '-'}</td>
-          <td class="col-center">${c.category ? c.category.slice(0, 8) : '車庫/登録'}</td>
-          <td><strong>${c.title}</strong></td>
-          <td>${c.policeStation || c.authority || ''}</td>
-          <td class="col-num">¥${Number(c.fee || 0).toLocaleString()}</td>
-          <td class="col-num">¥${advSum.toLocaleString()}</td>
+          <td class="col-center">${dateStr}</td>
+          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif;">${orderNo}</td>
+          <td><strong>${applicant}</strong></td>
+          <td class="col-center">${policeName}</td>
+          <td class="col-center">${categoryShort}</td>
+          <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+          <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
         </tr>`;
       }).join('')}
       <tr style="font-weight:bold; background:#f8fafc;">
-        <td colspan="5" class="col-center">明細合計</td>
-        <td class="col-num">¥${feeSubtotal.toLocaleString()}</td>
-        <td class="col-num">¥${advanceTotal.toLocaleString()}</td>
+        <td colspan="5" class="col-center">合　　計</td>
+        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num">${advanceTotal.toLocaleString()}</td>
       </tr>
     </tbody>
   </table>
 
   <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
-    行政書士法人フェリス | 請求書番号: ${invoiceNo}
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
   </div>
 </div>
 
@@ -1089,9 +1137,9 @@ const Invoice = {
   </div>
 </div>
 
-<!-- 2ページ目：別紙明細書 -->
+<!-- 2ページ目：別紙納品・請求明細書 -->
 <div class="page">
-  <div class="doc-title" style="font-size:20px; margin-bottom:15px;">別 紙 納 品 ・ 請 求 明 細 書</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:4px; margin-bottom:15px;">別 紙 納 品 ・ 請 求 明 細 書</div>
   <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-size:13px;">
     <div><strong>${clientName} 御中</strong></div>
     <div>令和 ${reiwaYear} 年 ${issueM} 月分</div>
@@ -1100,25 +1148,71 @@ const Invoice = {
   <table class="nissan-table" style="font-size:12px;">
     <thead>
       <tr>
-        <th style="width:6%;">No</th>
-        <th style="width:14%;">受注No.</th>
-        <th style="width:25%;">申請者名 / 件名</th>
-        <th style="width:15%;">管轄</th>
-        <th style="width:20%;">項目</th>
-        <th style="width:20%;">報酬料（税込）</th>
+        <th rowspan="2" style="width:7%;">日付</th>
+        <th colspan="4" style="width:65%;">申　請　者</th>
+        <th rowspan="2" style="width:14%;">報酬料（税込）</th>
+        <th rowspan="2" style="width:14%;">立替金</th>
+      </tr>
+      <tr>
+        <th style="width:16%;">注文No.</th>
+        <th style="width:21%;">氏　名</th>
+        <th style="width:14%;">管　轄</th>
+        <th style="width:14%;">備　考</th>
       </tr>
     </thead>
     <tbody>
-      ${cases.map((c, i) => `
-      <tr>
-        <td style="text-align:center;">${i + 1}</td>
-        <td style="text-align:center;">${c.orderNo || c.caseNo || '-'}</td>
-        <td><strong>${c.title}</strong></td>
-        <td>${c.policeStation || c.authority || '一宮警察'}</td>
-        <td>${c.category ? c.category.slice(0, 10) : '車庫証明(申請・取得)'}</td>
-        <td class="col-num">¥${Math.floor(Number(c.fee||0) * 1.1).toLocaleString()}</td>
+      ${cases.map((c) => {
+        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+        let dateStr = '-';
+        if (rawDate) {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+          } else {
+            const parts = String(rawDate).split(/[-/T]/);
+            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+            else dateStr = String(rawDate).slice(5);
+          }
+        }
+        const orderNo = c.orderNo || c.caseNo || '-';
+        const applicant = c.carName || c.applicantName || c.title || '-';
+        
+        let policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+          const loc = Store.getLocation(c.policeLocationId);
+          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+        }
+        if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+
+        let categoryShort = c.subCategory || '';
+        if (!categoryShort) {
+          if (c.category === 'garage_oss') categoryShort = 'OSS';
+          else if (c.category === 'garage_paper') categoryShort = '車庫';
+          else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
+          else if (c.category === 'car_reg_light') categoryShort = '軽登録';
+          else if (c.category === 'seal') categoryShort = '封印';
+          else categoryShort = '';
+        }
+
+        const feeTaxIncluded = Math.floor(Number(c.fee || 0) * 1.1);
+        const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+
+        return `
+        <tr>
+          <td style="text-align:center;">${dateStr}</td>
+          <td style="text-align:center;">${orderNo}</td>
+          <td><strong>${applicant}</strong></td>
+          <td style="text-align:center;">${policeName}</td>
+          <td style="text-align:center;">${categoryShort}</td>
+          <td class="col-num">${feeTaxIncluded > 0 ? '¥' + feeTaxIncluded.toLocaleString() : '-'}</td>
+          <td class="col-num">${advSum > 0 ? '¥' + advSum.toLocaleString() : ''}</td>
+        </tr>`;
+      }).join('')}
+      <tr style="font-weight:bold; background:#f8fafc;">
+        <td colspan="5" style="text-align:center;">合　　計</td>
+        <td class="col-num">¥${(feeSubtotal + tax).toLocaleString()}</td>
+        <td class="col-num">¥${advanceTotal.toLocaleString()}</td>
       </tr>
-      `).join('')}
     </tbody>
   </table>
 </div>
