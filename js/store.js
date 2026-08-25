@@ -183,8 +183,12 @@ const Store = {
       registrationDate: data.registrationDate || '',
       carName: data.carName || '',               // 名前（申請者等）
       carAddress: data.carAddress || '',         // 住所
+      parkingAddress: data.parkingAddress || '', // 保管場所住所
       carNumber: data.carNumber || '',           // 車台番号
       carPolice: data.carPolice || '',           // 所轄警察署
+      driveFolderUrl: data.driveFolderUrl || '', // Google DriveフォルダURL
+      subCategory: data.subCategory || '',       // 登録種別
+      milestoneIndex: data.milestoneIndex !== undefined ? data.milestoneIndex : 0,
       faxId: data.faxId || '',                   // 受信FAXとの紐付け用ID
       inboxId: data.inboxId || '',               // インボックス連携用ID
       calendarEventIds: data.calendarEventIds || {},  // { apply, delivery, storeDelivery, registration } カレンダー同期用

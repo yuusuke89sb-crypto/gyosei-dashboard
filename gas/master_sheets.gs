@@ -56,6 +56,8 @@ const CASE_HEADERS = [
   '被相続人死亡日', '現地調査予定日', '申請予定日', '交付予定日', '店舗届ける予定日', '店舗届ける時間',
   '現地調査場所ID', '警察署場所ID', '陸運局場所ID',
   '登録予定日', '顧客担当者ID',
+  '申請者名', '使用の本拠住所', '保管場所住所', '所轄警察署', '車台番号',
+  'DriveフォルダURL', '登録種別', '立替金', '進捗ステップ', 'インボックスID', 'FAX_ID'
 ];
 
 const JOURNAL_HEADERS = [
@@ -986,7 +988,13 @@ function getSheetDataAsJson_(sheetName, headers) {
 function getKeyMap_(sheetName) {
   if (sheetName === SHEET_NAMES.CUSTOMER) return {'顧客ID': 'id','氏名': 'name','フリガナ': 'nameKana','区分': 'type','電話番号': 'phone','FAX番号': 'fax','メールアドレス': 'email','郵便番号': 'zip','住所': 'address','生年月日': 'birthday','法人名': 'companyName','法人番号': 'companyNumber','紹介元': 'referral','担当者ID': 'staffId','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
   if (sheetName === SHEET_NAMES.STAFF) return {'担当者ID': 'id','氏名': 'name','フリガナ': 'nameKana','役職': 'role','電話番号': 'phone','メールアドレス': 'email','担当業務': 'duties','ステータス': 'status','登録日': 'createdAt','更新日': 'updatedAt'};
-  if (sheetName === SHEET_NAMES.CASES) return {'案件ID': 'id','顧客ID': 'clientId','案件名': 'title','注文書№': 'orderNo','カテゴリ': 'category','ステータス': 'status','期限': 'deadline','報酬': 'fee','担当者ID': 'staffId','備考': 'memo','完了日': 'completedAt','登録日': 'createdAt','更新日': 'updatedAt','被相続人死亡日': 'deathDate','現地調査予定日': 'surveyDate','申請予定日': 'applyDate','交付予定日': 'policeDeliveryDate','店舗届ける予定日': 'storeDeliveryDate','店舗届ける時間': 'storeDeliveryTime','現地調査場所ID': 'surveyLocationId','警察署場所ID': 'policeLocationId','陸運局場所ID': 'landTransportLocationId','登録予定日': 'registrationDate','顧客担当者ID': 'clientContactId'};
+  if (sheetName === SHEET_NAMES.CASES) return {
+    '案件ID': 'id','顧客ID': 'clientId','案件名': 'title','注文書№': 'orderNo','カテゴリ': 'category','ステータス': 'status','期限': 'deadline','報酬': 'fee','担当者ID': 'staffId','備考': 'memo','完了日': 'completedAt','登録日': 'createdAt','更新日': 'updatedAt',
+    '被相続人死亡日': 'deathDate','現地調査予定日': 'surveyDate','申請予定日': 'applyDate','交付予定日': 'policeDeliveryDate','店舗届ける予定日': 'storeDeliveryDate','店舗届ける時間': 'storeDeliveryTime',
+    '現地調査場所ID': 'surveyLocationId','警察署場所ID': 'policeLocationId','陸運局場所ID': 'landTransportLocationId','登録予定日': 'registrationDate','顧客担当者ID': 'clientContactId',
+    '申請者名': 'carName','使用の本拠住所': 'carAddress','保管場所住所': 'parkingAddress','所轄警察署': 'carPolice','車台番号': 'carNumber',
+    'DriveフォルダURL': 'driveFolderUrl','登録種別': 'subCategory','立替金': 'advances','進捗ステップ': 'milestoneIndex','インボックスID': 'inboxId','FAX_ID': 'faxId'
+  };
   if (sheetName === SHEET_NAMES.JOURNALS) return {'伝票ID': 'id','日付': 'date','借方': 'debit','貸方': 'credit','金額': 'amount','摘要': 'description','案件ID': 'caseId','自動': 'auto','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.INBOX) return {'インボックスID': 'id','日時': 'date','種別': 'type','送信元': 'sender','件名': 'subject','本文': 'body','添付ファイル': 'attachments','ステータス': 'status','案件ID': 'caseId','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.LOCATION) return {'場所ID': 'id','場所名': 'name','住所': 'address','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
@@ -1196,6 +1204,13 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
     sheet = ss.insertSheet(SHEET_NAMES.CASES);
     sheet.appendRow(CASE_HEADERS);
     sheet.getRange('1:1').setFontWeight('bold');
+  } else {
+    // ヘッダー列が不足している場合は最新列まで自動拡張
+    const lastCol = sheet.getLastColumn();
+    if (lastCol < CASE_HEADERS.length) {
+      sheet.getRange(1, 1, 1, CASE_HEADERS.length).setValues([CASE_HEADERS]);
+      sheet.getRange('1:1').setFontWeight('bold');
+    }
   }
 
   const keyMap = getKeyMap_(SHEET_NAMES.CASES);
@@ -1214,7 +1229,11 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
           const key = keyMap[header];
           if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
             let val = data[key];
-            if (val instanceof Date) val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            if (val instanceof Date) {
+              val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            } else if (typeof val === 'object' && val !== null) {
+              val = JSON.stringify(val);
+            }
             sheet.getRange(row, col + 1).setValue(val);
           }
         });
@@ -1242,7 +1261,9 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
     if (key === 'id') return newId;
     if (key === 'createdAt') return data.createdAt || now;
     if (key === 'updatedAt') return now;
-    return data[key] || '';
+    var val = data[key];
+    if (typeof val === 'object' && val !== null) return JSON.stringify(val);
+    return val !== undefined ? val : '';
   });
   sheet.appendRow(rowData);
   return { success: true, action: 'added', id: newId };
