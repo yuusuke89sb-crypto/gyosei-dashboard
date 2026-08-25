@@ -480,7 +480,7 @@ const DealerDocumentParser = {
 【出力JSON例】
 {"orderNo":"57500855","isOss":true,"applicationType":"OSS","dealerName":"愛知トヨタWEST株式会社","branchName":"一宮開明店","storeFullName":"愛知トヨタWEST 一宮開明店","staffName":"安藤 孝太郎","staffPhone":"090-7912-8900","receivedDate":"2026-08-25","applicantName":"横田 清","applicantFurigana":"ヨコタ キヨシ","applicantPhone":"090-6807-9715","applicantPostal":"494-0003","applicantAddress":"一宮市三条 字墓北94-3","garageAddress":"同上（使用の本拠と同じ）","carName":"トヨタ","carModel":"6AA-ZWR90W","vin":"ZWR90-","registrationNo":"","replaceCar":"一宮350 て 7942","targetDeliveryDate":"9/11","memo":"自宅でお願いします"}`;
 
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
     const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
     let finalMime = mimeType || 'image/jpeg';
     if (finalMime.includes('tif')) finalMime = 'image/tiff';

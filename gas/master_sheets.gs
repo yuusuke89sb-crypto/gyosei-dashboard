@@ -767,35 +767,42 @@ function performGeminiOcrAction_(body) {
       '  "memo": "備考・代替車情報"\n' +
       "}";
 
-    var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
-    var payload = {
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inline_data: { mime_type: mime, data: b64 } }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0.1,
-        response_mime_type: "application/json"
+    var models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    var lastError = '';
+    
+    for (var m = 0; m < models.length; m++) {
+      var modelName = models[m];
+      var url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
+      var payload = {
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mime, data: b64 } }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          response_mime_type: "application/json"
+        }
+      };
+      
+      var response = UrlFetchApp.fetch(url, {
+        method: "post",
+        contentType: "application/json",
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+      
+      var resJson = JSON.parse(response.getContentText());
+      if (resJson.candidates && resJson.candidates[0] && resJson.candidates[0].content) {
+        var text = resJson.candidates[0].content.parts[0].text;
+        var parsed = JSON.parse(text);
+        return { success: true, parsed: parsed };
+      } else {
+        lastError = response.getContentText();
       }
-    };
-    
-    var response = UrlFetchApp.fetch(url, {
-      method: "post",
-      contentType: "application/json",
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-    
-    var resJson = JSON.parse(response.getContentText());
-    if (resJson.candidates && resJson.candidates[0] && resJson.candidates[0].content) {
-      var text = resJson.candidates[0].content.parts[0].text;
-      var parsed = JSON.parse(text);
-      return { success: true, parsed: parsed };
-    } else {
-      return { error: "Gemini応答エラー: " + response.getContentText() };
     }
+    return { error: "Gemini応答エラー: " + lastError };
   } catch (err) {
     return { error: "Gemini解析エラー: " + err.toString() };
   }
