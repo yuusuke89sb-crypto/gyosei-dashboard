@@ -644,31 +644,61 @@ const InboxManager = {
     }, 100);
   },
 
+  // ─── 🔄 OCR解析用ローディングモーダル ───
+  showLoadingModal(msg = '添付ファイル（FAX/依頼書）をAI OCR解析しています...') {
+    let el = document.getElementById('inbox-ocr-loading-modal');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'inbox-ocr-loading-modal';
+      document.body.appendChild(el);
+    }
+    el.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px);';
+    el.innerHTML = `
+      <div style="background:var(--card-bg, #1e293b); border:1px solid rgba(245,158,11,0.4); border-radius:16px; padding:32px; max-width:440px; width:90%; text-align:center; color:#fff; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7);">
+        <div class="spinner" style="width:48px; height:48px; border:4px solid rgba(245,158,11,0.2); border-top-color:#f59e0b; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 20px;"></div>
+        <h3 style="font-size:1.15rem; font-weight:700; margin:0 0 8px 0; color:#f59e0b;">🤖 AI OCR 解析中</h3>
+        <p id="inbox-ocr-loading-status" style="font-size:0.85rem; color:#94a3b8; line-height:1.5; margin:0 0 16px 0;">${msg}</p>
+        <div style="font-size:0.75rem; color:#64748b;">※TIFF展開・Gemini高精度解析には約3〜8秒かかります</div>
+      </div>
+    `;
+  },
+
+  updateLoadingStatus(msg) {
+    const el = document.getElementById('inbox-ocr-loading-status');
+    if (el) el.innerText = msg;
+  },
+
+  hideLoadingModal() {
+    const el = document.getElementById('inbox-ocr-loading-modal');
+    if (el) el.remove();
+  },
+
   // 3-B. 添付ファイルや本文をOCR解析して案件登録
   async ocrAndRegisterCase(itemId) {
     const inbox = Store.getInbox ? Store.getInbox() : [];
     const item = inbox.find(i => i.id === itemId);
     if (!item) return;
 
-    let attachments = [];
-    if (item.attachments) {
-      try {
-        attachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
-      } catch (e) { attachments = []; }
-    }
+    this.showLoadingModal('添付ファイル（FAX/依頼書）を確認中...');
 
-    let extractedText = [item.subject, item.body, item.sender].filter(Boolean).join('\n');
+    try {
+      let attachments = [];
+      if (item.attachments) {
+        try {
+          attachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+        } catch (e) { attachments = []; }
+      }
 
-    // 添付ファイルがある場合
-    if (attachments.length > 0) {
-      const firstAtt = attachments[0];
-      App.showToast('🔍 添付ファイル（FAX/依頼書）をAI OCR解析中...');
-      
-      try {
+      let extractedText = [item.subject, item.body, item.sender].filter(Boolean).join('\n');
+
+      if (attachments.length > 0) {
+        const firstAtt = attachments[0];
         const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
         const geminiKey = localStorage.getItem('gyosei_gemini_api_key') || '';
 
         if (gasUrl && firstAtt.url) {
+          this.updateLoadingStatus('Driveから添付ファイルを取得し、TIFF変換＆Gemini解析中...');
+
           // 1. クライアント側Base64取得 & TIFF瞬時変換 & Gemini直接呼び出し（最速・確実）
           try {
             const b64Res = await fetch(gasUrl, {
@@ -681,19 +711,22 @@ const InboxManager = {
             });
             const b64Data = await b64Res.json();
             if (b64Data && b64Data.success && b64Data.base64) {
+              this.updateLoadingStatus('Gemini 2.0 で書類項目（注文No・申請者・車両情報）を抽出中...');
               const geminiParsed = await DealerDocumentParser.parseWithGemini(b64Data.base64, b64Data.mimeType, item);
-              if (geminiParsed && (geminiParsed.orderNo || geminiParsed.applicantName || geminiParsed.storeFullName)) {
+              if (geminiParsed && (geminiParsed.orderNo || geminiParsed.applicantName || geminiParsed.storeFullName || geminiParsed.vin)) {
+                this.hideLoadingModal();
                 DealerDocumentParser.showOcrResultModal(geminiParsed, firstAtt.url);
                 return;
               }
             }
           } catch (b64Err) {
-            console.warn('Client-side Gemini OCR failed, trying server-side:', b64Err);
+            console.warn('Client-side Gemini OCR failed:', b64Err);
           }
 
           // 2. サーバー側 GAS Gemini OCR（フォールバック）
           if (geminiKey) {
             try {
+              this.updateLoadingStatus('サーバー経由でGemini OCR解析を実行中...');
               const geminiRes = await fetch(gasUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
@@ -705,20 +738,9 @@ const InboxManager = {
               });
               const geminiData = await geminiRes.json();
               if (geminiData && geminiData.success && geminiData.parsed) {
+                this.hideLoadingModal();
                 const p = geminiData.parsed;
                 p.suggestedTitle = `${p.storeFullName || p.dealerName || 'ディーラー'} - ${p.applicantName || '案件'} 様 (${p.applicationType || (p.isOss ? 'OSS' : '車庫証明')})`;
-                if (typeof Store !== 'undefined' && Store.getClients) {
-                  const clients = Store.getClients();
-                  const targetStore = (p.storeFullName || p.dealerName || '').toLowerCase();
-                  for (const c of clients) {
-                    const cName = (c.name || '').toLowerCase();
-                    if (targetStore && (cName.includes(targetStore) || targetStore.includes(cName))) {
-                      p.matchedClientId = c.id;
-                      p.matchedClientName = c.name;
-                      break;
-                    }
-                  }
-                }
                 DealerDocumentParser.showOcrResultModal(p, firstAtt.url);
                 return;
               }
@@ -726,32 +748,26 @@ const InboxManager = {
               console.warn('GAS Gemini OCR failed:', gasGeminiErr);
             }
           }
-
-          // 3. フォールバック: GAS Drive OCR
-          const res = await fetch(gasUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-              action: 'ocr',
-              fileUrl: firstAtt.url
-            })
-          });
-          const resData = await res.json();
-          if (resData.success && resData.text) {
-            extractedText = resData.text + '\n\n' + extractedText;
-          }
         }
-      } catch (ocrErr) {
-        console.error('AI OCR解析エラー:', ocrErr);
-      }
 
-      // テキスト解析
-      const parsed = DealerDocumentParser.parse(extractedText, item);
-      DealerDocumentParser.showOcrResultModal(parsed, firstAtt.url);
-    } else {
-      // 添付がない場合も本文・件名を解析
-      const parsed = DealerDocumentParser.parse(extractedText, item);
-      DealerDocumentParser.showOcrResultModal(parsed);
+        // フォールバック（添付ファイルのテキストまたは本文から推測）
+        this.hideLoadingModal();
+        const parsed = (typeof DealerDocumentParser !== 'undefined') ? DealerDocumentParser.parse(extractedText, item) : {};
+        if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.showOcrResultModal) {
+          DealerDocumentParser.showOcrResultModal(parsed, firstAtt ? firstAtt.url : '');
+        }
+      } else {
+        // 添付がない場合
+        this.hideLoadingModal();
+        const parsed = (typeof DealerDocumentParser !== 'undefined') ? DealerDocumentParser.parse(extractedText, item) : {};
+        if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.showOcrResultModal) {
+          DealerDocumentParser.showOcrResultModal(parsed);
+        }
+      }
+    } catch (err) {
+      this.hideLoadingModal();
+      console.error('OCR処理全体エラー:', err);
+      alert('⚠️ OCR解析中にエラーが発生しました:\n' + err.message + '\n\n手元のTIF/PDFファイルを画面から直接選択して解析することも可能です。');
     }
   },
 
