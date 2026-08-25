@@ -57,7 +57,7 @@ const CASE_HEADERS = [
   '現地調査場所ID', '警察署場所ID', '陸運局場所ID',
   '登録予定日', '顧客担当者ID',
   '申請者名', '使用の本拠住所', '保管場所住所', '所轄警察署', '車台番号',
-  'DriveフォルダURL', '登録種別', '立替金', '進捗ステップ', 'インボックスID', 'FAX_ID'
+  'DriveフォルダURL', '登録種別', '立替金', '進捗ステップ', 'インボックスID', 'FAX_ID', '添付書類'
 ];
 
 const JOURNAL_HEADERS = [
@@ -993,7 +993,7 @@ function getKeyMap_(sheetName) {
     '被相続人死亡日': 'deathDate','現地調査予定日': 'surveyDate','申請予定日': 'applyDate','交付予定日': 'policeDeliveryDate','店舗届ける予定日': 'storeDeliveryDate','店舗届ける時間': 'storeDeliveryTime',
     '現地調査場所ID': 'surveyLocationId','警察署場所ID': 'policeLocationId','陸運局場所ID': 'landTransportLocationId','登録予定日': 'registrationDate','顧客担当者ID': 'clientContactId',
     '申請者名': 'carName','使用の本拠住所': 'carAddress','保管場所住所': 'parkingAddress','所轄警察署': 'carPolice','車台番号': 'carNumber',
-    'DriveフォルダURL': 'driveFolderUrl','登録種別': 'subCategory','立替金': 'advances','進捗ステップ': 'milestoneIndex','インボックスID': 'inboxId','FAX_ID': 'faxId'
+    'DriveフォルダURL': 'driveFolderUrl','登録種別': 'subCategory','立替金': 'advances','進捗ステップ': 'milestoneIndex','インボックスID': 'inboxId','FAX_ID': 'faxId','添付書類': 'docs'
   };
   if (sheetName === SHEET_NAMES.JOURNALS) return {'伝票ID': 'id','日付': 'date','借方': 'debit','貸方': 'credit','金額': 'amount','摘要': 'description','案件ID': 'caseId','自動': 'auto','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.INBOX) return {'インボックスID': 'id','日時': 'date','種別': 'type','送信元': 'sender','件名': 'subject','本文': 'body','添付ファイル': 'attachments','ステータス': 'status','案件ID': 'caseId','登録日': 'createdAt'};

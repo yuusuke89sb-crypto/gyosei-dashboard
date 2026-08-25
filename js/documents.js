@@ -126,7 +126,30 @@ const CaseDocs = {
   // ─── 書類パネルを描画（案件編集モーダル内） ───────────────
   renderPanel(caseId) {
     const c = Store.getCase(caseId);
-    const docs = Array.isArray(c?.docs) ? c.docs : [];
+    let docs = Array.isArray(c?.docs) ? [...c.docs] : [];
+
+    // インボックスやFAX由来の添付ファイルがあれば自動マージして一覧に含める
+    if (c) {
+      if (c.inboxId && typeof Store.getInbox === 'function') {
+        const inb = Store.getInbox().find(i => i.id === c.inboxId);
+        if (inb && Array.isArray(inb.attachments)) {
+          inb.attachments.forEach((att, idx) => {
+            const attName = att.name || '受信添付書類';
+            if (!docs.some(d => d.name === attName || (d.driveUrl && att.url && d.driveUrl === att.url))) {
+              docs.push({
+                id: 'inb_' + (att.id || idx),
+                name: attName,
+                driveUrl: att.url || '',
+                mimeType: att.mimeType || (attName.toLowerCase().endsWith('.tif') ? 'image/tiff' : (attName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')),
+                size: att.size || 0,
+                uploadedAt: inb.date || new Date().toISOString(),
+                source: 'inbox'
+              });
+            }
+          });
+        }
+      }
+    }
     const hasGas = SpreadsheetSync.isConfigured();
 
     return `
@@ -147,13 +170,13 @@ const CaseDocs = {
         <div class="docs-upload-area">
           <label class="docs-upload-btn" id="docsUploadBtn_${caseId}">
             <input type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt"
+              accept=".pdf,.jpg,.jpeg,.png,.gif,.tif,.tiff,.doc,.docx,.xls,.xlsx,.csv,.txt"
               style="display:none"
               onchange="CaseDocs.onFileSelect('${caseId}', this)"
               ${!hasGas ? 'disabled' : ''}>
             📎 書類を追加
           </label>
-          <span class="docs-hint">PDF・画像・Word・Excel / 最大15MB</span>
+          <span class="docs-hint">PDF・TIF・画像・Word・Excel / 最大15MB</span>
         </div>
 
         <div class="docs-export-area" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
@@ -176,21 +199,20 @@ const CaseDocs = {
     const icon = this.getIcon(doc.mimeType);
     const size = this.formatSize(doc.size);
     const date = doc.uploadedAt ? doc.uploadedAt.slice(0, 10) : '';
+    const isInbox = doc.source === 'inbox';
     return `
       <div class="doc-item" id="doc_${doc.id}">
         <span class="doc-icon">${icon}</span>
         <div class="doc-info">
-          <div class="doc-name">${doc.name}</div>
+          <div class="doc-name">${doc.name} ${isInbox ? '<span style="font-size:0.7rem; background:rgba(59,130,246,0.15); color:#38bdf8; padding:1px 5px; border-radius:4px; margin-left:4px;">受信原本</span>' : ''}</div>
           <div class="doc-meta">${[size, date].filter(Boolean).join(' · ')}</div>
         </div>
         <div class="doc-actions">
           ${doc.driveUrl
-            ? `<a class="doc-btn" href="${doc.driveUrl}" target="_blank" title="Driveで開く">🔗</a>`
+            ? `<a class="doc-btn" href="${doc.driveUrl}" target="_blank" title="Driveで開く / 閲覧">🔗 開く</a>`
             : ''
           }
-          <button class="doc-btn doc-btn-delete"
-            onclick="CaseDocs.delete('${caseId}', '${doc.id}')"
-            title="削除">🗑️</button>
+          ${!isInbox ? `<button class="doc-btn doc-btn-delete" onclick="CaseDocs.delete('${caseId}', '${doc.id}')" title="削除">🗑️</button>` : ''}
         </div>
       </div>
     `;

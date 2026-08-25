@@ -1120,6 +1120,35 @@ const Cases = {
       memo: form.memo.value.trim(),
     };
 
+    // 添付書類（docs）の保持とインボックス添付ファイルの自動登録
+    let initialDocs = [];
+    if (this.editingId) {
+      const existing = Store.getCase(this.editingId);
+      initialDocs = (existing && Array.isArray(existing.docs)) ? [...existing.docs] : [];
+    }
+    const incomingAtts = (this.viewerState && this.viewerState.attachments && this.viewerState.attachments.length > 0)
+      ? this.viewerState.attachments
+      : [];
+    if (incomingAtts.length > 0) {
+      incomingAtts.forEach((att, idx) => {
+        const attName = att.name || '受信添付書類';
+        const exists = initialDocs.some(d => d.name === attName || (d.driveUrl && att.url && d.driveUrl === att.url));
+        if (!exists) {
+          initialDocs.push({
+            id: 'doc_att_' + Date.now().toString(36) + '_' + idx,
+            name: attName,
+            driveUrl: att.url || '',
+            driveId: (att.url && att.url.match(/[-\w]{25,}/)) ? att.url.match(/[-\w]{25,}/)[0] : '',
+            mimeType: att.mimeType || (attName.toLowerCase().endsWith('.tif') ? 'image/tiff' : (attName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')),
+            size: att.size || 0,
+            uploadedAt: new Date().toISOString(),
+            source: 'inbox'
+          });
+        }
+      });
+    }
+    data.docs = initialDocs;
+
     // マイルストーン同期ロジック (全カテゴリ)
     let milestoneVal = 0;
     const totalSteps = 3;
