@@ -1428,6 +1428,16 @@ const Cases = {
     App.refreshView();
   },
 
+  openDriveFolder() {
+    const input = document.getElementById('csf_driveFolderUrl');
+    const url = input ? input.value.trim() : '';
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      App.showToast('⚠️ Google DriveのフォルダURLが登録されていません');
+    }
+  },
+
   openSyakoMapMaker(caseId) {
     let targetCase = null;
     if (caseId) {
