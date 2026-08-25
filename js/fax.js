@@ -282,7 +282,7 @@ const FaxManager = {
       title: `${clientName ? clientName + '様' : ''} FAX依頼件（${date}）`,
       clientId: client ? client.id : '',
       category: 'garage_paper',
-      memo: `FAX受信日時: ${date}\n送信元番号: ${number}\n件名: ${subject}`,
+      memo: '',
       faxId: faxId
     };
     

@@ -1387,11 +1387,56 @@ function createCaseFolder_(data) {
     
     // Anyone with link can view (so dashboard can link to it directly if needed)
     caseFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    // 📎 添付ファイル（FAX/メール）を案件フォルダへ自動保管（コピー）
+    let copiedFilesCount = 0;
+    let attList = [];
+    if (Array.isArray(data.attachments) && data.attachments.length > 0) {
+      attList = data.attachments;
+    } else if (data.inboxId) {
+      try {
+        const inbSheet = getSheet_(SHEET_NAMES.INBOX);
+        if (inbSheet) {
+          const rows = inbSheet.getDataRange().getValues();
+          for (let r = 1; r < rows.length; r++) {
+            if (rows[r][0] === data.inboxId && rows[r][6]) {
+              attList = JSON.parse(rows[r][6]);
+              break;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (attList && attList.length > 0) {
+      attList.forEach(att => {
+        try {
+          if (att.url) {
+            const match = att.url.match(/[-\w]{25,}/);
+            if (match) {
+              const srcFile = DriveApp.getFileById(match[0]);
+              if (srcFile) {
+                const targetName = att.name || srcFile.getName();
+                // 同名ファイルが既に案件フォルダ内になければコピー
+                const existingInCase = caseFolder.getFilesByName(targetName);
+                if (!existingInCase.hasNext()) {
+                  srcFile.makeCopy(targetName, caseFolder);
+                  copiedFilesCount++;
+                }
+              }
+            }
+          }
+        } catch (copyErr) {
+          Logger.log('添付ファイル案件フォルダへのコピー失敗: ' + copyErr.message);
+        }
+      });
+    }
     
     return {
       success: true,
       folderId: caseFolder.getId(),
-      folderUrl: caseFolder.getUrl()
+      folderUrl: caseFolder.getUrl(),
+      copiedFilesCount: copiedFilesCount
     };
   } catch (err) {
     return { error: 'フォルダ作成エラー: ' + err.message };

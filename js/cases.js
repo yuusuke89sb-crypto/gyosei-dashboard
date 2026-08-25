@@ -1186,13 +1186,16 @@ const Cases = {
       }
     }
 
-    // フォルダ未作成の場合は裏側でGAS連携してフォルダ作成
+    // フォルダ未作成の場合は裏側でGAS連携してフォルダ作成＆添付ファイルの自動保管
     if (!data.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       const client = Store.getClient(savedCase.clientId);
       const clientName = client ? (client.companyName || client.name) : 'お客様';
+      const atts = (this.viewerState && this.viewerState.attachments && this.viewerState.attachments.length > 0) ? this.viewerState.attachments : [];
       const folderData = {
         ...savedCase,
-        clientName: clientName
+        clientName: clientName,
+        attachments: atts,
+        inboxId: data.inboxId || ''
       };
       
       // 非同期で実行（UIはブロックしない）
@@ -1200,6 +1203,9 @@ const Cases = {
         if (res && res.success && res.folderUrl) {
           Store.updateCase(savedCase.id, { driveFolderUrl: res.folderUrl });
           App.refreshView();
+          if (res.copiedFilesCount > 0) {
+            App.showToast(`📁 Google Driveに案件フォルダを作成し、添付書類(${res.copiedFilesCount}件)を保管しました`);
+          }
         }
       }).catch(err => console.warn('Google Drive フォルダ自動生成に失敗しました:', err));
     }

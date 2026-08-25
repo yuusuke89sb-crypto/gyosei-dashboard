@@ -630,9 +630,7 @@ const InboxManager = {
       orderNo: parsed ? parsed.orderNo : '',
       applicantName: parsed ? parsed.applicantName : '',
       applicantAddress: parsed ? parsed.applicantAddress : '',
-      memo: (parsed && parsed.orderNo) 
-        ? (DealerDocumentParser.toCasePrefill(parsed).memo + `\n\n【受信日時】: ${new Date(item.date).toLocaleString('ja-JP')}\n【送信元】: ${item.sender}${attachmentText}`)
-        : `【受信日時】: ${new Date(item.date).toLocaleString('ja-JP')}\n【送信元】: ${item.sender}\n【本文概要】:\n${item.body || 'なし'}${attachmentText}`,
+      memo: '', // メモ欄は本文全文を入れず、クリーンな状態で入力可能にする
       inboxId: item.id,
       faxId: item.type === 'FAX' ? item.id : '', // FAXログ互換用
       attachments: attachments,
