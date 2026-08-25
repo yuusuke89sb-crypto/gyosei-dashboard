@@ -336,33 +336,46 @@ html_code = """<!DOCTYPE html>
     margin-bottom: 8px;
   }
   .ocr-digits {
-    display: inline-flex;
-    align-items: center;
-    border: 1.5px solid #000;
-    border-right: none;
-    background: #FFFFFF;
-    padding: 0;
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    border: 1.5px solid #000 !important;
+    border-right: none !important;
+    background: #FFFFFF !important;
+    height: 24px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
   }
   .ocr-digit-cell {
-    width: 15px;
-    height: 22px;
-    border-right: 1.5px solid #000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: monospace, 'Courier New', monospace;
-    font-size: 13pt;
-    font-weight: bold;
-    line-height: 1;
-    text-align: center;
-    box-sizing: border-box;
+    width: 15px !important;
+    min-width: 15px !important;
+    max-width: 15px !important;
+    height: 24px !important;
+    border-right: 1.5px solid #000 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-family: monospace, 'Courier New', monospace !important;
+    font-size: 11pt !important;
+    font-weight: bold !important;
+    line-height: 24px !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+    color: #000 !important;
   }
   .ocr-code-box {
-    border: 1.5px solid #000;
-    padding: 2px 8px;
-    font-weight: bold;
-    font-size: 13pt;
-    margin-left: 8px;
+    border: 1.5px solid #000 !important;
+    height: 24px !important;
+    padding: 0 8px !important;
+    font-weight: bold !important;
+    font-size: 12pt !important;
+    margin-left: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    background: #FFFFFF !important;
   }
 
   /* 動的QRコード表示枠 */
@@ -626,8 +639,8 @@ html_code = """<!DOCTYPE html>
     <div class="sidebar-section">
       <div class="section-title">🔢 0. OSS OCRコード（案件ごとに変更）</div>
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">OCR番号（16桁・半角スペース区切り）</label>
-        <input type="text" id="ocrCodeInput" class="form-input" value="0 1 1 0 4 7 0 1 5 6 5 0 0 0 0 0" oninput="updateOCRDisplay(); updateQRCodes(); autoSaveDraft();" style="font-family:monospace; letter-spacing:2px; font-weight:bold;">
+        <label class="form-label">OCR番号（最大16桁・自動マス目反映）</label>
+        <input type="text" id="ocrCodeInput" class="form-input" maxlength="16" placeholder="例: 0110470156500000" value="0110470156500000" oninput="updateOCRDisplay(); autoSaveDraft();" style="font-family:monospace; letter-spacing:2px; font-weight:bold;">
       </div>
     </div>
 
@@ -1572,12 +1585,18 @@ function deleteSelectedItem() {
 function updateOCRDisplay() {
   const ocrInput = document.getElementById('ocrCodeInput');
   const raw = (ocrInput ? ocrInput.value.replace(/[\s\-_]/g, '') : '') || '';
-  const padded = raw.padEnd(16, ' ').slice(0, 16);
-  const cellsHtml = padded.split('').map(d => `<div class="ocr-digit-cell">${d === ' ' ? '&nbsp;' : d}</div>`).join('');
-  const elC = document.getElementById('ocrDigitsC');
-  const elD = document.getElementById('ocrDigitsD');
-  if (elC) elC.innerHTML = cellsHtml;
-  if (elD) elD.innerHTML = cellsHtml;
+  
+  ['C', 'D'].forEach(suffix => {
+    const el = document.getElementById(`ocrDigits${suffix}`);
+    if (el) {
+      let html = '';
+      for (let i = 0; i < 16; i++) {
+        const ch = raw[i] || '';
+        html += `<div class="ocr-digit-cell">${ch ? ch : '&nbsp;'}</div>`;
+      }
+      el.innerHTML = html;
+    }
+  });
 }
 
 function updateQRCodes() {
