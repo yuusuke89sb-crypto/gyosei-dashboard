@@ -1374,42 +1374,53 @@ function bulkUpsertJournals_(journals) {
 
 
 /**
- * 案件専用のネストされたフォルダを作成
- * 行政書士事務所 / {clientName} / {category} / {createdAt} / {title}
+ * 案件専用のフォルダを作成＆添付ファイルを保管
+ * 構成: 行政書士事務所 / 【店舗名】 / 【注文書№】申請者名 様
  */
 function createCaseFolder_(data) {
   try {
-    const clientName = data.clientName || '不明な顧客';
-    const category = data.category || '未分類';
-    const dateStr = data.createdAt ? String(data.createdAt).substring(0, 10) : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    const title = data.title || '無題の案件';
+    const clientName = (data.clientName || '不明な顧客').replace(/[\\/:*?"<>|]/g, '_');
+    const orderNo = data.orderNo ? String(data.orderNo).trim() : '';
+    const applicant = (data.carName ? String(data.carName).trim() : (data.applicantName ? String(data.applicantName).trim() : '')).replace(/[\\/:*?"<>|]/g, '_');
+    const title = (data.title || '無題の案件').replace(/[\\/:*?"<>|]/g, '_');
     const caseId = data.id || '';
+    const dateStr = data.createdAt ? String(data.createdAt).substring(0, 10) : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
     
-    const safeTitle = (caseId ? `[${caseId}] ` : '') + title.replace(/[\\/:*?"<>|]/g, '_');
-    
+    // 📁 フォルダ名: 【注文書№】申請者名 様
+    let folderName = '';
+    if (orderNo && applicant) {
+      folderName = `【${orderNo}】${applicant} 様`;
+    } else if (applicant) {
+      folderName = `${applicant} 様 (${dateStr})`;
+    } else if (orderNo) {
+      folderName = `【${orderNo}】${title}`;
+    } else {
+      folderName = (caseId ? `[${caseId}] ` : '') + title;
+    }
+    folderName = folderName.replace(/[\\/:*?"<>|]/g, '_');
+
     const root = getOrCreateFolder_('行政書士事務所');
     const clientFolder = getOrCreateFolderUnder_(root, clientName);
-    const categoryFolder = getOrCreateFolderUnder_(clientFolder, category);
-    const dateFolder = getOrCreateFolderUnder_(categoryFolder, dateStr);
     
-    // Check if case folder already exists
+    // 店舗フォルダ配下に既存の同名フォルダがあるか確認
     let caseFolder = null;
-    const folders = dateFolder.getFolders();
+    const folders = clientFolder.getFolders();
     while (folders.hasNext()) {
       const f = folders.next();
-      if (f.getName().indexOf(safeTitle) !== -1 || (caseId && f.getName().indexOf('[' + caseId + ']') !== -1)) {
+      const fName = f.getName();
+      if (fName === folderName || (orderNo && fName.indexOf(`【${orderNo}】`) !== -1) || (caseId && fName.indexOf(`[${caseId}]`) !== -1)) {
         caseFolder = f;
         break;
       }
     }
     if (!caseFolder) {
-      caseFolder = dateFolder.createFolder(safeTitle);
+      caseFolder = clientFolder.createFolder(folderName);
     }
     
-    // Anyone with link can view (so dashboard can link to it directly if needed)
+    // Anyone with link can view
     caseFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-    // 📎 添付ファイル（FAX/メール）を案件フォルダへ自動保管（コピー）
+    // 📎 添付ファイル（FAX/メール）を案件フォルダへ自動保管（コピー＆命名）
     let copiedFilesCount = 0;
     let attList = [];
     if (Array.isArray(data.attachments) && data.attachments.length > 0) {
@@ -1430,14 +1441,30 @@ function createCaseFolder_(data) {
     }
 
     if (attList && attList.length > 0) {
-      attList.forEach(att => {
+      attList.forEach((att, idx) => {
         try {
           if (att.url) {
             const match = att.url.match(/[-\w]{25,}/);
             if (match) {
               const srcFile = DriveApp.getFileById(match[0]);
               if (srcFile) {
-                const targetName = att.name || srcFile.getName();
+                const origName = att.name || srcFile.getName();
+                const ext = origName.includes('.') ? origName.substring(origName.lastIndexOf('.')) : '';
+                const baseName = origName.replace(ext, '');
+                
+                // 📄 ファイル名: 【注文書№】申請者名_原本.ext
+                let targetName = '';
+                if (orderNo && applicant) {
+                  targetName = `【${orderNo}】${applicant}_${baseName}${ext}`;
+                } else if (applicant) {
+                  targetName = `${applicant}_${baseName}${ext}`;
+                } else if (orderNo) {
+                  targetName = `【${orderNo}】${baseName}${ext}`;
+                } else {
+                  targetName = origName;
+                }
+                targetName = targetName.replace(/[\\/:*?"<>|]/g, '_');
+
                 // 同名ファイルが既に案件フォルダ内になければコピー
                 const existingInCase = caseFolder.getFilesByName(targetName);
                 if (!existingInCase.hasNext()) {
