@@ -681,34 +681,22 @@ const Invoice = {
       </tr>
     </thead>
     <tbody>
-      ${garageCount > 0 ? `
       <tr>
-        <td rowspan="${(garageCount > 0 ? 1 : 0) + (sealCount > 0 ? 1 : 0) + (otherCount > 0 ? 1 : 0) || 1}" class="section-label col-center">報酬</td>
-        <td>車庫証明申請他</td>
-        <td class="col-center">${garageCount}件</td>
-        <td class="col-num">${garageFee.toLocaleString()}</td>
-      </tr>` : ''}
-      ${sealCount > 0 ? `
-      <tr>
-        ${garageCount === 0 ? `<td rowspan="${(sealCount > 0 ? 1 : 0) + (otherCount > 0 ? 1 : 0)}" class="section-label col-center">報酬</td>` : ''}
-        <td>封印</td>
-        <td class="col-center">${sealCount}件</td>
-        <td class="col-num">${sealFee.toLocaleString()}</td>
-      </tr>` : ''}
-      ${otherCount > 0 ? `
-      <tr>
-        ${garageCount === 0 && sealCount === 0 ? `<td class="section-label col-center">報酬</td>` : ''}
-        <td>諸手続き・その他</td>
-        <td class="col-center">${otherCount}件</td>
-        <td class="col-num">${otherFee.toLocaleString()}</td>
-      </tr>` : ''}
+        <td class="section-label col-center">報酬</td>
+        <td>
+          <div style="font-weight:bold;">車庫証明申請他</div>
+          <div style="font-size:11px; color:#475569; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>
+        </td>
+        <td class="col-center">${cases.length}件</td>
+        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
+      </tr>
       <tr style="background:#fdfdfd;">
         <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
         <td class="col-center">${cases.length}件</td>
         <td class="col-num" style="font-weight:bold;">${feeSubtotal.toLocaleString()}</td>
       </tr>
       <tr>
-        <td colspan="3" class="col-center">消費税 (10%)</td>
+        <td colspan="3" class="col-center">消費税 (${taxRate || 10}%)</td>
         <td class="col-num">${tax.toLocaleString()}</td>
       </tr>
       <tr style="font-weight:bold; background:#f8fafc;">
@@ -719,7 +707,7 @@ const Invoice = {
       <!-- 立替金パート -->
       ${Object.keys(advMap).length > 0 ? Object.entries(advMap).map(([lbl, data], idx) => `
       <tr>
-        ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length + 1}" class="section-label col-center">立替金</td>` : ''}
+        ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td>${lbl}</td>
         <td class="col-center">${data.count}件</td>
         <td class="col-num">${data.amount.toLocaleString()}</td>
@@ -732,8 +720,7 @@ const Invoice = {
         <td class="col-num">0</td>
       </tr>`}
       <tr style="background:#fdfdfd; font-weight:bold;">
-        <td colspan="2" class="col-center">立替金計</td>
-        <td class="col-center">${Object.values(advMap).reduce((s,x)=>s+x.count, 0)}件</td>
+        <td colspan="3" class="col-center">立替金計</td>
         <td class="col-num">${advanceTotal.toLocaleString()}</td>
       </tr>
 
