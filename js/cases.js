@@ -141,37 +141,44 @@ const Cases = {
 
   // 立替金行を再描画
   renderAdvanceRows() {
-    const container = document.getElementById('csf_advance_rows');
+    const container = document.getElementById('advancesRowsContainer') || document.getElementById('csf_advance_rows');
     if (!container) return;
+    if (!this.advanceDraft || this.advanceDraft.length === 0) {
+      container.innerHTML = `<div style="font-size:0.78rem; color:var(--text-muted, #94a3b8); padding:4px 0;">立替金（証紙代・印紙代・プレート代等）がある場合は「＋ 追加」またはプリセットを押してください</div>`;
+      return;
+    }
     container.innerHTML = this.advanceDraft.map((adv, i) => `
-      <div style="display:flex;gap:6px;align-items:center">
-        <input type="text" placeholder="内容（例：申請手数料）" value="${adv.label || ''}"
-          style="flex:2" data-adv-idx="${i}" data-adv-field="label"
+      <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+        <input type="text" placeholder="内容（例：車庫証明 証紙代）" value="${adv.label || ''}"
+          style="flex:2; font-size:0.85rem;" data-adv-idx="${i}" data-adv-field="label"
           oninput="Cases.onAdvInput(this)">
-        <input type="number" placeholder="金額" value="${adv.amount || ''}"
-          style="flex:1" data-adv-idx="${i}" data-adv-field="amount"
+        <input type="number" placeholder="金額（円）" value="${adv.amount !== undefined ? adv.amount : ''}"
+          style="flex:1.2; font-size:0.85rem;" data-adv-idx="${i}" data-adv-field="amount"
           oninput="Cases.onAdvInput(this)">
-        <button type="button" style="flex-shrink:0;background:none;border:1px solid #e5e7eb;border-radius:4px;padding:2px 8px;cursor:pointer;color:#ef4444"
-          onclick="Cases.removeAdvanceRow(${i})">✕</button>
+        <button type="button" class="btn btn-secondary btn-small" style="flex-shrink:0; padding:2px 8px; color:#ef4444; border-color:rgba(239,68,68,0.3);"
+          onclick="Cases.removeAdvanceRow(${i})" title="削除">✕</button>
       </div>
     `).join('');
   },
 
-  addAdvanceRow() {
-    this.advanceDraft.push({ label: '', amount: 0 });
+  addAdvanceRow(label = '', amount = '') {
+    if (!this.advanceDraft) this.advanceDraft = [];
+    this.advanceDraft.push({ label: label, amount: amount });
     this.renderAdvanceRows();
   },
 
   removeAdvanceRow(i) {
+    if (!this.advanceDraft) return;
     this.advanceDraft.splice(i, 1);
     this.renderAdvanceRows();
   },
 
   onAdvInput(el) {
-    const i = parseInt(el.dataset.advIdx);
+    const i = parseInt(el.dataset.advIdx, 10);
     const field = el.dataset.advField;
-    if (!this.advanceDraft[i]) this.advanceDraft[i] = { label: '', amount: 0 };
-    this.advanceDraft[i][field] = field === 'amount' ? Number(el.value) : el.value;
+    if (!this.advanceDraft) this.advanceDraft = [];
+    if (!this.advanceDraft[i]) this.advanceDraft[i] = { label: '', amount: '' };
+    this.advanceDraft[i][field] = field === 'amount' ? (el.value === '' ? '' : Number(el.value)) : el.value;
   },
 
   renderKanbanCard(c) {
@@ -526,9 +533,14 @@ const Cases = {
 
                 <!-- 立替金入力エリア -->
                 <div class="advances-section" style="margin-bottom:16px; border:1px solid var(--border-color); border-radius:6px; padding:12px; background:var(--bg-secondary)">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
                     <label style="font-weight:600; margin:0">💰 立替金（証紙代・印紙代等）</label>
-                    <button type="button" class="btn btn-secondary btn-small" onclick="Cases.addAdvanceRow()">＋ 追加</button>
+                    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('車庫証明証紙代', 2200)">＋ 証紙2,200円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('軽届出証紙代', 500)">＋ 軽500円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('登録印紙代', 500)">＋ 登録印紙500円</button>
+                      <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow()">＋ 追加</button>
+                    </div>
                   </div>
                   <div id="advancesRowsContainer"></div>
                 </div>
