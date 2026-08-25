@@ -387,19 +387,13 @@
     min-height: 490px;
   }
 
-  /* 地図レイヤー（白黒・公図風・道路くっきり） */
+  /* 地図レイヤー（白黒・公図風） */
   .map-layer {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: 1;
-    filter: grayscale(100%) contrast(180%) brightness(90%);
+    filter: grayscale(100%) contrast(105%) brightness(96%);
     transition: opacity 0.3s, filter 0.2s;
-  }
-  .map-layer.contrast-strong {
-    filter: grayscale(100%) contrast(240%) brightness(82%);
-  }
-  .map-layer.contrast-ultra {
-    filter: grayscale(100%) contrast(320%) brightness(75%) saturate(0%);
   }
   .map-layer.blank-mode {
     opacity: 0;
@@ -728,7 +722,10 @@
       <div class="property-panel" id="propertyPanel">
         <div class="property-title">
           <span id="selectedItemTypeLabel">🎯 選択中の要素</span>
-          <button class="property-btn" style="color:#EF4444; padding:1px 5px;" onclick="deleteSelectedItem()">🗑️ 削除</button>
+          <div style="display:flex; gap:4px;">
+            <button class="property-btn" style="color:#94A3B8; padding:1px 5px;" onclick="clearSelection()" title="選択を解除 (Esc)">✖ 選択解除</button>
+            <button class="property-btn" style="color:#EF4444; padding:1px 5px;" onclick="deleteSelectedItem()">🗑️ 削除</button>
+          </div>
         </div>
         <div class="property-row">
           <span style="font-size:0.72rem; color:#94A3B8; width:48px;">🔄 回転:</span>
@@ -818,13 +815,13 @@
       <div style="margin-bottom:10px; background:#0F172A; border:1px solid #334155; border-radius:6px; padding:6px 8px;">
         <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:3px;">
           <span style="color:#E2E8F0; font-weight:bold;">🖤 道路・線画の濃さ（コントラスト）</span>
-          <span id="contrastLabel" style="font-weight:bold; color:#38BDF8;">200%（濃いめ）</span>
+          <span id="contrastLabel" style="font-weight:bold; color:#38BDF8;">100%（標準・見やすい）</span>
         </div>
-        <input type="range" id="contrastSlider" min="100" max="350" step="10" value="200" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
+        <input type="range" id="contrastSlider" min="70" max="150" step="5" value="100" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
         <div style="display:flex; gap:4px; margin-top:3px;">
-          <button class="btn btn-secondary" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(130)">標準</button>
-          <button class="btn btn-primary" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(200)">濃いめ</button>
-          <button class="btn btn-accent" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(290)">超くっきり</button>
+          <button class="btn btn-secondary" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(80)">道目立つ</button>
+          <button class="btn btn-primary" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(100)">標準(推奨)</button>
+          <button class="btn btn-accent" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(125)">黒線強調</button>
         </div>
       </div>
       
@@ -1406,6 +1403,13 @@ function showPropertyPanel(targetKey, index) {
   panel.classList.add('active');
 }
 
+function clearSelection() {
+  selectedItemRef = null;
+  const panel = document.getElementById('propertyPanel');
+  if (panel) panel.classList.remove('active');
+  redrawAll();
+}
+
 function hidePropertyPanel() {
   selectedItemRef = null;
   const panel = document.getElementById('propertyPanel');
@@ -1588,18 +1592,18 @@ function applyMapContrast(contrast) {
   const sozaiMapEl = document.getElementById('sozaiMap');
   const haichiMapEl = document.getElementById('haichiMap');
   
-  const brightness = Math.max(70, Math.round(100 - (contrast - 100) * 0.1));
-  const filterStr = `grayscale(100%) contrast(${contrast}%) brightness(${brightness}%)`;
+  const c = Math.max(60, Math.min(160, contrast));
+  const b = Math.max(80, Math.min(110, Math.round(100 - (c - 100) * 0.2)));
+  const filterStr = `grayscale(100%) contrast(${c}%) brightness(${b}%)`;
 
   if (sozaiMapEl) sozaiMapEl.style.filter = filterStr;
   if (haichiMapEl) haichiMapEl.style.filter = filterStr;
 
-  let desc = '標準';
-  if (contrast >= 280) desc = '超くっきり';
-  else if (contrast >= 180) desc = '濃いめ';
-  else if (contrast < 150) desc = '薄め';
+  let desc = '標準(推奨)';
+  if (c >= 120) desc = '黒線強調';
+  else if (c <= 85) desc = '道目立つ(薄め)';
 
-  if (label) label.textContent = `${contrast}%（${desc}）`;
+  if (label) label.textContent = `${c}%（${desc}）`;
 }
 
 function initMaps() {
@@ -1616,10 +1620,10 @@ function initMaps() {
     zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 15);
 
-  sozaiTileLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+  sozaiTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     minZoom: 3,
     maxZoom: 23,
-    maxNativeZoom: 18
+    maxNativeZoom: 19
   }).addTo(sozaiMap);
 
   haichiMap = L.map('haichiMap', {
@@ -1632,16 +1636,16 @@ function initMaps() {
     zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 18);
 
-  haichiTileLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+  haichiTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     minZoom: 3,
     maxZoom: 23,
-    maxNativeZoom: 18
+    maxNativeZoom: 19
   }).addTo(haichiMap);
 
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(sozaiMap);
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(haichiMap);
 
-  applyMapContrast(200);
+  applyMapContrast(100);
 
   sozaiMap.on('zoomend', () => {
     const z = sozaiMap.getZoom();
@@ -1731,9 +1735,7 @@ function setTool(tool) {
   if (sozaiCanvas) sozaiCanvas.classList.toggle('drawing-mode', isDraw);
   if (haichiCanvas) haichiCanvas.classList.toggle('drawing-mode', isDraw);
 
-  if (tool !== 'select') {
-    hidePropertyPanel();
-  }
+  clearSelection();
 
   const toolLabels = {
     'select': '選択 / 移動 モード（要素をクリックで調整バー表示）',
@@ -1755,6 +1757,25 @@ function setTool(tool) {
 function setupEventListeners() {
   setupCanvasEvents(sozaiCanvas, 'sozai');
   setupCanvasEvents(haichiCanvas, 'haichi');
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      clearSelection();
+    }
+  });
+
+  window.addEventListener('beforeprint', () => {
+    clearSelection();
+    resizeCanvases();
+    if (sozaiMap) sozaiMap.invalidateSize();
+    if (haichiMap) haichiMap.invalidateSize();
+  });
+
+  window.addEventListener('afterprint', () => {
+    resizeCanvases();
+    if (sozaiMap) sozaiMap.invalidateSize();
+    if (haichiMap) haichiMap.invalidateSize();
+  });
 }
 
 function setupCanvasEvents(canvas, targetKey) {
@@ -1798,7 +1819,7 @@ function setupCanvasEvents(canvas, targetKey) {
         showPropertyPanel(targetKey, hitResult);
         return;
       }
-      hidePropertyPanel();
+      clearSelection();
       isPanning = true;
       canvas.style.cursor = 'grabbing';
       return;
@@ -3009,7 +3030,13 @@ function restoreDraftFromStorage() {
 }
 
 function exportA4PDF() {
-  window.print();
+  clearSelection();
+  resizeCanvases();
+  if (sozaiMap) sozaiMap.invalidateSize();
+  if (haichiMap) haichiMap.invalidateSize();
+  setTimeout(() => {
+    window.print();
+  }, 100);
 }
 
 async function exportOSSImage() {
