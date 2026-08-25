@@ -728,25 +728,55 @@ function performGeminiOcrAction_(body) {
     
     var apiKey = body.apiKey || PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
     if (!apiKey) return { error: 'Gemini APIキーが設定されていません' };
-    
+
     var file = DriveApp.getFileById(fileId);
     var blob = file.getBlob();
     var mime = blob.getContentType() || 'image/jpeg';
-    
-    // TIFFファイルの場合はPDFに変換してGeminiに送る
-    if (mime.indexOf('tif') !== -1 || file.getName().match(/\.tiff?$/i)) {
-      try {
-        blob = blob.getAs('application/pdf');
-        mime = 'application/pdf';
-      } catch (convErr) {
-        // PDF変換失敗時はそのまま
-      }
-    }
-    
     var b64 = Utilities.base64Encode(blob.getBytes());
-    
+
+    // 1. Google Drive OCRでテキストを抽出
+    DriveApp.getRootFolder();
+    var token = ScriptApp.getOAuthToken();
+    var metadata = { title: 'Temp_OCR_' + Date.now(), mimeType: mime };
+    var boundary = '-------314159265358979323846';
+    var delimiter = "\r\n--" + boundary + "\r\n";
+    var close_delim = "\r\n--" + boundary + "--";
+    var requestBody = delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: ' + mime + '\r\n' +
+      'Content-Transfer-Encoding: base64\r\n\r\n' +
+      b64 +
+      close_delim;
+
+    var url = 'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&convert=true&ocr=true&ocrLanguage=ja';
+    var response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'multipart/mixed; boundary="' + boundary + '"',
+      headers: { Authorization: 'Bearer ' + token },
+      payload: requestBody,
+      muteHttpExceptions: true
+    });
+
+    var resJson = JSON.parse(response.getContentText());
+    var fullText = '';
+    if (resJson.id) {
+      var docId = resJson.id;
+      var exportUrl = 'https://www.googleapis.com/drive/v2/files/' + docId + '/export?mimeType=text/plain';
+      var textRes = UrlFetchApp.fetch(exportUrl, {
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      });
+      fullText = textRes.getContentText();
+      try { DriveApp.getFileById(docId).setTrashed(true); } catch (e) {}
+    }
+
+    // 2. Gemini 2.0 Flash / 1.5 Flash にプロンプトを渡して高精度構造化抽出
     var prompt = "あなたは行政書士事務所の自動車登録・車庫証明の専門AIです。\n" +
-      "添付された書類（FAX、依頼書、車検証、鑑など）を読み取り、以下のJSON形式のみを出力してください。\n" +
+      "以下はOCRで読み取ったFAX・依頼書・書類の全文テキストです。誤字や改行のズレを推測して正しく解釈し、指定のJSON形式のみを出力してください。\n\n" +
+      "【OCRテキスト】\n" + (fullText || file.getName()) + "\n\n" +
+      "【出力フォーマット（JSONのみ）】\n" +
       "{\n" +
       '  "orderNo": "注文No（8桁数字。例: 57500855）",\n' +
       '  "isOss": trueまたはfalse,\n' +
@@ -769,42 +799,39 @@ function performGeminiOcrAction_(body) {
 
     var models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
     var lastError = '';
-    
+
     for (var m = 0; m < models.length; m++) {
-      var modelName = models[m];
-      var url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
-      var payload = {
+      var geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + models[m] + ":generateContent?key=" + apiKey;
+      var geminiPayload = {
         contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mime, data: b64 } }
-          ]
+          parts: [{ text: prompt }]
         }],
         generationConfig: {
           temperature: 0.1,
           response_mime_type: "application/json"
         }
       };
-      
-      var response = UrlFetchApp.fetch(url, {
+
+      var geminiRes = UrlFetchApp.fetch(geminiUrl, {
         method: "post",
         contentType: "application/json",
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify(geminiPayload),
         muteHttpExceptions: true
       });
-      
-      var resJson = JSON.parse(response.getContentText());
-      if (resJson.candidates && resJson.candidates[0] && resJson.candidates[0].content) {
-        var text = resJson.candidates[0].content.parts[0].text;
-        var parsed = JSON.parse(text);
-        return { success: true, parsed: parsed };
+
+      var geminiJson = JSON.parse(geminiRes.getContentText());
+      if (geminiJson.candidates && geminiJson.candidates[0] && geminiJson.candidates[0].content) {
+        var textOut = geminiJson.candidates[0].content.parts[0].text;
+        var parsed = JSON.parse(textOut);
+        return { success: true, parsed: parsed, rawText: fullText };
       } else {
-        lastError = response.getContentText();
+        lastError = geminiRes.getContentText();
       }
     }
-    return { error: "Gemini応答エラー: " + lastError };
+
+    return { error: "Gemini解析エラー: " + lastError };
   } catch (err) {
-    return { error: "Gemini解析エラー: " + err.toString() };
+    return { error: "AI解析処理エラー: " + err.toString() };
   }
 }
 
