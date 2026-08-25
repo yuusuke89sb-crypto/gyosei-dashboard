@@ -389,13 +389,19 @@ html_code = """<!DOCTYPE html>
     min-height: 490px;
   }
 
-  /* 地図レイヤー（白黒・公図風） */
+  /* 地図レイヤー（白黒・公図風・道路くっきり） */
   .map-layer {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: 1;
-    filter: grayscale(100%) contrast(125%);
-    transition: opacity 0.3s;
+    filter: grayscale(100%) contrast(180%) brightness(90%);
+    transition: opacity 0.3s, filter 0.2s;
+  }
+  .map-layer.contrast-strong {
+    filter: grayscale(100%) contrast(240%) brightness(82%);
+  }
+  .map-layer.contrast-ultra {
+    filter: grayscale(100%) contrast(320%) brightness(75%) saturate(0%);
   }
   .map-layer.blank-mode {
     opacity: 0;
@@ -794,10 +800,34 @@ html_code = """<!DOCTYPE html>
 
     <!-- 4. 地図調整 -->
     <div class="sidebar-section">
-      <div class="section-title">🗺️ 4. 縮尺・ズーム調整（超拡大対応）</div>
+      <div class="section-title">🗺️ 4. 地図・道路の濃さ＆縮尺調整</div>
+
+      <!-- 地図種類（国土地理院 / OSM） -->
+      <div class="form-group" style="margin-bottom:8px;">
+        <label class="form-label">地図デザイン（道路の太さ・公図感）</label>
+        <select id="mapTileSelect" class="form-input" onchange="changeMapTile(this.value); autoSaveDraft();" style="font-weight:bold; color:#38BDF8;">
+          <option value="gsi-std" selected>🗾 国土地理院 標準（道路・文字クッキリ・公用）</option>
+          <option value="osm">🌐 OpenStreetMap（標準）</option>
+          <option value="gsi-pale">🗺️ 国土地理院 淡色（すっきり薄め）</option>
+        </select>
+      </div>
+
+      <!-- 道路・線画の濃さスライダー -->
+      <div style="margin-bottom:10px; background:#0F172A; border:1px solid #334155; border-radius:6px; padding:6px 8px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:3px;">
+          <span style="color:#E2E8F0; font-weight:bold;">🖤 道路・線画の濃さ（コントラスト）</span>
+          <span id="contrastLabel" style="font-weight:bold; color:#38BDF8;">200%（濃いめ）</span>
+        </div>
+        <input type="range" id="contrastSlider" min="100" max="350" step="10" value="200" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
+        <div style="display:flex; gap:4px; margin-top:3px;">
+          <button class="btn btn-secondary" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(130)">標準</button>
+          <button class="btn btn-primary" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(200)">濃いめ</button>
+          <button class="btn btn-accent" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(290)">超くっきり</button>
+        </div>
+      </div>
       
       <!-- 所在図ズーム -->
-      <div style="margin-bottom:10px;">
+      <div style="margin-bottom:8px;">
         <div style="display:flex; justify-content:space-between; font-size:0.78rem; margin-bottom:3px;">
           <span>📍 所在図 縮尺（広域 ⇄ 詳細）</span>
           <span id="sozaiZoomLabel" style="font-weight:bold; color:#38BDF8;">Zoom: 15.0</span>
@@ -1514,6 +1544,60 @@ function updateQRCodes() {
   }
 }
 
+let sozaiTileLayer, haichiTileLayer;
+const TILE_URLS = {
+  'gsi-std': 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',
+  'osm': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  'gsi-pale': 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'
+};
+
+function changeMapTile(type) {
+  const url = TILE_URLS[type] || TILE_URLS['gsi-std'];
+  const maxNative = (type === 'osm') ? 19 : 18;
+  if (sozaiTileLayer && sozaiMap) sozaiMap.removeLayer(sozaiTileLayer);
+  if (haichiTileLayer && haichiMap) haichiMap.removeLayer(haichiTileLayer);
+
+  if (sozaiMap) {
+    sozaiTileLayer = L.tileLayer(url, { minZoom: 3, maxZoom: 23, maxNativeZoom: maxNative }).addTo(sozaiMap);
+  }
+  if (haichiMap) {
+    haichiTileLayer = L.tileLayer(url, { minZoom: 3, maxZoom: 23, maxNativeZoom: maxNative }).addTo(haichiMap);
+  }
+  showToast(`🗺️ 地図を切り替えました: ${type === 'osm' ? 'OSM' : '国土地理院'}`);
+}
+
+function onContrastSliderChange(val) {
+  const contrast = parseInt(val, 10);
+  applyMapContrast(contrast);
+}
+
+function setContrastPreset(contrast) {
+  const slider = document.getElementById('contrastSlider');
+  if (slider) slider.value = contrast;
+  applyMapContrast(contrast);
+  autoSaveDraft();
+  showToast(`🖤 道路の濃さを ${contrast}% に設定しました`);
+}
+
+function applyMapContrast(contrast) {
+  const label = document.getElementById('contrastLabel');
+  const sozaiMapEl = document.getElementById('sozaiMap');
+  const haichiMapEl = document.getElementById('haichiMap');
+  
+  const brightness = Math.max(70, Math.round(100 - (contrast - 100) * 0.1));
+  const filterStr = `grayscale(100%) contrast(${contrast}%) brightness(${brightness}%)`;
+
+  if (sozaiMapEl) sozaiMapEl.style.filter = filterStr;
+  if (haichiMapEl) haichiMapEl.style.filter = filterStr;
+
+  let desc = '標準';
+  if (contrast >= 280) desc = '超くっきり';
+  else if (contrast >= 180) desc = '濃いめ';
+  else if (contrast < 150) desc = '薄め';
+
+  if (label) label.textContent = `${contrast}%（${desc}）`;
+}
+
 function initMaps() {
   const kurodaLat = 35.3725;
   const kurodaLng = 136.7820;
@@ -1528,10 +1612,10 @@ function initMaps() {
     zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 15);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  sozaiTileLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
     minZoom: 3,
     maxZoom: 23,
-    maxNativeZoom: 19
+    maxNativeZoom: 18
   }).addTo(sozaiMap);
 
   haichiMap = L.map('haichiMap', {
@@ -1544,14 +1628,16 @@ function initMaps() {
     zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 18);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  haichiTileLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
     minZoom: 3,
     maxZoom: 23,
-    maxNativeZoom: 19
+    maxNativeZoom: 18
   }).addTo(haichiMap);
 
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(sozaiMap);
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(haichiMap);
+
+  applyMapContrast(200);
 
   sozaiMap.on('zoomend', () => {
     const z = sozaiMap.getZoom();
@@ -2658,14 +2744,17 @@ function exportJSON() {
   const showSeal = document.getElementById('showSealCheckbox').checked;
   const sealSize = parseInt(document.getElementById('sealSizeSlider').value, 10) || 34;
 
+  const mapTile = document.getElementById('mapTileSelect').value;
+  const mapContrast = parseInt(document.getElementById('contrastSlider').value, 10) || 200;
+
   const data = {
-    version: '1.2',
+    version: '1.3',
     exportedAt: new Date().toISOString(),
     caseId: linkedCaseId,
     formData: {
       ocr, homeAddr, parkAddr, sameAddr, spotNo, distance,
       spotWidth, spotLength, roadWidth, entranceWidth, shutter, layout, haichiMode,
-      dealerInfo, regNo, officeInfo, showSeal, sealSize
+      dealerInfo, regNo, officeInfo, showSeal, sealSize, mapTile, mapContrast
     },
     mapState: {
       sozaiCenter: sozaiMap ? sozaiMap.getCenter() : null,
@@ -2732,6 +2821,14 @@ function restoreProjectData(data) {
       document.getElementById('sealSizeSlider').value = f.sealSize;
       onSealSizeChange(f.sealSize);
     }
+    if (f.mapTile) {
+      document.getElementById('mapTileSelect').value = f.mapTile;
+      changeMapTile(f.mapTile);
+    }
+    if (f.mapContrast) {
+      document.getElementById('contrastSlider').value = f.mapContrast;
+      applyMapContrast(f.mapContrast);
+    }
     if (f.layout) {
       document.getElementById('layoutSelect').value = f.layout;
       switchLayout();
@@ -2792,6 +2889,8 @@ function autoSaveDraft() {
       const officeInfo = document.getElementById('officeInfoInput').value;
       const showSeal = document.getElementById('showSealCheckbox').checked;
       const sealSize = parseInt(document.getElementById('sealSizeSlider').value, 10) || 34;
+      const mapTile = document.getElementById('mapTileSelect').value;
+      const mapContrast = parseInt(document.getElementById('contrastSlider').value, 10) || 200;
 
       const draft = {
         savedAt: new Date().toISOString(),
@@ -2799,7 +2898,7 @@ function autoSaveDraft() {
         formData: {
           ocr, homeAddr, parkAddr, sameAddr, spotNo, distance,
           spotWidth, spotLength, roadWidth, entranceWidth, shutter, layout, haichiMode,
-          dealerInfo, regNo, officeInfo, showSeal, sealSize
+          dealerInfo, regNo, officeInfo, showSeal, sealSize, mapTile, mapContrast
         },
         mapState: {
           sozaiCenter: sozaiMap ? sozaiMap.getCenter() : null,
