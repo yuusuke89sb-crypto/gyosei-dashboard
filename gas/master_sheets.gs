@@ -1892,99 +1892,139 @@ function checkIncomingInbox_() {
     let savedCount = 0;
     const now = new Date();
 
-    // A. FAX通知メールスキャン (mail@felis-car.jp 宛、または eFAX / 件名に【受信FAX】等を含む未読)
-    const faxQuery = 'is:unread (to:mail@felis-car.jp OR from:efax.com OR subject:【受信FAX】 OR subject:FAX OR subject:受信 OR subject:複合機)';
+    // 既存インボックスデータの重複検知用IDマップ作成
+    const existingIds = new Set();
+    const lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+      ids.forEach(id => {
+        if (id) existingIds.add(String(id).trim());
+      });
+    }
+
+    // A. FAX通知メールスキャン（Apeos複合機、bihoku@, mail@felis-car.jp, 【FAX】など）
+    const faxQuery = '(is:unread OR newer_than:3d) (to:mail@felis-car.jp OR from:bihoku@globe.ocn.ne.jp OR from:efax.com OR subject:FAX OR subject:Apeos OR subject:受信)';
     try {
-      const faxThreads = GmailApp.search(faxQuery, 0, 20);
+      const faxThreads = GmailApp.search(faxQuery, 0, 30);
       faxThreads.forEach(thread => {
         thread.getMessages().forEach(msg => {
-          if (msg.isUnread()) {
-            const date = msg.getDate();
-            const subject = msg.getSubject();
-            const body = msg.getPlainBody();
-            const from = msg.getFrom();
-            const faxNumber = extractFaxNumber_(msg);
+          const msgId = msg.getId();
+          const newId = 'INB-' + msgId;
 
-            const ts = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
-            const attachments = [];
+          // 既にシートに存在する場合はスキップ（二重登録防止）
+          if (existingIds.has(newId)) return;
 
-            try {
-              msg.getAttachments().forEach(att => {
-                const folder = getInboxDriveFolder_('FAX受信');
-                const file = folder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
-                try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
-                attachments.push({ name: att.getName(), url: file.getUrl() });
-              });
-            } catch (attErr) {
-              Logger.log('FAX添付ファイル保存エラー: ' + attErr.message);
-            }
+          const toStr = (msg.getTo() || '').toLowerCase();
+          const fromStr = (msg.getFrom() || '').toLowerCase();
+          const subject = msg.getSubject() || '';
+          const subjLower = subject.toLowerCase();
 
-            const newId = 'INB-' + Date.now() + '-' + Math.floor(Math.random()*1000);
-            const rowData = [
-              newId,
-              date,
-              'FAX',
-              faxNumber,
-              subject,
-              body.substring(0, 500),
-              JSON.stringify(attachments),
-              '未対応',
-              '',
-              now
-            ];
-            sheet.appendRow(rowData);
-            savedCount++;
-            msg.markRead();
+          // システム通知・一般サービスの除外
+          const ignoreSenders = ['google.com', 'github.com', 'youtube.com', 'microsoft.com', 'stripe.com', 'amazon.', 'no-reply@', 'noreply@'];
+          if (ignoreSenders.some(ign => fromStr.includes(ign))) return;
+
+          // FAXまたは業務メールかの判定（Apeos、bihoku@、FAX、mail@）
+          const isFax = fromStr.includes('bihoku@') || fromStr.includes('efax.com') || subjLower.includes('fax') || subjLower.includes('apeos') || toStr.includes('mail@felis-car.jp');
+          if (!isFax) return;
+
+          const date = msg.getDate();
+          const dStr = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
+          const body = msg.getPlainBody() || '';
+          const faxNumber = extractFaxNumber_(msg);
+          const ts = dStr;
+          const attachments = [];
+
+          try {
+            msg.getAttachments().forEach(att => {
+              const folder = getInboxDriveFolder_('FAX受信');
+              const file = folder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
+              try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+              attachments.push({ name: att.getName(), url: file.getUrl() });
+            });
+          } catch (attErr) {
+            Logger.log('FAX添付ファイル保存エラー: ' + attErr.message);
           }
+
+          const rowData = [
+            newId,
+            date,
+            'FAX',
+            faxNumber || fromStr,
+            subject,
+            body.substring(0, 500),
+            JSON.stringify(attachments),
+            '未対応',
+            '',
+            now
+          ];
+          sheet.appendRow(rowData);
+          existingIds.add(newId);
+          savedCount++;
+          try { msg.markRead(); } catch (e) {}
         });
       });
     } catch (err) {
       Logger.log('FAX受信チェックエラー: ' + err.message);
     }
 
-    // B. 一般顧客メールスキャン (car@felis-car.jp 宛、旧OCN bihoku@globe.ocn.ne.jp からの転送、その他の未読)
-    const emailQuery = 'is:unread (to:car@felis-car.jp OR to:bihoku@globe.ocn.ne.jp OR (-to:mail@felis-car.jp -from:efax.com -subject:【受信FAX】 -subject:FAX -subject:複合機))';
+    // B. 一般顧客メールスキャン (car@felis-car.jp, hiei-gyousei@athena.ocn.ne.jp 等)
+    const emailQuery = '(is:unread OR newer_than:3d) (to:car@felis-car.jp OR to:hiei-gyousei@athena.ocn.ne.jp)';
     try {
-      const emailThreads = GmailApp.search(emailQuery, 0, 20);
+      const emailThreads = GmailApp.search(emailQuery, 0, 30);
       emailThreads.forEach(thread => {
         thread.getMessages().forEach(msg => {
-          if (msg.isUnread()) {
-            const date = msg.getDate();
-            const subject = msg.getSubject();
-            const body = msg.getPlainBody();
-            const from = msg.getFrom();
+          const msgId = msg.getId();
+          const newId = 'INB-' + msgId;
 
-            const ts = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
-            const attachments = [];
+          // 既にシートに存在する場合はスキップ
+          if (existingIds.has(newId)) return;
 
-            try {
-              msg.getAttachments().forEach(att => {
-                const folder = getInboxDriveFolder_('メール添付');
-                const file = folder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
-                try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
-                attachments.push({ name: att.getName(), url: file.getUrl() });
-              });
-            } catch (attErr) {
-              Logger.log('メール添付ファイル保存エラー: ' + attErr.message);
-            }
+          const toStr = (msg.getTo() || '').toLowerCase();
+          const ccStr = (msg.getCc() || '').toLowerCase();
+          const fromStr = (msg.getFrom() || '').toLowerCase();
 
-            const newId = 'INB-' + Date.now() + '-' + Math.floor(Math.random()*1000);
-            const rowData = [
-              newId,
-              date,
-              'メール',
-              from,
-              subject,
-              body.substring(0, 1000),
-              JSON.stringify(attachments),
-              '未対応',
-              '',
-              now
-            ];
-            sheet.appendRow(rowData);
-            savedCount++;
-            msg.markRead();
+          // システム通知・一般サービスの除外
+          const ignoreSenders = ['google.com', 'github.com', 'youtube.com', 'microsoft.com', 'stripe.com', 'amazon.', 'no-reply@', 'noreply@'];
+          if (ignoreSenders.some(ign => fromStr.includes(ign))) return;
+
+          const validRecipients = ['car@felis-car.jp', 'hiei-gyousei@athena.ocn.ne.jp'];
+          const isTargetRecipient = validRecipients.some(addr => toStr.includes(addr) || ccStr.includes(addr));
+          if (!isTargetRecipient) return;
+
+          const date = msg.getDate();
+          const dStr = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
+          const subject = msg.getSubject() || '';
+          const body = msg.getPlainBody() || '';
+          const ts = dStr;
+          const attachments = [];
+
+          try {
+            msg.getAttachments().forEach(att => {
+              const folder = getInboxDriveFolder_('メール添付');
+              const file = folder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
+              try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+              attachments.push({ name: att.getName(), url: file.getUrl() });
+            });
+          } catch (attErr) {
+            Logger.log('メール添付ファイル保存エラー: ' + attErr.message);
           }
+
+          const rowData = [
+            newId,
+            date,
+            'メール',
+            fromStr,
+            subject,
+            body.substring(0, 1000),
+            JSON.stringify(attachments),
+            '未対応',
+            '',
+            now
+          ];
+          sheet.appendRow(rowData);
+          existingIds.add(newId);
+          savedCount++;
+          try { msg.markRead(); } catch (e) {}
         });
       });
     } catch (err) {
