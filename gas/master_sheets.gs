@@ -702,6 +702,7 @@ function doPost(e) {
       case 'syncCaseCalendar': result = syncCaseCalendar_(data); break;
       case 'deleteCaseCalendarEvents': result = deleteCaseCalendarEvents_(data); break;
       case 'ocr': result = performOcrAction_(body); break;
+      case 'geminiOcr': result = performGeminiOcrAction_(body); break;
       case 'getFileBase64': result = getFileBase64Action_(body); break;
       case 'sendLineNotification':
         sendLineMessage_(data.message, lineToken, lineUserId);
@@ -713,6 +714,90 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ error: err.message })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function performGeminiOcrAction_(body) {
+  try {
+    var fileId = body.fileId;
+    if (!fileId && body.fileUrl) {
+      var match = body.fileUrl.match(/[-\w]{25,}/);
+      if (match) fileId = match[0];
+    }
+    if (!fileId) return { error: 'fileId または fileUrl が必要です' };
+    
+    var apiKey = body.apiKey || PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+    if (!apiKey) return { error: 'Gemini APIキーが設定されていません' };
+    
+    var file = DriveApp.getFileById(fileId);
+    var blob = file.getBlob();
+    var mime = blob.getContentType() || 'image/jpeg';
+    
+    // TIFFファイルの場合はPDFに変換してGeminiに送る
+    if (mime.indexOf('tif') !== -1 || file.getName().match(/\.tiff?$/i)) {
+      try {
+        blob = blob.getAs('application/pdf');
+        mime = 'application/pdf';
+      } catch (convErr) {
+        // PDF変換失敗時はそのまま
+      }
+    }
+    
+    var b64 = Utilities.base64Encode(blob.getBytes());
+    
+    var prompt = "あなたは行政書士事務所の自動車登録・車庫証明の専門AIです。\n" +
+      "添付された書類（FAX、依頼書、車検証、鑑など）を読み取り、以下のJSON形式のみを出力してください。\n" +
+      "{\n" +
+      '  "orderNo": "注文No（8桁数字。例: 57500855）",\n' +
+      '  "isOss": trueまたはfalse,\n' +
+      '  "applicationType": "OSS"または"一般",\n' +
+      '  "dealerName": "会社名（例: 愛知トヨタWEST株式会社）",\n' +
+      '  "branchName": "店舗名（例: 一宮開明店）",\n' +
+      '  "storeFullName": "愛知トヨタWEST 一宮開明店",\n' +
+      '  "staffName": "担当者名（例: 安藤 孝太郎）",\n' +
+      '  "staffPhone": "担当電話（例: 090-7912-8900）",\n' +
+      '  "receivedDate": "2026-08-25",\n' +
+      '  "applicantName": "申請者氏名（例: 横田 清）",\n' +
+      '  "applicantFurigana": "申請者フリガナ",\n' +
+      '  "applicantPostal": "494-0003",\n' +
+      '  "applicantAddress": "使用の本拠・住所",\n' +
+      '  "carModel": "型式（例: 6AA-ZWR90W）",\n' +
+      '  "carName": "車名（例: トヨタ）",\n' +
+      '  "targetDeliveryDate": "納車予定（例: 9/11）",\n' +
+      '  "memo": "備考・代替車情報"\n' +
+      "}";
+
+    var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+    var payload = {
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: mime, data: b64 } }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        response_mime_type: "application/json"
+      }
+    };
+    
+    var response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    
+    var resJson = JSON.parse(response.getContentText());
+    if (resJson.candidates && resJson.candidates[0] && resJson.candidates[0].content) {
+      var text = resJson.candidates[0].content.parts[0].text;
+      var parsed = JSON.parse(text);
+      return { success: true, parsed: parsed };
+    } else {
+      return { error: "Gemini応答エラー: " + response.getContentText() };
+    }
+  } catch (err) {
+    return { error: "Gemini解析エラー: " + err.toString() };
   }
 }
 

@@ -666,30 +666,42 @@ const InboxManager = {
       
       try {
         const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
+        const geminiKey = localStorage.getItem('gyosei_gemini_api_key') || '';
+
         if (gasUrl && firstAtt.url) {
-          // 1. ファイルのBase64を取得
-          const b64Res = await fetch(gasUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-              action: 'getFileBase64',
-              fileUrl: firstAtt.url
-            })
-          });
-          const b64Data = await b64Res.json();
-          
-          if (b64Data && b64Data.success && b64Data.base64) {
-            // 2. Gemini APIキーがある場合は直接Gemini Visionで超高精度AI解析
-            if (DealerDocumentParser.parseWithGemini) {
-              const geminiParsed = await DealerDocumentParser.parseWithGemini(b64Data.base64, b64Data.mimeType, item);
-              if (geminiParsed && geminiParsed.orderNo) {
-                DealerDocumentParser.showOcrResultModal(geminiParsed, firstAtt.url);
-                return;
+          // 1. GAS 経由で Gemini AI OCR（TIFF自動変換対応）を実行
+          if (geminiKey) {
+            const geminiRes = await fetch(gasUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify({
+                action: 'geminiOcr',
+                fileUrl: firstAtt.url,
+                apiKey: geminiKey
+              })
+            });
+            const geminiData = await geminiRes.json();
+            if (geminiData && geminiData.success && geminiData.parsed) {
+              const p = geminiData.parsed;
+              p.suggestedTitle = `${p.storeFullName || p.dealerName || 'ディーラー'} - ${p.applicantName || '案件'} 様 (${p.applicationType || (p.isOss ? 'OSS' : '車庫証明')})`;
+              if (typeof Store !== 'undefined' && Store.getClients) {
+                const clients = Store.getClients();
+                const targetStore = (p.storeFullName || p.dealerName || '').toLowerCase();
+                for (const c of clients) {
+                  const cName = (c.name || '').toLowerCase();
+                  if (targetStore && (cName.includes(targetStore) || targetStore.includes(cName))) {
+                    p.matchedClientId = c.id;
+                    p.matchedClientName = c.name;
+                    break;
+                  }
+                }
               }
+              DealerDocumentParser.showOcrResultModal(p, firstAtt.url);
+              return;
             }
           }
 
-          // 3. フォールバック: GAS Drive OCR
+          // 2. フォールバック: GAS Drive OCR
           const res = await fetch(gasUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
