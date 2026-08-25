@@ -821,13 +821,15 @@ html_code = """<!DOCTYPE html>
       <div style="margin-bottom:10px; background:#0F172A; border:1px solid #334155; border-radius:6px; padding:6px 8px;">
         <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:3px;">
           <span style="color:#E2E8F0; font-weight:bold;">🖤 道路・線画の濃さ（コントラスト）</span>
-          <span id="contrastLabel" style="font-weight:bold; color:#38BDF8;">100%（標準・見やすい）</span>
+          <span id="contrastLabel" style="font-weight:bold; color:#38BDF8;">100%（標準(推奨)）</span>
         </div>
-        <input type="range" id="contrastSlider" min="70" max="150" step="5" value="100" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
-        <div style="display:flex; gap:4px; margin-top:3px;">
-          <button class="btn btn-secondary" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(80)">道目立つ</button>
-          <button class="btn btn-primary" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(100)">標準(推奨)</button>
-          <button class="btn btn-accent" style="flex:1; padding:2px 4px; font-size:0.70rem;" onclick="setContrastPreset(125)">黒線強調</button>
+        <input type="range" id="contrastSlider" min="0" max="150" step="5" value="100" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
+        <div style="display:flex; gap:3px; margin-top:3px;">
+          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(0)">0%極薄</button>
+          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(50)">50%薄め</button>
+          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(80)">80%道目立つ</button>
+          <button class="btn btn-primary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(100)">100%標準</button>
+          <button class="btn btn-accent" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(125)">125%黒強調</button>
         </div>
       </div>
       
@@ -1626,16 +1628,18 @@ function applyMapContrast(contrast) {
   const sozaiMapEl = document.getElementById('sozaiMap');
   const haichiMapEl = document.getElementById('haichiMap');
   
-  const c = Math.max(60, Math.min(160, contrast));
-  const b = Math.max(80, Math.min(110, Math.round(100 - (c - 100) * 0.2)));
+  const c = Math.max(0, Math.min(180, parseInt(contrast, 10) || 0));
+  const b = c === 0 ? 100 : Math.max(80, Math.min(110, Math.round(100 - (c - 100) * 0.2)));
   const filterStr = `grayscale(100%) contrast(${c}%) brightness(${b}%)`;
 
   if (sozaiMapEl) sozaiMapEl.style.filter = filterStr;
   if (haichiMapEl) haichiMapEl.style.filter = filterStr;
 
   let desc = '標準(推奨)';
-  if (c >= 120) desc = '黒線強調';
-  else if (c <= 85) desc = '道目立つ(薄め)';
+  if (c === 0) desc = '0%（極薄・フラット）';
+  else if (c <= 50) desc = '50%薄め';
+  else if (c <= 85) desc = '80%道目立つ';
+  else if (c >= 120) desc = '125%黒線強調';
 
   if (label) label.textContent = `${c}%（${desc}）`;
 }
