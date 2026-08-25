@@ -477,13 +477,97 @@ const DealerDocumentParser = {
 - targetDeliveryDate: 登録予定日・納車予定日（例: "9/11"）
 - memo: 手書きメモや備考（例: "自宅でお願いします / 代替: 一宮350 て 7942"）
 
+  // ─── 🔄 TIFFをJPEG Base64にクライアント側で瞬時変換するヘルパー ───
+  convertTiffToJpeg(arrayBufferOrBase64) {
+    try {
+      let buffer;
+      if (typeof arrayBufferOrBase64 === 'string') {
+        const cleanB64 = arrayBufferOrBase64.includes(',') ? arrayBufferOrBase64.split(',')[1] : arrayBufferOrBase64;
+        const binaryStr = atob(cleanB64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        buffer = bytes.buffer;
+      } else {
+        buffer = arrayBufferOrBase64;
+      }
+
+      if (typeof UTIF !== 'undefined') {
+        const ifds = UTIF.decode(buffer);
+        if (ifds && ifds.length > 0) {
+          UTIF.decodeImage(buffer, ifds[0]);
+          const rgba = UTIF.toRGBA8(ifds[0]);
+          const canvas = document.createElement('canvas');
+          canvas.width = ifds[0].width;
+          canvas.height = ifds[0].height;
+          const ctx = canvas.getContext('2d');
+          const imgData = ctx.createImageData(canvas.width, canvas.height);
+          imgData.data.set(rgba);
+          ctx.putImageData(imgData, 0, 0);
+          return canvas.toDataURL('image/jpeg', 0.92);
+        }
+      }
+    } catch (e) {
+      console.warn('TIFF client conversion failed:', e);
+    }
+    return null;
+  },
+
+  // ─── 🤖 Gemini Vision による画像/PDFの直接超高精度AI解析 ───
+  async parseWithGemini(base64Data, mimeType, item = {}) {
+    const apiKey = localStorage.getItem('gyosei_gemini_api_key') || '';
+    if (!apiKey) {
+      App.showToast('⚠️ Gemini APIキーが未設定です。連携設定から入力してください');
+      return null;
+    }
+
+    const prompt = `あなたは行政書士事務所の自動車登録・車庫証明の専門AIです。
+添付された書類（FAX、依頼書、車検証、手書き鑑など）を分析してください。画像が横向き（90度回転）や斜めになっていても正しい向きとして読み取ってください。
+
+以下のJSONフォーマットのみを出力してください。Markdown記法や解説文は一切含めないでください。
+
+【抽出項目】
+- orderNo: 注文No（8桁の数字。例: "57500855"）
+- isOss: OSS申請ならtrue、一般申請（書面）ならfalse
+- applicationType: "OSS" または "一般"
+- dealerName: 会社名（例: "愛知トヨタWEST株式会社"）
+- branchName: 店舗名・支店名（例: "一宮開明店"）
+- storeFullName: ディーラー名と店舗名（例: "愛知トヨタWEST 一宮開明店"）
+- staffName: 担当者氏名（例: "安藤 孝太郎"）
+- staffPhone: 担当者連絡先電話番号（携帯またはTEL。例: "090-7912-8900"）
+- receivedDate: 依頼日・提出日 (YYYY-MM-DD。例: "2026-08-25")
+- applicantName: 申請者氏名（個人名または法人名。例: "横田 清"）
+- applicantFurigana: 申請者フリガナ（例: "ヨコタ キヨシ"）
+- applicantPhone: 申請者電話番号（例: "090-6807-9715"）
+- applicantPostal: 郵便番号（例: "494-0003"）
+- applicantAddress: 使用の本拠・住所（例: "一宮市三条 字墓北94-3"）
+- garageAddress: 保管場所の位置（"同上" または 住所）
+- carName: 車名（例: "トヨタ"）
+- carModel: 型式（例: "6AA-ZWR90W"）
+- vin: 車台番号（例: "ZWR90-"）
+- registrationNo: 車両登録番号・ナンバー（例: "一宮350 て 7942"）
+- replaceCar: 代替車情報（例: "一宮350 て 7942"）
+- targetDeliveryDate: 登録予定日・納車予定日（例: "9/11"）
+- memo: 手書きメモや備考（例: "自宅でお願いします / 代替: 一宮350 て 7942"）
+
 【出力JSON例】
 {"orderNo":"57500855","isOss":true,"applicationType":"OSS","dealerName":"愛知トヨタWEST株式会社","branchName":"一宮開明店","storeFullName":"愛知トヨタWEST 一宮開明店","staffName":"安藤 孝太郎","staffPhone":"090-7912-8900","receivedDate":"2026-08-25","applicantName":"横田 清","applicantFurigana":"ヨコタ キヨシ","applicantPhone":"090-6807-9715","applicantPostal":"494-0003","applicantAddress":"一宮市三条 字墓北94-3","garageAddress":"同上（使用の本拠と同じ）","carName":"トヨタ","carModel":"6AA-ZWR90W","vin":"ZWR90-","registrationNo":"","replaceCar":"一宮350 て 7942","targetDeliveryDate":"9/11","memo":"自宅でお願いします"}`;
 
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-    const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+    let finalBase64 = base64Data;
     let finalMime = mimeType || 'image/jpeg';
-    if (finalMime.includes('tif')) finalMime = 'image/tiff';
+
+    // TIFFの場合はブラウザ側でJPEG Canvasに変換
+    if (finalMime.includes('tif') || base64Data.startsWith('data:image/tif') || base64Data.startsWith('SUkq') || base64Data.startsWith('TU0A')) {
+      const converted = this.convertTiffToJpeg(base64Data);
+      if (converted) {
+        finalBase64 = converted;
+        finalMime = 'image/jpeg';
+      }
+    }
+
+    const cleanBase64 = finalBase64.includes(',') ? finalBase64.split(',')[1] : finalBase64;
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
 
     for (const model of models) {
       try {
@@ -545,8 +629,11 @@ const DealerDocumentParser = {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       App.showToast('🔍 選択したファイルをGemini AIで解析中...');
-      const base64 = ev.target.result;
-      const parsed = await this.parseWithGemini(base64, file.type);
+      let base64 = ev.target.result;
+      let mime = file.type;
+      if (!mime && file.name.match(/\.tiff?$/i)) mime = 'image/tiff';
+      if (!mime && file.name.match(/\.pdf$/i)) mime = 'application/pdf';
+      const parsed = await this.parseWithGemini(base64, mime);
       if (parsed) {
         this.showOcrResultModal(parsed);
       } else {
