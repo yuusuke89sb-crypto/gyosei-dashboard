@@ -334,13 +334,26 @@
     margin-bottom: 8px;
   }
   .ocr-digits {
-    font-family: monospace;
+    display: inline-flex;
+    align-items: center;
+    border: 1.5px solid #000;
+    border-right: none;
+    background: #FFFFFF;
+    padding: 0;
+  }
+  .ocr-digit-cell {
+    width: 15px;
+    height: 22px;
+    border-right: 1.5px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace, 'Courier New', monospace;
     font-size: 13pt;
     font-weight: bold;
-    letter-spacing: 4px;
-    border: 1.5px solid #000;
-    padding: 2px 10px;
-    display: flex;
+    line-height: 1;
+    text-align: center;
+    box-sizing: border-box;
   }
   .ocr-code-box {
     border: 1.5px solid #000;
@@ -1084,6 +1097,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupKeyboardShortcuts();
   loadStamps();
+  updateOCRDisplay();
   updateQRCodes();
   updateFooterDealerInfo();
   updateFooterRegNo();
@@ -1548,10 +1562,20 @@ function deleteSelectedItem() {
   showToast('🗑️ 要素を削除しました');
 }
 
-// ─── OSS OCR連動 QRコード動的生成 ───
-function updateQRCodes() {
+// ─── OSS OCR連動 QRコード＆マス目表示 ───
+function updateOCRDisplay() {
   const ocrInput = document.getElementById('ocrCodeInput');
-  const code = (ocrInput ? ocrInput.value.replace(/\s+/g, '') : '') || '0110470156500000';
+  const raw = (ocrInput ? ocrInput.value.replace(/\s+/g, '') : '') || '0110470156500000';
+  const padded = raw.padEnd(16, ' ').slice(0, 16);
+  const cellsHtml = padded.split('').map(d => `<div class="ocr-digit-cell">${d === ' ' ? '&nbsp;' : d}</div>`).join('');
+  const elC = document.getElementById('ocrDigitsC');
+  const elD = document.getElementById('ocrDigitsD');
+  if (elC) elC.innerHTML = cellsHtml;
+  if (elD) elD.innerHTML = cellsHtml;
+}
+
+function updateQRCodes() {
+  const code = 'C';
 
   const sozaiEl = document.getElementById('sozaiQRCode');
   const haichiEl = document.getElementById('haichiQRCode');
