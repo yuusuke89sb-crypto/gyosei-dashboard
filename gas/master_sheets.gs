@@ -1903,9 +1903,9 @@ function checkIncomingInbox_() {
     }
 
     // A. FAX通知メールスキャン（Apeos複合機、bihoku@, mail@felis-car.jp, 【FAX】など）
-    const faxQuery = '(is:unread OR newer_than:3d) (to:mail@felis-car.jp OR from:bihoku@globe.ocn.ne.jp OR from:efax.com OR subject:FAX OR subject:Apeos OR subject:受信)';
+    const faxQuery = 'newer_than:3d (Apeos OR FAX OR bihoku OR felis-car.jp OR efax)';
     try {
-      const faxThreads = GmailApp.search(faxQuery, 0, 30);
+      const faxThreads = GmailApp.search(faxQuery, 0, 50);
       faxThreads.forEach(thread => {
         thread.getMessages().forEach(msg => {
           const msgId = msg.getId();
@@ -1924,7 +1924,7 @@ function checkIncomingInbox_() {
           if (ignoreSenders.some(ign => fromStr.includes(ign))) return;
 
           // FAXまたは業務メールかの判定（Apeos、bihoku@、FAX、mail@）
-          const isFax = fromStr.includes('bihoku@') || fromStr.includes('efax.com') || subjLower.includes('fax') || subjLower.includes('apeos') || toStr.includes('mail@felis-car.jp');
+          const isFax = fromStr.includes('bihoku') || fromStr.includes('efax') || subjLower.includes('fax') || subjLower.includes('apeos') || toStr.includes('mail@felis-car.jp') || toStr.includes('bihoku');
           if (!isFax) return;
 
           const date = msg.getDate();
@@ -1968,7 +1968,7 @@ function checkIncomingInbox_() {
     }
 
     // B. 一般顧客メールスキャン (car@felis-car.jp, hiei-gyousei@athena.ocn.ne.jp 等)
-    const emailQuery = '(is:unread OR newer_than:3d) (to:car@felis-car.jp OR to:hiei-gyousei@athena.ocn.ne.jp)';
+    const emailQuery = 'newer_than:3d (car@felis-car.jp OR hiei-gyousei@athena.ocn.ne.jp)';
     try {
       const emailThreads = GmailApp.search(emailQuery, 0, 30);
       emailThreads.forEach(thread => {
@@ -2229,7 +2229,7 @@ function forcePopulateDefaults() {
       { name: '愛知トヨタ 中店', nameKana: 'アイチトヨタ ナカテン', type: '法人', phone: '052-262-1411', fax: '052-262-0914', zip: '460-0011', address: '名古屋市中区大須3-5-10', memo: 'ディーラーマスタ' },
       { name: '愛知トヨタ 高辻店', nameKana: 'アイチトヨタ タカツジテン', type: '法人', phone: '052-881-2800', fax: '052-872-3981', zip: '466-0057', address: '名古屋市昭和区高辻町6-8', memo: 'ディーラーマスタ' },
       { name: '愛知トヨタ 中村店', nameKana: 'アイチトヨタ ナカムラテン', type: '法人', phone: '052-471-6131', fax: '052-471-6261', zip: '453-0823', address: '名古屋市中村区鈍池町3-131', memo: 'ディーラーマスタ' },
-      { name: '愛知トヨタ 江南店', nameKana: 'アイチトヨタ コウナンテン', type: '法人', phone: '058-756-1181', fax: '058-756-0275', zip: '483-8259', address: '江南市木賀東町新宮48', memo: 'ディーラーマスタ' },
+      { name: '愛知トヨタ 江南店', nameKana: 'アイチトヨタ コウナンテン', type: '法人', phone: '058-756-1181', fax: '058-756-0275', zip: '483-8259', address: '江南市木賀町新宮48', memo: 'ディーラーマスタ' },
       { name: '愛知トヨタ 豊田店', nameKana: 'アイチトヨタ トヨタテン', type: '法人', phone: '0565-32-2525', fax: '0565-33-0005', zip: '471-0875', address: '豊田市下市場町5-25', memo: 'ディーラーマスタ' },
       { name: '愛知トヨタ 岡崎店', nameKana: 'アイチトヨタ オカザキテン', type: '法人', phone: '0564-51-1811', fax: '0564-53-5272', zip: '444-0840', address: '岡崎市戸崎町字しのはら3-1', memo: 'ディーラーマスタ' },
       { name: '愛知トヨタ 豊橋店', nameKana: 'アイチトヨタ トヨハシテン', type: '法人', phone: '0532-54-3211', fax: '0532-54-1502', zip: '440-0086', address: '豊橋市下地町字境田100', memo: 'ディーラーマスタ' },
@@ -2458,4 +2458,12 @@ function getCategoryLabel_(cat) {
     'other': 'その他業務'
   };
   return cats[cat] || cat;
+}
+
+// ─── 🧪 テスト実行用関数（Apps Script画面のプルダウンから選択可能） ───
+function testCheckInbox() {
+  Logger.log('=== 受信チェックテスト開始 ===');
+  const res = checkIncomingInbox_();
+  Logger.log('実行結果: ' + JSON.stringify(res));
+  return res;
 }

@@ -657,19 +657,39 @@ const InboxManager = {
       } catch (e) { attachments = []; }
     }
 
-    const combinedText = [item.subject, item.body, item.sender].filter(Boolean).join('\n');
+    let extractedText = [item.subject, item.body, item.sender].filter(Boolean).join('\n');
 
     // 添付ファイルがある場合
     if (attachments.length > 0) {
       const firstAtt = attachments[0];
-      App.showToast('🔍 添付ファイルと内容をOCR解析中...');
+      App.showToast('🔍 添付ファイル（FAX/依頼書）をAI OCR解析中...');
       
+      try {
+        const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
+        if (gasUrl && firstAtt.url) {
+          const res = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'ocr',
+              fileUrl: firstAtt.url
+            })
+          });
+          const resData = await res.json();
+          if (resData.success && resData.text) {
+            extractedText = resData.text + '\n\n' + extractedText;
+          }
+        }
+      } catch (ocrErr) {
+        console.error('Drive OCR呼び出しエラー:', ocrErr);
+      }
+
       // テキスト解析
-      const parsed = DealerDocumentParser.parse(combinedText, item);
+      const parsed = DealerDocumentParser.parse(extractedText, item);
       DealerDocumentParser.showOcrResultModal(parsed, firstAtt.url);
     } else {
       // 添付がない場合も本文・件名を解析
-      const parsed = DealerDocumentParser.parse(combinedText, item);
+      const parsed = DealerDocumentParser.parse(extractedText, item);
       DealerDocumentParser.showOcrResultModal(parsed);
     }
   },
