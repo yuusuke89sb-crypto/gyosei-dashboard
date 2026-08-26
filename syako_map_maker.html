@@ -787,10 +787,19 @@
           <span class="tool-btn-icon">👆</span>選択 / 移動
         </button>
         <button class="tool-btn" id="tool-rect-spot" onclick="setTool('rect-spot')">
-          <span class="tool-btn-icon">🅿️</span>保管場所枠
+          <span class="tool-btn-icon">🅿️</span>保管場所(四角)
+        </button>
+        <button class="tool-btn" id="tool-poly-spot" onclick="setTool('poly-spot')">
+          <span class="tool-btn-icon">⬡</span>保管場所(多角形)
         </button>
         <button class="tool-btn" id="tool-rect-other" onclick="setTool('rect-other')">
-          <span class="tool-btn-icon">🔲</span>建物・自宅枠
+          <span class="tool-btn-icon">🔲</span>建物枠(四角)
+        </button>
+        <button class="tool-btn" id="tool-poly-other" onclick="setTool('poly-other')">
+          <span class="tool-btn-icon">🔷</span>建物枠(多角形)
+        </button>
+        <button class="tool-btn" id="tool-freehand" onclick="setTool('freehand')">
+          <span class="tool-btn-icon">✏️</span>手書きペン
         </button>
         <button class="tool-btn" id="tool-line-dim" onclick="setTool('line-dim')">
           <span class="tool-btn-icon">📏</span>寸法線(両矢)
@@ -1050,6 +1059,54 @@ let dragTarget = null;
 let selectedItemRef = null; // { targetKey, index }
 let startX = 0, startY = 0;
 let lastPanX = 0, lastPanY = 0;
+
+// ─── 多角形・フリーハンド作図用ステート ───
+let polygonPoints = [];
+let isFreehandDrawing = false;
+let freehandPoints = [];
+
+// ─── 多角形・フリーハンド幾何計算ユーティリティ ───
+function getPolygonCenter(points) {
+  if (!points || points.length === 0) return { cx: 0, cy: 0, minX: 0, maxX: 0, minY: 0, maxY: 0, w: 0, h: 0 };
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  let sumX = 0, sumY = 0;
+  points.forEach(p => {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+    sumX += p.x;
+    sumY += p.y;
+  });
+  return {
+    cx: sumX / points.length,
+    cy: sumY / points.length,
+    minX, maxX, minY, maxY,
+    w: maxX - minX,
+    h: maxY - minY
+  };
+}
+
+function isPointInPolygon(px, py, points) {
+  if (!points || points.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = points[i].x, yi = points[i].y;
+    const xj = points[j].x, yj = points[j].y;
+    const intersect = ((yi > py) !== (yj > py)) &&
+        (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+  if (l2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+}
 
 // ─── 案件連携パラメータ ───
 let linkedCaseId = null;
@@ -1433,8 +1490,11 @@ function showPropertyPanel(targetKey, index) {
   if (!item) return;
 
   const typeNames = {
-    'rect-spot': '🅿️ 保管場所枠',
+    'rect-spot': '🅿️ 保管場所(四角)',
+    'poly-spot': '⬡ 保管場所(多角形)',
     'rect-other': '🔲 建物・自宅枠',
+    'poly-other': '🔷 建物(多角形)',
+    'freehand': '✏️ 手書きペン線',
     'compass': '🧭 JIS方位記号',
     'car': '🚗 車両マーク',
     'text': `🔤 文字: 「${item.text || ''}」`,
@@ -1450,9 +1510,10 @@ function showPropertyPanel(targetKey, index) {
   const textRow = document.getElementById('propertyTextRow');
   const textInput = document.getElementById('propertyTextInput');
   if (textRow && textInput) {
-    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail' || item.label !== undefined) {
+    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail' || item.label !== undefined || item.type === 'rect-spot' || item.type === 'poly-spot') {
       textRow.style.display = 'flex';
-      textInput.value = item.text || item.label || '';
+      textInput.value = item.label !== undefined ? item.label : (item.text || '');
+      textInput.placeholder = (item.type === 'rect-spot' || item.type === 'poly-spot') ? '文字を入力（空欄でラベル非表示）' : 'テキストを入力';
     } else {
       textRow.style.display = 'none';
     }
@@ -1469,7 +1530,7 @@ function onPropertyTextInputChange(val) {
 
   if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail') {
     item.text = val;
-  } else if (item.label !== undefined) {
+  } else if (item.label !== undefined || item.type === 'rect-spot' || item.type === 'poly-spot') {
     item.label = val;
   }
   redraw(targetKey);
@@ -1534,6 +1595,12 @@ function scaleSelectedItem(factor) {
     item.h = Math.max(20, Math.round(oldH * factor));
     item.x -= (item.w - oldW) / 2;
     item.y -= (item.h - oldH) / 2;
+  } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
+    const center = getPolygonCenter(item.points);
+    item.points.forEach(p => {
+      p.x = center.cx + (p.x - center.cx) * factor;
+      p.y = center.cy + (p.y - center.cy) * factor;
+    });
   } else if (item.type === 'compass') {
     item.size = Math.max(16, Math.min(80, Math.round((item.size || 28) * factor)));
   } else if (item.type === 'text') {
@@ -1560,20 +1627,20 @@ function editSelectedText() {
   const item = drawings[targetKey][index];
   if (!item) return;
 
-  const curText = item.text || item.label || '';
-  const newText = prompt('テキストまたは数値を変更してください:', curText);
+  const curText = (item.label !== undefined ? item.label : item.text) || '';
+  const newText = prompt('テキストまたは数値を変更してください（空欄にするとラベルを非表示にできます）:', curText);
   if (newText !== null) {
     pushHistory();
     if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail') {
       item.text = newText;
-    } else if (item.label !== undefined) {
+    } else if (item.label !== undefined || item.type === 'rect-spot' || item.type === 'poly-spot') {
       item.label = newText;
     }
     pushHistory();
     redraw(targetKey);
     drawSelectionHighlight(targetKey, index);
     showPropertyPanel(targetKey, index);
-    showToast(`✏️ 「${newText}」に更新しました`);
+    showToast(newText ? `✏️ 「${newText}」に更新しました` : '✏️ ラベルを非表示にしました');
   }
 }
 
@@ -1822,6 +1889,9 @@ function resizeCanvases() {
 }
 
 function setTool(tool) {
+  if ((currentTool === 'poly-spot' || currentTool === 'poly-other') && polygonPoints.length > 0) {
+    cancelPolygon();
+  }
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.getElementById(`tool-${tool}`);
@@ -1835,8 +1905,11 @@ function setTool(tool) {
 
   const toolLabels = {
     'select': '選択 / 移動 モード（要素をクリックで調整バー表示）',
-    'rect-spot': '保管場所枠 描画（ドラッグまたはクリック）',
-    'rect-other': '建物枠 描画（ドラッグまたはクリック）',
+    'rect-spot': '保管場所(四角) 描画（ドラッグまたはクリック）',
+    'poly-spot': '⬡ 保管場所(多角形) 描画（角を順にクリック、始点クリック/Enterで完了）',
+    'rect-other': '建物枠(四角) 描画（ドラッグまたはクリック）',
+    'poly-other': '🔷 建物(多角形) 描画（角を順にクリック、始点クリック/Enterで完了）',
+    'freehand': '✏️ 手書きペン（ドラッグで自由線・斜線を描画）',
     'line-dim': '寸法線 描画（ドラッグまたはクリック）',
     'line-road': '道路境界線 描画（ドラッグまたはクリック）',
     'line-rail': '線路(鉄道記号) 描画（ドラッグまたはクリック）',
@@ -1850,13 +1923,61 @@ function setTool(tool) {
   showToast(toolLabels[tool] || tool);
 }
 
+function cancelPolygon() {
+  polygonPoints = [];
+  redrawAll();
+  showToast('多角形作図をキャンセルしました');
+}
+
+function finishPolygon(targetKey) {
+  if (!polygonPoints || polygonPoints.length < 3) {
+    showToast('⚠️ 多角形は3点以上の角（頂点）が必要です');
+    return;
+  }
+
+  pushHistory();
+  const sNo = document.getElementById('spotNo').value.trim();
+  const labelText = sNo ? `${sNo}\n保管場所` : '保管場所';
+
+  let newIndex = drawings[targetKey].length;
+  if (currentTool === 'poly-spot') {
+    drawings[targetKey].push({
+      type: 'poly-spot',
+      points: polygonPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
+      label: labelText,
+      angle: 0
+    });
+    showToast('⬡ 多角形の保管場所枠を作成しました');
+  } else if (currentTool === 'poly-other') {
+    drawings[targetKey].push({
+      type: 'poly-other',
+      points: polygonPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
+      angle: 0
+    });
+    showToast('🔷 多角形の建物枠を作成しました');
+  }
+
+  polygonPoints = [];
+  pushHistory();
+  redraw(targetKey);
+  showPropertyPanel(targetKey, newIndex);
+}
+
 function setupEventListeners() {
   setupCanvasEvents(sozaiCanvas, 'sozai');
   setupCanvasEvents(haichiCanvas, 'haichi');
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      clearSelection();
+      if (polygonPoints && polygonPoints.length > 0) {
+        cancelPolygon();
+      } else {
+        clearSelection();
+      }
+    } else if (e.key === 'Enter') {
+      if ((currentTool === 'poly-spot' || currentTool === 'poly-other') && polygonPoints && polygonPoints.length >= 3) {
+        finishPolygon(activeTarget);
+      }
     }
   });
 }
@@ -1890,11 +2011,22 @@ function setupCanvasEvents(canvas, targetKey) {
         if (item.type.startsWith('rect') || item.type === 'compass' || item.type === 'car' || item.type === 'text') {
           ox = startX - item.x;
           oy = startY - item.y;
+        } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
+          const center = getPolygonCenter(item.points);
+          ox = startX - center.cx;
+          oy = startY - center.cy;
         } else {
           ox = startX - (item.x1 + item.x2) / 2;
           oy = startY - (item.y1 + item.y2) / 2;
         }
-        dragTarget = { targetKey, index: hitResult, offsetX: ox, offsetY: oy };
+        dragTarget = { 
+          targetKey, 
+          index: hitResult, 
+          offsetX: ox, 
+          offsetY: oy,
+          lastX: startX,
+          lastY: startY
+        };
         pushHistory();
         canvas.style.cursor = 'move';
         redraw(targetKey);
@@ -1905,6 +2037,29 @@ function setupCanvasEvents(canvas, targetKey) {
       clearSelection();
       isPanning = true;
       canvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    // 多角形（保管場所 / 建物）描画モード
+    if (currentTool === 'poly-spot' || currentTool === 'poly-other') {
+      if (polygonPoints.length >= 3 && Math.hypot(startX - polygonPoints[0].x, startY - polygonPoints[0].y) < 16) {
+        finishPolygon(targetKey);
+        return;
+      }
+      polygonPoints.push({ x: startX, y: startY });
+      if (polygonPoints.length === 1) {
+        showToast('⬡ 角を順にクリック（始点クリック/ダブルクリック/Enterで完了）');
+      } else {
+        showToast(`⬡ 頂点 ${polygonPoints.length} を追加（始点クリックまたはEnterで完了）`);
+      }
+      redraw(targetKey);
+      return;
+    }
+
+    // フリーハンド（手書きペン）描画モード
+    if (currentTool === 'freehand') {
+      isFreehandDrawing = true;
+      freehandPoints = [{ x: startX, y: startY }];
       return;
     }
 
@@ -1975,16 +2130,22 @@ function setupCanvasEvents(canvas, targetKey) {
 
     if (isDragging && dragTarget && dragTarget.targetKey === targetKey) {
       const item = drawings[targetKey][dragTarget.index];
+      const deltaX = curX - dragTarget.lastX;
+      const deltaY = curY - dragTarget.lastY;
+      dragTarget.lastX = curX;
+      dragTarget.lastY = curY;
+
       if (item.type.startsWith('rect') || item.type === 'compass' || item.type === 'car' || item.type === 'text') {
-        item.x = curX - dragTarget.offsetX;
-        item.y = curY - dragTarget.offsetY;
+        item.x += deltaX;
+        item.y += deltaY;
+      } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
+        item.points.forEach(p => {
+          p.x += deltaX;
+          p.y += deltaY;
+        });
       } else {
-        const cx = (item.x1 + item.x2) / 2;
-        const cy = (item.y1 + item.y2) / 2;
-        const dx = (curX - dragTarget.offsetX) - cx;
-        const dy = (curY - dragTarget.offsetY) - cy;
-        item.x1 += dx; item.y1 += dy;
-        item.x2 += dx; item.y2 += dy;
+        item.x1 += deltaX; item.y1 += deltaY;
+        item.x2 += deltaX; item.y2 += deltaY;
       }
       redraw(targetKey);
       drawSelectionHighlight(targetKey, dragTarget.index);
@@ -1997,6 +2158,82 @@ function setupCanvasEvents(canvas, targetKey) {
       map.panBy([-dx, -dy], { animate: false });
       lastPanX = e.clientX;
       lastPanY = e.clientY;
+      return;
+    }
+
+    // 多角形の描画中ラバーバンドプレビュー
+    if ((currentTool === 'poly-spot' || currentTool === 'poly-other') && polygonPoints.length > 0) {
+      redraw(targetKey);
+      const ctx = targetKey === 'sozai' ? sozaiCtx : haichiCtx;
+      if (ctx) {
+        ctx.save();
+        ctx.strokeStyle = '#2563EB';
+        ctx.lineWidth = 2;
+        
+        // 確定済みの線分
+        ctx.beginPath();
+        ctx.moveTo(polygonPoints[0].x, polygonPoints[0].y);
+        for (let i = 1; i < polygonPoints.length; i++) {
+          ctx.lineTo(polygonPoints[i].x, polygonPoints[i].y);
+        }
+        ctx.lineTo(curX, curY);
+        ctx.stroke();
+
+        // 始点への点線（閉じた時のプレビュー）
+        if (polygonPoints.length >= 2) {
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = '#93C5FD';
+          ctx.beginPath();
+          ctx.moveTo(curX, curY);
+          ctx.lineTo(polygonPoints[0].x, polygonPoints[0].y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // 頂点マーカー
+        polygonPoints.forEach((p, idx) => {
+          ctx.fillStyle = idx === 0 ? '#16A34A' : '#2563EB';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, idx === 0 ? 6 : 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+
+        // 始点付近にカーソルがある場合のハイライト
+        if (polygonPoints.length >= 3 && Math.hypot(curX - polygonPoints[0].x, curY - polygonPoints[0].y) < 16) {
+          ctx.strokeStyle = '#16A34A';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(polygonPoints[0].x, polygonPoints[0].y, 10, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+      return;
+    }
+
+    // フリーハンドの描画中プレビュー
+    if (isFreehandDrawing && currentTool === 'freehand') {
+      freehandPoints.push({ x: curX, y: curY });
+      redraw(targetKey);
+      const ctx = targetKey === 'sozai' ? sozaiCtx : haichiCtx;
+      if (ctx && freehandPoints.length >= 2) {
+        ctx.save();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2.0;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(freehandPoints[0].x, freehandPoints[0].y);
+        for (let i = 1; i < freehandPoints.length; i++) {
+          ctx.lineTo(freehandPoints[i].x, freehandPoints[i].y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
       return;
     }
 
@@ -2019,6 +2256,28 @@ function setupCanvasEvents(canvas, targetKey) {
     if (isPanning) {
       isPanning = false;
       canvas.style.cursor = 'grab';
+      return;
+    }
+
+    // フリーハンドの確定
+    if (isFreehandDrawing && currentTool === 'freehand') {
+      isFreehandDrawing = false;
+      if (freehandPoints.length >= 2) {
+        pushHistory();
+        const newIndex = drawings[targetKey].length;
+        drawings[targetKey].push({
+          type: 'freehand',
+          points: freehandPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
+          lineWidth: 2.0,
+          color: '#000000',
+          angle: 0
+        });
+        pushHistory();
+        redraw(targetKey);
+        showPropertyPanel(targetKey, newIndex);
+        showToast('✏️ 手書きペン線を描画しました');
+      }
+      freehandPoints = [];
       return;
     }
 
@@ -2137,6 +2396,10 @@ function setupCanvasEvents(canvas, targetKey) {
   });
 
   canvas.addEventListener('dblclick', (e) => {
+    if ((currentTool === 'poly-spot' || currentTool === 'poly-other') && polygonPoints.length >= 3) {
+      finishPolygon(targetKey);
+      return;
+    }
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -2156,6 +2419,20 @@ function hitTestElement(targetKey, x, y) {
     if (it.type.startsWith('rect') || it.type === 'car') {
       if (x >= it.x - 5 && x <= it.x + it.w + 5 && y >= it.y - 5 && y <= it.y + it.h + 5) {
         return i;
+      }
+    } else if (it.type.startsWith('poly') && it.points && it.points.length >= 3) {
+      if (isPointInPolygon(x, y, it.points)) return i;
+      for (let pIdx = 0; pIdx < it.points.length; pIdx++) {
+        const nextIdx = (pIdx + 1) % it.points.length;
+        if (distToSegment(x, y, it.points[pIdx].x, it.points[pIdx].y, it.points[nextIdx].x, it.points[nextIdx].y) < 10) {
+          return i;
+        }
+      }
+    } else if (it.type === 'freehand' && it.points && it.points.length > 0) {
+      for (let pIdx = 0; pIdx < it.points.length - 1; pIdx++) {
+        if (distToSegment(x, y, it.points[pIdx].x, it.points[pIdx].y, it.points[pIdx+1].x, it.points[pIdx+1].y) < 12) {
+          return i;
+        }
       }
     } else if (it.type === 'compass') {
       const s = it.size || 28;
@@ -2187,6 +2464,22 @@ function drawSelectionHighlight(targetKey, index) {
 
   if (item.type.startsWith('rect') || item.type === 'car') {
     ctx.strokeRect(item.x - 4, item.y - 4, item.w + 8, item.h + 8);
+  } else if (item.type.startsWith('poly') && item.points) {
+    ctx.beginPath();
+    ctx.moveTo(item.points[0].x, item.points[0].y);
+    for (let i = 1; i < item.points.length; i++) {
+      ctx.lineTo(item.points[i].x, item.points[i].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#2563EB';
+    item.points.forEach(p => {
+      ctx.fillRect(p.x - 4, p.y - 4, 8, 8);
+    });
+  } else if (item.type === 'freehand' && item.points) {
+    const center = getPolygonCenter(item.points);
+    ctx.strokeRect(center.minX - 4, center.minY - 4, center.w + 8, center.h + 8);
   } else if (item.type === 'compass') {
     const s = item.size || 28;
     ctx.beginPath();
@@ -2254,6 +2547,10 @@ function drawElement(ctx, item) {
     } else if (item.type.startsWith('line') || item.type === 'arrow' || item.type === 'dist-line') {
       cx = (item.x1 + item.x2) / 2;
       cy = (item.y1 + item.y2) / 2;
+    } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
+      const center = getPolygonCenter(item.points);
+      cx = center.cx;
+      cy = center.cy;
     }
     ctx.translate(cx, cy);
     ctx.rotate(item.angle * Math.PI / 180);
@@ -2276,26 +2573,103 @@ function drawElement(ctx, item) {
     ctx.stroke();
     ctx.restore();
 
-    const labelText = item.label || '保管場所';
-    const lines = labelText.split('\n');
-    ctx.fillStyle = '#FFFFFF';
-    const boxH = lines.length * 15 + 4;
-    const boxW = Math.max(...lines.map(l => l.length * 12)) + 12;
-    ctx.fillRect(item.x + item.w / 2 - boxW / 2, item.y + item.h / 2 - boxH / 2, boxW, boxH);
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(item.x + item.w / 2 - boxW / 2, item.y + item.h / 2 - boxH / 2, boxW, boxH);
+    const labelText = item.label !== undefined ? item.label : '保管場所';
+    if (labelText && labelText.trim() !== '') {
+      const lines = labelText.split('\n');
+      ctx.fillStyle = '#FFFFFF';
+      const boxH = lines.length * 15 + 4;
+      const boxW = Math.max(...lines.map(l => l.length * 12)) + 12;
+      ctx.fillRect(item.x + item.w / 2 - boxW / 2, item.y + item.h / 2 - boxH / 2, boxW, boxH);
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(item.x + item.w / 2 - boxW / 2, item.y + item.h / 2 - boxH / 2, boxW, boxH);
 
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.textAlign = 'center';
-    lines.forEach((line, idx) => {
-      ctx.fillText(line, item.x + item.w / 2, item.y + item.h / 2 - boxH / 2 + 13 + idx * 14);
-    });
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      lines.forEach((line, idx) => {
+        ctx.fillText(line, item.x + item.w / 2, item.y + item.h / 2 - boxH / 2 + 13 + idx * 14);
+      });
+    }
+  } else if (item.type === 'poly-spot' && item.points && item.points.length >= 3) {
+    // 1. 外枠太線
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(item.points[0].x, item.points[0].y);
+    for (let i = 1; i < item.points.length; i++) {
+      ctx.lineTo(item.points[i].x, item.points[i].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // 2. 斜線ハッチング
+    const center = getPolygonCenter(item.points);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(item.points[0].x, item.points[0].y);
+    for (let i = 1; i < item.points.length; i++) {
+      ctx.lineTo(item.points[i].x, item.points[i].y);
+    }
+    ctx.closePath();
+    ctx.clip();
+
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    const minX = center.minX - center.h;
+    const maxX = center.maxX + center.h;
+    for (let offset = minX; offset <= maxX; offset += 8) {
+      ctx.moveTo(offset, center.minY - 10);
+      ctx.lineTo(offset + center.h + 20, center.maxY + 10);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 3. ラベル（空欄でない場合のみ描画）
+    const labelText = item.label !== undefined ? item.label : '保管場所';
+    if (labelText && labelText.trim() !== '') {
+      const lines = labelText.split('\n');
+      ctx.fillStyle = '#FFFFFF';
+      const boxH = lines.length * 15 + 4;
+      const boxW = Math.max(...lines.map(l => l.length * 12)) + 12;
+      ctx.fillRect(center.cx - boxW / 2, center.cy - boxH / 2, boxW, boxH);
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(center.cx - boxW / 2, center.cy - boxH / 2, boxW, boxH);
+
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      lines.forEach((line, idx) => {
+        ctx.fillText(line, center.cx, center.cy - boxH / 2 + 13 + idx * 14);
+      });
+    }
   } else if (item.type === 'rect-other') {
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2;
     ctx.strokeRect(item.x, item.y, item.w, item.h);
+  } else if (item.type === 'poly-other' && item.points && item.points.length >= 3) {
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(item.points[0].x, item.points[0].y);
+    for (let i = 1; i < item.points.length; i++) {
+      ctx.lineTo(item.points[i].x, item.points[i].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  } else if (item.type === 'freehand' && item.points && item.points.length >= 2) {
+    ctx.strokeStyle = item.color || '#000000';
+    ctx.lineWidth = item.lineWidth || 2.0;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(item.points[0].x, item.points[0].y);
+    for (let i = 1; i < item.points.length; i++) {
+      ctx.lineTo(item.points[i].x, item.points[i].y);
+    }
+    ctx.stroke();
   } else if (item.type === 'line-dim') {
     drawDimensionLine(ctx, item.x1, item.y1, item.x2, item.y2, item.text);
   } else if (item.type === 'arrow') {
@@ -2612,6 +2986,33 @@ function deleteNearElement(targetKey, x, y) {
     if (it.type.startsWith('rect') && x >= it.x && x <= it.x + it.w && y >= it.y && y <= it.y + it.h) {
       items.splice(i, 1);
       break;
+    } else if (it.type.startsWith('poly') && it.points && it.points.length >= 3) {
+      if (isPointInPolygon(x, y, it.points)) {
+        items.splice(i, 1);
+        break;
+      }
+      let hitEdge = false;
+      for (let pIdx = 0; pIdx < it.points.length; pIdx++) {
+        const nextIdx = (pIdx + 1) % it.points.length;
+        if (distToSegment(x, y, it.points[pIdx].x, it.points[pIdx].y, it.points[nextIdx].x, it.points[nextIdx].y) < 14) {
+          hitEdge = true; break;
+        }
+      }
+      if (hitEdge) {
+        items.splice(i, 1);
+        break;
+      }
+    } else if (it.type === 'freehand' && it.points && it.points.length > 0) {
+      let hit = false;
+      for (let pIdx = 0; pIdx < it.points.length - 1; pIdx++) {
+        if (distToSegment(x, y, it.points[pIdx].x, it.points[pIdx].y, it.points[pIdx+1].x, it.points[pIdx+1].y) < 14) {
+          hit = true; break;
+        }
+      }
+      if (hit) {
+        items.splice(i, 1);
+        break;
+      }
     } else if (it.type === 'compass' && Math.hypot(it.x - x, it.y - y) <= (it.size || 28) * 1.3) {
       items.splice(i, 1);
       break;

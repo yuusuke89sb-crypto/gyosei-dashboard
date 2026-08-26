@@ -2133,7 +2133,7 @@ function checkIncomingInbox_() {
       });
     }
 
-    // A. FAX通知メールスキャン（Apeos複合機、bihoku@, mail@felis-car.jp, 【FAX】など）
+    // A. FAX通知メールスキャン（Apeos複合機、bihoku@, yoshimura@felis-car.jp, 【FAX】など）
     const faxQuery = 'newer_than:3d (Apeos OR FAX OR bihoku OR felis-car.jp OR efax)';
     try {
       const faxThreads = GmailApp.search(faxQuery, 0, 50);
@@ -2154,8 +2154,8 @@ function checkIncomingInbox_() {
           const ignoreSenders = ['google.com', 'github.com', 'youtube.com', 'microsoft.com', 'stripe.com', 'amazon.', 'no-reply@', 'noreply@'];
           if (ignoreSenders.some(ign => fromStr.includes(ign))) return;
 
-          // FAXまたは業務メールかの判定（Apeos、bihoku@、FAX、mail@）
-          const isFax = fromStr.includes('bihoku') || fromStr.includes('efax') || subjLower.includes('fax') || subjLower.includes('apeos') || toStr.includes('mail@felis-car.jp') || toStr.includes('bihoku');
+          // FAXまたは業務メールかの判定（Apeos、bihoku@、FAX、yoshimura@）
+          const isFax = fromStr.includes('bihoku') || fromStr.includes('efax') || subjLower.includes('fax') || subjLower.includes('apeos') || toStr.includes('yoshimura@felis-car.jp') || toStr.includes('bihoku');
           if (!isFax) return;
 
           const date = msg.getDate();
