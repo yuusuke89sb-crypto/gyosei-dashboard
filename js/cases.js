@@ -771,6 +771,40 @@ const Cases = {
             }
           }
           return;
+        } else {
+          console.warn('GAS getFileBase64 failed:', data ? data.error : 'No response');
+          // Google Drive Thumbnail 直リンクフォールバック
+          const match = att.url.match(/[-\w]{25,}/);
+          if (match) {
+            const thumbUrl = `https://drive.google.com/thumbnail?id=${match[0]}&sz=w2000`;
+            const wrapper = document.getElementById('caseViewerImgWrapper');
+            if (imgEl && wrapper) {
+              imgEl.src = thumbUrl;
+              imgEl.onload = () => {
+                if (loading) loading.style.display = 'none';
+                wrapper.style.display = 'flex';
+                this.applyViewerTransform();
+                this.setupViewerInteractions();
+              };
+              imgEl.onerror = () => {
+                if (loading) loading.style.display = 'none';
+                if (wrapper) wrapper.style.display = 'none';
+                if (emptyEl) {
+                  emptyEl.style.display = 'block';
+                  emptyEl.innerHTML = `
+                    <div style="font-size:2.2rem; margin-bottom:8px;">⚠️</div>
+                    <div style="font-size:0.9rem; font-weight:bold; color:#f59e0b;">プレビュー自動取得エラー</div>
+                    <div style="font-size:0.75rem; margin:8px 0; color:#94a3b8;">GASエディタに最新コードが保存されているかご確認ください</div>
+                    <div style="display:flex; gap:6px; justify-content:center; margin-top:12px;">
+                      <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small">↗ Google Driveで開く</a>
+                      <button type="button" class="btn btn-primary btn-small" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
+                    </div>
+                  `;
+                }
+              };
+              return;
+            }
+          }
         }
       }
 
@@ -800,14 +834,27 @@ const Cases = {
         emptyEl.innerHTML = `
           <div style="font-size:2rem; margin-bottom:8px;">📄</div>
           <div style="font-size:0.85rem; font-weight:bold;">${att.name || '添付ファイル'}</div>
-          <div style="margin-top:10px;"><a href="${att.url}" target="_blank" class="btn btn-secondary btn-small">↗ 別ウィンドウで開く</a></div>
-          <div style="font-size:0.75rem; margin-top:8px; color:#94a3b8;">または手元のTIF/PDFをドラッグ＆ドロップしてください</div>
+          <div style="display:flex; gap:6px; justify-content:center; margin-top:12px;">
+            <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small">↗ Google Driveで開く</a>
+            <button type="button" class="btn btn-primary btn-small" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
+          </div>
         `;
       }
     } catch (e) {
       console.warn('Viewer load error:', e);
       if (loading) loading.style.display = 'none';
-      if (emptyEl) emptyEl.style.display = 'block';
+      if (emptyEl) {
+        emptyEl.style.display = 'block';
+        emptyEl.innerHTML = `
+          <div style="font-size:2rem; margin-bottom:8px;">📄</div>
+          <div style="font-size:0.85rem; font-weight:bold;">${att.name || '添付ファイル'}</div>
+          <div style="display:flex; gap:6px; justify-content:center; margin-top:12px;">
+            <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small">↗ Google Driveで開く</a>
+            <button type="button" class="btn btn-primary btn-small" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
+          </div>
+        `;
+      }
+    }
     }
   },
 
