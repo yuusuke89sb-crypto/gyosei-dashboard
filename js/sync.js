@@ -89,6 +89,7 @@ const SpreadsheetSync = {
 
                     return {
                         ...remoteCase,
+                        orderNo: remoteCase.orderNo || remoteCase['注文書№'] || remoteCase['注文書No'] || remoteCase['注文書NO'] || remoteCase['注文番号'] || remoteCase['注文No'] || (localCase && localCase.orderNo) || '',
                         docs: Array.isArray(parsedDocs) ? parsedDocs : [],
                         advances: Array.isArray(parsedAdvances) ? parsedAdvances : [],
                         clientContactId: remoteCase.clientContactId || (localCase && localCase.clientContactId) || '',

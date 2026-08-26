@@ -1212,7 +1212,7 @@ const Cases = {
     setTimeout(() => {
       document.getElementById('caseModalTitle').textContent = '案件編集';
       document.getElementById('csf_title').value = c.title;
-      document.getElementById('csf_orderNo').value = c.orderNo || '';
+      document.getElementById('csf_orderNo').value = c.orderNo || c['注文書№'] || c['注文書No'] || c['注文番号'] || '';
       document.getElementById('csf_clientId').value = c.clientId || '';
       Cases.onClientChange(c.clientId || '', c.clientContactId || '');
       document.getElementById('csf_staffId').value = c.staffId || '';

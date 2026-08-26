@@ -974,19 +974,22 @@ function getSheetDataAsJson_(sheetName, headers) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
 
-  const data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  const lastCol = Math.max(sheet.getLastColumn(), (headers ? headers.length : 1));
+  const actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   const jsonData = [];
   const keyMap = getKeyMap_(sheetName);
 
   data.forEach(row => {
     const obj = {};
     let hasData = false;
-    headers.forEach((header, i) => {
+    actualHeaders.forEach((header, i) => {
+      if (!header) return;
       const key = keyMap[header] || header;
       let value = row[i];
       if (value instanceof Date) value = Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-      obj[key] = value !== '' ? value : '';
-      if (value !== '') hasData = true;
+      obj[key] = (value !== undefined && value !== null) ? value : '';
+      if (value !== '' && value !== undefined && value !== null) hasData = true;
     });
     if (hasData) jsonData.push(obj);
   });
@@ -997,7 +1000,9 @@ function getKeyMap_(sheetName) {
   if (sheetName === SHEET_NAMES.CUSTOMER) return {'顧客ID': 'id','氏名': 'name','フリガナ': 'nameKana','区分': 'type','電話番号': 'phone','FAX番号': 'fax','メールアドレス': 'email','郵便番号': 'zip','住所': 'address','生年月日': 'birthday','法人名': 'companyName','法人番号': 'companyNumber','紹介元': 'referral','担当者ID': 'staffId','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
   if (sheetName === SHEET_NAMES.STAFF) return {'担当者ID': 'id','氏名': 'name','フリガナ': 'nameKana','役職': 'role','電話番号': 'phone','メールアドレス': 'email','担当業務': 'duties','ステータス': 'status','登録日': 'createdAt','更新日': 'updatedAt'};
   if (sheetName === SHEET_NAMES.CASES) return {
-    '案件ID': 'id','顧客ID': 'clientId','案件名': 'title','注文書№': 'orderNo','カテゴリ': 'category','ステータス': 'status','期限': 'deadline','報酬': 'fee','担当者ID': 'staffId','備考': 'memo','完了日': 'completedAt','登録日': 'createdAt','更新日': 'updatedAt',
+    '案件ID': 'id','顧客ID': 'clientId','案件名': 'title',
+    '注文書№': 'orderNo','注文書No': 'orderNo','注文書NO': 'orderNo','注文番号': 'orderNo','注文No': 'orderNo','orderNo': 'orderNo',
+    'カテゴリ': 'category','ステータス': 'status','期限': 'deadline','報酬': 'fee','担当者ID': 'staffId','備考': 'memo','完了日': 'completedAt','登録日': 'createdAt','更新日': 'updatedAt',
     '被相続人死亡日': 'deathDate','現地調査予定日': 'surveyDate','申請予定日': 'applyDate','交付予定日': 'policeDeliveryDate','店舗届ける予定日': 'storeDeliveryDate','店舗届ける時間': 'storeDeliveryTime',
     '現地調査場所ID': 'surveyLocationId','警察署場所ID': 'policeLocationId','陸運局場所ID': 'landTransportLocationId','登録予定日': 'registrationDate','顧客担当者ID': 'clientContactId',
     '申請者名': 'carName','使用の本拠住所': 'carAddress','保管場所住所': 'parkingAddress','所轄警察署': 'carPolice','車台番号': 'carNumber',
@@ -1223,6 +1228,8 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
 
   const keyMap = getKeyMap_(SHEET_NAMES.CASES);
   const now = new Date();
+  const lastCol = Math.max(sheet.getLastColumn(), CASE_HEADERS.length);
+  const actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
 
   if (data.id) {
     const lastRow = sheet.getLastRow();
@@ -1233,7 +1240,7 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
         const row = rowIdx + 2;
         const oldStatus = sheet.getRange(row, 6).getValue(); // Column 6 (F) is status
 
-        CASE_HEADERS.forEach(function(header, col) {
+        actualHeaders.forEach(function(header, col) {
           const key = keyMap[header];
           if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
             let val = data[key];
@@ -1264,7 +1271,7 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
   }
 
   const newId = data.id || ('CASE-' + Date.now());
-  const rowData = CASE_HEADERS.map(function(header) {
+  const rowData = actualHeaders.map(function(header) {
     var key = keyMap[header];
     if (key === 'id') return newId;
     if (key === 'createdAt') return data.createdAt || now;
