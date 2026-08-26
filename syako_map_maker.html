@@ -328,47 +328,46 @@
   .oss-ocr-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 2px 4px 10px 4px;
-    border-bottom: 2px solid #000;
-    margin-bottom: 10px;
+    align-items: flex-start;
+    padding: 0 0 2px 0;
+    margin-bottom: 4px;
   }
   .ocr-digits {
     display: inline-flex !important;
     flex-direction: row !important;
     align-items: center !important;
-    border: 1.8px solid #000 !important;
+    border: 1.5px solid #000 !important;
     border-right: none !important;
     background: #FFFFFF !important;
-    height: 28px !important;
+    height: 30px !important;
     padding: 0 !important;
     margin: 0 !important;
     box-sizing: border-box !important;
   }
   .ocr-digit-cell {
-    width: 18px !important;
-    min-width: 18px !important;
-    max-width: 18px !important;
-    height: 28px !important;
-    border-right: 1.8px solid #000 !important;
+    width: 27px !important;
+    min-width: 27px !important;
+    max-width: 27px !important;
+    height: 30px !important;
+    border-right: 1.5px solid #000 !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     font-family: monospace, 'Courier New', monospace !important;
-    font-size: 13pt !important;
+    font-size: 14pt !important;
     font-weight: bold !important;
-    line-height: 28px !important;
+    line-height: 30px !important;
     text-align: center !important;
     box-sizing: border-box !important;
     color: #000 !important;
   }
   .ocr-code-box {
-    border: 1.8px solid #000 !important;
-    height: 28px !important;
-    padding: 0 10px !important;
+    border: 1.5px solid #000 !important;
+    height: 30px !important;
+    padding: 0 14px !important;
     font-weight: bold !important;
-    font-size: 14pt !important;
-    margin-left: 10px !important;
+    font-size: 16pt !important;
+    margin-left: 18px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -380,7 +379,7 @@
   .oss-qr-box {
     width: 52px;
     height: 52px;
-    border: 1.8px solid #000;
+    border: 1.5px solid #000;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -394,14 +393,14 @@
   }
 
   .box-title-bar {
-    font-size: 12.5pt;
+    font-size: 11pt;
     font-weight: bold;
     text-align: center;
-    padding: 6px 0;
-    border: 2px solid #000;
-    border-bottom: none;
-    background: #FAFAFA;
-    letter-spacing: 6px;
+    padding: 3px 0;
+    border: 1.5px solid #000;
+    border-bottom: 1.5px solid #000;
+    background: #FFFFFF;
+    letter-spacing: 8px;
   }
 
   .page-canvas-container {
@@ -409,8 +408,35 @@
     position: relative;
     overflow: hidden;
     background: #FFFFFF;
-    border: 2px solid #000;
-    min-height: 490px;
+    border: 1.5px solid #000;
+    border-top: none;
+    min-height: 520px;
+  }
+
+  /* 連絡先・申請者等テーブル */
+  .footer-dealer-table {
+    border-collapse: collapse;
+    border: 1.4px solid #000;
+    font-size: 8pt;
+    background: #fff;
+    margin-left: auto;
+  }
+  .footer-dealer-table th {
+    border: 1px solid #000;
+    padding: 2px 6px;
+    font-weight: normal;
+    background: #fff;
+    white-space: nowrap;
+    text-align: center;
+    font-size: 7.5pt;
+    width: 100px;
+  }
+  .footer-dealer-table td {
+    border: 1px solid #000;
+    padding: 2px 8px;
+    font-weight: bold;
+    min-width: 210px;
+    font-size: 8.5pt;
   }
 
   /* 地図レイヤー（白黒・公図風） */
@@ -528,10 +554,8 @@
       background: #fff !important;
       color: #000 !important;
       width: 100% !important;
-      height: auto !important;
-      min-height: 100% !important;
+      height: 100% !important;
       overflow: visible !important;
-      position: static !important;
       margin: 0 !important;
       padding: 0 !important;
       display: block !important;
@@ -539,21 +563,11 @@
     header, .sidebar, .leaflet-control-container, .print-hide, .map-zoom-bar, .canvas-mode-toggle, .scale-bar, #toast {
       display: none !important;
     }
-    .workspace {
+    .workspace, .preview-area {
       display: block !important;
       height: auto !important;
       min-height: 100% !important;
       overflow: visible !important;
-      position: static !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-    .preview-area {
-      display: block !important;
-      height: auto !important;
-      min-height: 100% !important;
-      overflow: visible !important;
-      position: static !important;
       padding: 0 !important;
       margin: 0 !important;
       background: #fff !important;
@@ -561,13 +575,13 @@
     }
     .a4-page-oss {
       width: 100% !important;
-      height: 190mm !important;
-      min-height: 190mm !important;
-      max-height: 190mm !important;
+      height: 188mm !important;
+      min-height: 188mm !important;
+      max-height: 188mm !important;
       box-shadow: none !important;
       border-radius: 0 !important;
       border: none !important;
-      padding: 3.5mm 5mm !important;
+      padding: 2mm 4mm !important;
       margin: 0 auto !important;
       display: flex !important;
       flex-direction: column !important;
@@ -582,13 +596,17 @@
       break-after: auto !important;
     }
     .map-layer {
-      /* 印刷時：背景の純白度（白紙同等のクリアさ）を100%キープしたまま道路・線画をくっきり黒く印刷 */
+      /* 印刷時：背景の純白度を100%キープしたまま道路・線画をくっきり黒く印刷 */
       filter: grayscale(100%) brightness(118%) contrast(165%) !important;
     }
     .page-canvas-container {
       flex: 1 !important;
-      height: 130mm !important;
-      min-height: 130mm !important;
+      width: 100% !important;
+      height: 140mm !important;
+      min-height: 140mm !important;
+      max-height: 140mm !important;
+      border: 1.5px solid #000 !important;
+      border-top: none !important;
     }
   }
 </style>
@@ -646,8 +664,8 @@
     <div class="sidebar-section">
       <div class="section-title">🔢 0. OSS OCRコード（案件ごとに変更）</div>
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label">OCR番号（最大16桁・自動マス目反映）</label>
-        <input type="text" id="ocrCodeInput" class="form-input" maxlength="16" placeholder="例: 0110470156500000" value="0110470156500000" oninput="updateOCRDisplay(); autoSaveDraft();" style="font-family:monospace; letter-spacing:2px; font-weight:bold;">
+        <label class="form-label">OCR番号（最大17桁・自動マス目反映）</label>
+        <input type="text" id="ocrCodeInput" class="form-input" maxlength="17" placeholder="例: D110470156500000" value="D110470156500000" oninput="updateOCRDisplay(); autoSaveDraft();" style="font-family:monospace; letter-spacing:2px; font-weight:bold;">
       </div>
     </div>
 
@@ -762,13 +780,29 @@
             <button class="property-btn" style="color:#EF4444; padding:1px 5px;" onclick="deleteSelectedItem()">🗑️ 削除</button>
           </div>
         </div>
-        <div class="property-row">
-          <span style="font-size:0.72rem; color:#94A3B8; width:48px;">🔄 回転:</span>
-          <button class="property-btn" onclick="rotateSelectedItem(-45)">⟲ -45°</button>
-          <button class="property-btn" onclick="rotateSelectedItem(45)">⟳ +45°</button>
+        <!-- 🔄 角度調整（スライダー + 数値直接入力 + 微調整 + プリセット） -->
+        <div class="property-row" style="margin-bottom:4px; align-items:center;">
+          <span style="font-size:0.72rem; color:#94A3B8; width:42px; flex-shrink:0;">🔄 角度:</span>
+          <input type="range" id="propertyAngleSlider" min="0" max="359" value="0" step="1"
+            style="flex:1; height:4px; cursor:pointer; accent-color:#38BDF8;"
+            oninput="onAngleSliderChange(this.value)"
+            onchange="pushHistory(); autoSaveDraft();">
+          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
+            <input type="number" id="propertyAngleInput" min="0" max="359" value="0"
+              style="width:44px; background:#1E293B; border:1px solid #475569; border-radius:3px; color:#38BDF8; font-size:0.75rem; font-weight:bold; text-align:right; padding:1px 3px;"
+              onchange="onAngleInputChange(this.value)">
+            <span style="font-size:0.72rem; color:#94A3B8;">°</span>
+          </div>
+        </div>
+        <div class="property-row" style="gap:3px; flex-wrap:wrap; margin-bottom:6px;">
+          <button class="property-btn" onclick="rotateSelectedItem(-5)" title="左に5度回転">⟲ -5°</button>
+          <button class="property-btn" onclick="rotateSelectedItem(5)" title="右に5度回転">⟳ +5°</button>
+          <button class="property-btn" onclick="rotateSelectedItem(-1)" title="左に1度微調整">⟲ -1°</button>
+          <button class="property-btn" onclick="rotateSelectedItem(1)" title="右に1度微調整">⟳ +1°</button>
+          <span style="border-left:1px solid #334155; height:16px; margin:0 2px;"></span>
           <button class="property-btn" onclick="setSelectedItemAngle(0)">0°</button>
           <button class="property-btn" onclick="setSelectedItemAngle(90)">90°</button>
-          <button class="property-btn" onclick="setSelectedItemAngle(180)">180°</button>
+          <button class="property-btn" onclick="rotateSelectedItem(45)">+45°</button>
         </div>
         <div class="property-row">
           <span style="font-size:0.72rem; color:#94A3B8; width:48px;">📏 サイズ:</span>
@@ -926,13 +960,17 @@
     <div class="a4-page-oss" id="page1Sozai" onclick="setActiveTarget('sozai')">
       <!-- OSS OCRヘッダー -->
       <div class="oss-ocr-header">
-        <div style="display:flex; align-items:center;">
-          <div class="ocr-digits" id="ocrDigitsC">
-            <div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">4</div><div class="ocr-digit-cell">7</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">6</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <div style="display:flex; align-items:center;">
+            <div class="ocr-digits" id="ocrDigitsC">
+              <div class="ocr-digit-cell">D</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">4</div><div class="ocr-digit-cell">7</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">6</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div>
+            </div>
+            <div class="ocr-code-box">C</div>
           </div>
-          <div class="ocr-code-box">C</div>
+          <div style="display:inline-block; border-bottom:1.6px solid #000; padding-bottom:1px; margin-top:2px; width:fit-content;">
+            <span style="font-size:10.5pt; font-weight:bold; letter-spacing:10px; padding-left:2px;">所　在　図</span>
+          </div>
         </div>
-        <div style="font-size:14pt; font-weight:bold; letter-spacing:6px;">所　在　図</div>
         <div class="oss-qr-box" id="sozaiQRCode" title="OCR連動QRコード"></div>
       </div>
 
@@ -951,26 +989,24 @@
         <div class="scale-bar" id="sozaiScaleBar">縮尺：約 1:5,000</div>
       </div>
 
-      <div class="page-footer">
-        <div style="color:#222; font-size:8.5pt; line-height:1.35;">
-          ※ 使用の本拠の位置（自宅・事業所等）及び保管場所（車庫）の位置を明記してください。<br>
-          ※ 目標となる建物や付近の道路を明記してください。
-        </div>
-        <div style="font-size:9.5pt; font-weight:bold; color:#444;">（1 / 2 ページ）</div>
-      </div>
+      <div class="page-footer" style="min-height:10px; margin-top:4px;"></div>
     </div>
 
     <!-- 📄 2ページ目：配置図 -->
     <div class="a4-page-oss active-edit-target" id="page2Haichi" onclick="setActiveTarget('haichi')">
       <!-- OSS OCRヘッダー -->
       <div class="oss-ocr-header">
-        <div style="display:flex; align-items:center;">
-          <div class="ocr-digits" id="ocrDigitsD">
-            <div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">4</div><div class="ocr-digit-cell">7</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">6</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <div style="display:flex; align-items:center;">
+            <div class="ocr-digits" id="ocrDigitsD">
+              <div class="ocr-digit-cell">D</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">4</div><div class="ocr-digit-cell">7</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">1</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">6</div><div class="ocr-digit-cell">5</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div><div class="ocr-digit-cell">0</div>
+            </div>
+            <div class="ocr-code-box">D</div>
           </div>
-          <div class="ocr-code-box">D</div>
+          <div style="display:inline-block; border-bottom:1.6px solid #000; padding-bottom:1px; margin-top:2px; width:fit-content;">
+            <span style="font-size:10.5pt; font-weight:bold; letter-spacing:10px; padding-left:2px;">配　置　図</span>
+          </div>
         </div>
-        <div style="font-size:14pt; font-weight:bold; letter-spacing:6px;">配　置　図</div>
         <div class="oss-qr-box" id="haichiQRCode" title="OCR連動QRコード"></div>
       </div>
 
@@ -989,52 +1025,38 @@
         <div class="scale-bar" id="haichiScaleBar">縮尺：約 1:500</div>
       </div>
 
-      <!-- 配置図フッター（店舗連絡先・登録番号・作成者・職印） -->
-      <div class="page-footer">
-        <div style="color:#000; font-size:7.8pt; line-height:1.3; max-width:440px;">
-          備考 1. 保管場所に接する道路の幅員、保管場所の平面の寸法をメートルで記入すること。<br>
+      <!-- 配置図フッター（公式レイアウト完全準拠：備考 ＆ 連絡先・登録番号・申請者等） -->
+      <div class="page-footer" style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:4px; gap:20px;">
+        <div style="color:#000; font-size:9.2pt; line-height:1.42; flex:1; padding-top:1px;">
+          備考 1. 保管場所に接する道路の幅員、保管場所の平面の寸法をメートルで記入する。<br>
           　　 2. 複数の自動車を保管する駐車場所の場合は、保管場所を明示するほか保管場所番号を記載する。<br>
           　　 3. 使用の本拠の位置（自宅等）と保管場所の位置との間を線で結んで距離を記入する。
         </div>
 
-        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-          <!-- 連絡先・店舗情報 -->
-          <div style="display:flex; align-items:center; gap:6px; font-size:9pt; margin-bottom:2px;">
-            <span style="font-weight:bold;">連絡先</span>
-            <span id="dealerInfoDisplay" style="border-bottom:1.5px solid #000; min-width:200px; padding:0 6px; font-weight:bold; color:#000; letter-spacing:0.5px; font-size:9pt;">愛知トヨタ 江南店 TEL 0587-55-6311</span>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0;">
+          <!-- 連絡先 -->
+          <div style="font-size:8.5pt; color:#000; font-weight:normal; letter-spacing:0.5px; margin-bottom:1px;">
+            <span>連絡先</span>
+            <span id="dealerInfoDisplay" style="font-weight:bold; margin-left:4px;">愛知トヨタ 江南店 ℡ 0587-55-6311</span>
           </div>
 
-          <!-- 登録番号欄 & シャッター & 作成者 & 職印 & ページ番号 -->
-          <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
-            <!-- 登録番号枠 -->
-            <div style="display:flex; border:1.4px solid #000; font-size:8.5pt; height:26px; align-items:stretch;">
-              <div style="background:#f1f5f9; padding:2px 6px; font-weight:bold; border-right:1.2px solid #000; display:flex; align-items:center; letter-spacing:1px;">登録番号</div>
-              <div id="regNoDisplay" style="min-width:80px; padding:2px 8px; display:flex; align-items:center; font-family:monospace; font-weight:bold; font-size:9pt;"></div>
-            </div>
+          <!-- 登録番号 枠 -->
+          <div style="display:flex; border:1.4px solid #000; font-size:8pt; height:24px; align-items:stretch; background:#fff; width:260px;">
+            <div style="padding:2px 10px; font-weight:normal; border-right:1.2px solid #000; display:flex; align-items:center; justify-content:center; white-space:nowrap; font-size:7.5pt;">登録番号</div>
+            <div id="regNoDisplay" style="flex:1; padding:2px 8px; display:flex; align-items:center; font-family:monospace; font-weight:bold; font-size:8.5pt;"></div>
+          </div>
 
-            <!-- シャッター -->
-            <div class="shutter-box" style="font-size:8.5pt; padding:3px 8px;">
-              <span>シャッター</span>
-              <span id="shutterDisplayYes">有</span>
-              <span>・</span>
-              <span id="shutterDisplayNo" class="shutter-circle">無</span>
+          <!-- 作成者 ＆ 職印 -->
+          <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
+            <div id="officeInfoDisplay" style="font-size:8.5pt; font-weight:bold; color:#000;">
+              行政書士法人フェリス 0586-50-2896
             </div>
-
-            <!-- 作成者 -->
-            <div id="officeInfoDisplay" style="font-size:9pt; font-weight:bold; text-align:right; line-height:1.25;">
-              <div>行政書士法人フェリス</div>
-              <div>0586-50-2896</div>
-            </div>
-
-            <!-- 職印（電子印画像） -->
-            <div id="sealWrapper" style="position:relative; width:38px; height:38px; margin-top:-3px; margin-bottom:-3px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
-              <img src="電子印.png" id="sealImg" alt="行政書士法人フェリス之印" style="width:100%; height:100%; object-fit:contain; display:block;" onerror="this.style.display='none'; document.getElementById('sealFallbackBox').style.display='flex';">
-              <div id="sealFallbackBox" style="display:none; border:1.2px solid #000; width:26px; height:26px; align-items:center; justify-content:center; font-size:6.5pt; font-weight:bold; text-align:center; line-height:1.0; padding:1px; background:#fff;">
+            <div id="sealWrapper" style="width:34px; height:34px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+              <img src="電子印.png" id="sealImg" alt="職印" style="width:100%; height:100%; object-fit:contain; display:block;" onerror="this.style.display='none'; document.getElementById('sealFallbackBox').style.display='flex';">
+              <div id="sealFallbackBox" style="display:none; border:1.2px solid #ef4444; color:#ef4444; width:28px; height:28px; align-items:center; justify-content:center; font-size:6.5pt; font-weight:bold; text-align:center; line-height:1.0; padding:1px; background:#fff;">
                 行政<br>書士
               </div>
             </div>
-
-            <div style="font-size:9.5pt; font-weight:bold; color:#444; margin-left:4px;">（2 / 2 ページ）</div>
           </div>
         </div>
       </div>
@@ -1241,7 +1263,19 @@ function setupKeyboardShortcuts() {
     }
     if ((e.key === 'r' || e.key === 'R') && selectedItemRef && document.activeElement.tagName !== 'INPUT') {
       e.preventDefault();
-      rotateSelectedItem(45);
+      if (e.shiftKey) {
+        rotateSelectedItem(-5);
+      } else {
+        rotateSelectedItem(5);
+      }
+    }
+    if ((e.key === '[' || (e.key === 'ArrowLeft' && e.altKey)) && selectedItemRef && document.activeElement.tagName !== 'INPUT') {
+      e.preventDefault();
+      rotateSelectedItem(-1);
+    }
+    if ((e.key === ']' || (e.key === 'ArrowRight' && e.altKey)) && selectedItemRef && document.activeElement.tagName !== 'INPUT') {
+      e.preventDefault();
+      rotateSelectedItem(1);
     }
   });
 }
@@ -1259,7 +1293,12 @@ function updateFooterRegNo() {
   const input = document.getElementById('regNoInput');
   const display = document.getElementById('regNoDisplay');
   if (input && display) {
-    display.textContent = input.value.trim();
+    const val = input.value.trim();
+    if (val) {
+      display.textContent = val;
+    } else {
+      display.innerHTML = '&nbsp;';
+    }
   }
 }
 
@@ -1267,8 +1306,7 @@ function updateFooterOfficeInfo() {
   const input = document.getElementById('officeInfoInput');
   const display = document.getElementById('officeInfoDisplay');
   if (input && display) {
-    const val = input.value.trim();
-    display.innerHTML = val.replace(/\s+/g, '<br>');
+    display.textContent = input.value.trim() || '—';
   }
 }
 
@@ -1602,7 +1640,13 @@ function showPropertyPanel(targetKey, index) {
     'dist-line': `📍 距離線: 「${item.text || ''}」`
   };
 
-  typeLabel.textContent = `🎯 選択中: ${typeNames[item.type] || item.type} (角度: ${Math.round(item.angle || 0)}°)`;
+  const currentAngle = Math.round(((item.angle || 0) % 360 + 360) % 360);
+  typeLabel.textContent = `🎯 選択中: ${typeNames[item.type] || item.type} (角度: ${currentAngle}°)`;
+
+  const angleSlider = document.getElementById('propertyAngleSlider');
+  const angleInput = document.getElementById('propertyAngleInput');
+  if (angleSlider) angleSlider.value = currentAngle;
+  if (angleInput) angleInput.value = currentAngle;
   
   const textRow = document.getElementById('propertyTextRow');
   const textInput = document.getElementById('propertyTextInput');
@@ -1617,6 +1661,52 @@ function showPropertyPanel(targetKey, index) {
   }
 
   panel.classList.add('active');
+}
+
+function onAngleSliderChange(val) {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+
+  const angle = Math.round(((parseFloat(val) || 0) % 360 + 360) % 360);
+  item.angle = angle;
+
+  const angleInput = document.getElementById('propertyAngleInput');
+  if (angleInput) angleInput.value = angle;
+
+  const typeLabel = document.getElementById('selectedItemTypeLabel');
+  if (typeLabel) {
+    const typeNames = {
+      'rect-spot': '🅿️ 保管場所(四角)',
+      'poly-spot': '⬡ 保管場所(多角形)',
+      'rect-other': '🔲 建物・自宅枠',
+      'poly-other': '🔷 建物(多角形)',
+      'freehand': '✏️ 手書きペン線',
+      'line-straight': '📏 直線',
+      'compass': '🧭 JIS方位記号',
+      'car': '🚗 車両マーク',
+      'text': `🔤 文字: 「${item.text || ''}」`,
+      'line-dim': `📏 寸法線: 「${item.text || ''}」`,
+      'arrow': '➡️ 出入口矢印',
+      'line-road': '🛣️ 道路境界線',
+      'line-rail': `🚆 線路: 「${item.text || ''}」`,
+      'dist-line': `📍 距離線: 「${item.text || ''}」`
+    };
+    typeLabel.textContent = `🎯 選択中: ${typeNames[item.type] || item.type} (角度: ${angle}°)`;
+  }
+
+  redraw(targetKey);
+  drawSelectionHighlight(targetKey, index);
+  autoSaveDraft();
+}
+
+function onAngleInputChange(val) {
+  if (!selectedItemRef) return;
+  let angle = parseFloat(val);
+  if (isNaN(angle)) angle = 0;
+  angle = Math.round(((angle % 360) + 360) % 360);
+  setSelectedItemAngle(angle);
 }
 
 function onPropertyTextInputChange(val) {
@@ -1655,12 +1745,13 @@ function rotateSelectedItem(delta) {
   if (!item) return;
 
   pushHistory();
-  item.angle = ((item.angle || 0) + delta + 360) % 360;
+  item.angle = Math.round(((item.angle || 0) + delta + 360) % 360);
   pushHistory();
   redraw(targetKey);
   drawSelectionHighlight(targetKey, index);
   showPropertyPanel(targetKey, index);
-  showToast(`🔄 角度を ${Math.round(item.angle)}° に変更しました`);
+  autoSaveDraft();
+  showToast(`🔄 角度を ${item.angle}° に変更しました`);
 }
 
 function setSelectedItemAngle(angle) {
@@ -1670,12 +1761,13 @@ function setSelectedItemAngle(angle) {
   if (!item) return;
 
   pushHistory();
-  item.angle = angle % 360;
+  item.angle = Math.round(((angle % 360) + 360) % 360);
   pushHistory();
   redraw(targetKey);
   drawSelectionHighlight(targetKey, index);
   showPropertyPanel(targetKey, index);
-  showToast(`🔄 角度を ${angle}° に設定しました`);
+  autoSaveDraft();
+  showToast(`🔄 角度を ${item.angle}° に設定しました`);
 }
 
 function scaleSelectedItem(factor) {
@@ -1755,13 +1847,14 @@ function deleteSelectedItem() {
 // ─── OSS OCR連動 QRコード＆マス目表示 ───
 function updateOCRDisplay() {
   const ocrInput = document.getElementById('ocrCodeInput');
-  const raw = (ocrInput ? ocrInput.value.replace(/[\s\-_]/g, '') : '') || '';
+  const raw = (ocrInput ? ocrInput.value.replace(/[\s\-_]/g, '') : '') || 'D110470156500000';
   
   ['C', 'D'].forEach(suffix => {
     const el = document.getElementById(`ocrDigits${suffix}`);
     if (el) {
       let html = '';
-      for (let i = 0; i < 16; i++) {
+      const totalCells = Math.max(16, raw.length);
+      for (let i = 0; i < totalCells; i++) {
         const ch = raw[i] || '';
         html += `<div class="ocr-digit-cell">${ch ? ch : '&nbsp;'}</div>`;
       }
@@ -2591,6 +2684,25 @@ function drawSelectionHighlight(targetKey, index) {
   const item = drawings[targetKey][index];
   if (!ctx || !item) return;
   ctx.save();
+
+  if (item.angle) {
+    let cx = item.x, cy = item.y;
+    if (item.type.startsWith('rect') || item.type === 'car') {
+      cx = item.x + item.w / 2;
+      cy = item.y + item.h / 2;
+    } else if (item.type.startsWith('line') || item.type === 'arrow' || item.type === 'dist-line') {
+      cx = (item.x1 + item.x2) / 2;
+      cy = (item.y1 + item.y2) / 2;
+    } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
+      const center = getPolygonCenter(item.points);
+      cx = center.cx;
+      cy = center.cy;
+    }
+    ctx.translate(cx, cy);
+    ctx.rotate(item.angle * Math.PI / 180);
+    ctx.translate(-cx, -cy);
+  }
+
   ctx.strokeStyle = '#2563EB';
   ctx.lineWidth = 2;
   ctx.setLineDash([6, 3]);

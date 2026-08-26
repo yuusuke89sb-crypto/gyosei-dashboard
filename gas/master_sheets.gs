@@ -988,7 +988,13 @@ function getSheetDataAsJson_(sheetName, headers) {
       if (!header) return;
       const key = keyMap[header] || header;
       let value = row[i];
-      if (value instanceof Date) value = Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      if (value instanceof Date) {
+        if (sheetName === SHEET_NAMES.INBOX || sheetName === SHEET_NAMES.LOG || key === 'date' || key === 'createdAt' || key === 'updatedAt' || header.includes('日時') || header.includes('時間')) {
+          value = Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+        } else {
+          value = Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        }
+      }
       obj[key] = (value !== undefined && value !== null) ? value : '';
       if (value !== '' && value !== undefined && value !== null) hasData = true;
     });

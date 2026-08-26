@@ -76,7 +76,11 @@ const InboxManager = {
     }
 
     // ソート（新しい順）
-    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+    filtered.sort((a, b) => {
+      const ta = a.date ? new Date(String(a.date).includes('-') && !String(a.date).includes('T') ? String(a.date).replace(/-/g, '/') : a.date).getTime() : 0;
+      const tb = b.date ? new Date(String(b.date).includes('-') && !String(b.date).includes('T') ? String(b.date).replace(/-/g, '/') : b.date).getTime() : 0;
+      return tb - ta;
+    });
 
     return `
       <div>
@@ -113,12 +117,20 @@ const InboxManager = {
     `;
   },
 
+  formatDate(dateVal) {
+    if (!dateVal) return '—';
+    const str = String(dateVal).trim();
+    const d = new Date(str.includes('-') && !str.includes('T') ? str.replace(/-/g, '/') : str);
+    if (isNaN(d.getTime())) return str;
+    return d.toLocaleString('ja-JP', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+  },
+
   renderInboxCard(item) {
     const isFax = item.type === 'FAX';
     const typeBadgeBg = isFax ? '#10b981' : '#3b82f6'; // Green for FAX, Blue for Mail
-    const formattedDate = new Date(item.date).toLocaleString('ja-JP', {
-      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
-    });
+    const formattedDate = this.formatDate(item.date);
 
     // 添付ファイルのパース
     let attachments = [];
@@ -294,7 +306,11 @@ const InboxManager = {
     });
 
     // ソート (日付新しい順)
-    histories.sort((a, b) => new Date(b.date) - new Date(a.date));
+    histories.sort((a, b) => {
+      const ta = a.date ? new Date(String(a.date).includes('-') && !String(a.date).includes('T') ? String(a.date).replace(/-/g, '/') : a.date).getTime() : 0;
+      const tb = b.date ? new Date(String(b.date).includes('-') && !String(b.date).includes('T') ? String(b.date).replace(/-/g, '/') : b.date).getTime() : 0;
+      return tb - ta;
+    });
 
     return `
       <div style="overflow-x:auto; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:8px">
@@ -342,7 +358,7 @@ const InboxManager = {
 
                   return `
                     <tr style="border-bottom:1px solid var(--border-color)">
-                      <td style="padding:10px 12px; white-space:nowrap">${h.date}</td>
+                      <td style="padding:10px 12px; white-space:nowrap">${this.formatDate(h.date)}</td>
                       <td style="padding:10px 12px">${directionBadge}</td>
                       <td style="padding:10px 12px; font-family:monospace">${h.sender || '—'}</td>
                       <td style="padding:10px 12px">${h.subject || '（無題）'}</td>
