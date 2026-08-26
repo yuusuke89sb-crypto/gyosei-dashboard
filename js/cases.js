@@ -855,7 +855,6 @@ const Cases = {
         `;
       }
     }
-    }
   },
 
   handleViewerFileSelect(e) {
