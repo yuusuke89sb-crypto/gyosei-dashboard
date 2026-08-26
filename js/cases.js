@@ -723,16 +723,25 @@ const Cases = {
       const isPdf = (att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf'));
       const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
 
-      // 1. PDFファイルの場合
-      if (isPdf && att.url) {
-        let previewUrl = att.url;
+      // 1. Google DriveのプレビューURL（PDF・画像全対応）
+      if (att.url && att.url.includes('drive.google.com')) {
         const match = att.url.match(/[-\w]{25,}/);
         if (match) {
-          previewUrl = `https://drive.google.com/file/d/${match[0]}/preview`;
+          const previewUrl = `https://drive.google.com/file/d/${match[0]}/preview`;
+          if (loading) loading.style.display = 'none';
+          if (iframeEl) {
+            iframeEl.src = previewUrl;
+            iframeEl.style.display = 'block';
+          }
+          return;
         }
+      }
+
+      // 2. ローカルまたはBlobのPDFファイルの場合
+      if (isPdf && att.url) {
         if (loading) loading.style.display = 'none';
         if (iframeEl) {
-          iframeEl.src = previewUrl;
+          iframeEl.src = att.url.includes('#') ? att.url : `${att.url}#toolbar=0`;
           iframeEl.style.display = 'block';
         }
         return;

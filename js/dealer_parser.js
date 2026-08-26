@@ -538,7 +538,7 @@ const DealerDocumentParser = {
 
       const prefill = this.toCasePrefill(updatedParsed);
       if (rawAttachmentUrl) {
-        prefill.attachments = [{ name: '依頼書原本', url: rawAttachmentUrl }];
+        prefill.attachments = [{ name: (updatedParsed.orderNo ? `【${updatedParsed.orderNo}】依頼書原本.pdf` : '依頼書原本.pdf'), url: rawAttachmentUrl }];
       }
 
       modalEl.remove();
