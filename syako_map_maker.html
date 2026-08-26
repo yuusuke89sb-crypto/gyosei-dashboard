@@ -1121,6 +1121,20 @@ function distToSegment(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
 }
 
+function snapToAngle(x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 4) return { x: x2, y: y2 };
+  const angle = Math.atan2(dy, dx);
+  // 45度刻み（0°, 45°, 90°, 135°, 180°, -135°, -90°, -45°）に吸着
+  const snapAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+  return {
+    x: Math.round(x1 + dist * Math.cos(snapAngle)),
+    y: Math.round(y1 + dist * Math.sin(snapAngle))
+  };
+}
+
 // ─── 案件連携パラメータ ───
 let linkedCaseId = null;
 let linkedCaseTitle = null;
@@ -2323,20 +2337,6 @@ function setupCanvasEvents(canvas, targetKey) {
       return;
     }
 
-function snapToAngle(x1, y1, x2, y2) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const dist = Math.hypot(dx, dy);
-  if (dist < 4) return { x: x2, y: y2 };
-  const angle = Math.atan2(dy, dx);
-  // Snap to 45 degree increments (0°, 45°, 90°, 135°, 180°, etc.)
-  const snapAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-  return {
-    x: Math.round(x1 + dist * Math.cos(snapAngle)),
-    y: Math.round(y1 + dist * Math.sin(snapAngle))
-  };
-}
-
     if (!isDrawing) return;
 
     let targetEndX = curX;
@@ -2435,25 +2435,31 @@ function snapToAngle(x1, y1, x2, y2) {
       });
       showToast('🔲 建物枠を作成しました');
     } else if (currentTool === 'line-straight') {
-      const eX = dragDist < 8 ? startX + 150 : endX;
-      const eY = dragDist < 8 ? startY : endY;
-      drawings[targetKey].push({
-        type: 'line-straight',
-        x1: startX, y1: startY, x2: eX, y2: eY,
-        lineWidth: 2.0,
-        color: '#000000',
-        angle: 0
-      });
-      showToast('📏 直線を描画しました');
+      if (dragDist >= 4) {
+        drawings[targetKey].push({
+          type: 'line-straight',
+          x1: startX, y1: startY, x2: endX, y2: endY,
+          lineWidth: 2.0,
+          color: '#000000',
+          angle: 0
+        });
+        showToast('📏 直線を描画しました');
+        showPropertyPanel(targetKey, newIndex);
+      } else {
+        showToast('💡 始点から終点までドラッグすると直線が引けます');
+      }
     } else if (currentTool === 'line-road') {
-      const eX = dragDist < 8 ? startX + 150 : endX;
-      const eY = dragDist < 8 ? startY : endY;
-      drawings[targetKey].push({
-        type: 'line-road',
-        x1: startX, y1: startY, x2: eX, y2: eY,
-        angle: 0
-      });
-      showToast('🛣️ 道路境界線を描画しました');
+      if (dragDist >= 4) {
+        drawings[targetKey].push({
+          type: 'line-road',
+          x1: startX, y1: startY, x2: endX, y2: endY,
+          angle: 0
+        });
+        showToast('🛣️ 道路境界線を描画しました');
+        showPropertyPanel(targetKey, newIndex);
+      } else {
+        showToast('💡 始点から終点までドラッグすると道路線が引けます');
+      }
     } else if (currentTool === 'line-dim') {
       const dimText = prompt('寸法を入力（例: 2.0m, 5.0m）:', '5.0m');
       const eX = dragDist < 8 ? startX + 100 : endX;
@@ -2496,6 +2502,7 @@ function snapToAngle(x1, y1, x2, y2) {
         text: dist,
         angle: 0
       });
+      showToast('📍 直線距離線を描画しました');
       showToast('📍 直線距離線を描画しました');
       showToast('📍 直線距離線を描画しました');
     } else if (currentTool === 'text') {
@@ -2649,10 +2656,58 @@ function drawPreview(targetKey, x1, y1, x2, y2) {
   ctx.lineWidth = 1.5;
   ctx.setLineDash([4, 4]);
 
-  if (currentTool === 'rect-spot' || currentTool === 'rect-other') {
+  if (currentTool === 'line-straight' || currentTool === 'line-road') {
+    const isRoad = currentTool === 'line-road';
+    // 1. リアルタイムでクッキリ黒い直線（道路太線または直線ペン）
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = isRoad ? 4.0 : 2.0;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    // 2. 始点（緑丸）と終点（青丸）のアンカーマーカー
+    ctx.fillStyle = '#16A34A';
+    ctx.beginPath();
+    ctx.arc(x1, y1, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#2563EB';
+    ctx.beginPath();
+    ctx.arc(x2, y2, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 3. 角度・長さのリアルタイムガイド
+    const dist = Math.round(Math.hypot(x2 - x1, y2 - y1));
+    let deg = Math.round(Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI);
+    if (deg < 0) deg += 360;
+    let angleLabel = `${deg}°`;
+    if (deg === 0 || deg === 180 || deg === 360) angleLabel += ' (水平)';
+    else if (deg === 90 || deg === 270) angleLabel += ' (垂直)';
+    else if (deg % 45 === 0) angleLabel += ' (45°)';
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.fillRect(x2 + 8, y2 - 20, 110, 18);
+    ctx.fillStyle = '#38BDF8';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(`${dist}px ${angleLabel}`, x2 + 12, y2 - 7);
+  } else if (currentTool === 'rect-spot' || currentTool === 'rect-other') {
+    ctx.strokeStyle = '#2563EB';
+    ctx.fillStyle = 'rgba(37, 99, 235, 0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
     ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
     ctx.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
   } else if (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line') {
+    ctx.strokeStyle = '#2563EB';
+    ctx.lineWidth = 2.0;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
