@@ -2565,13 +2565,22 @@ function drawElement(ctx, item) {
     ctx.lineWidth = 2.5;
     ctx.strokeRect(item.x, item.y, item.w, item.h);
 
+    // 2. 正確な45度平行斜線ハッチング（クリッピング＆等間隔9px）
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(item.x, item.y, item.w, item.h);
+    ctx.clip();
+
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    for (let offset = -item.h; offset < item.w; offset += 8) {
-      ctx.moveTo(Math.max(item.x, item.x + offset), Math.max(item.y, item.y - offset));
-      ctx.lineTo(Math.min(item.x + item.w, item.x + offset + item.h), Math.min(item.y + item.h, item.y + item.h));
+    const h = item.h;
+    const w = item.w;
+    const step = 9;
+    const span = Math.max(h, w) + 30;
+    for (let offset = -span - 20; offset <= w + span + 20; offset += step) {
+      ctx.moveTo(item.x + offset, item.y - 10);
+      ctx.lineTo(item.x + offset + span + 20, item.y + span + 10);
     }
     ctx.stroke();
     ctx.restore();
@@ -2606,7 +2615,7 @@ function drawElement(ctx, item) {
     ctx.closePath();
     ctx.stroke();
 
-    // 2. 斜線ハッチング
+    // 2. 正確な45度平行斜線ハッチング
     const center = getPolygonCenter(item.points);
     ctx.save();
     ctx.beginPath();
@@ -2620,11 +2629,15 @@ function drawElement(ctx, item) {
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    const minX = center.minX - center.h;
-    const maxX = center.maxX + center.h;
-    for (let offset = minX; offset <= maxX; offset += 8) {
+    const h = center.maxY - center.minY;
+    const w = center.maxX - center.minX;
+    const span = Math.max(h, w) + 30;
+    const minX = center.minX - span - 20;
+    const maxX = center.maxX + span + 20;
+    const step = 9;
+    for (let offset = minX; offset <= maxX; offset += step) {
       ctx.moveTo(offset, center.minY - 10);
-      ctx.lineTo(offset + center.h + 20, center.maxY + 10);
+      ctx.lineTo(offset + span + 20, center.minY + span + 10);
     }
     ctx.stroke();
     ctx.restore();
