@@ -718,48 +718,10 @@ const Cases = {
     if (loading) loading.style.display = 'block';
 
     try {
-      const isTiff = (att.name && att.name.match(/\.tiff?$/i)) || (att.url && att.url.includes('.tif'));
       const isPdf = (att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf'));
+      const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
 
-      // 1. Google Drive の TIFFファイルの場合 (GAS経由でBase64取得 & UTIF変換)
-      if (isTiff && att.url) {
-        const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
-        if (gasUrl) {
-          const res = await fetch(gasUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-              action: 'getFileBase64',
-              fileUrl: att.url
-            })
-          });
-          const data = await res.json();
-          if (data && data.success && data.base64) {
-            let converted = data.base64;
-            if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
-              const cJpg = DealerDocumentParser.convertTiffToJpeg(data.base64);
-              if (cJpg) converted = cJpg;
-            }
-            if (loading) loading.style.display = 'none';
-            const wrapper = document.getElementById('caseViewerImgWrapper');
-            if (imgEl && wrapper) {
-              imgEl.src = converted.startsWith('data:') ? converted : `data:image/jpeg;base64,${converted}`;
-              wrapper.style.display = 'flex';
-              imgEl.onload = () => {
-                this.applyViewerTransform();
-                this.setupViewerInteractions();
-              };
-              if (imgEl.complete) {
-                this.applyViewerTransform();
-                this.setupViewerInteractions();
-              }
-            }
-            return;
-          }
-        }
-      }
-
-      // 2. PDFファイルの場合
+      // 1. PDFファイルの場合
       if (isPdf && att.url) {
         let previewUrl = att.url;
         const match = att.url.match(/[-\w]{25,}/);
@@ -774,8 +736,46 @@ const Cases = {
         return;
       }
 
-      // 3. 一般画像ファイルの場合
-      if (att.url && att.url.match(/\.(png|jpe?g|webp|gif)/i)) {
+      // 2. Google Drive上の画像（TIFF, JPEG, PNG等）またはDirect URL
+      if (att.url && gasUrl) {
+        const res = await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'getFileBase64',
+            fileUrl: att.url
+          })
+        });
+        const data = await res.json();
+        if (data && data.success && data.base64) {
+          let converted = data.base64;
+          const mime = data.mimeType || '';
+          if (mime.includes('tif') || (att.name && att.name.match(/\.tiff?$/i))) {
+            if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+              const cJpg = DealerDocumentParser.convertTiffToJpeg(data.base64);
+              if (cJpg) converted = cJpg;
+            }
+          }
+          if (loading) loading.style.display = 'none';
+          const wrapper = document.getElementById('caseViewerImgWrapper');
+          if (imgEl && wrapper) {
+            imgEl.src = converted.startsWith('data:') ? converted : `data:${mime || 'image/jpeg'};base64,${converted}`;
+            wrapper.style.display = 'flex';
+            imgEl.onload = () => {
+              this.applyViewerTransform();
+              this.setupViewerInteractions();
+            };
+            if (imgEl.complete) {
+              this.applyViewerTransform();
+              this.setupViewerInteractions();
+            }
+          }
+          return;
+        }
+      }
+
+      // 3. 一般Web画像URL（Base64またはhttp画像直リンク）
+      if (att.url && (att.url.startsWith('data:') || att.url.match(/\.(png|jpe?g|webp|gif)/i))) {
         if (loading) loading.style.display = 'none';
         const wrapper = document.getElementById('caseViewerImgWrapper');
         if (imgEl && wrapper) {
