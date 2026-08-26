@@ -331,7 +331,7 @@ const DealerDocumentParser = {
   },
 
   /**
-   * モーダルを開いてOCR解析結果を表示＆案件登録へ連携
+   * モーダルを開いてOCR解析結果を表示＆原本プレビューと並べて確認・修正して案件登録へ連携
    */
   showOcrResultModal(parsed, rawAttachmentUrl = '') {
     const modalId = 'dealer-ocr-result-modal';
@@ -342,96 +342,205 @@ const DealerDocumentParser = {
       document.body.appendChild(modalEl);
     }
 
-    modalEl.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+    modalEl.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px);';
+
+    let previewUrl = rawAttachmentUrl || '';
+    let previewHtml = '';
+
+    if (previewUrl.includes('drive.google.com')) {
+      const embedUrl = previewUrl.replace(/\/view(\?.*)?$/, '/preview');
+      previewHtml = `<iframe src="${embedUrl}" style="width:100%; height:100%; border:none; background:#fff;" allow="autoplay"></iframe>`;
+    } else if (previewUrl.startsWith('data:image/') || previewUrl.match(/\.(png|jpe?g|webp|gif)(\?.*)?$/i)) {
+      previewHtml = `<img src="${previewUrl}" style="max-width:100%; max-height:100%; object-fit:contain; display:block;" alt="依頼書原本">`;
+    } else if (previewUrl.startsWith('data:application/pdf') || previewUrl.match(/\.pdf(\?.*)?$/i)) {
+      previewHtml = `<iframe src="${previewUrl}#toolbar=0" style="width:100%; height:100%; border:none; background:#fff;"></iframe>`;
+    } else if (previewUrl) {
+      previewHtml = `<iframe src="${previewUrl}" style="width:100%; height:100%; border:none; background:#fff;"></iframe>`;
+    } else {
+      previewHtml = `
+        <div style="text-align:center; padding:40px 20px; color:var(--text-muted, #94a3b8);">
+          <span style="font-size:3rem; display:block; margin-bottom:8px;">📄</span>
+          <p style="margin:0; font-size:0.9rem;">原本プレビューはありません</p>
+          <div style="margin-top:12px;">
+            <input type="file" id="dealer-direct-file-input2" accept="application/pdf,image/*,.tif,.tiff" style="display:none" onchange="DealerDocumentParser.handleDirectFile(event)">
+            <button class="btn btn-secondary btn-small" onclick="document.getElementById('dealer-direct-file-input2').click()">📁 ファイルを選択して表示</button>
+          </div>
+        </div>
+      `;
+    }
 
     modalEl.innerHTML = `
-      <div class="modal-content" style="max-width:720px; width:92%; max-height:90vh; overflow-y:auto; background:var(--card-bg, #1e293b); border:1px solid var(--border-color, rgba(255,255,255,0.1)); border-radius:16px; padding:24px; color:var(--text-color, #fff); box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
-        <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color, rgba(255,255,255,0.1)); padding-bottom:12px;">
+      <div class="modal-content" style="max-width:1280px; width:96%; height:90vh; display:flex; flex-direction:column; background:var(--card-bg, #1e293b); border:1px solid var(--border-color, rgba(255,255,255,0.1)); border-radius:16px; color:var(--text-color, #fff); box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); overflow:hidden;">
+        
+        <!-- ヘッダー -->
+        <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color, rgba(255,255,255,0.1)); padding:12px 20px; flex-shrink:0;">
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-size:1.4rem;">⚡</span>
-            <h2 style="font-size:1.25rem; font-weight:700; margin:0;">FAX・依頼書 OCR自動解析結果</h2>
+            <h2 style="font-size:1.15rem; font-weight:700; margin:0;">FAX・依頼書 OCR自動解析＆照合・修正</h2>
           </div>
           <button class="btn btn-ghost" onclick="document.getElementById('${modalId}').remove()" style="font-size:1.5rem; line-height:1; cursor:pointer; background:none; border:none; color:inherit;">×</button>
         </div>
 
-        <div class="modal-body" style="padding:16px 0;">
-          <div style="background:rgba(59, 130, 246, 0.1); border:1px solid rgba(59, 130, 246, 0.3); border-radius:8px; padding:12px; margin-bottom:12px;">
-            <span style="font-size:0.85rem; color:#93c5fd;">💡 依頼書PDFから主要項目を自動抽出しました。内容を確認し「この内容で案件登録」を押すと、フォームに自動セットされます。</span>
+        <!-- 2カラムボディ（左: 原本プレビュー / 右: 入力・修正フォーム） -->
+        <div class="modal-body" style="display:grid; grid-template-columns: 1.1fr 1fr; gap:16px; padding:16px 20px; flex:1; min-height:0; overflow:hidden;">
+          
+          <!-- 左側：原本プレビュー -->
+          <div style="display:flex; flex-direction:column; background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:10px; overflow:hidden; min-height:0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(255,255,255,0.05); border-bottom:1px solid rgba(255,255,255,0.08); font-size:0.85rem; font-weight:bold; flex-shrink:0;">
+              <span>📄 原本プレビュー (FAX / 依頼書)</span>
+              ${previewUrl ? `<a href="${previewUrl}" target="_blank" class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:2px 8px; text-decoration:none;">別タブで拡大 ↗</a>` : ''}
+            </div>
+            <div style="flex:1; width:100%; height:100%; position:relative; background:#334155; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+              ${previewHtml}
+            </div>
           </div>
 
-          <!-- 手元ファイル直接選択ボタン -->
-          <div style="margin-bottom:14px; background:rgba(255,255,255,0.03); border:1px dashed var(--border-color); border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:0.8rem; color:var(--text-muted, #94a3b8);">📁 手元のPDF/画像ファイルから即時AI解析:</span>
-            <input type="file" id="dealer-direct-file-input" accept="application/pdf,image/*,.tif,.tiff" style="display:none" onchange="DealerDocumentParser.handleDirectFile(event)">
-            <button class="btn btn-secondary btn-small" onclick="document.getElementById('dealer-direct-file-input').click()" style="font-size:0.75rem;">📄 PCからファイル選択</button>
-          </div>
+          <!-- 右側：修正フォーム -->
+          <div style="display:flex; flex-direction:column; overflow-y:auto; padding-right:8px; gap:12px;">
+            <div style="background:rgba(59, 130, 246, 0.1); border:1px solid rgba(59, 130, 246, 0.3); border-radius:8px; padding:8px 12px; font-size:0.8rem; color:#93c5fd; flex-shrink:0;">
+              💡 左の原本を見ながら内容を修正できます。「この内容で案件登録」を押すと、修正内容がそのまま案件フォームに適用されます。
+            </div>
 
-          <table style="width:100%; border-collapse:collapse; font-size:0.9rem; margin-bottom:16px;">
-            <tbody>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8); width:30%;">申請区分</td>
-                <td style="padding:8px; font-weight:bold;">
-                  <span style="padding:2px 8px; border-radius:4px; ${parsed.isOss ? 'background:#059669; color:#fff;' : 'background:#475569; color:#fff;'}">${parsed.applicationType || '一般'}</span>
-                </td>
-              </tr>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">店舗・ディーラー</td>
-                <td style="padding:8px; font-weight:bold; color:var(--accent-gold, #f59e0b);">${parsed.storeFullName || parsed.dealerName || '未検出'}</td>
-              </tr>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">担当者名・TEL</td>
-                <td style="padding:8px;">${parsed.staffName ? `${parsed.staffName} 様 (${parsed.staffPhone || 'TELなし'})` : '未検出'}</td>
-              </tr>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">注文NO (8桁)</td>
-                <td style="padding:8px; font-family:monospace; font-weight:bold;">${parsed.orderNo || 'なし'}</td>
-              </tr>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">受付日 / 提出日</td>
-                <td style="padding:8px;">${parsed.receivedDate || '本日'}</td>
-              </tr>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">申請者（顧客名）</td>
-                <td style="padding:8px; font-weight:bold; font-size:1rem;">${parsed.applicantName || '未検出'} <span style="font-size:0.8rem; color:var(--text-muted, #94a3b8); font-weight:normal;">${parsed.applicantFurigana ? `(${parsed.applicantFurigana})` : ''}</span></td>
-              </tr>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">使用の本拠 / 住所</td>
-                <td style="padding:8px;">${parsed.applicantPostal ? `〒${parsed.applicantPostal} ` : ''}${parsed.applicantAddress || '未検出'}</td>
-              </tr>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">車両情報</td>
-                <td style="padding:8px;">${parsed.carName || ''} ${parsed.carModel || ''} ${parsed.vin ? `(車台番号: ${parsed.vin})` : ''}</td>
-              </tr>
-              ${parsed.replaceCar ? `
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">代替車情報</td>
-                <td style="padding:8px;">${parsed.replaceCar}</td>
-              </tr>` : ''}
-              ${parsed.targetDeliveryDate ? `
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                <td style="padding:8px; color:var(--text-muted, #94a3b8);">登録/納車予定</td>
-                <td style="padding:8px; color:#38bdf8; font-weight:bold;">${parsed.targetDeliveryDate}</td>
-              </tr>` : ''}
-            </tbody>
-          </table>
+            <!-- 申請区分 & 注文No -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">申請区分</label>
+                <select id="ocr-edit-isOss" class="form-input" style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+                  <option value="false" ${!parsed.isOss ? 'selected' : ''}>一般（書面申請）</option>
+                  <option value="true" ${parsed.isOss ? 'selected' : ''}>OSS（オンライン）</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">注文No (8桁)</label>
+                <input type="text" id="ocr-edit-orderNo" class="form-input" value="${parsed.orderNo || ''}" style="width:100%; font-family:monospace; font-weight:bold; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+              </div>
+            </div>
 
-          <div style="margin-top:12px;">
-            <label style="display:block; font-size:0.8rem; color:var(--text-muted, #94a3b8); margin-bottom:4px;">推奨案件タイトル:</label>
-            <input type="text" id="dealer-ocr-title-input" class="form-input" value="${parsed.suggestedTitle}" style="width:100%; font-size:0.95rem; font-weight:bold;">
+            <!-- ディーラー店舗名 ＆ 担当者 -->
+            <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:10px;">
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">店舗・ディーラー</label>
+                <input type="text" id="ocr-edit-store" class="form-input" value="${parsed.storeFullName || parsed.dealerName || ''}" style="width:100%; font-weight:bold; color:var(--accent-gold, #f59e0b); background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:6px; padding:6px 10px;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">担当者名・TEL</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="text" id="ocr-edit-staffName" class="form-input" value="${parsed.staffName || ''}" placeholder="氏名" style="width:50%; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 8px;">
+                  <input type="text" id="ocr-edit-staffPhone" class="form-input" value="${parsed.staffPhone || ''}" placeholder="TEL" style="width:50%; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 8px;">
+                </div>
+              </div>
+            </div>
+
+            <!-- 申請者氏名 & フリガナ -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">申請者 氏名 / 法人名 <span style="color:#ef4444">*</span></label>
+                <input type="text" id="ocr-edit-applicantName" class="form-input" value="${parsed.applicantName || ''}" style="width:100%; font-size:1rem; font-weight:bold; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">フリガナ</label>
+                <input type="text" id="ocr-edit-applicantFurigana" class="form-input" value="${parsed.applicantFurigana || ''}" style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+              </div>
+            </div>
+
+            <!-- 使用の本拠 / 住所 -->
+            <div>
+              <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">使用の本拠の位置（住所）</label>
+              <div style="display:flex; gap:6px;">
+                <input type="text" id="ocr-edit-postal" class="form-input" value="${parsed.applicantPostal || ''}" placeholder="〒483-8143" style="width:110px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+                <input type="text" id="ocr-edit-applicantAddress" class="form-input" value="${parsed.applicantAddress || ''}" style="flex:1; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+              </div>
+            </div>
+
+            <!-- 保管場所の位置 -->
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                <label style="font-size:0.75rem; color:var(--text-muted, #94a3b8);">保管場所の位置（駐車場住所）</label>
+                <button type="button" class="btn btn-secondary btn-small" style="font-size:0.7rem; padding:1px 6px;" onclick="document.getElementById('ocr-edit-garageAddress').value = document.getElementById('ocr-edit-applicantAddress').value">使用の本拠と同じ</button>
+              </div>
+              <input type="text" id="ocr-edit-garageAddress" class="form-input" value="${parsed.garageAddress || ''}" placeholder="使用の本拠と同じ場合は「同上」または住所を入力" style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+            </div>
+
+            <!-- 車両情報（車名・型式・車台番号） -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1.2fr; gap:10px;">
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">車名</label>
+                <input type="text" id="ocr-edit-carName" class="form-input" value="${parsed.carName || ''}" placeholder="例: トヨタ" style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">型式</label>
+                <input type="text" id="ocr-edit-carModel" class="form-input" value="${parsed.carModel || ''}" placeholder="例: 6AA-ZWR90W" style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">車台番号</label>
+                <input type="text" id="ocr-edit-vin" class="form-input" value="${parsed.vin || ''}" placeholder="例: ZWR90-..." style="width:100%; font-family:monospace; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+              </div>
+            </div>
+
+            <!-- 代替車 ＆ 登録/納車予定日 -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">代替車情報（車番）</label>
+                <input type="text" id="ocr-edit-replaceCar" class="form-input" value="${parsed.replaceCar || ''}" placeholder="例: 一宮350 て 7942" style="width:100%; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+              </div>
+              <div>
+                <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">登録/納車予定日</label>
+                <input type="text" id="ocr-edit-targetDeliveryDate" class="form-input" value="${parsed.targetDeliveryDate || ''}" placeholder="例: 9/11" style="width:100%; color:#38bdf8; font-weight:bold; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:6px; padding:6px 10px;">
+              </div>
+            </div>
+
+            <!-- 推奨案件タイトル -->
+            <div>
+              <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">推奨案件タイトル</label>
+              <input type="text" id="dealer-ocr-title-input" class="form-input" value="${parsed.suggestedTitle}" style="width:100%; font-weight:bold; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:6px; padding:6px 10px;">
+            </div>
+
           </div>
         </div>
 
-        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:12px; border-top:1px solid var(--border-color, rgba(255,255,255,0.1)); padding-top:16px;">
-          <button class="btn btn-secondary" onclick="document.getElementById('${modalId}').remove()">閉じる</button>
-          <button class="btn btn-primary" id="btn-apply-ocr-case" style="background:var(--accent-gold, #f59e0b); color:#000; font-weight:bold;">📋 この内容で案件登録</button>
+        <!-- フッター -->
+        <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color, rgba(255,255,255,0.1)); padding:12px 20px; flex-shrink:0;">
+          <div style="font-size:0.8rem; color:var(--text-muted, #94a3b8);">
+            ※ 入力欄を直接修正して「この内容で案件登録」を押すと、フォームに反映されます
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-secondary" onclick="document.getElementById('${modalId}').remove()">閉じる</button>
+            <button class="btn btn-primary" id="btn-apply-ocr-case" style="background:var(--accent-gold, #f59e0b); color:#000; font-weight:bold; padding:8px 20px; font-size:0.95rem;">📋 この内容で案件登録</button>
+          </div>
         </div>
       </div>
     `;
 
+    // 確定・案件登録ボタンのイベントリスナー
     document.getElementById('btn-apply-ocr-case').onclick = () => {
-      const customTitle = document.getElementById('dealer-ocr-title-input').value;
-      const prefill = this.toCasePrefill(parsed);
-      if (customTitle) prefill.title = customTitle;
+      // ユーザーが画面上で修正した最新値を取得
+      const isOss = document.getElementById('ocr-edit-isOss').value === 'true';
+      const updatedParsed = {
+        ...parsed,
+        isOss: isOss,
+        applicationType: isOss ? 'OSS' : '一般',
+        orderNo: document.getElementById('ocr-edit-orderNo').value.trim(),
+        storeFullName: document.getElementById('ocr-edit-store').value.trim(),
+        staffName: document.getElementById('ocr-edit-staffName').value.trim(),
+        staffPhone: document.getElementById('ocr-edit-staffPhone').value.trim(),
+        applicantName: document.getElementById('ocr-edit-applicantName').value.trim(),
+        applicantFurigana: document.getElementById('ocr-edit-applicantFurigana').value.trim(),
+        applicantPostal: document.getElementById('ocr-edit-postal').value.trim(),
+        applicantAddress: document.getElementById('ocr-edit-applicantAddress').value.trim(),
+        garageAddress: document.getElementById('ocr-edit-garageAddress').value.trim(),
+        carName: document.getElementById('ocr-edit-carName').value.trim(),
+        carModel: document.getElementById('ocr-edit-carModel').value.trim(),
+        vin: document.getElementById('ocr-edit-vin').value.trim(),
+        replaceCar: document.getElementById('ocr-edit-replaceCar').value.trim(),
+        targetDeliveryDate: document.getElementById('ocr-edit-targetDeliveryDate').value.trim(),
+        suggestedTitle: document.getElementById('dealer-ocr-title-input').value.trim()
+      };
+
+      const prefill = this.toCasePrefill(updatedParsed);
+      if (rawAttachmentUrl) {
+        prefill.attachments = [{ name: '依頼書原本', url: rawAttachmentUrl }];
+      }
+
       modalEl.remove();
 
       // 案件管理画面へ遷移して登録モーダルを開く
