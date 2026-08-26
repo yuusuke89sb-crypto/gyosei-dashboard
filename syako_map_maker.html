@@ -936,6 +936,10 @@
           <button class="zoom-btn" onclick="zoomMap('sozai', 1)" title="拡大">➕</button>
           <button class="zoom-btn" onclick="zoomMap('sozai', -1)" title="縮小">➖</button>
         </div>
+        <div class="canvas-mode-toggle print-hide">
+          <button class="mode-btn active-mode" id="modeMapSozai" onclick="setSozaiMode('map')" title="地図背景あり">🗺️ 地図</button>
+          <button class="mode-btn" id="modeBlankSozai" onclick="setSozaiMode('blank')" title="白紙キャンバス（手書き・略図用）">📝 白紙</button>
+        </div>
         <div class="scale-bar" id="sozaiScaleBar">縮尺：約 1:5,000</div>
       </div>
 
@@ -3144,14 +3148,41 @@ function setHaichiMode(mode) {
     btnMap.classList.remove('active-mode');
     btnBlank.classList.add('active-mode');
     if (scaleBar) scaleBar.style.display = 'none';
-    showToast('📝 白紙キャンバスモードに切り替えました');
+    showToast('📝 配置図を白紙キャンバスに切り替えました');
   } else {
     mapLayer.classList.remove('blank-mode');
     container.classList.remove('grid-bg');
     btnMap.classList.add('active-mode');
     btnBlank.classList.remove('active-mode');
     if (scaleBar) scaleBar.style.display = 'block';
-    showToast('🗺️ 地図背景モードに切り替えました');
+    showToast('🗺️ 配置図を地図背景モードに切り替えました');
+  }
+  autoSaveDraft();
+}
+
+let sozaiMode = 'map';
+function setSozaiMode(mode) {
+  sozaiMode = mode;
+  const mapLayer = document.getElementById('sozaiMap');
+  const container = document.getElementById('sozaiContainer');
+  const btnMap = document.getElementById('modeMapSozai');
+  const btnBlank = document.getElementById('modeBlankSozai');
+  const scaleBar = document.getElementById('sozaiScaleBar');
+
+  if (mode === 'blank') {
+    mapLayer.classList.add('blank-mode');
+    container.classList.add('grid-bg');
+    if (btnMap) btnMap.classList.remove('active-mode');
+    if (btnBlank) btnBlank.classList.add('active-mode');
+    if (scaleBar) scaleBar.style.display = 'none';
+    showToast('📝 所在図を白紙キャンバスに切り替えました');
+  } else {
+    mapLayer.classList.remove('blank-mode');
+    container.classList.remove('grid-bg');
+    if (btnMap) btnMap.classList.add('active-mode');
+    if (btnBlank) btnBlank.classList.remove('active-mode');
+    if (scaleBar) scaleBar.style.display = 'block';
+    showToast('🗺️ 所在図を地図背景モードに切り替えました');
   }
   autoSaveDraft();
 }
