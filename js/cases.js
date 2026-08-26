@@ -708,11 +708,13 @@ const Cases = {
 
     const att = atts[idx];
     const loading = document.getElementById('caseViewerLoading');
+    const wrapper = document.getElementById('caseViewerImgWrapper');
     const imgEl = document.getElementById('caseViewerImg');
     const iframeEl = document.getElementById('caseViewerIframe');
     const emptyEl = document.getElementById('caseViewerEmpty');
 
     if (emptyEl) emptyEl.style.display = 'none';
+    if (wrapper) wrapper.style.display = 'none';
     if (imgEl) imgEl.style.display = 'none';
     if (iframeEl) iframeEl.style.display = 'none';
     if (loading) loading.style.display = 'block';
@@ -736,31 +738,44 @@ const Cases = {
         return;
       }
 
-      // 2. Google Drive上の画像（TIFF, JPEG, PNG等）またはDirect URL
+      // 2. Google Drive上の画像（TIFF, JPEG, PNG等）
       if (att.url && gasUrl) {
-        const res = await fetch(gasUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({
-            action: 'getFileBase64',
-            fileUrl: att.url
-          })
-        });
-        const data = await res.json();
+        let data = null;
+        try {
+          const res = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'getFileBase64',
+              fileUrl: att.url,
+              fileId: (att.url.match(/[-\w]{25,}/) || [])[0] || ''
+            })
+          });
+          data = await res.json();
+        } catch (e) {
+          console.warn('doPost getFileBase64 failed, trying doGet fallback...', e);
+          const fileId = (att.url.match(/[-\w]{25,}/) || [])[0] || '';
+          if (fileId) {
+            const getRes = await fetch(`${gasUrl}?action=getFileBase64&fileId=${fileId}`);
+            data = await getRes.json();
+          }
+        }
+
         if (data && data.success && data.base64) {
           let converted = data.base64;
           const mime = data.mimeType || '';
-          if (mime.includes('tif') || (att.name && att.name.match(/\.tiff?$/i))) {
-            if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
-              const cJpg = DealerDocumentParser.convertTiffToJpeg(data.base64);
-              if (cJpg) converted = cJpg;
-            }
+          const isTiffData = mime.includes('tif') || (att.name && att.name.match(/\.tiff?$/i)) || data.base64.startsWith('SUkq') || data.base64.startsWith('TU0A');
+          
+          if (isTiffData && typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+            const cJpg = DealerDocumentParser.convertTiffToJpeg(data.base64);
+            if (cJpg) converted = cJpg;
           }
+
           if (loading) loading.style.display = 'none';
-          const wrapper = document.getElementById('caseViewerImgWrapper');
           if (imgEl && wrapper) {
             imgEl.src = converted.startsWith('data:') ? converted : `data:${mime || 'image/jpeg'};base64,${converted}`;
-            wrapper.style.display = 'flex';
+            wrapper.style.display = 'block';
+            imgEl.style.display = 'block';
             imgEl.onload = () => {
               this.applyViewerTransform();
               this.setupViewerInteractions();
@@ -773,48 +788,16 @@ const Cases = {
           return;
         } else {
           console.warn('GAS getFileBase64 failed:', data ? data.error : 'No response');
-          // Google Drive Thumbnail 直リンクフォールバック
-          const match = att.url.match(/[-\w]{25,}/);
-          if (match) {
-            const thumbUrl = `https://drive.google.com/thumbnail?id=${match[0]}&sz=w2000`;
-            const wrapper = document.getElementById('caseViewerImgWrapper');
-            if (imgEl && wrapper) {
-              imgEl.src = thumbUrl;
-              imgEl.onload = () => {
-                if (loading) loading.style.display = 'none';
-                wrapper.style.display = 'flex';
-                this.applyViewerTransform();
-                this.setupViewerInteractions();
-              };
-              imgEl.onerror = () => {
-                if (loading) loading.style.display = 'none';
-                if (wrapper) wrapper.style.display = 'none';
-                if (emptyEl) {
-                  emptyEl.style.display = 'block';
-                  emptyEl.innerHTML = `
-                    <div style="font-size:2.2rem; margin-bottom:8px;">⚠️</div>
-                    <div style="font-size:0.9rem; font-weight:bold; color:#f59e0b;">プレビュー自動取得エラー</div>
-                    <div style="font-size:0.75rem; margin:8px 0; color:#94a3b8;">GASエディタに最新コードが保存されているかご確認ください</div>
-                    <div style="display:flex; gap:6px; justify-content:center; margin-top:12px;">
-                      <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small">↗ Google Driveで開く</a>
-                      <button type="button" class="btn btn-primary btn-small" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
-                    </div>
-                  `;
-                }
-              };
-              return;
-            }
-          }
         }
       }
 
       // 3. 一般Web画像URL（Base64またはhttp画像直リンク）
       if (att.url && (att.url.startsWith('data:') || att.url.match(/\.(png|jpe?g|webp|gif)/i))) {
         if (loading) loading.style.display = 'none';
-        const wrapper = document.getElementById('caseViewerImgWrapper');
         if (imgEl && wrapper) {
           imgEl.src = att.url;
-          wrapper.style.display = 'flex';
+          wrapper.style.display = 'block';
+          imgEl.style.display = 'block';
           imgEl.onload = () => {
             this.applyViewerTransform();
             this.setupViewerInteractions();
@@ -833,10 +816,11 @@ const Cases = {
         emptyEl.style.display = 'block';
         emptyEl.innerHTML = `
           <div style="font-size:2rem; margin-bottom:8px;">📄</div>
-          <div style="font-size:0.85rem; font-weight:bold;">${att.name || '添付ファイル'}</div>
-          <div style="display:flex; gap:6px; justify-content:center; margin-top:12px;">
-            <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small">↗ Google Driveで開く</a>
-            <button type="button" class="btn btn-primary btn-small" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
+          <div style="font-size:0.85rem; font-weight:bold; color:var(--text-dark, #fff);">${att.name || '添付ファイル'}</div>
+          <div style="font-size:0.75rem; margin:8px 0; color:#94a3b8;">Google Drive上の原本ファイルを開くか、手元のファイルを選択してください</div>
+          <div style="display:flex; gap:8px; justify-content:center; margin-top:14px;">
+            <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small" style="padding:6px 12px;">↗ Google Driveで開く</a>
+            <button type="button" class="btn btn-primary btn-small" style="padding:6px 12px; background:#f59e0b; color:#000; font-weight:bold;" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
           </div>
         `;
       }
@@ -847,10 +831,10 @@ const Cases = {
         emptyEl.style.display = 'block';
         emptyEl.innerHTML = `
           <div style="font-size:2rem; margin-bottom:8px;">📄</div>
-          <div style="font-size:0.85rem; font-weight:bold;">${att.name || '添付ファイル'}</div>
-          <div style="display:flex; gap:6px; justify-content:center; margin-top:12px;">
-            <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small">↗ Google Driveで開く</a>
-            <button type="button" class="btn btn-primary btn-small" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
+          <div style="font-size:0.85rem; font-weight:bold; color:var(--text-dark, #fff);">${att.name || '添付ファイル'}</div>
+          <div style="display:flex; gap:8px; justify-content:center; margin-top:14px;">
+            <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small" style="padding:6px 12px;">↗ Google Driveで開く</a>
+            <button type="button" class="btn btn-primary btn-small" style="padding:6px 12px; background:#f59e0b; color:#000; font-weight:bold;" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
           </div>
         `;
       }
@@ -873,6 +857,7 @@ const Cases = {
 
     if (emptyEl) emptyEl.style.display = 'none';
     if (wrapper) wrapper.style.display = 'none';
+    if (imgEl) imgEl.style.display = 'none';
     if (iframeEl) iframeEl.style.display = 'none';
     if (loading) loading.style.display = 'block';
 
@@ -892,7 +877,8 @@ const Cases = {
         }
         if (imgEl && wrapper) {
           imgEl.src = converted;
-          wrapper.style.display = 'flex';
+          wrapper.style.display = 'block';
+          imgEl.style.display = 'block';
           imgEl.onload = () => {
             this.applyViewerTransform();
             this.setupViewerInteractions();
@@ -910,7 +896,8 @@ const Cases = {
       } else {
         if (imgEl && wrapper) {
           imgEl.src = result;
-          wrapper.style.display = 'flex';
+          wrapper.style.display = 'block';
+          imgEl.style.display = 'block';
           imgEl.onload = () => {
             this.applyViewerTransform();
             this.setupViewerInteractions();
@@ -932,7 +919,7 @@ const Cases = {
   },
 
   zoomViewer(delta) {
-    this.viewerState.zoom = Math.max(0.3, Math.min(4.0, (this.viewerState.zoom || 1.0) + delta));
+    this.viewerState.zoom = Math.max(0.4, Math.min(4.0, (this.viewerState.zoom || 1.0) + delta));
     this.applyViewerTransform();
   },
 
@@ -942,11 +929,42 @@ const Cases = {
     App.showToast('↕ 横幅に合わせてフィットしました');
   },
 
-  rotateViewer() {
+  /**
+   * 画像そのものをHTML5 Canvasで物理的に90度回転（CSS変形によるレイアウト崩れ・画面回転感を完全防止）
+   */
+  rotateImageSource(imgSrc, angle = 90) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (angle === 90 || angle === 270) {
+          canvas.width = img.naturalHeight;
+          canvas.height = img.naturalWidth;
+        } else {
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+        }
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((angle * Math.PI) / 180);
+        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+        resolve(canvas.toDataURL('image/jpeg', 0.95));
+      };
+      img.onerror = () => resolve(imgSrc);
+      img.src = imgSrc;
+    });
+  },
+
+  async rotateViewer() {
+    const imgEl = document.getElementById('caseViewerImg');
+    if (!imgEl || !imgEl.src) return;
+    App.showToast('🔄 画像を90°回転中...');
+    const rotated = await this.rotateImageSource(imgEl.src, 90);
+    imgEl.src = rotated;
     this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
     this.applyViewerTransform();
-    const isLandscape = (this.viewerState.rotation === 90 || this.viewerState.rotation === 270);
-    App.showToast(`🔄 ${this.viewerState.rotation}° 回転（${isLandscape ? '横長表示' : '縦長表示'}）`);
+    App.showToast('🔄 90°回転しました（紙面の向きを変更）');
   },
 
   toggleWidePreview() {
@@ -978,7 +996,7 @@ const Cases = {
   openViewerInNewTab() {
     const imgEl = document.getElementById('caseViewerImg');
     const iframeEl = document.getElementById('caseViewerIframe');
-    if (imgEl && imgEl.src && imgEl.parentElement && imgEl.parentElement.style.display !== 'none') {
+    if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
       const w = window.open('');
       if (w) {
         w.document.write(`
@@ -1003,53 +1021,24 @@ const Cases = {
   },
 
   applyViewerTransform() {
-    const container = document.getElementById('caseViewerContainer');
     const wrapper = document.getElementById('caseViewerImgWrapper');
     const imgEl = document.getElementById('caseViewerImg');
-    if (!container || !wrapper || !imgEl || !imgEl.src) return;
+    if (!wrapper || !imgEl || !imgEl.src) return;
 
-    const rot = this.viewerState.rotation || 0;
     const zoom = this.viewerState.zoom || 1.0;
-    const isRotated90or270 = (rot === 90 || rot === 270);
+    wrapper.style.display = 'block';
+    wrapper.style.width = '100%';
+    wrapper.style.minHeight = '100%';
 
-    const nw = imgEl.naturalWidth || 800;
-    const nh = imgEl.naturalHeight || 1130;
-    const containerW = Math.max(320, container.clientWidth - 32);
-
-    if (isRotated90or270) {
-      // 横向き回転時：視覚的な横幅をコンテナ全幅にフィットさせ、縦スクロールで隅々まで読めるようにする
-      const visualWidth = containerW * zoom;
-      const visualHeight = (containerW * (nw / nh)) * zoom;
-
-      wrapper.style.width = visualWidth + 'px';
-      wrapper.style.height = visualHeight + 'px';
-      wrapper.style.minWidth = visualWidth + 'px';
-      wrapper.style.minHeight = visualHeight + 'px';
-      wrapper.style.display = 'flex';
-
-      // 実際のimg要素は回転前なので width=visualHeight, height=visualWidth
-      imgEl.style.width = visualHeight + 'px';
-      imgEl.style.height = visualWidth + 'px';
-      imgEl.style.maxWidth = 'none';
-      imgEl.style.maxHeight = 'none';
-      imgEl.style.transform = `rotate(${rot}deg)`;
-    } else {
-      // 縦向き時
-      const visualWidth = containerW * zoom;
-      const visualHeight = (containerW * (nh / nw)) * zoom;
-
-      wrapper.style.width = visualWidth + 'px';
-      wrapper.style.height = visualHeight + 'px';
-      wrapper.style.minWidth = visualWidth + 'px';
-      wrapper.style.minHeight = visualHeight + 'px';
-      wrapper.style.display = 'block';
-
-      imgEl.style.width = visualWidth + 'px';
-      imgEl.style.height = 'auto';
-      imgEl.style.maxWidth = 'none';
-      imgEl.style.maxHeight = 'none';
-      imgEl.style.transform = `rotate(${rot}deg)`;
-    }
+    imgEl.style.width = '100%';
+    imgEl.style.maxWidth = '100%';
+    imgEl.style.height = 'auto';
+    imgEl.style.display = 'block';
+    imgEl.style.margin = '0 auto';
+    imgEl.style.transform = `scale(${zoom})`;
+    imgEl.style.transformOrigin = 'top center';
+    imgEl.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)';
+    imgEl.style.borderRadius = '4px';
   },
 
   setupViewerInteractions() {

@@ -615,6 +615,12 @@ function doGet(e) {
       result.tasks = getTodayTasks_();
     }
 
+    // 画像・添付ファイルBase64取得
+    if (type === 'getFileBase64' || e.parameter.action === 'getFileBase64') {
+      result = getFileBase64Action_(e.parameter);
+      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    }
+
     result.syncedAt = new Date().toISOString();
 
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -839,9 +845,11 @@ function performGeminiOcrAction_(body) {
 
 function getFileBase64Action_(body) {
   try {
-    var fileId = body.fileId;
-    if (!fileId && body.fileUrl) {
-      var match = body.fileUrl.match(/[-\w]{25,}/);
+    var data = body.data || body;
+    var fileId = data.fileId || body.fileId || '';
+    var fileUrl = data.fileUrl || body.fileUrl || data.url || body.url || '';
+    if (!fileId && fileUrl) {
+      var match = String(fileUrl).match(/[-\w]{25,}/);
       if (match) fileId = match[0];
     }
     if (!fileId) return { error: 'fileId または fileUrl が必要です' };
