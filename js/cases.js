@@ -362,35 +362,40 @@ const Cases = {
           <div id="caseModalSplitBody" style="display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; padding: 4px 0;">
             
             <!-- ─── 👈 左側: 添付ファイルプレビューワー（FAX・依頼書・車検証） ─── -->
-            <div id="caseAttachmentPane" style="display:none; flex:1.2; min-width:340px; background:var(--bg-secondary, #0f172a); border:1px solid var(--border-color, #334155); border-radius:8px; overflow:hidden; flex-direction:column; max-height:78vh;">
+            <div id="caseAttachmentPane" style="display:none; flex:1.3; min-width:340px; background:var(--bg-secondary, #0f172a); border:1px solid var(--border-color, #334155); border-radius:8px; overflow:hidden; flex-direction:column; max-height:78vh; transition: flex 0.2s ease;">
               <!-- ツールバー / ページタブ -->
-              <div style="background:rgba(0,0,0,0.3); border-bottom:1px solid var(--border-color, #334155); padding:8px 12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; flex-shrink:0;">
+              <div style="background:rgba(0,0,0,0.3); border-bottom:1px solid var(--border-color, #334155); padding:6px 10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; flex-shrink:0;">
                 <div id="caseAttTabs" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
-                  <span style="font-size:0.78rem; font-weight:bold; color:var(--accent-gold, #f59e0b);">📄 添付書類:</span>
+                  <span style="font-size:0.75rem; font-weight:bold; color:var(--accent-gold, #f59e0b);">📄 添付:</span>
                   <div id="caseAttTabList" style="display:flex; gap:4px; flex-wrap:wrap;"></div>
                 </div>
-                <div style="display:flex; gap:3px; align-items:center;">
-                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem;" onclick="Cases.zoomViewer(0.2)" title="拡大">🔍＋</button>
-                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem;" onclick="Cases.zoomViewer(-0.2)" title="縮小">🔍−</button>
-                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem;" onclick="Cases.rotateViewer()" title="90度回転">🔄回転</button>
-                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem;" onclick="Cases.resetViewer()" title="リセット">⤢</button>
+                <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#475569;" onclick="Cases.rotateViewer()" title="90度回転（横向き・縦向き切り替え）">🔄 90°回転</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem; background:#1e293b; border-color:#475569;" onclick="Cases.fitWidthViewer()" title="横幅に合わせて最大フィット">↕ 幅フィット</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.zoomViewer(0.25)" title="拡大">🔍＋</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.zoomViewer(-0.25)" title="縮小">🔍−</button>
+                  <button type="button" class="btn btn-secondary btn-small" id="caseViewerWideBtn" style="padding:2px 7px; font-size:0.75rem; color:#38bdf8; border-color:#0284c7;" onclick="Cases.toggleWidePreview()" title="プレビュー枠を大きく拡大（7:3比率）">⛶ プレビュー拡大</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.openViewerInNewTab()" title="別タブで原本を最大表示">↗ 別窓</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.resetViewer()" title="リセット">⤢</button>
                   <input type="file" id="caseViewerFileInput" accept=".tif,.tiff,image/*,.pdf" style="display:none;" onchange="Cases.handleViewerFileSelect(event)">
-                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.72rem; background:#334155;" onclick="document.getElementById('caseViewerFileInput').click()" title="手元のTIF/PDFを選択">📁開く</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem; background:#334155;" onclick="document.getElementById('caseViewerFileInput').click()" title="手元のTIF/PDFを選択">📁開く</button>
                 </div>
               </div>
               <!-- ビューワー本文 -->
-              <div id="caseViewerContainer" style="flex:1; overflow:auto; position:relative; background:#1e293b; display:flex; align-items:center; justify-content:center; padding:12px; min-height:420px;"
+              <div id="caseViewerContainer" style="flex:1; overflow:auto; position:relative; background:#0f172a; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:12px; min-height:420px; cursor:grab; user-select:none;"
                    ondragover="event.preventDefault(); this.style.borderColor='var(--accent-gold, #f59e0b)'"
                    ondrop="event.preventDefault(); if(event.dataTransfer.files[0]) Cases.loadLocalFileToViewer(event.dataTransfer.files[0])">
-                <div id="caseViewerLoading" style="display:none; text-align:center; color:#94a3b8;">
-                  <div class="spinner" style="width:32px; height:32px; border:3px solid rgba(245,158,11,0.2); border-top-color:#f59e0b; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 8px;"></div>
-                  <div style="font-size:0.85rem;">添付ファイル（TIF/PDF）を読み込み中...</div>
+                <div id="caseViewerLoading" style="display:none; text-align:center; color:#94a3b8; margin:auto;">
+                  <div class="spinner" style="width:36px; height:36px; border:3px solid rgba(245,158,11,0.2); border-top-color:#f59e0b; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px;"></div>
+                  <div style="font-size:0.85rem; font-weight:bold;">添付ファイル（TIF/PDF）を読み込み中...</div>
                 </div>
-                <img id="caseViewerImg" src="" style="display:none; max-width:100%; height:auto; border-radius:4px; box-shadow:0 4px 12px rgba(0,0,0,0.5); transform-origin:center center; transition:transform 0.15s ease;">
+                <div id="caseViewerImgWrapper" style="display:none; position:relative; align-items:center; justify-content:center; margin:auto; transition:width 0.15s ease, height 0.15s ease;">
+                  <img id="caseViewerImg" src="" style="display:block; border-radius:4px; box-shadow:0 6px 20px rgba(0,0,0,0.6); transform-origin:center center; transition:transform 0.15s ease;">
+                </div>
                 <iframe id="caseViewerIframe" src="" style="display:none; width:100%; height:100%; min-height:500px; border:none; border-radius:4px;"></iframe>
-                <div id="caseViewerEmpty" style="text-align:center; color:var(--text-muted, #94a3b8); padding:40px 12px;">
-                  <div style="font-size:2.2rem; margin-bottom:8px;">📄 🔍</div>
-                  <div style="font-size:0.9rem; font-weight:bold; color:#e2e8f0;">FAX・依頼書 プレビュー</div>
+                <div id="caseViewerEmpty" style="text-align:center; color:var(--text-muted, #94a3b8); padding:50px 16px; margin:auto;">
+                  <div style="font-size:2.4rem; margin-bottom:8px;">📄 🔍</div>
+                  <div style="font-size:0.95rem; font-weight:bold; color:#e2e8f0;">FAX・注文書・車検証 プレビュー</div>
                   <div style="font-size:0.75rem; margin-top:6px; color:#94a3b8;">手元のTIF/PDFファイルをドラッグ＆ドロップして表示することも可能です</div>
                 </div>
               </div>
@@ -736,10 +741,18 @@ const Cases = {
               if (cJpg) converted = cJpg;
             }
             if (loading) loading.style.display = 'none';
-            if (imgEl) {
+            const wrapper = document.getElementById('caseViewerImgWrapper');
+            if (imgEl && wrapper) {
               imgEl.src = converted.startsWith('data:') ? converted : `data:image/jpeg;base64,${converted}`;
-              imgEl.style.display = 'block';
-              this.applyViewerTransform();
+              wrapper.style.display = 'flex';
+              imgEl.onload = () => {
+                this.applyViewerTransform();
+                this.setupViewerInteractions();
+              };
+              if (imgEl.complete) {
+                this.applyViewerTransform();
+                this.setupViewerInteractions();
+              }
             }
             return;
           }
@@ -764,10 +777,18 @@ const Cases = {
       // 3. 一般画像ファイルの場合
       if (att.url && att.url.match(/\.(png|jpe?g|webp|gif)/i)) {
         if (loading) loading.style.display = 'none';
-        if (imgEl) {
+        const wrapper = document.getElementById('caseViewerImgWrapper');
+        if (imgEl && wrapper) {
           imgEl.src = att.url;
-          imgEl.style.display = 'block';
-          this.applyViewerTransform();
+          wrapper.style.display = 'flex';
+          imgEl.onload = () => {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          };
+          if (imgEl.complete) {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          }
         }
         return;
       }
@@ -799,12 +820,13 @@ const Cases = {
 
   loadLocalFileToViewer(file) {
     const loading = document.getElementById('caseViewerLoading');
+    const wrapper = document.getElementById('caseViewerImgWrapper');
     const imgEl = document.getElementById('caseViewerImg');
     const iframeEl = document.getElementById('caseViewerIframe');
     const emptyEl = document.getElementById('caseViewerEmpty');
 
     if (emptyEl) emptyEl.style.display = 'none';
-    if (imgEl) imgEl.style.display = 'none';
+    if (wrapper) wrapper.style.display = 'none';
     if (iframeEl) iframeEl.style.display = 'none';
     if (loading) loading.style.display = 'block';
 
@@ -822,10 +844,17 @@ const Cases = {
           const cJpg = DealerDocumentParser.convertTiffToJpeg(result);
           if (cJpg) converted = cJpg;
         }
-        if (imgEl) {
+        if (imgEl && wrapper) {
           imgEl.src = converted;
-          imgEl.style.display = 'block';
-          this.applyViewerTransform();
+          wrapper.style.display = 'flex';
+          imgEl.onload = () => {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          };
+          if (imgEl.complete) {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          }
         }
       } else if (isPdf) {
         if (iframeEl) {
@@ -833,10 +862,17 @@ const Cases = {
           iframeEl.style.display = 'block';
         }
       } else {
-        if (imgEl) {
+        if (imgEl && wrapper) {
           imgEl.src = result;
-          imgEl.style.display = 'block';
-          this.applyViewerTransform();
+          wrapper.style.display = 'flex';
+          imgEl.onload = () => {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          };
+          if (imgEl.complete) {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          }
         }
       }
       App.showToast(`📄 「${file.name}」をプレビュー表示しました`);
@@ -850,13 +886,68 @@ const Cases = {
   },
 
   zoomViewer(delta) {
-    this.viewerState.zoom = Math.max(0.4, Math.min(3.5, this.viewerState.zoom + delta));
+    this.viewerState.zoom = Math.max(0.3, Math.min(4.0, (this.viewerState.zoom || 1.0) + delta));
     this.applyViewerTransform();
   },
 
-  rotateViewer() {
-    this.viewerState.rotation = (this.viewerState.rotation + 90) % 360;
+  fitWidthViewer() {
+    this.viewerState.zoom = 1.0;
     this.applyViewerTransform();
+    App.showToast('↕ 横幅に合わせてフィットしました');
+  },
+
+  rotateViewer() {
+    this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
+    this.applyViewerTransform();
+    const isLandscape = (this.viewerState.rotation === 90 || this.viewerState.rotation === 270);
+    App.showToast(`🔄 ${this.viewerState.rotation}° 回転（${isLandscape ? '横長表示' : '縦長表示'}）`);
+  },
+
+  toggleWidePreview() {
+    const pane = document.getElementById('caseAttachmentPane');
+    const formPane = document.getElementById('caseFormPane');
+    const content = document.getElementById('caseModalContent');
+    const btn = document.getElementById('caseViewerWideBtn');
+    if (!pane || !formPane || !content) return;
+
+    this.viewerState.isWideMode = !this.viewerState.isWideMode;
+    if (this.viewerState.isWideMode) {
+      pane.style.flex = '2.4';
+      formPane.style.flex = '1';
+      content.style.maxWidth = '98vw';
+      content.style.width = '98vw';
+      if (btn) btn.innerHTML = '⛶ 標準比率';
+      App.showToast('⛶ プレビュー枠を最大化しました（7:3比率）');
+    } else {
+      pane.style.flex = '1.3';
+      formPane.style.flex = '1';
+      content.style.maxWidth = '1360px';
+      content.style.width = '96vw';
+      if (btn) btn.innerHTML = '⛶ プレビュー拡大';
+      App.showToast('⛶ 標準比率に戻しました（5.5:4.5比率）');
+    }
+    setTimeout(() => this.applyViewerTransform(), 150);
+  },
+
+  openViewerInNewTab() {
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    if (imgEl && imgEl.src && imgEl.parentElement && imgEl.parentElement.style.display !== 'none') {
+      const w = window.open('');
+      if (w) {
+        w.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head><title>FAX・注文書 原本プレビュー</title><style>body{margin:0;background:#0f172a;display:flex;justify-content:center;align-items:flex-start;padding:20px;min-height:100vh;}img{max-width:100%;height:auto;box-shadow:0 8px 30px rgba(0,0,0,0.8);border-radius:4px;}</style></head>
+            <body><img src="${imgEl.src}"></body>
+          </html>
+        `);
+      }
+    } else if (iframeEl && iframeEl.style.display !== 'none' && iframeEl.src) {
+      window.open(iframeEl.src, '_blank');
+    } else if (this.viewerState.attachments && this.viewerState.attachments[this.viewerState.currentIndex]?.url) {
+      window.open(this.viewerState.attachments[this.viewerState.currentIndex].url, '_blank');
+    }
   },
 
   resetViewer() {
@@ -866,10 +957,99 @@ const Cases = {
   },
 
   applyViewerTransform() {
+    const container = document.getElementById('caseViewerContainer');
+    const wrapper = document.getElementById('caseViewerImgWrapper');
     const imgEl = document.getElementById('caseViewerImg');
-    if (imgEl) {
-      imgEl.style.transform = `scale(${this.viewerState.zoom}) rotate(${this.viewerState.rotation}deg)`;
+    if (!container || !wrapper || !imgEl || !imgEl.src) return;
+
+    const rot = this.viewerState.rotation || 0;
+    const zoom = this.viewerState.zoom || 1.0;
+    const isRotated90or270 = (rot === 90 || rot === 270);
+
+    const nw = imgEl.naturalWidth || 800;
+    const nh = imgEl.naturalHeight || 1130;
+    const containerW = Math.max(320, container.clientWidth - 32);
+
+    if (isRotated90or270) {
+      // 横向き回転時：視覚的な横幅をコンテナ全幅にフィットさせ、縦スクロールで隅々まで読めるようにする
+      const visualWidth = containerW * zoom;
+      const visualHeight = (containerW * (nw / nh)) * zoom;
+
+      wrapper.style.width = visualWidth + 'px';
+      wrapper.style.height = visualHeight + 'px';
+      wrapper.style.minWidth = visualWidth + 'px';
+      wrapper.style.minHeight = visualHeight + 'px';
+      wrapper.style.display = 'flex';
+
+      // 実際のimg要素は回転前なので width=visualHeight, height=visualWidth
+      imgEl.style.width = visualHeight + 'px';
+      imgEl.style.height = visualWidth + 'px';
+      imgEl.style.maxWidth = 'none';
+      imgEl.style.maxHeight = 'none';
+      imgEl.style.transform = `rotate(${rot}deg)`;
+    } else {
+      // 縦向き時
+      const visualWidth = containerW * zoom;
+      const visualHeight = (containerW * (nh / nw)) * zoom;
+
+      wrapper.style.width = visualWidth + 'px';
+      wrapper.style.height = visualHeight + 'px';
+      wrapper.style.minWidth = visualWidth + 'px';
+      wrapper.style.minHeight = visualHeight + 'px';
+      wrapper.style.display = 'block';
+
+      imgEl.style.width = visualWidth + 'px';
+      imgEl.style.height = 'auto';
+      imgEl.style.maxWidth = 'none';
+      imgEl.style.maxHeight = 'none';
+      imgEl.style.transform = `rotate(${rot}deg)`;
     }
+  },
+
+  setupViewerInteractions() {
+    const container = document.getElementById('caseViewerContainer');
+    if (!container || container._hasInteractions) return;
+    container._hasInteractions = true;
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let scrollLeft = 0, scrollTop = 0;
+
+    container.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'A') return;
+      isDragging = true;
+      container.style.cursor = 'grabbing';
+      startX = e.pageX - container.offsetLeft;
+      startY = e.pageY - container.offsetTop;
+      scrollLeft = container.scrollLeft;
+      scrollTop = container.scrollTop;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        if (container) container.style.cursor = 'grab';
+      }
+    });
+
+    container.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      const y = e.pageY - container.offsetTop;
+      const walkX = (x - startX) * 1.3;
+      const walkY = (y - startY) * 1.3;
+      container.scrollLeft = scrollLeft - walkX;
+      container.scrollTop = scrollTop - walkY;
+    });
+
+    container.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.2 : -0.2;
+        Cases.zoomViewer(delta);
+      }
+    }, { passive: false });
   },
 
   onSubCategoryChange(val) {
@@ -1231,10 +1411,13 @@ const Cases = {
     if (!data.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       const client = Store.getClient(savedCase.clientId);
       const clientName = client ? (client.companyName || client.name) : 'お客様';
+      const contact = savedCase.clientContactId ? (typeof Store.getClientContact === 'function' ? Store.getClientContact(savedCase.clientContactId) : null) : null;
+      const contactName = contact ? contact.name : (savedCase.contactName || '');
       const atts = (this.viewerState && this.viewerState.attachments && this.viewerState.attachments.length > 0) ? this.viewerState.attachments : [];
       const folderData = {
         ...savedCase,
         clientName: clientName,
+        contactName: contactName,
         attachments: atts,
         inboxId: data.inboxId || ''
       };

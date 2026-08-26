@@ -1380,13 +1380,14 @@ function bulkUpsertJournals_(journals) {
 function createCaseFolder_(data) {
   try {
     const clientName = (data.clientName || '不明な顧客').replace(/[\\/:*?"<>|]/g, '_');
+    const contactName = (data.contactName || data.clientContactName || '').replace(/[\\/:*?"<>|]/g, '_').trim();
     const orderNo = data.orderNo ? String(data.orderNo).trim() : '';
     const applicant = (data.carName ? String(data.carName).trim() : (data.applicantName ? String(data.applicantName).trim() : '')).replace(/[\\/:*?"<>|]/g, '_');
     const title = (data.title || '無題の案件').replace(/[\\/:*?"<>|]/g, '_');
     const caseId = data.id || '';
     const dateStr = data.createdAt ? String(data.createdAt).substring(0, 10) : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
     
-    // 📁 フォルダ名: 【注文書№】申請者名 様
+    // 📁 案件フォルダ名: 【注文書№】申請者名 様
     let folderName = '';
     if (orderNo && applicant) {
       folderName = `【${orderNo}】${applicant} 様`;
@@ -1399,12 +1400,15 @@ function createCaseFolder_(data) {
     }
     folderName = folderName.replace(/[\\/:*?"<>|]/g, '_');
 
+    // 階層: 共有（行政書士事務所） ＞ 各店舗 ＞ 店舗担当者 ＞ 申請者等
     const root = getOrCreateFolder_('行政書士事務所');
-    const clientFolder = getOrCreateFolderUnder_(root, clientName);
+    const storeFolder = getOrCreateFolderUnder_(root, clientName);
+    const targetContactFolderName = contactName ? (contactName.endsWith('様') ? contactName : `${contactName} 様`) : '共通';
+    const contactFolder = getOrCreateFolderUnder_(storeFolder, targetContactFolderName);
     
-    // 店舗フォルダ配下に既存の同名フォルダがあるか確認
+    // 店舗担当者フォルダ配下に既存の同名フォルダがあるか確認
     let caseFolder = null;
-    const folders = clientFolder.getFolders();
+    const folders = contactFolder.getFolders();
     while (folders.hasNext()) {
       const f = folders.next();
       const fName = f.getName();
@@ -1414,7 +1418,7 @@ function createCaseFolder_(data) {
       }
     }
     if (!caseFolder) {
-      caseFolder = clientFolder.createFolder(folderName);
+      caseFolder = contactFolder.createFolder(folderName);
     }
     
     // Anyone with link can view
