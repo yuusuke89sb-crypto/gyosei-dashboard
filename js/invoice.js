@@ -13,7 +13,7 @@ const Invoice = {
       representative: '代表行政書士 日栄 政敏',
       zip: '481-0033',
       address: '愛知県北名古屋市六ツ師道毛74番地1',
-      tel: '0568-26-3713',
+      tel: '0586-50-2896',
       fax: '0568-26-3714',
       email: '',
       bankName: '三菱UFJ銀行',
@@ -748,7 +748,7 @@ const Invoice = {
       <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:14px; margin:2px 0;">${office.name || '行政書士法人フェリス'}</div>
       <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
-      <div>TEL: ${office.tel || '0568-26-3713'}</div>
+      <div>TEL: ${office.tel || '0586-50-2896'}</div>
       <div>FAX: ${office.fax || '0568-26-3714'}</div>
       ${office.registrationNumber ? `<div style="font-size:11px;">登録番号: ${office.registrationNumber}</div>` : ''}
     </div>
@@ -1408,7 +1408,7 @@ const Invoice = {
           <div class="form-row">
             <div class="form-group">
               <label>電話番号</label>
-              <input type="text" name="tel" value="${info.tel}" placeholder="0568-26-3713">
+              <input type="text" name="tel" value="${info.tel}" placeholder="0586-50-2896">
             </div>
             <div class="form-group">
               <label>FAX番号</label>
