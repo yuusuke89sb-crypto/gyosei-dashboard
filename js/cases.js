@@ -1170,6 +1170,22 @@ const Cases = {
         }
         if (prefills.category) document.getElementById('csf_category').value = prefills.category;
         if (prefills.carPolice) document.getElementById('csf_carPolice').value = prefills.carPolice;
+        if (prefills.applicantName || prefills.carName) {
+          const carNameEl = document.getElementById('csf_carName');
+          if (carNameEl) carNameEl.value = prefills.applicantName || prefills.carName;
+        }
+        if (prefills.applicantAddress || prefills.carAddress) {
+          const carAddrEl = document.getElementById('csf_carAddress');
+          if (carAddrEl) carAddrEl.value = prefills.applicantAddress || prefills.carAddress;
+        }
+        if (prefills.garageAddress || prefills.parkingAddress) {
+          const parkAddrEl = document.getElementById('csf_parkingAddress');
+          if (parkAddrEl) parkAddrEl.value = prefills.garageAddress || prefills.parkingAddress;
+        }
+        if (prefills.vin || prefills.carNumber) {
+          const carNumEl = document.getElementById('csf_carNumber');
+          if (carNumEl) carNumEl.value = prefills.vin || prefills.carNumber;
+        }
         if (prefills.deadline) document.getElementById('csf_deadline').value = prefills.deadline;
         if (prefills.memo) document.getElementById('csf_memo').value = prefills.memo;
         

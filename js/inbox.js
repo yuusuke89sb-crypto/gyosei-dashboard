@@ -729,11 +729,13 @@ const InboxManager = {
             if (b64Data && b64Data.success && b64Data.base64) {
               this.updateLoadingStatus('Gemini 2.0 で書類項目（注文No・申請者・車両情報）を抽出中...');
               const geminiParsed = await DealerDocumentParser.parseWithGemini(b64Data.base64, b64Data.mimeType, item);
-              if (geminiParsed && (geminiParsed.orderNo || geminiParsed.applicantName || geminiParsed.storeFullName || geminiParsed.vin)) {
+              if (geminiParsed && (geminiParsed.orderNo || geminiParsed.applicantName || geminiParsed.storeFullName || geminiParsed.vin || geminiParsed.applicantAddress)) {
                 this.hideLoadingModal();
                 DealerDocumentParser.showOcrResultModal(geminiParsed, firstAtt.url);
                 return;
               }
+            } else if (b64Data && b64Data.error) {
+              console.warn('getFileBase64 error:', b64Data.error);
             }
           } catch (b64Err) {
             console.warn('Client-side Gemini OCR failed:', b64Err);
@@ -759,15 +761,24 @@ const InboxManager = {
                 p.suggestedTitle = `${p.storeFullName || p.dealerName || 'ディーラー'} - ${p.applicantName || '案件'} 様 (${p.applicationType || (p.isOss ? 'OSS' : '車庫証明')})`;
                 DealerDocumentParser.showOcrResultModal(p, firstAtt.url);
                 return;
+              } else if (geminiData && geminiData.error) {
+                console.warn('GAS geminiOcr error:', geminiData.error);
               }
             } catch (gasGeminiErr) {
               console.warn('GAS Gemini OCR failed:', gasGeminiErr);
             }
+          } else {
+            console.warn('Gemini API key is not set in localStorage');
           }
         }
 
         // フォールバック（添付ファイルのテキストまたは本文から推測）
         this.hideLoadingModal();
+        if (!geminiKey && (!localStorage.getItem('gyosei_gemini_api_key'))) {
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast('⚠️ Gemini APIキーが設定されていません。同期設定から入力してください');
+          }
+        }
         const parsed = (typeof DealerDocumentParser !== 'undefined') ? DealerDocumentParser.parse(extractedText, item) : {};
         if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.showOcrResultModal) {
           DealerDocumentParser.showOcrResultModal(parsed, firstAtt ? firstAtt.url : '');

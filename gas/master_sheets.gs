@@ -740,71 +740,62 @@ function performGeminiOcrAction_(body) {
 
     var file = DriveApp.getFileById(fileId);
     var blob = file.getBlob();
+    var fileName = file.getName();
     var mime = blob.getContentType() || 'image/jpeg';
-    var b64 = Utilities.base64Encode(blob.getBytes());
+    var isTiff = !!fileName.match(/\.tiff?$/i) || mime.indexOf('tif') !== -1;
+    var b64 = '';
 
-    // 1. Google Drive OCRでテキストを抽出
-    DriveApp.getRootFolder();
-    var token = ScriptApp.getOAuthToken();
-    var metadata = { title: 'Temp_OCR_' + Date.now(), mimeType: mime };
-    var boundary = '-------314159265358979323846';
-    var delimiter = "\r\n--" + boundary + "\r\n";
-    var close_delim = "\r\n--" + boundary + "--";
-    var requestBody = delimiter +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) +
-      delimiter +
-      'Content-Type: ' + mime + '\r\n' +
-      'Content-Transfer-Encoding: base64\r\n\r\n' +
-      b64 +
-      close_delim;
-
-    var url = 'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&convert=true&ocr=true&ocrLanguage=ja';
-    var response = UrlFetchApp.fetch(url, {
-      method: 'post',
-      contentType: 'multipart/mixed; boundary="' + boundary + '"',
-      headers: { Authorization: 'Bearer ' + token },
-      payload: requestBody,
-      muteHttpExceptions: true
-    });
-
-    var resJson = JSON.parse(response.getContentText());
-    var fullText = '';
-    if (resJson.id) {
-      var docId = resJson.id;
-      var exportUrl = 'https://www.googleapis.com/drive/v2/files/' + docId + '/export?mimeType=text/plain';
-      var textRes = UrlFetchApp.fetch(exportUrl, {
-        headers: { Authorization: 'Bearer ' + token },
-        muteHttpExceptions: true
-      });
-      fullText = textRes.getContentText();
-      try { DriveApp.getFileById(docId).setTrashed(true); } catch (e) {}
+    // 1. TIFFの場合はGoogle Driveの2048px高解像度レンダリングを取得してJPEGに自動変換
+    if (isTiff) {
+      try {
+        var thumbUrl = file.getThumbnailLink();
+        if (thumbUrl) {
+          thumbUrl = thumbUrl.replace(/=s\d+/, '=s2048');
+          var thumbRes = UrlFetchApp.fetch(thumbUrl, {
+            headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+            muteHttpExceptions: true
+          });
+          if (thumbRes.getResponseCode() === 200) {
+            b64 = Utilities.base64Encode(thumbRes.getBlob().getBytes());
+            mime = 'image/jpeg';
+          }
+        }
+      } catch (te) {
+        Logger.log('TIFF変換エラー (GAS Thumbnail): ' + te.message);
+      }
     }
 
-    // 2. Gemini 2.0 Flash / 1.5 Flash にプロンプトを渡して高精度構造化抽出
+    if (!b64) {
+      b64 = Utilities.base64Encode(blob.getBytes());
+    }
+
+    // 2. Gemini Vision API 用の高精度プロンプト
     var prompt = "あなたは行政書士事務所の自動車登録・車庫証明の専門AIです。\n" +
-      "以下はOCRで読み取ったFAX・依頼書・書類の全文テキストです。誤字や改行のズレを推測して正しく解釈し、指定のJSON形式のみを出力してください。\n\n" +
-      "【OCRテキスト】\n" + (fullText || file.getName()) + "\n\n" +
-      "【出力フォーマット（JSONのみ）】\n" +
-      "{\n" +
-      '  "orderNo": "注文No（8桁数字。例: 57500855）",\n' +
-      '  "isOss": trueまたはfalse,\n' +
-      '  "applicationType": "OSS"または"一般",\n' +
-      '  "dealerName": "会社名（例: 愛知トヨタWEST株式会社）",\n' +
-      '  "branchName": "店舗名（例: 一宮開明店）",\n' +
-      '  "storeFullName": "愛知トヨタWEST 一宮開明店",\n' +
-      '  "staffName": "担当者名（例: 安藤 孝太郎）",\n' +
-      '  "staffPhone": "担当電話（例: 090-7912-8900）",\n' +
-      '  "receivedDate": "2026-08-25",\n' +
-      '  "applicantName": "申請者氏名（例: 横田 清）",\n' +
-      '  "applicantFurigana": "申請者フリガナ",\n' +
-      '  "applicantPostal": "494-0003",\n' +
-      '  "applicantAddress": "使用の本拠・住所",\n' +
-      '  "carModel": "型式（例: 6AA-ZWR90W）",\n' +
-      '  "carName": "車名（例: トヨタ）",\n' +
-      '  "targetDeliveryDate": "納車予定（例: 9/11）",\n' +
-      '  "memo": "備考・代替車情報"\n' +
-      "}";
+      "添付された書類（FAX注文書、依頼書、車検証、手書き鑑など）の画像を解析してください。画像が横向き（90度回転）や斜めになっていても正しい向きとして読み取ってください。\n\n" +
+      "以下のJSONフォーマットのみを出力してください。Markdown記法や解説文は一切含めないでください。\n\n" +
+      "【抽出項目】\n" +
+      "- orderNo: 注文No（8桁の数字。例: \"57500855\"）\n" +
+      "- isOss: OSS申請ならtrue、一般申請（書面）ならfalse\n" +
+      "- applicationType: \"OSS\" または \"一般\"\n" +
+      "- dealerName: 会社名（例: \"愛知トヨタWEST株式会社\"）\n" +
+      "- branchName: 店舗名・支店名（例: \"一宮開明店\"）\n" +
+      "- storeFullName: ディーラー名と店舗名（例: \"愛知トヨタWEST 一宮開明店\"）\n" +
+      "- staffName: 担当者氏名（例: \"安藤 孝太郎\"）\n" +
+      "- staffPhone: 担当者連絡先電話番号（携帯またはTEL。例: \"090-7912-8900\"）\n" +
+      "- receivedDate: 依頼日・提出日 (YYYY-MM-DD。例: \"2026-08-25\")\n" +
+      "- applicantName: 申請者氏名（個人名または法人名。例: \"横田 清\"）\n" +
+      "- applicantFurigana: 申請者フリガナ（例: \"ヨコタ キヨシ\"）\n" +
+      "- applicantPhone: 申請者電話番号（例: \"090-6807-9715\"）\n" +
+      "- applicantPostal: 郵便番号（例: \"494-0003\"）\n" +
+      "- applicantAddress: 使用の本拠・住所（例: \"一宮市三条 字墓北94-3\"）\n" +
+      "- garageAddress: 保管場所の位置（\"同上\" または 住所）\n" +
+      "- carName: 車名（例: \"トヨタ\"）\n" +
+      "- carModel: 型式（例: \"6AA-ZWR90W\"）\n" +
+      "- vin: 車台番号（例: \"ZWR90-\"）\n" +
+      "- registrationNo: 車両登録番号・ナンバー（例: \"一宮350 て 7942\"）\n" +
+      "- replaceCar: 代替車情報（例: \"一宮350 て 7942\"）\n" +
+      "- targetDeliveryDate: 登録予定日・納車予定日（例: \"9/11\"）\n" +
+      "- memo: 手書きメモや備考（例: \"自宅でお願いします / 代替: 一宮350 て 7942\"）";
 
     var models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
     var lastError = '';
@@ -813,7 +804,15 @@ function performGeminiOcrAction_(body) {
       var geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + models[m] + ":generateContent?key=" + apiKey;
       var geminiPayload = {
         contents: [{
-          parts: [{ text: prompt }]
+          parts: [
+            { text: prompt },
+            {
+              inline_data: {
+                mime_type: (mime === 'image/tiff' || mime.indexOf('tif') !== -1) ? 'image/jpeg' : mime,
+                data: b64
+              }
+            }
+          ]
         }],
         generationConfig: {
           temperature: 0.1,
@@ -832,7 +831,9 @@ function performGeminiOcrAction_(body) {
       if (geminiJson.candidates && geminiJson.candidates[0] && geminiJson.candidates[0].content) {
         var textOut = geminiJson.candidates[0].content.parts[0].text;
         var parsed = JSON.parse(textOut);
-        return { success: true, parsed: parsed, rawText: fullText };
+        parsed.rawText = JSON.stringify(parsed);
+        parsed.suggestedTitle = (parsed.storeFullName || parsed.dealerName || 'ディーラー') + ' - ' + (parsed.applicantName || '案件') + ' 様 (' + (parsed.applicationType || (parsed.isOss ? 'OSS' : '車庫証明')) + ')';
+        return { success: true, parsed: parsed };
       } else {
         lastError = geminiRes.getContentText();
       }
@@ -856,9 +857,38 @@ function getFileBase64Action_(body) {
     if (!fileId) return { error: 'fileId または fileUrl が必要です' };
     var file = DriveApp.getFileById(fileId);
     var blob = file.getBlob();
+    var fileName = file.getName();
     var mime = blob.getContentType() || 'image/jpeg';
-    var b64 = Utilities.base64Encode(blob.getBytes());
-    return { success: true, base64: b64, mimeType: mime, name: file.getName() };
+    var isTiff = !!fileName.match(/\.tiff?$/i) || mime.indexOf('tif') !== -1;
+    var b64 = '';
+    var isConverted = false;
+
+    // TIFFの場合はGoogle Driveの2048px高精細サムネイルからJPEG自動変換
+    if (isTiff) {
+      try {
+        var thumbUrl = file.getThumbnailLink();
+        if (thumbUrl) {
+          thumbUrl = thumbUrl.replace(/=s\d+/, '=s2048');
+          var thumbRes = UrlFetchApp.fetch(thumbUrl, {
+            headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+            muteHttpExceptions: true
+          });
+          if (thumbRes.getResponseCode() === 200) {
+            b64 = Utilities.base64Encode(thumbRes.getBlob().getBytes());
+            mime = 'image/jpeg';
+            isConverted = true;
+          }
+        }
+      } catch (te) {
+        Logger.log('TIFF Thumbnail変換失敗 (getFileBase64): ' + te.message);
+      }
+    }
+
+    if (!b64) {
+      b64 = Utilities.base64Encode(blob.getBytes());
+    }
+
+    return { success: true, base64: b64, mimeType: mime, name: fileName, isConverted: isConverted };
   } catch (e) {
     return { error: 'ファイル取得エラー: ' + e.message };
   }

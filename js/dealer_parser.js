@@ -434,12 +434,17 @@ const DealerDocumentParser = {
       if (customTitle) prefill.title = customTitle;
       modalEl.remove();
 
-      // 案件管理モーダルを開いてプリフィル
-      if (typeof CaseManager !== 'undefined' && typeof CaseManager.openModal === 'function') {
-        CaseManager.openModal(prefill);
-      } else {
-        App.showToast('✅ 案件登録データを準備しました');
+      // 案件管理画面へ遷移して登録モーダルを開く
+      if (typeof App !== 'undefined' && App.navigate) {
+        App.navigate('cases');
       }
+      setTimeout(() => {
+        if (typeof Cases !== 'undefined' && typeof Cases.showAddModal === 'function') {
+          Cases.showAddModal(prefill);
+        } else if (typeof CaseManager !== 'undefined' && typeof CaseManager.openModal === 'function') {
+          CaseManager.openModal(prefill);
+        }
+      }, 120);
     };
   },
 
