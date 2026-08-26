@@ -801,11 +801,14 @@
         <button class="tool-btn" id="tool-freehand" onclick="setTool('freehand')">
           <span class="tool-btn-icon">✏️</span>手書きペン
         </button>
-        <button class="tool-btn" id="tool-line-dim" onclick="setTool('line-dim')">
-          <span class="tool-btn-icon">📏</span>寸法線(両矢)
+        <button class="tool-btn" id="tool-line-straight" onclick="setTool('line-straight')">
+          <span class="tool-btn-icon">📏</span>直線ペン
         </button>
         <button class="tool-btn" id="tool-line-road" onclick="setTool('line-road')">
-          <span class="tool-btn-icon">🛣️</span>道路境界線
+          <span class="tool-btn-icon">🛣️</span>道路境界線(太)
+        </button>
+        <button class="tool-btn" id="tool-line-dim" onclick="setTool('line-dim')">
+          <span class="tool-btn-icon">📐</span>寸法線(両矢)
         </button>
         <button class="tool-btn" id="tool-line-rail" onclick="setTool('line-rail')">
           <span class="tool-btn-icon">🚆</span>線路(鉄道記号)
@@ -828,6 +831,11 @@
         <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')">
           <span class="tool-btn-icon">🧹</span>要素削除
         </button>
+      </div>
+
+      <div style="font-size:0.70rem; color:#38BDF8; background:#0F172A; border:1px solid #1E293B; border-radius:4px; padding:4px 6px; margin-top:6px;">
+        💡 <b>直線の引き方:</b> 「直線ペン」や「道路境界線」はドラッグで引けます。<br>
+        <b>Shiftキーを押しながらドラッグ</b>すると、真横・真縦・45度にピシッと吸着します！
       </div>
 
       <!-- スタンプ管理（削除×ボタン付き・自由編集） -->
@@ -1413,14 +1421,83 @@ async function saveToCaseDirectly() {
     }
   } catch(e) {}
 
-  // 4. 親ウィンドウ（ダッシュボード）に通知
+  // 4. Google Driveの案件フォルダへ高画質PNG（所在図・配置図）を自動アップロード
+  try {
+    const page1 = document.getElementById('page1Sozai');
+    const page2 = document.getElementById('page2Haichi');
+    if (page1 && page2 && typeof html2canvas !== 'undefined') {
+      showToast('☁️ Google Driveへ所在図・配置図を保管中...');
+      
+      const c1 = await html2canvas(page1, { scale: 2, useCORS: true, logging: false });
+      const c2 = await html2canvas(page2, { scale: 2, useCORS: true, logging: false });
+      const sozaiDataUrl = c1.toDataURL('image/png');
+      const haichiDataUrl = c2.toDataURL('image/png');
+
+      const rawCases = localStorage.getItem('gyosei_cases');
+      let targetCase = null;
+      if (rawCases) {
+        const cases = JSON.parse(rawCases);
+        targetCase = cases.find(c => c.id == linkedCaseId);
+      }
+      const orderNo = targetCase ? (targetCase.orderNo || '') : '';
+      const applicant = (targetCase ? (targetCase.carName || targetCase.title) : (parkAddr || '申請者')).replace(/[\\/:*?"<>|]/g, '_');
+
+      // GASのURLを取得
+      let gasUrl = '';
+      try {
+        const syncConf = JSON.parse(localStorage.getItem('gyosei_sync_config') || '{}');
+        gasUrl = syncConf.gasUrl || localStorage.getItem('gyosei_gas_url') || '';
+      } catch(e) {}
+
+      if (gasUrl) {
+        const sozaiName = orderNo ? `【${orderNo}】${applicant}_所在図.png` : `${applicant}_所在図.png`;
+        const haichiName = orderNo ? `【${orderNo}】${applicant}_配置図.png` : `${applicant}_配置図.png`;
+
+        const resp = await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'saveCaseMapImages',
+            caseId: linkedCaseId,
+            orderNo: orderNo,
+            applicant: applicant,
+            images: [
+              { name: sozaiName, dataUrl: sozaiDataUrl, type: '所在図' },
+              { name: haichiName, dataUrl: haichiDataUrl, type: '配置図' }
+            ]
+          })
+        });
+
+        const resData = await resp.json();
+        if (resData.docs && rawCases) {
+          const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
+          const idx = cases.findIndex(c => c.id == linkedCaseId);
+          if (idx !== -1) {
+            let currentDocs = Array.isArray(cases[idx].docs) ? cases[idx].docs : [];
+            resData.docs.forEach(newDoc => {
+              const existingIdx = currentDocs.findIndex(d => d.name === newDoc.name);
+              if (existingIdx !== -1) currentDocs[existingIdx] = newDoc;
+              else currentDocs.push(newDoc);
+            });
+            cases[idx].docs = currentDocs;
+            if (resData.folderUrl) cases[idx].driveFolderUrl = resData.folderUrl;
+            localStorage.setItem('gyosei_cases', JSON.stringify(cases));
+          }
+        }
+      }
+    }
+  } catch (driveErr) {
+    console.warn('Drive自動保管エラー:', driveErr);
+  }
+
+  // 5. 親ウィンドウ（ダッシュボード）に通知
   try {
     if (window.opener && !window.opener.closed) {
       window.opener.postMessage({ type: 'MAP_SAVED', caseId: linkedCaseId }, '*');
     }
   } catch(e) {}
 
-  showToast(`✅ 案件「${linkedCaseTitle}」に直接保存しました！`);
+  showToast(`✅ 案件「${linkedCaseTitle}」に直接保存＆Drive保管しました！`);
 }
 
 // ─── スタンプ管理（削除・追加・初期化） ───
@@ -1500,6 +1577,7 @@ function showPropertyPanel(targetKey, index) {
     'rect-other': '🔲 建物・自宅枠',
     'poly-other': '🔷 建物(多角形)',
     'freehand': '✏️ 手書きペン線',
+    'line-straight': '📏 直線',
     'compass': '🧭 JIS方位記号',
     'car': '🚗 車両マーク',
     'text': `🔤 文字: 「${item.text || ''}」`,
@@ -1916,15 +1994,16 @@ function setTool(tool) {
     'poly-spot': '⬡ 保管場所(多角形) 描画（角を順にクリック、始点クリック/Enterで完了）',
     'rect-other': '建物枠(四角) 描画（ドラッグまたはクリック）',
     'poly-other': '🔷 建物(多角形) 描画（角を順にクリック、始点クリック/Enterで完了）',
-    'freehand': '✏️ 手書きペン（ドラッグで自由線・斜線を描画）',
-    'line-dim': '寸法線 描画（ドラッグまたはクリック）',
-    'line-road': '道路境界線 描画（ドラッグまたはクリック）',
+    'freehand': '✏️ 手書きペン（ドラッグで自由線を描画 / Shiftで直線吸着）',
+    'line-straight': '📏 直線ペン（ドラッグで直線 / Shiftキーで水平垂直45度にピシッとスナップ）',
+    'line-road': '🛣️ 道路境界線(太線)（ドラッグで道路線 / Shiftキーで水平垂直45度にスナップ）',
+    'line-dim': '寸法線 描画（ドラッグまたはクリック / Shiftキーで水平垂直スナップ）',
     'line-rail': '線路(鉄道記号) 描画（ドラッグまたはクリック）',
-    'arrow': '出入口 矢印（ドラッグまたはクリック）',
+    'arrow': '出入口 矢印（ドラッグまたはクリック / Shiftキーで水平垂直スナップ）',
     'compass': 'JIS方位記号 配置（クリック）',
     'car': '車両マーク 配置（クリック）',
     'text': '文字入力（クリック）',
-    'dist-line': '直線距離線（ドラッグまたはクリック）',
+    'dist-line': '直線距離線（ドラッグまたはクリック / Shiftキーで水平垂直スナップ）',
     'eraser': '要素削除（クリックで削除）'
   };
   showToast(toolLabels[tool] || tool);
@@ -2244,10 +2323,32 @@ function setupCanvasEvents(canvas, targetKey) {
       return;
     }
 
+function snapToAngle(x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 4) return { x: x2, y: y2 };
+  const angle = Math.atan2(dy, dx);
+  // Snap to 45 degree increments (0°, 45°, 90°, 135°, 180°, etc.)
+  const snapAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+  return {
+    x: Math.round(x1 + dist * Math.cos(snapAngle)),
+    y: Math.round(y1 + dist * Math.sin(snapAngle))
+  };
+}
+
     if (!isDrawing) return;
 
+    let targetEndX = curX;
+    let targetEndY = curY;
+    if (e.shiftKey && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+      const snapped = snapToAngle(startX, startY, curX, curY);
+      targetEndX = snapped.x;
+      targetEndY = snapped.y;
+    }
+
     redraw(targetKey);
-    drawPreview(targetKey, startX, startY, curX, curY);
+    drawPreview(targetKey, startX, startY, targetEndX, targetEndY);
   });
 
   canvas.addEventListener('mouseup', (e) => {
@@ -2291,8 +2392,14 @@ function setupCanvasEvents(canvas, targetKey) {
     if (!isDrawing) return;
     isDrawing = false;
     const rect = canvas.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
+    let endX = e.clientX - rect.left;
+    let endY = e.clientY - rect.top;
+
+    if (e.shiftKey && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+      const snapped = snapToAngle(startX, startY, endX, endY);
+      endX = snapped.x;
+      endY = snapped.y;
+    }
 
     const dragDist = Math.hypot(endX - startX, endY - startY);
 
@@ -2327,6 +2434,26 @@ function setupCanvasEvents(canvas, targetKey) {
         angle: 0
       });
       showToast('🔲 建物枠を作成しました');
+    } else if (currentTool === 'line-straight') {
+      const eX = dragDist < 8 ? startX + 150 : endX;
+      const eY = dragDist < 8 ? startY : endY;
+      drawings[targetKey].push({
+        type: 'line-straight',
+        x1: startX, y1: startY, x2: eX, y2: eY,
+        lineWidth: 2.0,
+        color: '#000000',
+        angle: 0
+      });
+      showToast('📏 直線を描画しました');
+    } else if (currentTool === 'line-road') {
+      const eX = dragDist < 8 ? startX + 150 : endX;
+      const eY = dragDist < 8 ? startY : endY;
+      drawings[targetKey].push({
+        type: 'line-road',
+        x1: startX, y1: startY, x2: eX, y2: eY,
+        angle: 0
+      });
+      showToast('🛣️ 道路境界線を描画しました');
     } else if (currentTool === 'line-dim') {
       const dimText = prompt('寸法を入力（例: 2.0m, 5.0m）:', '5.0m');
       const eX = dragDist < 8 ? startX + 100 : endX;
@@ -2348,15 +2475,6 @@ function setupCanvasEvents(canvas, targetKey) {
         angle: 0
       });
       showToast('➡️ 出入口矢印を描画しました');
-    } else if (currentTool === 'line-road') {
-      const eX = dragDist < 8 ? startX + 150 : endX;
-      const eY = dragDist < 8 ? startY : endY;
-      drawings[targetKey].push({
-        type: 'line-road',
-        x1: startX, y1: startY, x2: eX, y2: eY,
-        angle: 0
-      });
-      showToast('🛣️ 道路境界線を描画しました');
     } else if (currentTool === 'line-rail') {
       const railName = prompt('路線名を入力（例: JR東海道本線, 名鉄名古屋本線, 踏切など / 空欄可）:', 'JR東海道本線');
       const eX = dragDist < 8 ? startX + 200 : endX;
@@ -2378,6 +2496,7 @@ function setupCanvasEvents(canvas, targetKey) {
         text: dist,
         angle: 0
       });
+      showToast('📍 直線距離線を描画しました');
       showToast('📍 直線距離線を描画しました');
     } else if (currentTool === 'text') {
       const txt = prompt('表示するテキストを入力してください（例: 申請地, 5m道路, 来客用, 自宅など）:', '申請地');
@@ -2700,6 +2819,14 @@ function drawElement(ctx, item) {
       ctx.textAlign = 'center';
       ctx.fillText(item.label, (item.x1 + item.x2) / 2, Math.min(item.y1, item.y2) - 6);
     }
+  } else if (item.type === 'line-straight') {
+    ctx.strokeStyle = item.color || '#000000';
+    ctx.lineWidth = item.lineWidth || 2.0;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(item.x1, item.y1);
+    ctx.lineTo(item.x2, item.y2);
+    ctx.stroke();
   } else if (item.type === 'line-road') {
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 4.0;

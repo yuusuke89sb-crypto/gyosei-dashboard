@@ -709,6 +709,7 @@ function doPost(e) {
       case 'deleteClientContact': result = deleteRow_(SHEET_NAMES.CLIENT_CONTACT, data.id); break;
       case 'syncCaseCalendar': result = syncCaseCalendar_(data); break;
       case 'deleteCaseCalendarEvents': result = deleteCaseCalendarEvents_(data); break;
+      case 'saveCaseMapImages': result = saveCaseMapImagesAction_(data || body); break;
       case 'ocr': result = performOcrAction_(body); break;
       case 'geminiOcr': result = performGeminiOcrAction_(body); break;
       case 'getFileBase64': result = getFileBase64Action_(body); break;
@@ -1507,6 +1508,120 @@ function createCaseFolder_(data) {
     };
   } catch (err) {
     return { error: 'フォルダ作成エラー: ' + err.message };
+  }
+}
+
+/**
+ * 🗺️ 車庫証明地図ツールで作成した所在図・配置図（PNG画像）を案件Driveフォルダへ自動保管
+ */
+function saveCaseMapImagesAction_(data) {
+  try {
+    const caseId = data.caseId;
+    if (!caseId) return { error: '案件IDが指定されていません' };
+
+    // 1. 案件データを取得
+    const cases = getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
+    const caseObj = cases.find(c => c.id === caseId) || {};
+    
+    // 2. フォルダを特定または自動生成
+    const folderRes = createCaseFolder_({
+      ...caseObj,
+      ...data,
+      id: caseId
+    });
+
+    if (folderRes.error || !folderRes.folderId) {
+      return { error: folderRes.error || '案件フォルダの取得に失敗しました' };
+    }
+
+    const folder = DriveApp.getFolderById(folderRes.folderId);
+    const uploadedDocs = [];
+
+    // 3. 画像をBlobとして保存
+    if (Array.isArray(data.images) && data.images.length > 0) {
+      data.images.forEach((img, idx) => {
+        if (!img.dataUrl) return;
+        const fileName = img.name || `作図画像_${idx + 1}.png`;
+        const base64Data = img.dataUrl.includes(',') ? img.dataUrl.split(',')[1] : img.dataUrl;
+        const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), 'image/png', fileName);
+
+        // 既存の同名ファイルがあれば更新（削除して新規作成）
+        const existing = folder.getFilesByName(fileName);
+        while (existing.hasNext()) {
+          const oldFile = existing.next();
+          oldFile.setTrashed(true);
+        }
+
+        const newFile = folder.createFile(blob);
+        newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+        uploadedDocs.push({
+          id: 'doc_map_' + Date.now().toString(36) + '_' + idx,
+          name: fileName,
+          driveUrl: newFile.getUrl(),
+          driveId: newFile.getId(),
+          mimeType: 'image/png',
+          size: newFile.getSize(),
+          uploadedAt: new Date().toISOString(),
+          source: 'map_maker'
+        });
+      });
+    }
+
+    // 4. 案件シートの「添付書類」列および「DriveフォルダURL」列を更新
+    if (uploadedDocs.length > 0) {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName(SHEET_NAMES.CASES);
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        const lastCol = sheet.getLastColumn();
+        const actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+        const keyMap = getKeyMap_(SHEET_NAMES.CASES);
+        const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
+        const rowIdx = ids.indexOf(caseId);
+
+        if (rowIdx !== -1) {
+          const row = rowIdx + 2;
+          // 既存のdocsとマージ
+          let currentDocs = [];
+          const docsColIdx = actualHeaders.findIndex(h => keyMap[h] === 'docs' || h === '添付書類');
+          if (docsColIdx !== -1) {
+            const rawVal = sheet.getRange(row, docsColIdx + 1).getValue();
+            if (rawVal) {
+              try { currentDocs = JSON.parse(rawVal); } catch(e){}
+            }
+          }
+          if (!Array.isArray(currentDocs)) currentDocs = [];
+
+          uploadedDocs.forEach(newDoc => {
+            const existingIdx = currentDocs.findIndex(d => d.name === newDoc.name);
+            if (existingIdx !== -1) {
+              currentDocs[existingIdx] = newDoc;
+            } else {
+              currentDocs.push(newDoc);
+            }
+          });
+
+          if (docsColIdx !== -1) {
+            sheet.getRange(row, docsColIdx + 1).setValue(JSON.stringify(currentDocs));
+          }
+
+          // DriveフォルダURL列の更新
+          const driveUrlColIdx = actualHeaders.findIndex(h => keyMap[h] === 'driveFolderUrl' || h === 'DriveフォルダURL');
+          if (driveUrlColIdx !== -1) {
+            sheet.getRange(row, driveUrlColIdx + 1).setValue(folder.getUrl());
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      folderUrl: folder.getUrl(),
+      docs: uploadedDocs
+    };
+  } catch (err) {
+    return { error: '地図画像のDrive保存に失敗しました: ' + err.message };
   }
 }
 
