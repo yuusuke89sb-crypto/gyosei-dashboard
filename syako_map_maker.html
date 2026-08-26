@@ -582,8 +582,8 @@
       break-after: auto !important;
     }
     .map-layer {
-      /* 印刷時に道路・線画を真っ黒くっきり焼き付ける超濃厚フィルター */
-      filter: grayscale(100%) contrast(220%) brightness(76%) !important;
+      /* 印刷時：背景の純白度（白紙同等のクリアさ）を100%キープしたまま道路・線画をくっきり黒く印刷 */
+      filter: grayscale(100%) brightness(118%) contrast(165%) !important;
     }
     .page-canvas-container {
       flex: 1 !important;
@@ -853,9 +853,10 @@
         <label class="form-label">地図デザイン（道路・線路の表示スタイル）</label>
         <select id="mapTileSelect" class="form-input" onchange="changeMapTile(this.value); autoSaveDraft();" style="font-weight:bold; color:#38BDF8;">
           <option value="osm-transit" selected>🚆 交通・線路くっきり（警察提出・車庫証明推奨）</option>
+          <option value="gsi-pale">🗺️ 国土地理院 淡色（すっきり公図風・白地最適）</option>
+          <option value="gsi-blank">📄 国土地理院 白地図（完全白地＋境界線・道路のみ）</option>
           <option value="gsi-std">🗾 国土地理院 標準（市街地・家形重視）</option>
           <option value="osm">🌐 OpenStreetMap（標準）</option>
-          <option value="gsi-pale">🗺️ 国土地理院 淡色（すっきり公図風）</option>
         </select>
       </div>
 
@@ -863,14 +864,14 @@
       <div style="margin-bottom:10px; background:#0F172A; border:1px solid #334155; border-radius:6px; padding:6px 8px;">
         <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:3px;">
           <span style="color:#E2E8F0; font-weight:bold;">🖤 道路・線画の濃さ（コントラスト）</span>
-          <span id="contrastLabel" style="font-weight:bold; color:#F59E0B;">180%（⚡警察推奨・超濃厚）</span>
+          <span id="contrastLabel" style="font-weight:bold; color:#F59E0B;">160%（⭐道路くっきり・白地100%最適）</span>
         </div>
-        <input type="range" id="contrastSlider" min="50" max="250" step="5" value="180" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
+        <input type="range" id="contrastSlider" min="50" max="250" step="5" value="160" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
         <div style="display:flex; gap:3px; margin-top:3px;">
           <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(80)">80%淡め</button>
           <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(120)">120%標準</button>
-          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(150)">150%濃いめ</button>
-          <button class="btn btn-primary" style="flex:1.4; padding:2px 2px; font-size:0.68rem; background:#F59E0B; color:#000; font-weight:bold;" onclick="setContrastPreset(180)">⚡180%警察推奨</button>
+          <button class="btn btn-primary" style="flex:1.5; padding:2px 2px; font-size:0.68rem; background:#F59E0B; color:#000; font-weight:bold;" onclick="setContrastPreset(160)">⭐160%白地最適</button>
+          <button class="btn btn-secondary" style="flex:1.2; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(180)">180%超濃厚</button>
           <button class="btn btn-accent" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(220)">220%極黒</button>
         </div>
       </div>
@@ -1709,14 +1710,15 @@ function updateQRCodes() {
 let sozaiTileLayer, haichiTileLayer;
 const TILE_URLS = {
   'osm-transit': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  'gsi-pale': 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',
+  'gsi-blank': 'https://cyberjapandata.gsi.go.jp/xyz/blank/{z}/{x}/{y}.png',
   'gsi-std': 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',
-  'osm': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  'gsi-pale': 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'
+  'osm': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 };
 
 function changeMapTile(type) {
-  const url = TILE_URLS[type] || TILE_URLS['gsi-std'];
-  const maxNative = (type === 'osm') ? 19 : 18;
+  const url = TILE_URLS[type] || TILE_URLS['gsi-pale'];
+  const maxNative = (type === 'osm' || type === 'osm-transit') ? 19 : 18;
   if (sozaiTileLayer && sozaiMap) sozaiMap.removeLayer(sozaiTileLayer);
   if (haichiTileLayer && haichiMap) haichiMap.removeLayer(haichiTileLayer);
 
@@ -1726,7 +1728,7 @@ function changeMapTile(type) {
   if (haichiMap) {
     haichiTileLayer = L.tileLayer(url, { minZoom: 3, maxZoom: 23, maxNativeZoom: maxNative }).addTo(haichiMap);
   }
-  showToast(`🗺️ 地図を切り替えました: ${type === 'osm' ? 'OSM' : '国土地理院'}`);
+  showToast(`🗺️ 地図を切り替えました: ${type.includes('gsi') ? '国土地理院' : 'OSM'}`);
 }
 
 function onContrastSliderChange(val) {
@@ -1747,24 +1749,25 @@ function applyMapContrast(contrast) {
   const sozaiMapEl = document.getElementById('sozaiMap');
   const haichiMapEl = document.getElementById('haichiMap');
   
-  const c = Math.max(50, Math.min(260, parseInt(contrast, 10) || 180));
-  // 高コントラスト時も白飛びせず道路の黒エッジを締める明度補正
-  const b = Math.max(65, Math.min(105, Math.round(100 - (c - 100) * 0.18)));
-  const filterStr = `grayscale(100%) contrast(${c}%) brightness(${b}%)`;
+  const c = Math.max(50, Math.min(260, parseInt(contrast, 10) || 160));
+  // 背景の淡色（クリーム色・薄緑等）を完全な純白（#FFFFFF）に白飛ばしし、道路の黒線だけをくっきり引き締めるホワイトウォッシュカーブ
+  const b = Math.max(105, Math.min(135, Math.round(100 + (c - 100) * 0.28)));
+  const filterStr = `grayscale(100%) brightness(${b}%) contrast(${c}%)`;
 
   if (sozaiMapEl) sozaiMapEl.style.filter = filterStr;
   if (haichiMapEl) haichiMapEl.style.filter = filterStr;
 
   let desc = '標準';
-  if (c <= 80) desc = '80%（淡色）';
+  if (c <= 80) desc = '80%（淡め）';
   else if (c <= 120) desc = '120%（標準）';
   else if (c <= 150) desc = '150%（濃いめ）';
-  else if (c <= 190) desc = '180%（⚡警察審査推奨・超濃厚）';
+  else if (c <= 170) desc = '160%（⭐道路くっきり・白地100%最適）';
+  else if (c <= 190) desc = '180%（⚡警察審査・超濃厚）';
   else desc = `${c}%（極黒エッジ強調）`;
 
   if (label) {
     label.textContent = `${c}%（${desc}）`;
-    label.style.color = (c >= 170) ? '#F59E0B' : '#38BDF8';
+    label.style.color = (c >= 160) ? '#F59E0B' : '#38BDF8';
   }
 }
 
@@ -1782,10 +1785,10 @@ function initMaps() {
     zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 15);
 
-  sozaiTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  sozaiTileLayer = L.tileLayer(TILE_URLS['gsi-pale'], {
     minZoom: 3,
     maxZoom: 23,
-    maxNativeZoom: 19
+    maxNativeZoom: 18
   }).addTo(sozaiMap);
 
   haichiMap = L.map('haichiMap', {
@@ -1798,17 +1801,17 @@ function initMaps() {
     zoomDelta: 0.5
   }).setView([kurodaLat, kurodaLng], 18);
 
-  haichiTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  haichiTileLayer = L.tileLayer(TILE_URLS['gsi-pale'], {
     minZoom: 3,
     maxZoom: 23,
-    maxNativeZoom: 19
+    maxNativeZoom: 18
   }).addTo(haichiMap);
 
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(sozaiMap);
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(haichiMap);
 
-  // デフォルトで警察審査推奨・道路超濃厚(180%)を適用
-  applyMapContrast(180);
+  // デフォルトで道路くっきり・白地100%最適(160%)を適用
+  applyMapContrast(160);
 
   sozaiMap.on('zoomend', () => {
     const z = sozaiMap.getZoom();
