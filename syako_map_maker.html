@@ -737,6 +737,29 @@
           </select>
         </div>
       </div>
+
+      <!-- ⚡ ワンクリック配置図自動生成（上記数値を反映） -->
+      <div style="margin-top:6px; margin-bottom:8px; padding:7px 8px; background:#0F172A; border:1px solid #334155; border-radius:6px;">
+        <div style="font-size:0.72rem; color:#94A3B8; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:bold; color:#E2E8F0;">⚡ 配置図テンプレート（自動生成）</span>
+          <span style="font-size:0.68rem; color:#38BDF8;">※上記数値を即時反映</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:4px;">
+          <button type="button" class="btn btn-secondary" style="font-size:0.72rem; padding:4px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('house')" title="戸建て・自宅敷地内の配置図を一発自動生成">
+            <span style="font-size:0.95rem;">🏠</span>
+            <span style="font-weight:600;">一軒家 (戸建)</span>
+          </button>
+          <button type="button" class="btn btn-secondary" style="font-size:0.72rem; padding:4px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('mansion')" title="マンション・月極駐車場の配置図を一発自動生成">
+            <span style="font-size:0.95rem;">🏢</span>
+            <span style="font-weight:600;">マンション/月極</span>
+          </button>
+          <button type="button" class="btn btn-secondary" style="font-size:0.72rem; padding:4px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('office')" title="事業所・自社敷地の配置図を一発自動生成">
+            <span style="font-size:0.95rem;">🏭</span>
+            <span style="font-weight:600;">事業所 / 自社</span>
+          </button>
+        </div>
+      </div>
+
       <!-- 店舗連絡先 & 登録番号 & 職印 -->
       <div class="form-group">
         <label class="form-label">連絡先・店舗情報（配置図右下に印字）</label>
@@ -3660,6 +3683,162 @@ function loadKurodaSample() {
     redrawAll();
     showToast('🏠 木曽川町黒田サンプルを読み込みました');
   }, 150);
+}
+
+/**
+ * ⚡ フォームに入力された数値を反映した配置図テンプレート自動生成
+ * @param {'house'|'mansion'|'office'} templateType
+ */
+function applyHaichiTemplate(templateType) {
+  setActiveTarget('haichi');
+  
+  const hw = haichiCanvas.width || 800;
+  const hh = haichiCanvas.height || 500;
+  
+  const sNo = (document.getElementById('spotNo').value || '').trim();
+  const sWidth = (document.getElementById('spotWidth').value || '2.0m').trim();
+  const sLength = (document.getElementById('spotLength').value || '5.0m').trim();
+  const rWidth = (document.getElementById('roadWidth').value || '5.0m').trim();
+  const eWidth = (document.getElementById('entranceWidth').value || '10.0m').trim();
+  const shutter = document.getElementById('shutterVal').value;
+
+  pushHistory();
+
+  if (templateType === 'house') {
+    // 🏠 戸建・一軒家
+    const spotLabel = sNo ? `${sNo}\n保管場所` : '保管場所';
+    drawings.haichi = [
+      // 方位記号
+      { type: 'compass', x: 80, y: 80, size: 28, angle: 0 },
+      // 前面道路
+      { type: 'line-road', x1: 160, y1: 75, x2: hw - 60, y2: 75, angle: 0 },
+      { type: 'line-road', x1: 160, y1: 75, x2: 160, y2: hh - 60, angle: 0 },
+      { type: 'text', x: 175, y: 120, text: `前面道路（幅員 ${rWidth}）`, fontSize: 13, color: '#000000', angle: 0 },
+      { type: 'line-dim', x1: 160, y1: 85, x2: 250, y2: 85, text: rWidth, angle: 0 },
+      // 出入口
+      { type: 'line-dim', x1: 200, y1: 170, x2: 200, y2: 370, text: eWidth, angle: 0 },
+      { type: 'text', x: 215, y: 275, text: '出入口', fontSize: 13, color: '#000000', angle: 0 },
+      { type: 'arrow', x1: 170, y1: 275, x2: 245, y2: 275, angle: 0 },
+      // 敷地境界 & 自宅建物
+      { type: 'rect-other', x: 250, y: 140, w: 380, h: 330, angle: 0 },
+      { type: 'rect-other', x: 370, y: 180, w: 230, h: 260, angle: 0 },
+      { type: 'text', x: 455, y: 315, text: '自　宅', fontSize: 20, color: '#000000', angle: 0 },
+      // 駐車枠 & 車両マーク & 寸法線
+      { type: 'rect-spot', x: 250, y: 205, w: 105, h: 145, label: spotLabel, angle: 0 },
+      { type: 'car', x: 278, y: 232, w: 50, h: 90, angle: 0 },
+      { type: 'line-dim', x1: 250, y1: 375, x2: 355, y2: 375, text: sLength, angle: 0 },
+      { type: 'line-dim', x1: 370, y1: 205, x2: 370, y2: 350, text: sWidth, angle: 0 }
+    ];
+    if (shutter === '有') {
+      drawings.haichi.push({ type: 'text', x: 250, y: 185, text: '【シャッター有】', fontSize: 12, color: '#ef4444', angle: 0 });
+    }
+    showToast(`🏠 一軒家テンプレート（幅${sWidth}×奥行${sLength} / 道路${rWidth}）を自動配置しました`);
+  } else if (templateType === 'mansion') {
+    // 🏢 マンション・月極駐車場
+    const targetNo = sNo || 'No.3';
+    const targetLabel = `${targetNo}\n保管場所`;
+    
+    // 区画定義 (4枠)
+    const bays = [
+      { no: 'No.1', x: 170, y: 190, w: 90, h: 55 },
+      { no: 'No.2', x: 170, y: 255, w: 90, h: 55 },
+      { no: 'No.3', x: 170, y: 320, w: 90, h: 55 },
+      { no: 'No.4', x: 170, y: 385, w: 90, h: 55 }
+    ];
+    
+    // 対象枠のインデックス決定
+    let targetIdx = 2; // デフォルト No.3
+    if (targetNo.includes('1')) targetIdx = 0;
+    else if (targetNo.includes('2')) targetIdx = 1;
+    else if (targetNo.includes('4')) targetIdx = 3;
+
+    drawings.haichi = [
+      // 方位記号
+      { type: 'compass', x: 80, y: 80, size: 28, angle: 0 },
+      // 前面道路
+      { type: 'line-road', x1: 150, y1: 75, x2: hw - 60, y2: 75, angle: 0 },
+      { type: 'line-dim', x1: 170, y1: 75, x2: 170, y2: 135, text: rWidth, angle: 0 },
+      { type: 'text', x: 240, y: 95, text: `前面道路（幅員 ${rWidth}）`, fontSize: 13, color: '#000000', angle: 0 },
+      // 出入口
+      { type: 'arrow', x1: 200, y1: 95, x2: 200, y2: 145, angle: 0 },
+      { type: 'text', x: 220, y: 130, text: `出入口 (${eWidth})`, fontSize: 12, color: '#000000', angle: 0 },
+      // 駐車場敷地枠
+      { type: 'rect-other', x: 150, y: 135, w: 520, h: 335, angle: 0 },
+      { type: 'text', x: 165, y: 165, text: '月極駐車場 / マンション敷地内駐車場', fontSize: 13, color: '#000000', angle: 0 },
+      // 通路
+      { type: 'text', x: 300, y: 285, text: '場　内　通　路', fontSize: 14, color: '#64748b', angle: 0 },
+      // マンション建物
+      { type: 'rect-other', x: 450, y: 160, w: 200, h: 280, angle: 0 },
+      { type: 'text', x: 500, y: 300, text: 'マンション\n（共同住宅）', fontSize: 16, color: '#000000', angle: 0 }
+    ];
+
+    // 並列区画の展開
+    bays.forEach((b, idx) => {
+      if (idx === targetIdx) {
+        drawings.haichi.push({
+          type: 'rect-spot',
+          x: b.x, y: b.y, w: b.w, h: b.h,
+          label: targetLabel,
+          angle: 0
+        });
+        drawings.haichi.push({
+          type: 'car',
+          x: b.x + 20, y: b.y + 3,
+          w: 50, h: 48,
+          angle: 90
+        });
+        // 寸法線
+        drawings.haichi.push({ type: 'line-dim', x1: b.x, y1: b.y + b.h + 15, x2: b.x + b.w, y2: b.y + b.h + 15, text: sWidth, angle: 0 });
+        drawings.haichi.push({ type: 'line-dim', x1: b.x - 15, y1: b.y, x2: b.x - 15, y2: b.y + b.h, text: sLength, angle: 0 });
+      } else {
+        drawings.haichi.push({
+          type: 'rect-other',
+          x: b.x, y: b.y, w: b.w, h: b.h,
+          angle: 0
+        });
+        drawings.haichi.push({
+          type: 'text',
+          x: b.x + b.w / 2 - 15, y: b.y + b.h / 2 + 5,
+          text: b.no,
+          fontSize: 12,
+          color: '#475569',
+          angle: 0
+        });
+      }
+    });
+
+    showToast(`🏢 マンション・月極駐車場（${targetNo}枠 / 幅${sWidth}×奥行${sLength}）を自動配置しました`);
+  } else if (templateType === 'office') {
+    // 🏭 事業所・会社敷地
+    const spotLabel = sNo ? `${sNo}\n保管場所` : '保管場所';
+    drawings.haichi = [
+      // 方位記号
+      { type: 'compass', x: 80, y: 80, size: 28, angle: 0 },
+      // 前面道路
+      { type: 'line-road', x1: 150, y1: 75, x2: hw - 60, y2: 75, angle: 0 },
+      { type: 'line-dim', x1: 170, y1: 75, x2: 170, y2: 135, text: rWidth, angle: 0 },
+      { type: 'text', x: 240, y: 95, text: `前面道路（幅員 ${rWidth}）`, fontSize: 13, color: '#000000', angle: 0 },
+      // 出入口
+      { type: 'arrow', x1: 200, y1: 95, x2: 200, y2: 145, angle: 0 },
+      { type: 'text', x: 220, y: 130, text: `出入口・正門 (${eWidth})`, fontSize: 12, color: '#000000', angle: 0 },
+      // 敷地境界
+      { type: 'rect-other', x: 150, y: 135, w: 520, h: 335, angle: 0 },
+      // 事務所社屋
+      { type: 'rect-other', x: 390, y: 160, w: 250, h: 280, angle: 0 },
+      { type: 'text', x: 470, y: 300, text: '事務所・社屋', fontSize: 18, color: '#000000', angle: 0 },
+      // 事業用保管場所
+      { type: 'rect-spot', x: 180, y: 220, w: 120, h: 170, label: spotLabel, angle: 0 },
+      { type: 'car', x: 215, y: 255, w: 50, h: 90, angle: 0 },
+      { type: 'line-dim', x1: 180, y1: 410, x2: 300, y2: 410, text: sLength, angle: 0 },
+      { type: 'line-dim', x1: 318, y1: 220, x2: 318, y2: 390, text: sWidth, angle: 0 }
+    ];
+    showToast(`🏭 事業所・会社敷地（幅${sWidth}×奥行${sLength} / 道路${rWidth}）を自動配置しました`);
+  }
+
+  pushHistory();
+  hidePropertyPanel();
+  redrawAll();
+  autoSaveDraft();
 }
 
 function clearCanvas() {
