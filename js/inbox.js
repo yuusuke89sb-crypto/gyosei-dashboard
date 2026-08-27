@@ -195,6 +195,9 @@ const InboxManager = {
           <button class="btn btn-secondary btn-small" style="color:var(--accent-red,#ef4444); border-color:var(--accent-red,#ef4444)" onclick="InboxManager.ignoreItem('${item.id}')">
             🚫 対象外にする
           </button>
+          <button class="btn btn-secondary btn-small" style="color:#3b82f6; border-color:rgba(59,130,246,0.6); font-weight:600; background:rgba(59,130,246,0.06)" onclick="InboxManager.showAttachToCaseModal('${item.id}')" title="すでに登録済みの案件にこの書類・FAXを追加合流します">
+            🔗 既存案件に書類追加
+          </button>
           <button class="btn btn-secondary btn-small" style="color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.6); font-weight:bold; background:rgba(245,158,11,0.08)" onclick="InboxManager.ocrAndRegisterCase('${item.id}')">
             ⚡ OCR解析して登録
           </button>
@@ -339,9 +342,19 @@ const InboxManager = {
                     if (h.status === '対応済') {
                       statusHtml = `<span style="color:#16a34a; font-weight:600">✅ 処理済</span>`;
                       if (h.caseId) {
-                        actionHtml = `<a href="#" onclick="event.preventDefault(); App.navigate('cases'); setTimeout(() => Cases.showEditModal('${h.caseId}'), 100)" style="font-weight:600; color:var(--primary-color)">📋 案件: ${h.caseTitle}</a>`;
+                        actionHtml = `
+                          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                            <a href="#" onclick="event.preventDefault(); App.navigate('cases'); setTimeout(() => Cases.showEditModal('${h.caseId}'), 100)" style="font-weight:600; color:var(--primary-color)">📋 案件: ${h.caseTitle}</a>
+                            <button class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:2px 8px; color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.5)" onclick="InboxManager.registerCase('${h.id}')" title="同じFAX/メールから別の案件を新規登録">📑 別案件を追加登録</button>
+                          </div>
+                        `;
                       } else {
-                        actionHtml = `<span style="color:var(--text-muted)">手動対応済</span>`;
+                        actionHtml = `
+                          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                            <span style="color:var(--text-muted)">手動対応済</span>
+                            <button class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:2px 8px; color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.5)" onclick="InboxManager.registerCase('${h.id}')" title="同じFAX/メールから別の案件を新規登録">📑 別案件を追加登録</button>
+                          </div>
+                        `;
                       }
                     } else if (h.status === '除外') {
                       statusHtml = `<span style="color:var(--text-muted)">🚫 除外</span>`;
@@ -812,6 +825,202 @@ const InboxManager = {
     Store.updateInboxStatus(itemId, '未対応');
     App.refreshView();
     App.showToast('データをインボックスに復元しました');
+  },
+
+  // ─── 🔗 既存案件への書類合流モーダル ──────────────────────────
+  showAttachToCaseModal(itemId) {
+    const inbox = Store.getInbox ? Store.getInbox() : [];
+    const item = inbox.find(i => i.id === itemId);
+    if (!item) return;
+
+    let attachments = [];
+    if (item.attachments) {
+      try {
+        attachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+      } catch (e) { attachments = []; }
+    }
+
+    const cases = Store.getCases ? Store.getCases() : [];
+    const client = this.matchClient(item);
+    const matchedClientId = client ? client.id : '';
+
+    // 進行中の案件を優先し、送信元顧客に一致する案件を最上位にソート
+    const sortedCases = [...cases].sort((a, b) => {
+      const aMatch = (matchedClientId && a.clientId === matchedClientId) ? 1 : 0;
+      const bMatch = (matchedClientId && b.clientId === matchedClientId) ? 1 : 0;
+      if (aMatch !== bMatch) return bMatch - aMatch;
+      
+      const aDone = a.status === 'done' ? 1 : 0;
+      const bDone = b.status === 'done' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+
+      const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return tb - ta;
+    });
+
+    const modalId = 'attach-to-case-modal';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+      modalEl = document.createElement('div');
+      modalEl.id = modalId;
+      document.body.appendChild(modalEl);
+    }
+
+    modalEl.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(5px);';
+
+    const renderCaseList = (filterText = '') => {
+      const q = filterText.toLowerCase().trim();
+      const filtered = sortedCases.filter(c => {
+        if (!q) return true;
+        const cl = Store.getClient ? Store.getClient(c.clientId) : null;
+        const cName = cl ? (cl.name + ' ' + (cl.companyName || '')) : '';
+        return (c.title && c.title.toLowerCase().includes(q)) ||
+               (c.applicantName && c.applicantName.toLowerCase().includes(q)) ||
+               (c.orderNo && c.orderNo.toLowerCase().includes(q)) ||
+               (c.carNumber && c.carNumber.toLowerCase().includes(q)) ||
+               (c.carName && c.carName.toLowerCase().includes(q)) ||
+               cName.toLowerCase().includes(q);
+      });
+
+      if (filtered.length === 0) {
+        return `<div style="text-align:center; padding:30px; color:var(--text-muted);">該当する案件が見つかりません</div>`;
+      }
+
+      return filtered.map(c => {
+        const cl = Store.getClient ? Store.getClient(c.clientId) : null;
+        const isClientMatch = matchedClientId && c.clientId === matchedClientId;
+        const isDone = c.status === 'done';
+        const docCount = (c.docs && Array.isArray(c.docs)) ? c.docs.length : 0;
+
+        return `
+          <div class="attach-case-card" style="background:var(--bg-secondary); border:1px solid ${isClientMatch ? 'var(--primary-color)' : 'var(--border-color)'}; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; transition:all 0.15s; margin-bottom:8px; ${isDone ? 'opacity:0.6;' : ''}">
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap;">
+                ${isClientMatch ? `<span style="background:rgba(59,130,246,0.2); color:#38bdf8; font-size:0.7rem; font-weight:bold; padding:1px 6px; border-radius:4px;">⭐ 送信元と一致</span>` : ''}
+                <span style="font-size:0.72rem; padding:1px 6px; border-radius:4px; font-weight:bold; background:${isDone ? '#334155' : '#16a34a'}; color:#fff;">${c.status || '進行中'}</span>
+                <span style="font-size:0.75rem; color:var(--text-muted);">${c.category || '車庫証明'}</span>
+                ${c.orderNo ? `<span style="font-size:0.75rem; font-family:monospace; color:var(--accent-gold,#f59e0b);">No:${c.orderNo}</span>` : ''}
+              </div>
+              <h4 style="margin:0 0 4px 0; font-size:0.95rem; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${c.title}</h4>
+              <div style="font-size:0.8rem; color:var(--text-secondary); display:flex; gap:12px; flex-wrap:wrap;">
+                ${cl ? `<span>🏢 ${cl.companyName || cl.name}</span>` : ''}
+                ${c.applicantName ? `<span>👤 申請者: ${c.applicantName} 様</span>` : ''}
+                ${c.carName || c.carModel ? `<span>🚗 ${c.carName || ''} ${c.carModel || ''}</span>` : ''}
+                <span>📎 書類: ${docCount}件</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-small" style="white-space:nowrap; padding:6px 14px; font-weight:bold;" onclick="InboxManager.attachToCase('${item.id}', '${c.id}')">
+              ➕ この案件に合流
+            </button>
+          </div>
+        `;
+      }).join('');
+    };
+
+    modalEl.innerHTML = `
+      <div style="background:var(--card-bg, #1e293b); border:1px solid var(--border-color); border-radius:14px; max-width:760px; width:92%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); color:var(--text-color, #fff); overflow:hidden;">
+        
+        <!-- ヘッダー -->
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border-color); background:rgba(255,255,255,0.02);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.4rem;">🔗</span>
+            <h3 style="margin:0; font-size:1.1rem; font-weight:700;">既存案件に書類・添付ファイルを追加（合流）</h3>
+          </div>
+          <button class="btn btn-ghost" onclick="document.getElementById('${modalId}').remove()" style="font-size:1.4rem; line-height:1; cursor:pointer; background:none; border:none; color:inherit;">×</button>
+        </div>
+
+        <!-- 追送データ情報 -->
+        <div style="padding:12px 20px; background:rgba(59,130,246,0.08); border-bottom:1px solid rgba(59,130,246,0.2); font-size:0.85rem; display:flex; flex-direction:column; gap:4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <span style="color:#93c5fd; font-weight:bold;">📥 追送されたデータ (${item.type}):</span>
+            <span style="color:var(--text-muted); font-size:0.78rem;">${this.formatDate(item.date)}</span>
+          </div>
+          <div style="font-weight:600; color:#fff;">${item.subject || '（無題）'} <span style="font-size:0.8rem; font-weight:normal; color:var(--text-secondary);">— ${item.sender || '差出人不明'}</span></div>
+          ${attachments && attachments.length > 0 ? `
+            <div style="display:flex; gap:6px; align-items:center; margin-top:2px; flex-wrap:wrap;">
+              <span style="font-size:0.75rem; color:#93c5fd;">📎 合流されるファイル:</span>
+              ${attachments.map(a => `<span style="background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px; font-size:0.75rem;">📄 ${a.name || '添付ファイル'}</span>`).join('')}
+            </div>
+          ` : '<div style="font-size:0.75rem; color:var(--text-muted);">※本文のメモ追記のみ合流されます</div>'}
+        </div>
+
+        <!-- 案件検索 & リスト -->
+        <div style="padding:14px 20px; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <input type="text" id="attach-case-search" class="search-input" style="width:100%; box-sizing:border-box; background:var(--bg-secondary); border:1px solid var(--border-color); color:#fff; border-radius:6px; padding:8px 12px; font-size:0.9rem;"
+              placeholder="🔍 合流先の案件を検索（案件名・顧客名・申請者名・車番・注文Noなど）..."
+              oninput="document.getElementById('attach-case-list').innerHTML = InboxManager._renderAttachCaseList('${item.id}', this.value)">
+          </div>
+
+          <div id="attach-case-list" style="overflow-y:auto; max-height:420px; padding-right:4px;">
+            ${renderCaseList()}
+          </div>
+        </div>
+
+        <!-- フッター -->
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 20px; border-top:1px solid var(--border-color); background:rgba(255,255,255,0.02); font-size:0.8rem; color:var(--text-muted);">
+          <span>※合流すると、この受信データは自動的に「対応済」になります</span>
+          <button class="btn btn-secondary" onclick="document.getElementById('${modalId}').remove()">キャンセル</button>
+        </div>
+      </div>
+    `;
+
+    // 検索用内部ヘルパー
+    this._renderAttachCaseList = (itId, q) => renderCaseList(q);
+  },
+
+  // ─── 確定：既存案件へ合流実行 ─────────────────────────────
+  attachToCase(itemId, targetCaseId) {
+    const inbox = Store.getInbox ? Store.getInbox() : [];
+    const item = inbox.find(i => i.id === itemId);
+    const targetCase = Store.getCase ? Store.getCase(targetCaseId) : null;
+    if (!item || !targetCase) return;
+
+    let newAttachments = [];
+    if (item.attachments) {
+      try {
+        newAttachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+      } catch (e) { newAttachments = []; }
+    }
+
+    // 既存のdocs配列に新ファイルをマージ（重複除外）
+    const existingDocs = Array.isArray(targetCase.docs) ? [...targetCase.docs] : [];
+    const existingUrls = new Set(existingDocs.map(d => d.url || d.name));
+    
+    newAttachments.forEach(att => {
+      if (!existingUrls.has(att.url || att.name)) {
+        existingDocs.push({
+          name: att.name || '追送書類.pdf',
+          url: att.url || '',
+          source: 'inbox_merge',
+          mergedAt: new Date().toISOString()
+        });
+      }
+    });
+
+    // メモ欄に追送合流履歴を追記
+    const nowStr = new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const fileNames = newAttachments.map(a => a.name || '添付ファイル').join(', ');
+    const auditText = `\n\n【📎 追送書類合流 (${nowStr})】\n${item.type}（${item.sender || '差出人'}）より合流：\n件名: ${item.subject || '（無題）'}\n${fileNames ? `添付: ${fileNames}` : ''}`;
+    
+    const updatedMemo = (targetCase.memo || '') + auditText;
+
+    // 案件更新
+    Store.updateCase(targetCase.id, {
+      docs: existingDocs,
+      memo: updatedMemo
+    });
+
+    // インボックスステータスを対応済に更新
+    Store.updateInboxStatus(item.id, '対応済', targetCase.id);
+
+    // モーダルを閉じる
+    const modalEl = document.getElementById('attach-to-case-modal');
+    if (modalEl) modalEl.remove();
+
+    App.refreshView();
+    App.showToast(`✅ 案件「${targetCase.title}」に書類を合流しました！`);
   },
 
   // ─── FAX送信関連処理 ──────────────────────────────────────

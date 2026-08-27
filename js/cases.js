@@ -1499,7 +1499,11 @@ const Cases = {
 
     this.closeModal();
     App.refreshView();
-    App.showToast(this.editingId ? '案件を更新しました' : '案件を登録しました');
+    if (!this.editingId && data.inboxId) {
+      App.showToast('✅ 案件を登録しました（同じFAXから複数登録する場合は履歴タブの「別案件を追加登録」から可能）');
+    } else {
+      App.showToast(this.editingId ? '案件を更新しました' : '案件を登録しました');
+    }
   },
 
   // 案件の各日程をGoogleカレンダーに自動同期する（Promiseを返す）
