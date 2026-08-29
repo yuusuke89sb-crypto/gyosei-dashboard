@@ -3706,7 +3706,7 @@ function applyHaichiTemplate(templateType) {
 
   if (templateType === 'house') {
     // 🏠 戸建・一軒家
-    const spotLabel = sNo ? `${sNo}\n保管場所` : '保管場所';
+    const spotLabel = sNo || '';
     drawings.haichi = [
       // 方位記号
       { type: 'compass', x: 80, y: 80, size: 28, angle: 0 },
@@ -3735,7 +3735,7 @@ function applyHaichiTemplate(templateType) {
   } else if (templateType === 'mansion') {
     // 🏢 マンション・月極駐車場
     const targetNo = sNo || 'No.3';
-    const targetLabel = `${targetNo}\n保管場所`;
+    const targetLabel = targetNo;
     
     // 区画定義 (4枠)
     const bays = [
@@ -3803,7 +3803,7 @@ function applyHaichiTemplate(templateType) {
     showToast(`🏢 マンション・月極駐車場（${targetNo}枠 / 幅${sWidth}×奥行${sLength}）を自動配置しました`);
   } else if (templateType === 'office') {
     // 🏭 事業所・会社敷地
-    const spotLabel = sNo ? `${sNo}\n保管場所` : '保管場所';
+    const spotLabel = sNo || '';
     drawings.haichi = [
       // 方位記号
       { type: 'compass', x: 80, y: 80, size: 28, angle: 0 },
