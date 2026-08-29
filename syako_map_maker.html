@@ -2153,7 +2153,7 @@ function finishPolygon(targetKey) {
 
   pushHistory();
   const sNo = document.getElementById('spotNo').value.trim();
-  const labelText = sNo ? `${sNo}\n保管場所` : '保管場所';
+  const labelText = sNo || '';
 
   let newIndex = drawings[targetKey].length;
   if (currentTool === 'poly-spot') {
@@ -2525,7 +2525,7 @@ function setupCanvasEvents(canvas, targetKey) {
 
     if (currentTool === 'rect-spot') {
       const sNo = document.getElementById('spotNo').value.trim();
-      const labelText = sNo ? `${sNo}\n保管場所` : '保管場所';
+      const labelText = sNo || '';
       const w = dragDist < 8 ? 100 : Math.abs(endX - startX);
       const h = dragDist < 8 ? 120 : Math.abs(endY - startY);
       const x = dragDist < 8 ? startX - 50 : Math.min(startX, endX);
@@ -2898,7 +2898,7 @@ function drawElement(ctx, item) {
     ctx.stroke();
     ctx.restore();
 
-    const labelText = item.label !== undefined ? item.label : '保管場所';
+    const labelText = item.label || '';
     if (labelText && labelText.trim() !== '') {
       const lines = labelText.split('\n');
       ctx.fillStyle = '#FFFFFF';
@@ -2956,7 +2956,7 @@ function drawElement(ctx, item) {
     ctx.restore();
 
     // 3. ラベル（空欄でない場合のみ描画）
-    const labelText = item.label !== undefined ? item.label : '保管場所';
+    const labelText = item.label || '';
     if (labelText && labelText.trim() !== '') {
       const lines = labelText.split('\n');
       ctx.fillStyle = '#FFFFFF';
@@ -3674,7 +3674,7 @@ function loadKurodaSample() {
       { type: 'rect-other', x: 280, y: 160, w: 320, h: 360, angle: 0 },
       { type: 'rect-other', x: 380, y: 200, w: 180, h: 280, angle: 0 },
       { type: 'text', x: 440, y: 340, text: '自　宅', fontSize: 18, angle: 0 },
-      { type: 'rect-spot', x: 280, y: 240, w: 100, h: 120, label: '保管場所', angle: 0 },
+      { type: 'rect-spot', x: 280, y: 240, w: 100, h: 120, label: '', angle: 0 },
       { type: 'line-dim', x1: 280, y1: 390, x2: 380, y2: 390, text: '5.0m', angle: 0 },
       { type: 'line-dim', x1: 400, y1: 240, x2: 400, y2: 360, text: '2.0m', angle: 0 }
     ];
