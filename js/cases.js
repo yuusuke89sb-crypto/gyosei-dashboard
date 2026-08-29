@@ -4,8 +4,27 @@
 const Cases = {
   filterCategory: 'all',
   filterStatus: 'all',
+  filterMapStatus: 'all', // 'all' | 'uncreated' (車庫証明の図面未作成)
   editingId: null,
   advanceDraft: [],  // 立替金一時データ [{label, amount}]
+
+  // 車庫証明案件判定
+  isSyakoCase(c) {
+    if (!c || !c.category) return false;
+    return c.category === 'garage_oss' || c.category === 'garage_paper' || c.category.includes('garage');
+  },
+
+  // 案件の所在図・配置図データ存在判定
+  hasMapData(caseId) {
+    if (!caseId) return false;
+    return !!(localStorage.getItem('syako_case_map_' + caseId) || localStorage.getItem('gyosei_case_map_png_' + caseId));
+  },
+
+  // 図面未作成クイックフィルター切り替え
+  toggleMapFilter() {
+    this.filterMapStatus = this.filterMapStatus === 'uncreated' ? 'all' : 'uncreated';
+    App.refreshView();
+  },
 
   STATUSES: [
     { key: 'received', label: '受付', icon: '📥' },
@@ -61,6 +80,15 @@ const Cases = {
       });
     }
 
+    // 進行中の車庫証明案件のうち、図面未作成の件数を集計
+    const activeGarageCases = cases.filter(c => c.status !== 'done' && this.isSyakoCase(c));
+    const uncreatedMapCount = activeGarageCases.filter(c => !this.hasMapData(c.id)).length;
+
+    // 図面未作成クイックフィルター適用
+    if (this.filterMapStatus === 'uncreated') {
+      filtered = filtered.filter(c => this.isSyakoCase(c) && !this.hasMapData(c.id));
+    }
+
     // ビュー切替: PC=カンバン / モバイルはリスト
     const isMobile = window.innerWidth < 768;
 
@@ -78,7 +106,7 @@ const Cases = {
           </div>
         </div>
 
-        <div class="filter-bar">
+        <div class="filter-bar" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
           <div class="filter-group">
             <label>カテゴリ:</label>
             <select id="filterCategory" onchange="Cases.onFilterChange()" class="filter-select">
@@ -93,6 +121,16 @@ const Cases = {
               <option value="active" ${this.filterStatus === 'active' ? 'selected' : ''}>⚡ 進行中のみ（未完了）</option>
               ${this.STATUSES.map(s => `<option value="${s.key}" ${this.filterStatus === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}
             </select>
+          </div>
+          <div class="filter-group" style="margin-left:auto;">
+            <button type="button" class="btn btn-small" onclick="Cases.toggleMapFilter()"
+              title="車庫証明の所在図・配置図が未作成の案件のみを絞り込み表示"
+              style="font-size:0.8rem; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:6px; transition:all 0.2s; ${this.filterMapStatus === 'uncreated' ? 'background:#fef3c7; color:#b45309; border:1.5px solid #f59e0b; font-weight:bold; box-shadow:0 1px 3px rgba(245,158,11,0.2);' : 'background:var(--bg-card, #fff); border:1px solid var(--border-color); color:var(--text-secondary);'}">
+              <span>🗺️ 図面未作成</span>
+              ${uncreatedMapCount > 0 
+                ? `<span style="background:#ef4444; color:white; border-radius:10px; padding:1px 6px; font-size:0.72rem; font-weight:bold;">${uncreatedMapCount}</span>` 
+                : '<span style="color:var(--text-muted); font-size:0.72rem;">(0)</span>'}
+            </button>
           </div>
         </div>
 
@@ -239,13 +277,23 @@ const Cases = {
         </div>`;
     }
 
+    // 車庫証明の所在図・配置図バッジ判定
+    let syakoMapBadgeHtml = '';
+    if (this.isSyakoCase(c)) {
+      const hasMap = this.hasMapData(c.id);
+      syakoMapBadgeHtml = hasMap
+        ? `<span class="syako-map-badge map-done" onclick="event.stopPropagation(); Cases.openSyakoMapMaker('${c.id}')" title="クリックで作図ツールを開く（作成済）" style="font-size:0.7rem; background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:4px; padding:1px 6px; font-weight:600; cursor:pointer; margin-left:4px; display:inline-flex; align-items:center; gap:2px;">🟢 図面済</span>`
+        : `<span class="syako-map-badge map-pending" onclick="event.stopPropagation(); Cases.openSyakoMapMaker('${c.id}')" title="クリックで作図ツールを起動（未作成）" style="font-size:0.7rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:4px; padding:1px 6px; font-weight:bold; cursor:pointer; margin-left:4px; display:inline-flex; align-items:center; gap:2px;">🟡 図面未作成</span>`;
+    }
+
     return `
       <div class="kanban-card ${deadlineClass}" draggable="true"
         ondragstart="event.dataTransfer.setData('text/plain','${c.id}')"
         onclick="Cases.showEditModal('${c.id}')">
-        <div class="kanban-card-cat">
+        <div class="kanban-card-cat" style="display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
           <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : c.category}</span>
-          ${c.subCategory ? `<span style="font-size:0.7rem;background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:3px;margin-left:4px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
+          ${c.subCategory ? `<span style="font-size:0.7rem;background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:3px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
+          ${syakoMapBadgeHtml}
         </div>
         <div class="kanban-card-title">${c.title}</div>
         <div class="kanban-card-meta">
@@ -304,11 +352,21 @@ const Cases = {
           const bgVar = c.category === 'seal' ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)';
           milestoneHtml = `<span style="font-size:0.75rem;color:${colorVar};background:${bgVar};padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/3</span>`;
 
+          // 車庫証明の所在図・配置図バッジ判定
+          let syakoMapBadgeHtml = '';
+          if (this.isSyakoCase(c)) {
+            const hasMap = this.hasMapData(c.id);
+            syakoMapBadgeHtml = hasMap
+              ? `<span class="syako-map-badge map-done" onclick="event.stopPropagation(); Cases.openSyakoMapMaker('${c.id}')" title="クリックで作図ツールを開く（作成済）" style="font-size:0.75rem; background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:4px; padding:2px 6px; font-weight:600; cursor:pointer; margin-left:6px; display:inline-flex; align-items:center; gap:2px;">🟢 図面済</span>`
+              : `<span class="syako-map-badge map-pending" onclick="event.stopPropagation(); Cases.openSyakoMapMaker('${c.id}')" title="クリックで作図ツールを起動（未作成）" style="font-size:0.75rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:4px; padding:2px 6px; font-weight:bold; cursor:pointer; margin-left:6px; display:inline-flex; align-items:center; gap:2px;">🟡 図面未作成</span>`;
+          }
+
           return `
                 <div class="case-list-item ${deadlineClass}" onclick="Cases.showEditModal('${c.id}')">
                   <div class="case-list-top">
                     <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : ''}</span>
                     ${c.subCategory ? `<span style="font-size:0.75rem;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
+                    ${syakoMapBadgeHtml}
                     <span class="status-badge status-${c.status}">${statusInfo ? statusInfo.icon + ' ' + statusInfo.label : ''}</span>
                     ${milestoneHtml}
                   </div>

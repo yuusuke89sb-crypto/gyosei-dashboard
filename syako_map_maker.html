@@ -3723,9 +3723,8 @@ function applyHaichiTemplate(templateType) {
       { type: 'rect-other', x: 250, y: 140, w: 380, h: 330, angle: 0 },
       { type: 'rect-other', x: 370, y: 180, w: 230, h: 260, angle: 0 },
       { type: 'text', x: 455, y: 315, text: '自　宅', fontSize: 20, color: '#000000', angle: 0 },
-      // 駐車枠 & 車両マーク & 寸法線
+      // 駐車枠 & 寸法線
       { type: 'rect-spot', x: 250, y: 205, w: 105, h: 145, label: spotLabel, angle: 0 },
-      { type: 'car', x: 278, y: 232, w: 50, h: 90, angle: 0 },
       { type: 'line-dim', x1: 250, y1: 375, x2: 355, y2: 375, text: sLength, angle: 0 },
       { type: 'line-dim', x1: 370, y1: 205, x2: 370, y2: 350, text: sWidth, angle: 0 }
     ];
@@ -3781,12 +3780,6 @@ function applyHaichiTemplate(templateType) {
           label: targetLabel,
           angle: 0
         });
-        drawings.haichi.push({
-          type: 'car',
-          x: b.x + 20, y: b.y + 3,
-          w: 50, h: 48,
-          angle: 90
-        });
         // 寸法線
         drawings.haichi.push({ type: 'line-dim', x1: b.x, y1: b.y + b.h + 15, x2: b.x + b.w, y2: b.y + b.h + 15, text: sWidth, angle: 0 });
         drawings.haichi.push({ type: 'line-dim', x1: b.x - 15, y1: b.y, x2: b.x - 15, y2: b.y + b.h, text: sLength, angle: 0 });
@@ -3828,7 +3821,6 @@ function applyHaichiTemplate(templateType) {
       { type: 'text', x: 470, y: 300, text: '事務所・社屋', fontSize: 18, color: '#000000', angle: 0 },
       // 事業用保管場所
       { type: 'rect-spot', x: 180, y: 220, w: 120, h: 170, label: spotLabel, angle: 0 },
-      { type: 'car', x: 215, y: 255, w: 50, h: 90, angle: 0 },
       { type: 'line-dim', x1: 180, y1: 410, x2: 300, y2: 410, text: sLength, angle: 0 },
       { type: 'line-dim', x1: 318, y1: 220, x2: 318, y2: 390, text: sWidth, angle: 0 }
     ];
