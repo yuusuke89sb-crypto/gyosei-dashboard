@@ -1580,7 +1580,18 @@ function restoreFromHistoryIndex(idx) {
       restoreProjectData(it.data);
       const modal = document.getElementById('savedHistoryModal');
       if (modal) modal.remove();
-      showToast(`✅ 「${it.title}」を復元しました`);
+      
+      const hCount = it.data?.drawings?.haichi?.length || 0;
+      const sCount = it.data?.drawings?.sozai?.length || 0;
+      
+      setTimeout(() => {
+        const p2 = document.getElementById('page2Haichi');
+        if (p2 && hCount > 0) {
+          p2.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 250);
+
+      showToast(`✅ 「${it.title}」を復元しました（配置図: ${hCount}個 / 所在図: ${sCount}個）`);
     }
   } catch(err) {
     console.error('Failed to restore from history:', err);

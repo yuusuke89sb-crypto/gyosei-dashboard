@@ -1871,10 +1871,12 @@ const Cases = {
             🔍 全画面で拡大表示
           </div>
         </div>` : '<div style="font-size:0.75rem; color:#059669; font-weight:bold; margin-bottom:6px;">✅ 作図データが保存されています</div>'}
-        <div style="display:flex; gap:6px;">
-          <button type="button" class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}')" style="flex:2; font-size:0.78rem; padding:5px 8px; font-weight:bold;">🗺️ 所在図・配置図を再編集</button>
-          ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.showFullMapModal('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">🔍 拡大表示</button>` : ''}
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}')" style="flex:2; font-size:0.78rem; padding:5px 8px; font-weight:bold;">🗺️ 作図ツールで再編集</button>
+          ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.showFullMapModal('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">🔍 拡大</button>` : ''}
           ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">📥 保存</button>` : ''}
+          <input type="file" id="mapPdfFileInput_${caseId}" accept=".pdf,image/*,.tif" style="display:none;" onchange="Cases.handleMapPdfUpload(event, '${caseId}')">
+          <button type="button" class="btn btn-secondary btn-small" onclick="document.getElementById('mapPdfFileInput_${caseId}').click()" style="flex:1.5; font-size:0.75rem; padding:5px 8px; background:#334155; color:#fff;" title="手元のPDFや画像ファイルをGoogle Drive案件フォルダに保存">📎 PDF/図面をフォルダ保存</button>
           <button type="button" class="btn btn-danger btn-small" onclick="Cases.deleteAttachedMap('${caseId}')" style="font-size:0.75rem; padding:5px 8px;" title="削除">🗑️</button>
         </div>
       `;
@@ -1931,6 +1933,22 @@ const Cases = {
       </div>
     `;
     document.body.appendChild(modal);
+  },
+
+  handleMapPdfUpload(event, caseId) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (typeof CaseDocs !== 'undefined') {
+      App.showToast('⏳ 所在図・配置図ファイルをGoogle Driveへアップロード中...');
+      CaseDocs.upload(caseId, file).then(docMeta => {
+        if (docMeta) {
+          App.showToast(`✅ ${file.name} を案件フォルダに保存しました`);
+          Cases.showEditModal(caseId);
+        }
+      });
+    } else {
+      App.showToast('⚠️ 書類アップロードモジュールが利用できません');
+    }
   },
 
   downloadAttachedMap(caseId) {
