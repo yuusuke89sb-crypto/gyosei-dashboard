@@ -1714,42 +1714,49 @@ function saveGeneratedPdf_(data) {
 function saveCaseDocument_(data) {
   try {
     const caseId = data.caseId;
-    const caseTitle = data.caseTitle || '無題の案件';
-    const clientName = data.clientName || '不明な顧客';
-    
-    const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    // フォルダ名に使えない文字を置換
-    const folderName = `${todayStr}_${caseId}_${caseTitle}`.replace(/[\\/:*?"<>|]/g, '_');
-    
     const fileName = data.fileName;
-    const mimeType = data.mimeType;
+    const mimeType = data.mimeType || 'application/octet-stream';
     const base64Data = data.base64Data;
+    if (!base64Data) return { error: 'データが空です' };
 
     let caseFolder = null;
-    if (data.folderUrl) {
-      const match = data.folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/);
-      if (match) caseFolder = DriveApp.getFolderById(match[1]);
+    const targetFolderUrl = data.folderUrl || (data.case && data.case.driveFolderUrl);
+    if (targetFolderUrl) {
+      const match = String(targetFolderUrl).match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) {
+        try {
+          caseFolder = DriveApp.getFolderById(match[1]);
+        } catch (fErr) {}
+      }
     }
     
+    // フォルダURLがない場合、4階層ルール（行政書士事務所 ＞ 店舗 ＞ 担当者 ＞ 案件）で検索・作成
     if (!caseFolder) {
-      // フォルダURLがない場合のフォールバック（以前の挙動）
-      const rootFolder = getOrCreateFolder_('行政書士事務所');
-      const clientFolder = getOrCreateFolderUnder_(rootFolder, clientName);
-      const docsFolder = getOrCreateFolderUnder_(clientFolder, '案件書類');
-      const folders = docsFolder.getFolders();
-      while (folders.hasNext()) {
-        const f = folders.next();
-        if (f.getName().indexOf(String(caseId)) !== -1) {
-          caseFolder = f;
-          if (f.getName() !== folderName) f.setName(folderName);
-          break;
-        }
+      const cases = getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
+      const caseObj = (caseId ? cases.find(c => c.id === caseId) : {}) || {};
+      const folderRes = createCaseFolder_({
+        ...caseObj,
+        ...data,
+        id: caseId
+      });
+
+      if (folderRes && folderRes.folderId) {
+        caseFolder = DriveApp.getFolderById(folderRes.folderId);
       }
-      if (!caseFolder) caseFolder = docsFolder.createFolder(folderName);
+    }
+
+    if (!caseFolder) {
+      return { error: '案件フォルダを特定・作成できませんでした' };
+    }
+
+    // 既存の同名ファイルがあれば更新（上書き）
+    const existing = caseFolder.getFilesByName(fileName);
+    while (existing.hasNext()) {
+      existing.next().setTrashed(true);
     }
 
     const decoded = Utilities.base64Decode(base64Data);
-    const blob = Utilities.newBlob(decoded, mimeType || 'application/octet-stream', fileName);
+    const blob = Utilities.newBlob(decoded, mimeType, fileName);
     const file = caseFolder.createFile(blob);
 
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -1758,7 +1765,8 @@ function saveCaseDocument_(data) {
       success: true,
       url: file.getUrl(),
       fileId: file.getId(),
-      folderPath: `行政書士事務所/${clientName}/案件書類/${folderName}`,
+      folderUrl: caseFolder.getUrl(),
+      folderName: caseFolder.getName()
     };
   } catch (err) {
     return { error: '書類保存エラー: ' + err.message };

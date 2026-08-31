@@ -1701,20 +1701,39 @@ async function saveToCaseDirectly() {
       }
 
       // 顧客名（店舗名）を取得
-      let clientName = '車庫証明';
+      let clientName = '愛知トヨタ';
       if (targetCase && targetCase.clientId) {
         try {
           const rawClients = localStorage.getItem('gyosei_clients');
           if (rawClients) {
             const clients = JSON.parse(rawClients);
             const cl = clients.find(c => c.id == targetCase.clientId);
-            if (cl) clientName = cl.name || cl.companyName || clientName;
+            if (cl) clientName = cl.companyName || cl.name || clientName;
           }
         } catch(e) {}
+      } else if (dealerInfo) {
+        const cleanDealer = dealerInfo.split(/TEL|\s{2,}/i)[0].trim();
+        if (cleanDealer) clientName = cleanDealer;
+      }
+
+      // 担当者名を取得
+      let contactName = '';
+      if (targetCase) {
+        if (targetCase.contactName) contactName = targetCase.contactName;
+        else if (targetCase.clientContactId) {
+          try {
+            const rawContacts = localStorage.getItem('gyosei_client_contacts');
+            if (rawContacts) {
+              const contacts = JSON.parse(rawContacts);
+              const ct = contacts.find(c => c.id == targetCase.clientContactId);
+              if (ct) contactName = ct.name;
+            }
+          } catch(e) {}
+        }
       }
 
       const orderNo = targetCase ? (targetCase.orderNo || '') : '';
-      const applicant = (targetCase ? (targetCase.carName || targetCase.title) : (parkAddr || '申請者')).replace(/[\\/:*?"<>|]/g, '_');
+      const applicant = (targetCase ? (targetCase.carName || targetCase.title) : (name || parkAddr || '申請者')).replace(/[\\/:*?"<>|]/g, '_');
 
       // GASのURLを取得
       let gasUrl = 'https://script.google.com/macros/s/AKfycbzdDtMhSmy5tqSWNtNnbnCQ-68PY7emgDhdR_abTCuvxv--WgCjIMO0qTgysE2864MA/exec';
@@ -1736,9 +1755,13 @@ async function saveToCaseDirectly() {
             body: JSON.stringify({
               action: 'saveCaseDocument',
               data: {
-                caseId: targetCase ? targetCase.id : linkedCaseId,
+                caseId: targetCase ? targetCase.id : cleanCaseId,
                 caseTitle: targetCase?.title || applicant,
                 clientName: clientName,
+                contactName: contactName,
+                applicantName: applicant,
+                carName: applicant,
+                orderNo: orderNo,
                 fileName: fileName,
                 mimeType: 'image/png',
                 base64Data: base64Data,
