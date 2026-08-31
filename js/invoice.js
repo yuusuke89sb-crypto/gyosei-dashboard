@@ -96,12 +96,16 @@ const Invoice = {
       unbilledHtml = `<div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">未請求の完了案件はありません。</div>`;
     } else {
       unbilledHtml = unbilledCases.map(c => {
-        const advSum = (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0);
-        const amountStr = `報酬 ¥${Number(c.fee||0).toLocaleString()} ${advSum>0 ? '+ 立替 ¥'+advSum.toLocaleString() : ''}`;
+        const effectiveFee = c.isPaid ? 0 : Number(c.fee||0);
+        const effectiveAdv = c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0);
+        let partialBadge = '';
+        if (c.isAdvancePaid && !c.isPaid) partialBadge = '<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">立替済</span>';
+        if (c.isPaid && !c.isAdvancePaid) partialBadge = '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">報酬済</span>';
+        const amountStr = `報酬 ¥${effectiveFee.toLocaleString()} ${effectiveAdv>0 ? '+ 立替 ¥'+effectiveAdv.toLocaleString() : ''}`;
         return `
           <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.9rem;cursor:pointer;">
             <input type="checkbox" name="targetCases" value="${c.id}" checked class="case-checkbox" onchange="Invoice.updatePreview('${clientId}')">
-            <span>${c.title} <small style="color:var(--text-muted)">(${amountStr})</small></span>
+            <span>${c.title}${partialBadge} <small style="color:var(--text-muted)">(${amountStr})</small></span>
           </label>
         `;
       }).join('');
@@ -343,10 +347,11 @@ const Invoice = {
       invoiceNo = invoiceNo.replace('INV-', 'EST-');
     }
 
-    const feeSubtotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
+    // 消し込み済みの項目は請求書から自動除外
+    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) =>
-      sum + (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0), 0);
+      sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
     const total = feeSubtotal + tax + advanceTotal;
 
     const CATS = { 
@@ -427,10 +432,11 @@ const Invoice = {
     const year = match ? parseInt(match[1]) : new Date().getFullYear();
     const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
 
-    const feeSubtotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
+    // 消し込み済みの項目は請求書から自動除外（再印刷時も同様）
+    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) =>
-      sum + (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0), 0);
+      sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
     const total = feeSubtotal + tax + advanceTotal;
 
     const CATS = { 

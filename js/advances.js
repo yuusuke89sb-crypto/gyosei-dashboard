@@ -273,38 +273,64 @@ const Advances = {
     const fee = Number(c.fee || 0);
     const grandTotal = fee + advanceSum;
 
-    const isPaid = c.isPaid || c.status === 'done';
+    // 個別フラグの判定（status==='done' は従来互換で全額済み扱い）
+    const isFeePaid = !!(c.isPaid);
+    const isAdvPaid = !!(c.isAdvancePaid);
+    const isAllDone = (isFeePaid && isAdvPaid) || c.status === 'done';
+
+    // ステータスバッジの4段階表示
+    let statusBadge;
+    if (isAllDone) {
+      statusBadge = '<span class="badge" style="background:#dcfce7; color:#15803d;">✅ 全額済</span>';
+    } else if (isFeePaid && !isAdvPaid) {
+      statusBadge = '<span class="badge" style="background:#e0f2fe; color:#0369a1;">報酬のみ済</span>';
+    } else if (!isFeePaid && isAdvPaid) {
+      statusBadge = '<span class="badge" style="background:#fef3c7; color:#92400e;">立替のみ済</span>';
+    } else {
+      statusBadge = '<span class="badge" style="background:#fee2e2; color:#b91c1c;">未回収</span>';
+    }
+
+    // 操作ボタン群
+    let actionButtons;
+    if (isAllDone) {
+      actionButtons = `<button class="btn btn-secondary btn-small" onclick="Advances.resetPayment('${c.id}')" style="font-size:0.72rem;">未回収に戻す</button>`;
+    } else {
+      const btns = [];
+      if (advanceSum > 0 && !isAdvPaid) {
+        btns.push(`<button class="btn btn-secondary btn-small" onclick="Advances.toggleAdvancePaid('${c.id}')" style="font-size:0.72rem;">💰 立替のみ</button>`);
+      }
+      if (fee > 0 && !isFeePaid) {
+        btns.push(`<button class="btn btn-secondary btn-small" onclick="Advances.toggleFeePaid('${c.id}')" style="font-size:0.72rem;">📋 報酬のみ</button>`);
+      }
+      btns.push(`<button class="btn btn-primary btn-small" onclick="Advances.toggleFullPaid('${c.id}')" style="font-size:0.72rem;">✅ 全額</button>`);
+      actionButtons = `<div style="display:flex; gap:4px; flex-wrap:wrap;">${btns.join('')}</div>`;
+    }
 
     // 立替金内訳テキスト
     const advanceDetails = (c.advances || []).map(a => `${a.label}: ¥${Number(a.amount).toLocaleString()}`).join(', ') || 'なし';
 
+    // 報酬欄・立替金欄に消し込み済みの打ち消し線
+    const feeStyle = isFeePaid && !isAllDone ? 'text-decoration:line-through; opacity:0.5;' : '';
+    const advStyle = isAdvPaid && !isAllDone ? 'text-decoration:line-through; opacity:0.5;' : '';
+
     return `
       <tr>
         <td>
-          <div>${c.applyDate || c.createdAt ? c.createdAt.slice(0,10) : '-'}</div>
+          <div>${c.applyDate || (c.createdAt ? c.createdAt.slice(0,10) : '-')}</div>
           <div style="font-size:0.75rem; color:var(--text-muted);">ID: ${c.id}</div>
         </td>
         <td>
           <div style="font-weight:600;">${c.title}</div>
           <div style="font-size:0.75rem; color:var(--text-muted);">${c.category || ''}</div>
         </td>
-        <td>¥${fee.toLocaleString()}</td>
-        <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${advanceDetails}">
+        <td style="${feeStyle}">¥${fee.toLocaleString()}</td>
+        <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ${advStyle}" title="${advanceDetails}">
           <span style="color:var(--accent-gold); font-weight:600;">¥${advanceSum.toLocaleString()}</span>
           <div style="font-size:0.72rem; color:var(--text-muted);">${advanceDetails}</div>
         </td>
         <td style="font-weight:700;">¥${grandTotal.toLocaleString()}</td>
-        <td>
-          ${isPaid 
-            ? '<span class="badge" style="background:#dcfce7; color:#15803d;">済（回収完了）</span>'
-            : '<span class="badge" style="background:#fee2e2; color:#b91c1c;">未回収</span>'
-          }
-        </td>
-        <td>
-          <button class="btn btn-secondary btn-small" onclick="Advances.togglePaymentStatus('${c.id}')">
-            ${isPaid ? '未回収に戻す' : '✅ 消し込み'}
-          </button>
-        </td>
+        <td>${statusBadge}</td>
+        <td>${actionButtons}</td>
       </tr>
     `;
   },
@@ -320,19 +346,59 @@ const Advances = {
     App.refresh();
   },
 
-  togglePaymentStatus(caseId) {
+  toggleAdvancePaid(caseId) {
     const c = Store.getCase(caseId);
     if (!c) return;
+    const newVal = !c.isAdvancePaid;
+    const updates = { isAdvancePaid: newVal };
+    // 両方済みになったら自動的に完了ステータスにする
+    if (newVal && c.isPaid) {
+      updates.status = 'done';
+      updates.completedAt = new Date().toISOString();
+    }
+    Store.updateCase(caseId, updates);
+    App.showToast(newVal ? '💰 立替金を消し込みました' : '🔄 立替金を未回収に戻しました');
+    App.refresh();
+  },
 
-    const newStatus = !(c.isPaid || c.status === 'done');
+  toggleFeePaid(caseId) {
+    const c = Store.getCase(caseId);
+    if (!c) return;
+    const newVal = !c.isPaid;
+    const updates = { isPaid: newVal };
+    // 両方済みになったら自動的に完了ステータスにする
+    if (newVal && c.isAdvancePaid) {
+      updates.status = 'done';
+      updates.completedAt = new Date().toISOString();
+    }
+    Store.updateCase(caseId, updates);
+    App.showToast(newVal ? '📋 報酬を消し込みました' : '🔄 報酬を未回収に戻しました');
+    App.refresh();
+  },
+
+  toggleFullPaid(caseId) {
+    const c = Store.getCase(caseId);
+    if (!c) return;
     Store.updateCase(caseId, {
-      isPaid: newStatus,
-      isAdvancePaid: newStatus,
-      status: newStatus ? 'done' : 'registration',
-      completedAt: newStatus ? new Date().toISOString() : null,
+      isPaid: true,
+      isAdvancePaid: true,
+      status: 'done',
+      completedAt: new Date().toISOString(),
     });
+    App.showToast('✅ 報酬＋立替金を全額消し込みました');
+    App.refresh();
+  },
 
-    App.showToast(newStatus ? '✅ 入金・立替金を消し込みました' : '🔄 未回収ステータスに戻しました');
+  resetPayment(caseId) {
+    const c = Store.getCase(caseId);
+    if (!c) return;
+    Store.updateCase(caseId, {
+      isPaid: false,
+      isAdvancePaid: false,
+      status: 'delivery',
+      completedAt: null,
+    });
+    App.showToast('🔄 未回収ステータスに戻しました');
     App.refresh();
   },
 
@@ -359,7 +425,7 @@ const Advances = {
             </select>
           </div>
 
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
             <div class="form-group">
               <label>入金日（振込日）</label>
               <input type="date" id="bpm_date" class="form-control" value="${Store.getLocalDateStr()}">
@@ -367,6 +433,14 @@ const Advances = {
             <div class="form-group">
               <label>実際の振込金額（税込総額）</label>
               <input type="number" id="bpm_amount" class="form-control" placeholder="例: 250000" oninput="Advances.calcBulkDiff()">
+            </div>
+            <div class="form-group">
+              <label>消し込み対象</label>
+              <select id="bpm_payType" class="form-control" onchange="Advances.calcBulkDiff()">
+                <option value="full">全額（報酬＋立替金）</option>
+                <option value="advance_only">立替金のみ</option>
+                <option value="fee_only">報酬のみ</option>
+              </select>
             </div>
           </div>
 
@@ -396,7 +470,11 @@ const Advances = {
     const listArea = document.getElementById('bpm_casesList');
     if (!listArea) return;
 
-    const cases = Store.getCasesByClient(clientId).filter(c => c.status !== 'done' && !c.isPaid);
+    // 全額済み（isPaid && isAdvancePaid 両方true、またはstatus===done）以外を表示
+    const cases = Store.getCasesByClient(clientId).filter(c => {
+      const allDone = (c.isPaid && c.isAdvancePaid) || c.status === 'done';
+      return !allDone;
+    });
 
     if (cases.length === 0) {
       listArea.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:16px 0; margin:0;">未決済の案件はありません</p>';
@@ -408,13 +486,17 @@ const Advances = {
       const advanceSum = (c.advances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
       const fee = Number(c.fee || 0);
       const total = fee + advanceSum;
+      // 部分消し込み済みのバッジ
+      let partialBadge = '';
+      if (c.isAdvancePaid && !c.isPaid) partialBadge = '<span style="background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:3px; font-size:0.68rem; font-weight:600; margin-left:4px;">立替済</span>';
+      if (c.isPaid && !c.isAdvancePaid) partialBadge = '<span style="background:#e0f2fe; color:#0369a1; padding:1px 6px; border-radius:3px; font-size:0.68rem; font-weight:600; margin-left:4px;">報酬済</span>';
       return `
-        <label style="display:flex; align-items:center; justify-space-between; padding:8px; border-bottom:1px solid var(--border-color); cursor:pointer;">
+        <label style="display:flex; align-items:center; justify-content:space-between; padding:8px; border-bottom:1px solid var(--border-color); cursor:pointer;">
           <div style="display:flex; align-items:center; gap:8px;">
-            <input type="checkbox" class="bpm-case-cb" value="${c.id}" data-total="${total}" checked onchange="Advances.calcBulkDiff()">
+            <input type="checkbox" class="bpm-case-cb" value="${c.id}" data-fee="${fee}" data-advance="${advanceSum}" data-total="${total}" checked onchange="Advances.calcBulkDiff()">
             <div>
-              <div style="font-weight:600; font-size:0.85rem;">${c.title}</div>
-              <div style="font-size:0.75rem; color:var(--text-muted);">${c.applyDate || c.createdAt.slice(0,10)}</div>
+              <div style="font-weight:600; font-size:0.85rem;">${c.title}${partialBadge}</div>
+              <div style="font-size:0.75rem; color:var(--text-muted);">${c.applyDate || (c.createdAt ? c.createdAt.slice(0,10) : '-')}</div>
             </div>
           </div>
           <div style="text-align:right;">
@@ -431,16 +513,26 @@ const Advances = {
   calcBulkDiff() {
     const sumArea = document.getElementById('bpm_summaryArea');
     const amountInput = document.getElementById('bpm_amount');
+    const payTypeEl = document.getElementById('bpm_payType');
     if (!sumArea) return;
 
+    const payType = payTypeEl ? payTypeEl.value : 'full';
     const checkboxes = document.querySelectorAll('.bpm-case-cb:checked');
     let selectedSum = 0;
     checkboxes.forEach(cb => {
-      selectedSum += Number(cb.getAttribute('data-total') || 0);
+      if (payType === 'advance_only') {
+        selectedSum += Number(cb.getAttribute('data-advance') || 0);
+      } else if (payType === 'fee_only') {
+        selectedSum += Number(cb.getAttribute('data-fee') || 0);
+      } else {
+        selectedSum += Number(cb.getAttribute('data-total') || 0);
+      }
     });
 
     const enteredAmount = Number(amountInput ? amountInput.value : 0);
     const diff = enteredAmount - selectedSum;
+
+    const payLabel = payType === 'advance_only' ? '立替金合計' : payType === 'fee_only' ? '報酬合計' : '合計請求額';
 
     let statusText = '';
     if (enteredAmount > 0) {
@@ -454,8 +546,8 @@ const Advances = {
     }
 
     sumArea.innerHTML = `
-      <div style="display:flex; justify-space-between; align-items:center;">
-        <span>選択された案件の合計請求額:</span>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span>選択された案件の${payLabel}:</span>
         <span style="font-weight:700; font-size:1rem;">¥${selectedSum.toLocaleString()}</span>
       </div>
       ${statusText ? `<div style="margin-top:6px;">${statusText}</div>` : ''}
@@ -470,21 +562,46 @@ const Advances = {
     }
 
     const date = document.getElementById('bpm_date').value || Store.getLocalDateStr();
+    const payTypeEl = document.getElementById('bpm_payType');
+    const payType = payTypeEl ? payTypeEl.value : 'full';
     let count = 0;
 
     checkboxes.forEach(cb => {
       const caseId = cb.value;
-      Store.updateCase(caseId, {
-        isPaid: true,
-        isAdvancePaid: true,
-        status: 'done',
-        completedAt: `${date}T12:00:00.000Z`,
-      });
+      const existing = Store.getCase(caseId);
+      if (!existing) return;
+
+      if (payType === 'advance_only') {
+        // 立替金のみ消し込み
+        const updates = { isAdvancePaid: true };
+        if (existing.isPaid) {
+          updates.status = 'done';
+          updates.completedAt = `${date}T12:00:00.000Z`;
+        }
+        Store.updateCase(caseId, updates);
+      } else if (payType === 'fee_only') {
+        // 報酬のみ消し込み
+        const updates = { isPaid: true };
+        if (existing.isAdvancePaid) {
+          updates.status = 'done';
+          updates.completedAt = `${date}T12:00:00.000Z`;
+        }
+        Store.updateCase(caseId, updates);
+      } else {
+        // 全額消し込み
+        Store.updateCase(caseId, {
+          isPaid: true,
+          isAdvancePaid: true,
+          status: 'done',
+          completedAt: `${date}T12:00:00.000Z`,
+        });
+      }
       count++;
     });
 
+    const label = payType === 'advance_only' ? '立替金' : payType === 'fee_only' ? '報酬' : '全額';
     document.getElementById('bulkPaymentModal').remove();
-    App.showToast(`🎉 ${count}件の案件を一括消し込み完了しました！`);
+    App.showToast(`🎉 ${count}件の案件の${label}を一括消し込みしました！`);
     App.refresh();
   },
 

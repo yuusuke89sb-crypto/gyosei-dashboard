@@ -646,6 +646,7 @@
     <button class="btn btn-secondary" onclick="exportJSON()" title="現在の作図・入力データをJSONファイルとして保存">💾 JSON保存</button>
     <button class="btn btn-secondary" onclick="document.getElementById('jsonFileInput').click()" title="過去の案件JSONファイルを読み込み復元">📂 案件読込</button>
     <input type="file" id="jsonFileInput" accept=".json" style="display:none;" onchange="loadJSONFile(event)">
+    <button class="btn btn-secondary" onclick="showSavedHistoryModal()" title="保存済みの作図データや下書き一覧から選択して復元" style="background:#0F172A; border-color:#38BDF8; color:#38BDF8;">📜 履歴・下書き復元</button>
     
     <button class="btn btn-secondary" onclick="loadKurodaSample()">🏠 黒田サンプル</button>
     <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ クリア</button>
@@ -1389,18 +1390,38 @@ function checkUrlCaseParams() {
       updateFooterRegNo();
     }
 
-    // 保存済みの案件作図データがあるか確認
+    // 1. 保存済みの案件作図データ（syako_case_map_ID）があるか確認
     const savedCaseData = localStorage.getItem('syako_case_map_' + caseId);
     if (savedCaseData) {
       try {
         const data = JSON.parse(savedCaseData);
-        restoreProjectData(data);
-        showToast(`📂 案件「${linkedCaseTitle}」の保存済み図面を読み込みました`);
-        return true;
-      } catch(e) {}
+        if (data && (data.drawings || data.formData)) {
+          restoreProjectData(data);
+          showToast(`📂 案件「${linkedCaseTitle}」の保存済み図面を読み込みました`);
+          return true;
+        }
+      } catch(e) {
+        console.error('Failed to parse case map data:', e);
+      }
     }
 
-    // 初回作成の場合：URLパラメータから住所と情報を自動反映
+    // 2. 下書き（syako_map_maker_draft）に同案件または有効な作図データがあるか確認（フォールバック）
+    try {
+      const rawDraft = localStorage.getItem('syako_map_maker_draft');
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft);
+        if (draft && draft.drawings && (draft.drawings.sozai?.length > 0 || draft.drawings.haichi?.length > 0)) {
+          // 同一案件IDまたは下書き作図が存在する場合に復元
+          if (!draft.caseId || draft.caseId === caseId) {
+            restoreProjectData(draft);
+            showToast(`📂 直前の作図下書きデータを復元しました`);
+            return true;
+          }
+        }
+      }
+    } catch(e) {}
+
+    // 3. 初回作成の場合：URLパラメータから住所と情報を自動反映
     if (home) {
       document.getElementById('homeAddress').value = home;
       if (parking) {
@@ -1419,6 +1440,92 @@ function checkUrlCaseParams() {
     }
   }
   return false;
+}
+
+// ─── 全保存データ・下書きの一覧モーダル ───
+function showSavedHistoryModal() {
+  const items = [];
+  
+  // 1. 直近下書き
+  try {
+    const rawDraft = localStorage.getItem('syako_map_maker_draft');
+    if (rawDraft) {
+      const draft = JSON.parse(rawDraft);
+      const sCount = draft.drawings?.sozai?.length || 0;
+      const hCount = draft.drawings?.haichi?.length || 0;
+      items.push({
+        type: 'draft',
+        key: 'syako_map_maker_draft',
+        title: '📝 最新の自動保存下書き',
+        sub: `配置図要素: ${hCount}個 / 所在図要素: ${sCount}個 / 住所: ${draft.formData?.parkAddr || draft.formData?.homeAddr || 'なし'}`,
+        time: draft.savedAt || '-',
+        data: draft
+      });
+    }
+  } catch(e) {}
+
+  // 2. 案件別保存データ（syako_case_map_*）
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('syako_case_map_')) {
+      try {
+        const raw = localStorage.getItem(key);
+        const data = JSON.parse(raw);
+        const caseId = key.replace('syako_case_map_', '');
+        const sCount = data.drawings?.sozai?.length || 0;
+        const hCount = data.drawings?.haichi?.length || 0;
+        items.push({
+          type: 'case',
+          key: key,
+          title: `📁 案件保存データ [ID: ${caseId}] ${data.caseTitle || ''}`,
+          sub: `配置図: ${hCount}個 / 所在図: ${sCount}個 / 住所: ${data.formData?.parkAddr || data.formData?.homeAddr || 'なし'}`,
+          time: data.savedAt || '-',
+          data: data
+        });
+      } catch(e) {}
+    }
+  }
+
+  const modal = document.createElement('div');
+  modal.id = 'savedHistoryModal';
+  modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);';
+  modal.innerHTML = `
+    <div style="background:#1E293B; border:1px solid var(--border-color); border-radius:12px; max-width:650px; width:92%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,0.6); color:white; padding:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:12px; margin-bottom:12px;">
+        <h3 style="margin:0; font-size:1.1rem; display:flex; align-items:center; gap:8px;">📜 作図履歴・下書き復元リスト</h3>
+        <button onclick="document.getElementById('savedHistoryModal').remove()" style="background:none; border:none; color:#94A3B8; font-size:1.4rem; cursor:pointer;">✕</button>
+      </div>
+      <p style="font-size:0.82rem; color:#94A3B8; margin-top:0; margin-bottom:12px;">
+        ブラウザ（localStorage）に保存されている配置図・所在図データの一覧です。復元したいデータを選択してください。
+      </p>
+      <div style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+        ${items.length === 0 ? '<div style="text-align:center; padding:30px; color:#64748B;">保存された作図履歴はありません</div>' : items.map((it, idx) => `
+          <div style="background:#0F172A; border:1px solid #334155; border-radius:8px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-weight:bold; font-size:0.92rem; color:#38BDF8;">${it.title}</div>
+              <div style="font-size:0.78rem; color:#94A3B8; margin-top:3px;">${it.sub}</div>
+              <div style="font-size:0.72rem; color:#64748B; margin-top:2px;">保存日時: ${it.time}</div>
+            </div>
+            <button class="btn btn-primary btn-small" onclick="restoreFromHistoryIndex(${idx})" style="padding:6px 12px; font-weight:bold; font-size:0.8rem;">📂 復元</button>
+          </div>
+        `).join('')}
+      </div>
+      <div style="margin-top:16px; text-align:right;">
+        <button class="btn btn-secondary" onclick="document.getElementById('savedHistoryModal').remove()">閉じる</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  window._savedHistoryItems = items;
+}
+
+function restoreFromHistoryIndex(idx) {
+  if (window._savedHistoryItems && window._savedHistoryItems[idx]) {
+    const it = window._savedHistoryItems[idx];
+    restoreProjectData(it.data);
+    document.getElementById('savedHistoryModal')?.remove();
+    showToast(`✅ 「${it.title}」を復元しました`);
+  }
 }
 
 // ─── ダッシュボードの案件に直接保存 ───
@@ -3977,6 +4084,13 @@ function restoreProjectData(data) {
     drawings = data.drawings;
     pushHistory();
     redrawAll();
+    setTimeout(() => {
+      resizeCanvases();
+      redrawAll();
+    }, 150);
+    setTimeout(() => {
+      redrawAll();
+    }, 350);
   }
 
   if (data.stampList) {

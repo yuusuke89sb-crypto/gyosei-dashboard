@@ -1856,12 +1856,16 @@ const Cases = {
     if (mapPng || hasMapData) {
       mapPreviewHtml = `
         ${mapPng ? `
-        <div style="margin-bottom:8px; border:1px solid var(--border-color); border-radius:4px; overflow:hidden; background:white; display:flex; align-items:center; justify-content:center; max-height:180px; padding:4px">
-          <img src="${mapPng}" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:2px;" />
+        <div style="position:relative; margin-bottom:8px; border:1px solid var(--border-color); border-radius:6px; overflow:hidden; background:#0f172a; display:flex; align-items:center; justify-content:center; max-height:200px; padding:6px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.15);" onclick="Cases.showFullMapModal('${caseId}')" title="クリックして全画面拡大プレビュー">
+          <img src="${mapPng}" style="max-width:100%; max-height:190px; object-fit:contain; border-radius:4px; transition:transform 0.2s ease;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1.0)'" />
+          <div style="position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,0.75); color:white; font-size:0.75rem; padding:4px 10px; border-radius:20px; backdrop-filter:blur(4px); display:flex; align-items:center; gap:4px; pointer-events:none; border:1px solid rgba(255,255,255,0.2);">
+            🔍 全画面で拡大表示
+          </div>
         </div>` : '<div style="font-size:0.75rem; color:#059669; font-weight:bold; margin-bottom:6px;">✅ 作図データが保存されています</div>'}
         <div style="display:flex; gap:6px;">
           <button type="button" class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}')" style="flex:2; font-size:0.78rem; padding:5px 8px; font-weight:bold;">🗺️ 所在図・配置図を再編集</button>
-          ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">📥 画像保存</button>` : ''}
+          ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.showFullMapModal('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">🔍 拡大表示</button>` : ''}
+          ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">📥 保存</button>` : ''}
           <button type="button" class="btn btn-danger btn-small" onclick="Cases.deleteAttachedMap('${caseId}')" style="font-size:0.75rem; padding:5px 8px;" title="削除">🗑️</button>
         </div>
       `;
@@ -1885,6 +1889,39 @@ const Cases = {
         ${mapPreviewHtml}
       </div>
     `;
+  },
+
+  showFullMapModal(caseId) {
+    const mapPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
+    if (!mapPng) return;
+    const targetCase = Store.getCase(caseId);
+    const title = targetCase ? (targetCase.title || '車庫証明 所在図・配置図') : '車庫証明 所在図・配置図';
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'fullMapModal';
+    modal.style.display = 'flex';
+    modal.style.zIndex = '99999';
+    modal.innerHTML = `
+      <div class="modal-overlay" onclick="document.getElementById('fullMapModal').remove()" style="background:rgba(0,0,0,0.85); backdrop-filter:blur(5px); position:fixed; inset:0;"></div>
+      <div class="modal-content" style="max-width:92vw; max-height:92vh; width:1100px; padding:20px; display:flex; flex-direction:column; background:var(--card-bg, #1e293b); border:1px solid var(--border-color); border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.6); z-index:100000; position:relative;">
+        <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--border-color);">
+          <h2 style="margin:0; font-size:1.1rem; display:flex; align-items:center; gap:8px; color:var(--text-color, #fff);">
+            🗺️ ${title} <span style="font-size:0.8rem; color:var(--text-muted); font-weight:normal;">(配置図プレビュー)</span>
+          </h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}'); document.getElementById('fullMapModal').remove();">✏️ 所在図・配置図を再編集</button>
+            <button class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')">📥 画像保存</button>
+            <button class="btn btn-secondary btn-small" onclick="const win=window.open('','_blank'); win.document.write('<img src=\\'${mapPng}\\' style=\\'width:100%;height:auto;display:block;margin:auto;\\' />'); setTimeout(()=>win.print(),200);">🖨️ 印刷</button>
+            <button class="modal-close" onclick="document.getElementById('fullMapModal').remove()" style="font-size:1.4rem; cursor:pointer; background:none; border:none; color:var(--text-color, #fff); margin-left:8px;" title="閉じる">✕</button>
+          </div>
+        </div>
+        <div style="flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; background:#0f172a; border-radius:8px; padding:12px; min-height:450px;">
+          <img src="${mapPng}" style="max-width:100%; max-height:75vh; object-fit:contain; border-radius:4px; box-shadow:0 4px 20px rgba(0,0,0,0.5);" alt="所在図・配置図" />
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
   },
 
   downloadAttachedMap(caseId) {

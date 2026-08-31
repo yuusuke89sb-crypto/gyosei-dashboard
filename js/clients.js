@@ -376,11 +376,12 @@ const Clients = {
           ${cases.length === 0
         ? '<p class="empty-message">紐づく案件はありません</p>'
         : `<div class="mini-case-list">${cases.map(c => `
-                <div class="mini-case-item">
+                <div class="mini-case-item" onclick="document.getElementById('clientDetailModal').remove(); Cases.showEditModal('${c.id}')" style="cursor:pointer; transition:background 0.15s;" onmouseenter="this.style.background='var(--bg-gray, #f3f4f6)'" onmouseleave="this.style.background='transparent'">
                   <span class="category-tag category-${c.category}">${CATEGORY_LABELS[c.category]}</span>
                   <span class="mini-case-title">${c.title}</span>
                   ${c.fee ? `<span class="mini-case-fee">¥${Number(c.fee).toLocaleString()}</span>` : ''}
                   <span class="status-badge status-${c.status}">${STATUS_LABELS[c.status]}</span>
+                  <span style="color:var(--text-muted); font-size:0.72rem; margin-left:auto;">📝 詳細</span>
                 </div>`).join('')}</div>`
       }
         </div>
