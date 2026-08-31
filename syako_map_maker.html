@@ -1697,10 +1697,11 @@ async function saveToCaseDirectly() {
       const applicant = (targetCase ? (targetCase.carName || targetCase.title) : (parkAddr || '申請者')).replace(/[\\/:*?"<>|]/g, '_');
 
       // GASのURLを取得
-      let gasUrl = '';
+      let gasUrl = 'https://script.google.com/macros/s/AKfycbzdDtMhSmy5tqSWNtNnbnCQ-68PY7emgDhdR_abTCuvxv--WgCjIMO0qTgysE2864MA/exec';
       try {
-        const syncConf = JSON.parse(localStorage.getItem('gyosei_sync_config') || '{}');
-        gasUrl = syncConf.gasUrl || localStorage.getItem('gyosei_gas_url') || '';
+        const syncConf = JSON.parse(localStorage.getItem('gyosei_sync_settings') || localStorage.getItem('gyosei_sync_config') || '{}');
+        if (syncConf.gasUrl) gasUrl = syncConf.gasUrl;
+        else if (localStorage.getItem('gyosei_gas_url')) gasUrl = localStorage.getItem('gyosei_gas_url');
       } catch(e) {}
 
       if (gasUrl) {
@@ -1715,6 +1716,7 @@ async function saveToCaseDirectly() {
             caseId: linkedCaseId,
             orderNo: orderNo,
             applicant: applicant,
+            folderUrl: targetCase ? targetCase.driveFolderUrl : undefined,
             images: [
               { name: sozaiName, dataUrl: sozaiDataUrl, type: '所在図' },
               { name: haichiName, dataUrl: haichiDataUrl, type: '配置図' }
@@ -1738,6 +1740,7 @@ async function saveToCaseDirectly() {
             localStorage.setItem('gyosei_cases', JSON.stringify(cases));
           }
         }
+        showToast('✅ Google Driveの案件フォルダへ所在図・配置図を保存しました！');
       }
     }
   } catch (driveErr) {
