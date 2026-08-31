@@ -1812,6 +1812,12 @@ const Cases = {
       if (targetCase.carName) params.set('name', targetCase.carName);
       if (targetCase.orderNo) params.set('orderNo', targetCase.orderNo);
       if (targetCase.carNumber) params.set('regNo', targetCase.carNumber);
+      if (targetCase.driveFolderUrl) params.set('folderUrl', targetCase.driveFolderUrl);
+      if (targetCase.contactName) params.set('contact', targetCase.contactName);
+      else if (targetCase.clientContactId && typeof Store !== 'undefined' && typeof Store.getClientContact === 'function') {
+        const ct = Store.getClientContact(targetCase.clientContactId);
+        if (ct && ct.name) params.set('contact', ct.name);
+      }
 
       // 顧客マスターから店舗情報を取得
       if (targetCase.clientId && typeof Store !== 'undefined') {
@@ -1834,12 +1840,19 @@ const Cases = {
       const orderNo = document.getElementById('csf_orderNo')?.value || '';
       const carNo = document.getElementById('csf_carNumber')?.value || '';
       const clientId = document.getElementById('csf_clientId')?.value || '';
+      const folderUrl = document.getElementById('csf_driveFolderUrl')?.value || '';
+      const contactId = document.getElementById('csf_clientContactId')?.value || '';
       if (title) params.set('title', title);
       if (addr) params.set('home', addr);
       if (parkAddr) params.set('parking', parkAddr);
       if (name) params.set('name', name);
       if (orderNo) params.set('orderNo', orderNo);
       if (carNo) params.set('regNo', carNo);
+      if (folderUrl) params.set('folderUrl', folderUrl);
+      if (contactId && typeof Store !== 'undefined' && typeof Store.getClientContact === 'function') {
+        const ct = Store.getClientContact(contactId);
+        if (ct && ct.name) params.set('contact', ct.name);
+      }
 
       if (clientId && typeof Store !== 'undefined') {
         const client = Store.getClient(clientId);

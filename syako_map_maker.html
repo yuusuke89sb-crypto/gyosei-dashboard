@@ -1184,6 +1184,8 @@ function snapToAngle(x1, y1, x2, y2) {
 // ─── 案件連携パラメータ ───
 let linkedCaseId = null;
 let linkedCaseTitle = null;
+let linkedFolderUrl = null;
+let linkedContactName = null;
 
 // ─── Undo/Redo 履歴管理 ───
 const MAX_HISTORY = 50;
@@ -1366,6 +1368,11 @@ function checkUrlCaseParams() {
   const orderNo = params.get('orderNo');
   const regNo = params.get('regNo');
   const storeInfo = params.get('storeInfo');
+  const folderUrl = params.get('folderUrl');
+  const contact = params.get('contact');
+
+  if (folderUrl) linkedFolderUrl = folderUrl;
+  if (contact) linkedContactName = contact;
 
   if (caseId) {
     linkedCaseId = caseId;
@@ -1758,14 +1765,14 @@ async function saveToCaseDirectly() {
                 caseId: targetCase ? targetCase.id : cleanCaseId,
                 caseTitle: targetCase?.title || applicant,
                 clientName: clientName,
-                contactName: contactName,
+                contactName: linkedContactName || contactName,
                 applicantName: applicant,
                 carName: applicant,
                 orderNo: orderNo,
                 fileName: fileName,
                 mimeType: 'image/png',
                 base64Data: base64Data,
-                folderUrl: targetCase?.driveFolderUrl || undefined
+                folderUrl: linkedFolderUrl || targetCase?.driveFolderUrl || undefined
               }
             })
           });
