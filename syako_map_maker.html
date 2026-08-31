@@ -1708,39 +1708,33 @@ async function saveToCaseDirectly() {
         const sozaiName = orderNo ? `【${orderNo}】${applicant}_所在図.png` : `${applicant}_所在図.png`;
         const haichiName = orderNo ? `【${orderNo}】${applicant}_配置図.png` : `${applicant}_配置図.png`;
 
-        const resp = await fetch(gasUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({
-            action: 'saveCaseMapImages',
-            caseId: linkedCaseId,
-            orderNo: orderNo,
-            applicant: applicant,
-            folderUrl: targetCase ? targetCase.driveFolderUrl : undefined,
-            images: [
-              { name: sozaiName, dataUrl: sozaiDataUrl, type: '所在図' },
-              { name: haichiName, dataUrl: haichiDataUrl, type: '配置図' }
-            ]
-          })
-        });
+        const uploadImageToDrive = async (fileName, dataUrl) => {
+          const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+          const resp = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'saveCaseDocument',
+              data: {
+                caseId: linkedCaseId,
+                caseTitle: targetCase?.title || applicant,
+                clientName: '車庫証明',
+                fileName: fileName,
+                mimeType: 'image/png',
+                base64Data: base64Data,
+                folderUrl: targetCase ? targetCase.driveFolderUrl : undefined
+              }
+            })
+          });
+          return await resp.json();
+        };
 
-        const resData = await resp.json();
-        if (resData.docs && rawCases) {
-          const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
-          const idx = cases.findIndex(c => c.id == linkedCaseId);
-          if (idx !== -1) {
-            let currentDocs = Array.isArray(cases[idx].docs) ? cases[idx].docs : [];
-            resData.docs.forEach(newDoc => {
-              const existingIdx = currentDocs.findIndex(d => d.name === newDoc.name);
-              if (existingIdx !== -1) currentDocs[existingIdx] = newDoc;
-              else currentDocs.push(newDoc);
-            });
-            cases[idx].docs = currentDocs;
-            if (resData.folderUrl) cases[idx].driveFolderUrl = resData.folderUrl;
-            localStorage.setItem('gyosei_cases', JSON.stringify(cases));
-          }
+        const res1 = await uploadImageToDrive(sozaiName, sozaiDataUrl);
+        const res2 = await uploadImageToDrive(haichiName, haichiDataUrl);
+
+        if (res1?.url || res2?.url || res1?.success || res2?.success) {
+          showToast('✅ Google Driveの案件フォルダへ所在図・配置図を保存しました！');
         }
-        showToast('✅ Google Driveの案件フォルダへ所在図・配置図を保存しました！');
       }
     }
   } catch (driveErr) {

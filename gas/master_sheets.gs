@@ -1564,18 +1564,32 @@ function saveCaseMapImagesAction_(data) {
     const cases = getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
     const caseObj = cases.find(c => c.id === caseId) || {};
     
-    // 2. フォルダを特定または自動生成
-    const folderRes = createCaseFolder_({
-      ...caseObj,
-      ...data,
-      id: caseId
-    });
-
-    if (folderRes.error || !folderRes.folderId) {
-      return { error: folderRes.error || '案件フォルダの取得に失敗しました' };
+    // 2. 既存フォルダURL（folderUrl / driveFolderUrl）があるか確認し直接使用
+    let folder = null;
+    const targetFolderUrl = data.folderUrl || caseObj.driveFolderUrl || caseObj['DriveフォルダURL'];
+    if (targetFolderUrl) {
+      const match = String(targetFolderUrl).match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) {
+        try {
+          folder = DriveApp.getFolderById(match[1]);
+        } catch (fErr) {}
+      }
     }
 
-    const folder = DriveApp.getFolderById(folderRes.folderId);
+    if (!folder) {
+      // フォルダを自動生成
+      const folderRes = createCaseFolder_({
+        ...caseObj,
+        ...data,
+        id: caseId
+      });
+
+      if (folderRes.error || !folderRes.folderId) {
+        return { error: folderRes.error || '案件フォルダの取得に失敗しました' };
+      }
+
+      folder = DriveApp.getFolderById(folderRes.folderId);
+    }
     const uploadedDocs = [];
 
     // 3. 画像をBlobとして保存
