@@ -1689,10 +1689,30 @@ async function saveToCaseDirectly() {
 
       const rawCases = localStorage.getItem('gyosei_cases');
       let targetCase = null;
+      const cleanCaseId = (linkedCaseId || '').replace(/^[-_]+/, '').trim();
       if (rawCases) {
-        const cases = JSON.parse(rawCases);
-        targetCase = cases.find(c => c.id == linkedCaseId);
+        try {
+          const cases = JSON.parse(rawCases);
+          targetCase = cases.find(c => {
+            const cid = String(c.id || '').replace(/^[-_]+/, '').trim();
+            return cid === cleanCaseId || cid === linkedCaseId;
+          });
+        } catch(e) {}
       }
+
+      // 顧客名（店舗名）を取得
+      let clientName = '車庫証明';
+      if (targetCase && targetCase.clientId) {
+        try {
+          const rawClients = localStorage.getItem('gyosei_clients');
+          if (rawClients) {
+            const clients = JSON.parse(rawClients);
+            const cl = clients.find(c => c.id == targetCase.clientId);
+            if (cl) clientName = cl.name || cl.companyName || clientName;
+          }
+        } catch(e) {}
+      }
+
       const orderNo = targetCase ? (targetCase.orderNo || '') : '';
       const applicant = (targetCase ? (targetCase.carName || targetCase.title) : (parkAddr || '申請者')).replace(/[\\/:*?"<>|]/g, '_');
 
@@ -1716,13 +1736,13 @@ async function saveToCaseDirectly() {
             body: JSON.stringify({
               action: 'saveCaseDocument',
               data: {
-                caseId: linkedCaseId,
+                caseId: targetCase ? targetCase.id : linkedCaseId,
                 caseTitle: targetCase?.title || applicant,
-                clientName: '車庫証明',
+                clientName: clientName,
                 fileName: fileName,
                 mimeType: 'image/png',
                 base64Data: base64Data,
-                folderUrl: targetCase ? targetCase.driveFolderUrl : undefined
+                folderUrl: targetCase?.driveFolderUrl || undefined
               }
             })
           });
@@ -1732,8 +1752,37 @@ async function saveToCaseDirectly() {
         const res1 = await uploadImageToDrive(sozaiName, sozaiDataUrl);
         const res2 = await uploadImageToDrive(haichiName, haichiDataUrl);
 
+        // 案件の添付書類メタデータを更新
+        if (rawCases && (res1?.url || res2?.url)) {
+          try {
+            const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
+            const idx = cases.findIndex(c => String(c.id).replace(/^[-_]+/, '').trim() === cleanCaseId);
+            if (idx !== -1) {
+              let currentDocs = Array.isArray(cases[idx].docs) ? [...cases[idx].docs] : [];
+              [res1, res2].forEach((r, rIdx) => {
+                if (r && r.url) {
+                  const fName = rIdx === 0 ? sozaiName : haichiName;
+                  const docMeta = {
+                    id: 'doc_map_' + Date.now().toString(36) + '_' + rIdx,
+                    name: fName,
+                    driveUrl: r.url,
+                    driveId: r.fileId || '',
+                    mimeType: 'image/png',
+                    uploadedAt: new Date().toISOString()
+                  };
+                  const exIdx = currentDocs.findIndex(d => d.name === fName);
+                  if (exIdx !== -1) currentDocs[exIdx] = docMeta;
+                  else currentDocs.push(docMeta);
+                }
+              });
+              cases[idx].docs = currentDocs;
+              localStorage.setItem('gyosei_cases', JSON.stringify(cases));
+            }
+          } catch(e) {}
+        }
+
         if (res1?.url || res2?.url || res1?.success || res2?.success) {
-          showToast('✅ Google Driveの案件フォルダへ所在図・配置図を保存しました！');
+          showToast(`✅ 案件「${applicant}」のDriveフォルダへ所在図・配置図を保存しました！`);
         }
       }
     }
