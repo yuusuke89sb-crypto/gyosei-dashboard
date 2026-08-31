@@ -1392,7 +1392,14 @@ function checkUrlCaseParams() {
 
     // 1. 保存済みの案件作図データ（syako_case_map_ID）があるか確認
     let restored = false;
-    const savedCaseData = localStorage.getItem('syako_case_map_' + caseId);
+    const cleanCaseId = caseId.replace(/^[-_]+/, '').trim();
+    let savedCaseData = localStorage.getItem('syako_case_map_' + caseId);
+    if (!savedCaseData && cleanCaseId) {
+      savedCaseData = localStorage.getItem('syako_case_map_' + cleanCaseId);
+    }
+    if (!savedCaseData && cleanCaseId) {
+      savedCaseData = localStorage.getItem('syako_case_map_-' + cleanCaseId);
+    }
     if (savedCaseData) {
       try {
         const data = JSON.parse(savedCaseData);
@@ -1566,13 +1573,21 @@ function showSavedHistoryModal() {
 }
 
 function restoreFromHistoryIndex(idx) {
-  if (window._savedHistoryItems && window._savedHistoryItems[idx]) {
-    const it = window._savedHistoryItems[idx];
-    restoreProjectData(it.data);
-    document.getElementById('savedHistoryModal')?.remove();
-    showToast(`✅ 「${it.title}」を復元しました`);
+  try {
+    if (window._savedHistoryItems && window._savedHistoryItems[idx]) {
+      const it = window._savedHistoryItems[idx];
+      console.log('Restoring history item:', it);
+      restoreProjectData(it.data);
+      const modal = document.getElementById('savedHistoryModal');
+      if (modal) modal.remove();
+      showToast(`✅ 「${it.title}」を復元しました`);
+    }
+  } catch(err) {
+    console.error('Failed to restore from history:', err);
+    alert('復元中にエラーが発生しました: ' + err.message);
   }
 }
+window.restoreFromHistoryIndex = restoreFromHistoryIndex;
 
 // ─── ダッシュボードの案件に直接保存 ───
 async function saveToCaseDirectly() {
@@ -4070,79 +4085,110 @@ function loadJSONFile(event) {
 }
 
 function restoreProjectData(data) {
+  if (!data) return;
+
+  // 1. フォームデータの復元
   if (data.formData) {
-    const f = data.formData;
-    if (f.ocr) document.getElementById('ocrCodeInput').value = f.ocr;
-    if (f.homeAddr) document.getElementById('homeAddress').value = f.homeAddr;
-    if (f.parkAddr) document.getElementById('parkingAddress').value = f.parkAddr;
-    if (f.sameAddr !== undefined) document.getElementById('sameAddress').checked = f.sameAddr;
-    if (f.spotNo !== undefined) document.getElementById('spotNo').value = f.spotNo;
-    if (f.distance) document.getElementById('distanceVal').value = f.distance;
-    if (f.spotWidth) document.getElementById('spotWidth').value = f.spotWidth;
-    if (f.spotLength) document.getElementById('spotLength').value = f.spotLength;
-    if (f.roadWidth) document.getElementById('roadWidth').value = f.roadWidth;
-    if (f.entranceWidth) document.getElementById('entranceWidth').value = f.entranceWidth;
-    if (f.shutter) document.getElementById('shutterVal').value = f.shutter;
-    if (f.dealerInfo !== undefined) document.getElementById('dealerInfoInput').value = f.dealerInfo;
-    if (f.regNo !== undefined) document.getElementById('regNoInput').value = f.regNo;
-    if (f.officeInfo !== undefined) document.getElementById('officeInfoInput').value = f.officeInfo;
-    if (f.showSeal !== undefined) {
-      document.getElementById('showSealCheckbox').checked = f.showSeal;
-      toggleSeal();
-    }
-    if (f.sealSize !== undefined) {
-      document.getElementById('sealSizeSlider').value = f.sealSize;
-      onSealSizeChange(f.sealSize);
-    }
-    if (f.mapTile) {
-      document.getElementById('mapTileSelect').value = f.mapTile;
-      changeMapTile(f.mapTile);
-    }
-    if (f.mapContrast) {
-      document.getElementById('contrastSlider').value = f.mapContrast;
-      applyMapContrast(f.mapContrast);
-    }
-    if (f.layout) {
-      document.getElementById('layoutSelect').value = f.layout;
-      switchLayout();
-    }
-    if (f.haichiMode) setHaichiMode(f.haichiMode);
+    try {
+      const f = data.formData;
+      if (f.ocr && document.getElementById('ocrCodeInput')) document.getElementById('ocrCodeInput').value = f.ocr;
+      if (f.homeAddr && document.getElementById('homeAddress')) document.getElementById('homeAddress').value = f.homeAddr;
+      if (f.parkAddr && document.getElementById('parkingAddress')) document.getElementById('parkingAddress').value = f.parkAddr;
+      if (f.sameAddr !== undefined && document.getElementById('sameAddress')) document.getElementById('sameAddress').checked = f.sameAddr;
+      if (f.spotNo !== undefined && document.getElementById('spotNo')) document.getElementById('spotNo').value = f.spotNo;
+      if (f.distance && document.getElementById('distanceVal')) document.getElementById('distanceVal').value = f.distance;
+      if (f.spotWidth && document.getElementById('spotWidth')) document.getElementById('spotWidth').value = f.spotWidth;
+      if (f.spotLength && document.getElementById('spotLength')) document.getElementById('spotLength').value = f.spotLength;
+      if (f.roadWidth && document.getElementById('roadWidth')) document.getElementById('roadWidth').value = f.roadWidth;
+      if (f.entranceWidth && document.getElementById('entranceWidth')) document.getElementById('entranceWidth').value = f.entranceWidth;
+      if (f.shutter && document.getElementById('shutterVal')) document.getElementById('shutterVal').value = f.shutter;
+      if (f.dealerInfo !== undefined && document.getElementById('dealerInfoInput')) document.getElementById('dealerInfoInput').value = f.dealerInfo;
+      if (f.regNo !== undefined && document.getElementById('regNoInput')) document.getElementById('regNoInput').value = f.regNo;
+      if (f.officeInfo !== undefined && document.getElementById('officeInfoInput')) document.getElementById('officeInfoInput').value = f.officeInfo;
+      if (f.showSeal !== undefined && document.getElementById('showSealCheckbox')) {
+        document.getElementById('showSealCheckbox').checked = f.showSeal;
+        toggleSeal();
+      }
+      if (f.sealSize !== undefined && document.getElementById('sealSizeSlider')) {
+        document.getElementById('sealSizeSlider').value = f.sealSize;
+        onSealSizeChange(f.sealSize);
+      }
+      if (f.mapTile && document.getElementById('mapTileSelect')) {
+        document.getElementById('mapTileSelect').value = f.mapTile;
+        changeMapTile(f.mapTile);
+      }
+      if (f.mapContrast && document.getElementById('contrastSlider')) {
+        document.getElementById('contrastSlider').value = f.mapContrast;
+        applyMapContrast(f.mapContrast);
+      }
+      if (f.layout && document.getElementById('layoutSelect')) {
+        document.getElementById('layoutSelect').value = f.layout;
+        switchLayout();
+      }
+      if (f.haichiMode) setHaichiMode(f.haichiMode);
 
-    updateOCRDisplay();
-    updateQRCodes();
-    updateShutterDisplay();
-    updateFooterDealerInfo();
-    updateFooterRegNo();
-    updateFooterOfficeInfo();
+      updateOCRDisplay();
+      updateQRCodes();
+      updateShutterDisplay();
+      updateFooterDealerInfo();
+      updateFooterRegNo();
+      updateFooterOfficeInfo();
+    } catch(err) {
+      console.warn('FormData restore warning:', err);
+    }
   }
 
+  // 2. 地図位置・ズームの復元
   if (data.mapState) {
-    const m = data.mapState;
-    if (m.sozaiCenter && m.sozaiZoom && sozaiMap) {
-      sozaiMap.setView([m.sozaiCenter.lat, m.sozaiCenter.lng], m.sozaiZoom);
-    }
-    if (m.haichiCenter && m.haichiZoom && haichiMap) {
-      haichiMap.setView([m.haichiCenter.lat, m.haichiCenter.lng], m.haichiZoom);
+    try {
+      const m = data.mapState;
+      if (m.sozaiCenter && typeof sozaiMap !== 'undefined' && sozaiMap) {
+        const lat = m.sozaiCenter.lat !== undefined ? m.sozaiCenter.lat : (Array.isArray(m.sozaiCenter) ? m.sozaiCenter[0] : null);
+        const lng = m.sozaiCenter.lng !== undefined ? m.sozaiCenter.lng : (Array.isArray(m.sozaiCenter) ? m.sozaiCenter[1] : null);
+        if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+          sozaiMap.setView([Number(lat), Number(lng)], m.sozaiZoom || 15);
+        }
+      }
+      if (m.haichiCenter && typeof haichiMap !== 'undefined' && haichiMap) {
+        const lat = m.haichiCenter.lat !== undefined ? m.haichiCenter.lat : (Array.isArray(m.haichiCenter) ? m.haichiCenter[0] : null);
+        const lng = m.haichiCenter.lng !== undefined ? m.haichiCenter.lng : (Array.isArray(m.haichiCenter) ? m.haichiCenter[1] : null);
+        if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+          haichiMap.setView([Number(lat), Number(lng)], m.haichiZoom || 18);
+        }
+      }
+    } catch(err) {
+      console.warn('Map state restore warning:', err);
     }
   }
 
+  // 3. 作図ベクター要素の復元
   if (data.drawings) {
-    drawings = data.drawings;
-    pushHistory();
-    redrawAll();
-    setTimeout(() => {
-      resizeCanvases();
+    try {
+      drawings = {
+        sozai: Array.isArray(data.drawings.sozai) ? data.drawings.sozai : [],
+        haichi: Array.isArray(data.drawings.haichi) ? data.drawings.haichi : []
+      };
+      pushHistory();
       redrawAll();
-    }, 150);
-    setTimeout(() => {
-      redrawAll();
-    }, 350);
+      setTimeout(() => {
+        resizeCanvases();
+        redrawAll();
+      }, 100);
+      setTimeout(() => {
+        redrawAll();
+      }, 300);
+    } catch(err) {
+      console.error('Drawings restore error:', err);
+    }
   }
 
+  // 4. スタンプの復元
   if (data.stampList) {
-    stampList = data.stampList;
-    localStorage.setItem('syako_map_maker_stamps_v2', JSON.stringify(stampList));
-    renderStamps();
+    try {
+      stampList = Array.isArray(data.stampList) ? data.stampList : [];
+      localStorage.setItem('syako_map_maker_stamps_v2', JSON.stringify(stampList));
+      renderStamps();
+    } catch(err) {}
   }
 }
 
