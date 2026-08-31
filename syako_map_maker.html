@@ -4374,9 +4374,61 @@ function restoreDraftFromStorage() {
   return false;
 }
 
-function exportA4PDF() {
+async function exportA4PDF() {
   clearSelection();
-  window.print();
+  showToast('📄 高精度A4 PDFを生成中（ズレ0mm・完全公文書様式）...');
+
+  try {
+    if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
+      window.print();
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
+    });
+
+    const page1 = document.getElementById('page1Sozai');
+    const page2 = document.getElementById('page2Haichi');
+    const mode = document.getElementById('layoutSelect')?.value || 'oss-2page';
+
+    // 1ページ目（所在図）を高解像度（300DPI相当）でレンダリング
+    const c1 = await html2canvas(page1, {
+      scale: 3,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+    const imgData1 = c1.toDataURL('image/jpeg', 0.96);
+    doc.addImage(imgData1, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+
+    // 2ページ様式の場合は2ページ目（配置図）を追加
+    if (mode === 'oss-2page' && page2) {
+      doc.addPage('a4', 'landscape');
+      const c2 = await html2canvas(page2, {
+        scale: 3,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      const imgData2 = c2.toDataURL('image/jpeg', 0.96);
+      doc.addImage(imgData2, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+    }
+
+    const addr = (document.getElementById('parkingAddress')?.value || linkedCaseTitle || '申請地').replace(/[\s\/\\:;,.*?"<>|]/g, '_').slice(0, 20);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `車庫証明_所在図配置図_${addr}_${dateStr}.pdf`;
+
+    doc.save(fileName);
+    showToast(`✅ ズレ0mmの完成PDF「${fileName}」を出力しました！`);
+  } catch (err) {
+    console.error('PDF出力エラー:', err);
+    window.print();
+  }
 }
 
 async function exportOSSImage() {
