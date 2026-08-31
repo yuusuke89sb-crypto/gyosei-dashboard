@@ -1391,37 +1391,83 @@ function checkUrlCaseParams() {
     }
 
     // 1. 保存済みの案件作図データ（syako_case_map_ID）があるか確認
+    let restored = false;
     const savedCaseData = localStorage.getItem('syako_case_map_' + caseId);
     if (savedCaseData) {
       try {
         const data = JSON.parse(savedCaseData);
-        if (data && (data.drawings || data.formData)) {
+        if (data && (data.drawings?.sozai?.length > 0 || data.drawings?.haichi?.length > 0 || data.formData)) {
           restoreProjectData(data);
-          showToast(`📂 案件「${linkedCaseTitle}」の保存済み図面を読み込みました`);
-          return true;
+          showToast(`📂 案件「${linkedCaseTitle}」の保存済み図面を復元しました`);
+          restored = true;
         }
       } catch(e) {
         console.error('Failed to parse case map data:', e);
       }
     }
 
-    // 2. 下書き（syako_map_maker_draft）に同案件または有効な作図データがあるか確認（フォールバック）
-    try {
-      const rawDraft = localStorage.getItem('syako_map_maker_draft');
-      if (rawDraft) {
-        const draft = JSON.parse(rawDraft);
-        if (draft && draft.drawings && (draft.drawings.sozai?.length > 0 || draft.drawings.haichi?.length > 0)) {
-          // 同一案件IDまたは下書き作図が存在する場合に復元
-          if (!draft.caseId || draft.caseId === caseId) {
-            restoreProjectData(draft);
-            showToast(`📂 直前の作図下書きデータを復元しました`);
-            return true;
-          }
+    // 2. localStorage 内の全 syako_case_map_* から住所・タイトル・車台番号で合致するデータを探索
+    if (!restored) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('syako_case_map_')) {
+          try {
+            const raw = localStorage.getItem(k);
+            const d = JSON.parse(raw);
+            const matchAddr = (home && (d.formData?.homeAddr === home || d.formData?.parkAddr === home)) ||
+                              (parking && (d.formData?.parkAddr === parking || d.formData?.homeAddr === parking));
+            const matchReg = regNo && (d.formData?.regNo === regNo);
+            const matchTitle = title && (d.caseTitle === title || d.formData?.caseTitle === title);
+            if ((matchAddr || matchReg || matchTitle) && (d.drawings?.sozai?.length > 0 || d.drawings?.haichi?.length > 0)) {
+              restoreProjectData(d);
+              showToast(`📂 類似案件（${d.caseTitle || d.formData?.parkAddr || ''}）の作図データを復元しました`);
+              restored = true;
+              break;
+            }
+          } catch(e) {}
         }
       }
-    } catch(e) {}
+    }
 
-    // 3. 初回作成の場合：URLパラメータから住所と情報を自動反映
+    // 3. 直近の下書き（syako_map_maker_draft）に有効な作図データがあるか確認
+    if (!restored) {
+      try {
+        const rawDraft = localStorage.getItem('syako_map_maker_draft');
+        if (rawDraft) {
+          const draft = JSON.parse(rawDraft);
+          if (draft && draft.drawings && (draft.drawings.sozai?.length > 0 || draft.drawings.haichi?.length > 0)) {
+            restoreProjectData(draft);
+            showToast(`📂 直前の作図下書きデータを自動復元しました`);
+            restored = true;
+          }
+        }
+      } catch(e) {}
+    }
+
+    // 4. ベクターデータが見つからないが、保存済みサムネイルPNG（gyosei_case_map_png_ID）が存在する場合
+    if (!restored) {
+      const savedPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
+      if (savedPng) {
+        try {
+          setHaichiMode('blank');
+          const img = new Image();
+          img.onload = () => {
+            if (haichiCtx && haichiCanvas) {
+              haichiCtx.drawImage(img, 0, 0, haichiCanvas.width, haichiCanvas.height);
+            }
+          };
+          img.src = savedPng;
+          showToast(`🖼️ 保存済み配置図画像からプレビューを復元しました`);
+          restored = true;
+        } catch(e) {}
+      }
+    }
+
+    if (restored) {
+      return true;
+    }
+
+    // 5. 新規作成の場合のみ：住所から地図を自動取得
     if (home) {
       document.getElementById('homeAddress').value = home;
       if (parking) {
@@ -4143,6 +4189,9 @@ function autoSaveDraft() {
         drawings: drawings
       };
       localStorage.setItem('syako_map_maker_draft', JSON.stringify(draft));
+      if (linkedCaseId) {
+        localStorage.setItem('syako_case_map_' + linkedCaseId, JSON.stringify(draft));
+      }
     } catch(e){}
   }, 400);
 }

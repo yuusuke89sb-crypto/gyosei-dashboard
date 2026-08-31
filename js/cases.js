@@ -1291,19 +1291,28 @@ const Cases = {
     this.editingId = id;
     const c = Store.getCase(id);
     if (!c) return;
-    App.refreshView();
+
+    // 他のページ（顧客一覧など）から呼ばれた場合は案件管理ページに切り替える
+    if (typeof App !== 'undefined' && App.currentPage !== 'cases') {
+      App.navigate('cases');
+    } else {
+      App.refreshView();
+    }
+
     setTimeout(() => {
+      const modal = document.getElementById('caseModal');
+      if (!modal) return;
       document.getElementById('caseModalTitle').textContent = '案件編集';
-      document.getElementById('csf_title').value = c.title;
+      document.getElementById('csf_title').value = c.title || '';
       document.getElementById('csf_orderNo').value = c.orderNo || c['注文書№'] || c['注文書No'] || c['注文番号'] || '';
       document.getElementById('csf_clientId').value = c.clientId || '';
       Cases.onClientChange(c.clientId || '', c.clientContactId || '');
       document.getElementById('csf_staffId').value = c.staffId || '';
       document.getElementById('csf_registeredAt').value = c.registeredAt || c.createdAt?.slice(0, 10) || '';
-      document.getElementById('csf_category').value = c.category;
+      document.getElementById('csf_category').value = c.category || 'garage_oss';
       const subCatEl = document.getElementById('csf_subCategory');
       if (subCatEl) subCatEl.value = c.subCategory || '';
-      document.getElementById('csf_status').value = c.status;
+      document.getElementById('csf_status').value = c.status || 'received';
       const deadlineEl = document.getElementById('csf_deadline');
       if (deadlineEl) deadlineEl.value = c.deadline || '';
       document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
@@ -1318,13 +1327,13 @@ const Cases = {
       document.getElementById('csf_carNumber').value = c.carNumber || '';
       document.getElementById('csf_carPolice').value = c.carPolice || '';
       document.getElementById('caseDeleteBtn').style.display = 'block';
-      document.getElementById('caseModal').style.display = 'flex';
+      modal.style.display = 'flex';
       // 立替金を読み込み
       this.advanceDraft = Array.isArray(c.advances) ? JSON.parse(JSON.stringify(c.advances)) : [];
       this.renderAdvanceRows();
 
       // カテゴリに応じたフィールド表示制御
-      Cases.toggleCategoryFields(c.category);
+      Cases.toggleCategoryFields(c.category || 'garage_oss');
 
       const deathDateEl = document.getElementById('csf_deathDate');
       if (deathDateEl) deathDateEl.value = c.deathDate || '';
