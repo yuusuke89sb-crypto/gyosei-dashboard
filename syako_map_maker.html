@@ -439,13 +439,12 @@
     font-size: 8.5pt;
   }
 
-  /* 地図レイヤー（白黒・公図風） */
+  /* 地図レイヤー（国土地理院 淡色地図等） */
   .map-layer {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: 1;
-    filter: grayscale(100%) contrast(105%) brightness(96%);
-    transition: opacity 0.3s, filter 0.2s;
+    transition: opacity 0.3s;
   }
   .map-layer.blank-mode {
     opacity: 0;
@@ -921,10 +920,10 @@
       <div class="form-group" style="margin-bottom:8px;">
         <label class="form-label">地図デザイン（道路・線路の表示スタイル）</label>
         <select id="mapTileSelect" class="form-input" onchange="changeMapTile(this.value); autoSaveDraft();" style="font-weight:bold; color:#38BDF8;">
-          <option value="osm-transit" selected>🚆 交通・線路くっきり（警察提出・車庫証明推奨）</option>
-          <option value="gsi-pale">🗺️ 国土地理院 淡色（すっきり公図風・白地最適）</option>
-          <option value="gsi-blank">📄 国土地理院 白地図（完全白地＋境界線・道路のみ）</option>
-          <option value="gsi-std">🗾 国土地理院 標準（市街地・家形重視）</option>
+          <option value="gsi-pale" selected>🗺️ 国土地理院 淡色（公式淡色地図・カラー）</option>
+          <option value="gsi-std">🗾 国土地理院 標準（市街地・家形詳細）</option>
+          <option value="gsi-blank">📄 国土地理院 白地図（境界線・道路のみ）</option>
+          <option value="osm-transit">🚆 交通・線路くっきり（OSM交通）</option>
           <option value="osm">🌐 OpenStreetMap（標準）</option>
         </select>
       </div>
@@ -933,15 +932,14 @@
       <div style="margin-bottom:10px; background:#0F172A; border:1px solid #334155; border-radius:6px; padding:6px 8px;">
         <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:3px;">
           <span style="color:#E2E8F0; font-weight:bold;">🖤 道路・線画の濃さ（コントラスト）</span>
-          <span id="contrastLabel" style="font-weight:bold; color:#F59E0B;">160%（⭐道路くっきり・白地100%最適）</span>
+          <span id="contrastLabel" style="font-weight:bold; color:#38BDF8;">100%（国土地理院 淡色カラー標準）</span>
         </div>
-        <input type="range" id="contrastSlider" min="50" max="250" step="5" value="160" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
+        <input type="range" id="contrastSlider" min="50" max="220" step="5" value="100" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
         <div style="display:flex; gap:3px; margin-top:3px;">
           <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(80)">80%淡め</button>
-          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(120)">120%標準</button>
-          <button class="btn btn-primary" style="flex:1.5; padding:2px 2px; font-size:0.68rem; background:#F59E0B; color:#000; font-weight:bold;" onclick="setContrastPreset(160)">⭐160%白地最適</button>
-          <button class="btn btn-secondary" style="flex:1.2; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(180)">180%超濃厚</button>
-          <button class="btn btn-accent" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(220)">220%極黒</button>
+          <button class="btn btn-primary" style="flex:1.5; padding:2px 2px; font-size:0.68rem; background:#38BDF8; color:#000; font-weight:bold;" onclick="setContrastPreset(100)">⭐淡色カラー標準</button>
+          <button class="btn btn-secondary" style="flex:1.2; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(130)">130%くっきり</button>
+          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(160)">160%濃厚</button>
         </div>
       </div>
       
@@ -2219,25 +2217,31 @@ function applyMapContrast(contrast) {
   const sozaiMapEl = document.getElementById('sozaiMap');
   const haichiMapEl = document.getElementById('haichiMap');
   
-  const c = Math.max(50, Math.min(260, parseInt(contrast, 10) || 160));
-  // 背景の淡色（クリーム色・薄緑等）を完全な純白（#FFFFFF）に白飛ばしし、道路の黒線だけをくっきり引き締めるホワイトウォッシュカーブ
-  const b = Math.max(105, Math.min(135, Math.round(100 + (c - 100) * 0.28)));
-  const filterStr = `grayscale(100%) brightness(${b}%) contrast(${c}%)`;
+  const c = Math.max(50, Math.min(260, parseInt(contrast, 10) || 100));
+  
+  let filterStr = '';
+  if (c >= 95 && c <= 105) {
+    // 国土地理院淡色地図の本来の色彩・自然なコントラストを100%忠実に出力
+    filterStr = 'none';
+  } else {
+    // 濃淡調整
+    const b = Math.round(100 + (c - 100) * 0.15);
+    filterStr = `contrast(${c}%) brightness(${b}%)`;
+  }
 
   if (sozaiMapEl) sozaiMapEl.style.filter = filterStr;
   if (haichiMapEl) haichiMapEl.style.filter = filterStr;
 
-  let desc = '標準';
+  let desc = '国土地理院 淡色カラー標準';
   if (c <= 80) desc = '80%（淡め）';
-  else if (c <= 120) desc = '120%（標準）';
-  else if (c <= 150) desc = '150%（濃いめ）';
-  else if (c <= 170) desc = '160%（⭐道路くっきり・白地100%最適）';
-  else if (c <= 190) desc = '180%（⚡警察審査・超濃厚）';
-  else desc = `${c}%（極黒エッジ強調）`;
+  else if (c >= 95 && c <= 105) desc = '100%（国土地理院 淡色カラー標準）';
+  else if (c <= 140) desc = `${c}%（くっきり）`;
+  else if (c <= 180) desc = `${c}%（濃厚）`;
+  else desc = `${c}%（極黒強調）`;
 
   if (label) {
     label.textContent = `${c}%（${desc}）`;
-    label.style.color = (c >= 160) ? '#F59E0B' : '#38BDF8';
+    label.style.color = (c === 100) ? '#38BDF8' : '#F59E0B';
   }
 }
 
@@ -2280,8 +2284,8 @@ function initMaps() {
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(sozaiMap);
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(haichiMap);
 
-  // デフォルトで道路くっきり・白地100%最適(160%)を適用
-  applyMapContrast(160);
+  // デフォルトで国土地理院 淡色カラー標準(100%)を適用
+  applyMapContrast(100);
 
   sozaiMap.on('zoomend', () => {
     const z = sozaiMap.getZoom();
