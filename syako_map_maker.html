@@ -553,8 +553,8 @@
     html, body {
       background: #fff !important;
       color: #000 !important;
-      width: 100% !important;
-      height: 100% !important;
+      width: 297mm !important;
+      height: auto !important;
       overflow: visible !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -565,8 +565,8 @@
     }
     .workspace, .preview-area {
       display: block !important;
+      width: 297mm !important;
       height: auto !important;
-      min-height: 100% !important;
       overflow: visible !important;
       padding: 0 !important;
       margin: 0 !important;
@@ -574,15 +574,15 @@
       gap: 0 !important;
     }
     .a4-page-oss {
-      width: 100% !important;
-      height: 188mm !important;
-      min-height: 188mm !important;
-      max-height: 188mm !important;
+      width: 297mm !important;
+      height: 210mm !important;
+      min-height: 210mm !important;
+      max-height: 210mm !important;
       box-shadow: none !important;
       border-radius: 0 !important;
       border: none !important;
-      padding: 2mm 4mm !important;
-      margin: 0 auto !important;
+      padding: 6mm 10mm 4mm 10mm !important;
+      margin: 0 !important;
       display: flex !important;
       flex-direction: column !important;
       page-break-after: always !important;
@@ -590,6 +590,7 @@
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       box-sizing: border-box !important;
+      overflow: hidden !important;
     }
     .a4-page-oss:last-child {
       page-break-after: auto !important;
@@ -602,16 +603,18 @@
     .page-canvas-container {
       flex: 1 !important;
       width: 100% !important;
-      height: 140mm !important;
-      min-height: 140mm !important;
-      max-height: 140mm !important;
+      height: 145mm !important;
+      min-height: 145mm !important;
+      max-height: 145mm !important;
       border: 1.5px solid #000 !important;
       border-top: none !important;
+      overflow: hidden !important;
+      box-sizing: border-box !important;
     }
   }
 </style>
 <style id="printPageStyle">
-  @page { size: A4 landscape; margin: 8mm; }
+  @page { size: A4 landscape; margin: 0; }
 </style>
 </head>
 <body>
@@ -3884,10 +3887,10 @@ function switchLayout() {
 
   if (mode === 'oss-2page') {
     badge.textContent = 'A4横・OSS 2ページ様式';
-    styleEl.innerHTML = `@page { size: A4 landscape; margin: 8mm; }`;
+    styleEl.innerHTML = `@page { size: A4 landscape; margin: 0; }`;
   } else {
     badge.textContent = 'A4横・1ページ警察標準';
-    styleEl.innerHTML = `@page { size: A4 landscape; margin: 8mm; }`;
+    styleEl.innerHTML = `@page { size: A4 landscape; margin: 0; }`;
   }
 
   setTimeout(() => {
