@@ -932,14 +932,14 @@
       <div style="margin-bottom:10px; background:#0F172A; border:1px solid #334155; border-radius:6px; padding:6px 8px;">
         <div style="display:flex; justify-content:space-between; font-size:0.75rem; margin-bottom:3px;">
           <span style="color:#E2E8F0; font-weight:bold;">🖤 道路・線画の濃さ（コントラスト）</span>
-          <span id="contrastLabel" style="font-weight:bold; color:#38BDF8;">100%（国土地理院 淡色カラー標準）</span>
+          <span id="contrastLabel" style="font-weight:bold; color:#F59E0B;">160%（⭐住宅区画なし・道路くっきり白地最適）</span>
         </div>
-        <input type="range" id="contrastSlider" min="50" max="220" step="5" value="100" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
+        <input type="range" id="contrastSlider" min="50" max="240" step="5" value="160" style="width:100%; cursor:pointer;" oninput="onContrastSliderChange(this.value); autoSaveDraft();">
         <div style="display:flex; gap:3px; margin-top:3px;">
-          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(80)">80%淡め</button>
-          <button class="btn btn-primary" style="flex:1.5; padding:2px 2px; font-size:0.68rem; background:#38BDF8; color:#000; font-weight:bold;" onclick="setContrastPreset(100)">⭐淡色カラー標準</button>
-          <button class="btn btn-secondary" style="flex:1.2; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(130)">130%くっきり</button>
-          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(160)">160%濃厚</button>
+          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(100)">100%標準</button>
+          <button class="btn btn-primary" style="flex:1.8; padding:2px 2px; font-size:0.68rem; background:#F59E0B; color:#000; font-weight:bold;" onclick="setContrastPreset(160)">⭐160%住宅区画消去</button>
+          <button class="btn btn-secondary" style="flex:1.2; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(180)">180%濃厚</button>
+          <button class="btn btn-secondary" style="flex:1; padding:2px 2px; font-size:0.68rem;" onclick="setContrastPreset(220)">220%極黒</button>
         </div>
       </div>
       
@@ -1690,7 +1690,8 @@ async function saveToCaseDirectly() {
     if (page1 && page2 && typeof html2canvas !== 'undefined') {
       showToast('☁️ Google Driveへ所在図・配置図を保管中...');
       
-      const c1 = await html2canvas(page1, { scale: 2, useCORS: true, logging: false });
+      const rawC1 = await html2canvas(page1, { scale: 2, useCORS: true, logging: false });
+      const c1 = applyHighContrastWhitewash(rawC1, parseInt(document.getElementById('contrastSlider')?.value, 10) || 160);
       const c2 = await html2canvas(page2, { scale: 2, useCORS: true, logging: false });
       const sozaiDataUrl = c1.toDataURL('image/png');
       const haichiDataUrl = c2.toDataURL('image/png');
@@ -2217,32 +2218,63 @@ function applyMapContrast(contrast) {
   const sozaiMapEl = document.getElementById('sozaiMap');
   const haichiMapEl = document.getElementById('haichiMap');
   
-  const c = Math.max(50, Math.min(260, parseInt(contrast, 10) || 100));
-  
-  let filterStr = '';
-  if (c >= 95 && c <= 105) {
-    // 国土地理院淡色地図の本来の色彩・自然なコントラストを100%忠実に出力
-    filterStr = 'none';
-  } else {
-    // 濃淡調整
-    const b = Math.round(100 + (c - 100) * 0.15);
-    filterStr = `contrast(${c}%) brightness(${b}%)`;
-  }
+  const c = Math.max(50, Math.min(260, parseInt(contrast, 10) || 160));
+  // 150%以上：背景の薄いグレー（住宅区画等）を完全な純白（#FFFFFF）に白飛ばしし、道路黒線・文字のみを抽出
+  const b = Math.max(105, Math.min(135, Math.round(100 + (c - 100) * 0.28)));
+  const filterStr = `grayscale(100%) brightness(${b}%) contrast(${c}%)`;
 
   if (sozaiMapEl) sozaiMapEl.style.filter = filterStr;
   if (haichiMapEl) haichiMapEl.style.filter = filterStr;
 
-  let desc = '国土地理院 淡色カラー標準';
+  let desc = '標準';
   if (c <= 80) desc = '80%（淡め）';
-  else if (c >= 95 && c <= 105) desc = '100%（国土地理院 淡色カラー標準）';
-  else if (c <= 140) desc = `${c}%（くっきり）`;
-  else if (c <= 180) desc = `${c}%（濃厚）`;
+  else if (c <= 120) desc = '100%（標準）';
+  else if (c <= 150) desc = '140%（くっきり）';
+  else if (c <= 170) desc = '160%（⭐住宅区画なし・道路白地最適）';
+  else if (c <= 190) desc = '180%（濃厚）';
   else desc = `${c}%（極黒強調）`;
 
   if (label) {
     label.textContent = `${c}%（${desc}）`;
-    label.style.color = (c === 100) ? '#38BDF8' : '#F59E0B';
+    label.style.color = (c >= 160) ? '#F59E0B' : '#38BDF8';
   }
+}
+
+// ─── キャンバス画像に160%ホワイトウォッシュ（住宅区画消去＋道路抽出）を適用する関数 ───
+function applyHighContrastWhitewash(sourceCanvas, contrastVal = 160) {
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = sourceCanvas.width;
+  outCanvas.height = sourceCanvas.height;
+  const ctx = outCanvas.getContext('2d');
+
+  const c = Math.max(50, Math.min(260, parseInt(contrastVal, 10) || 160));
+  const b = Math.max(105, Math.min(135, Math.round(100 + (c - 100) * 0.28)));
+  ctx.filter = `grayscale(100%) brightness(${b}%) contrast(${c}%)`;
+  ctx.drawImage(sourceCanvas, 0, 0);
+
+  // 140%以上の場合：ピクセル単位で薄いグレー四角（住宅区画）を完全純白(#FFFFFF)へ飛ばす
+  if (c >= 140) {
+    try {
+      const imgData = ctx.getImageData(0, 0, outCanvas.width, outCanvas.height);
+      const data = imgData.data;
+      const threshold = 215; // 住宅区画の薄いグレーの閾値
+      for (let i = 0; i < data.length; i += 4) {
+        const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+        if (avg > threshold) {
+          data[i] = 255;
+          data[i+1] = 255;
+          data[i+2] = 255;
+        } else if (avg < 90) {
+          data[i] = Math.max(0, data[i] - 25);
+          data[i+1] = Math.max(0, data[i+1] - 25);
+          data[i+2] = Math.max(0, data[i+2] - 25);
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    } catch(e) {}
+  }
+
+  return outCanvas;
 }
 
 function initMaps() {
@@ -4400,13 +4432,14 @@ async function exportA4PDF() {
     const page2 = document.getElementById('page2Haichi');
     const mode = document.getElementById('layoutSelect')?.value || 'oss-2page';
 
-    // 1ページ目（所在図）を高解像度（300DPI相当）でレンダリング
-    const c1 = await html2canvas(page1, {
+    // 1ページ目（所在図）を高解像度（300DPI相当）でレンダリングし、160%ホワイトウォッシュ（住宅区画消去＋道路くっきり）を適用
+    const rawC1 = await html2canvas(page1, {
       scale: 3,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff'
     });
+    const c1 = applyHighContrastWhitewash(rawC1, parseInt(document.getElementById('contrastSlider')?.value, 10) || 160);
     const imgData1 = c1.toDataURL('image/jpeg', 0.96);
     doc.addImage(imgData1, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
 
@@ -4428,7 +4461,7 @@ async function exportA4PDF() {
     const fileName = `車庫証明_所在図配置図_${addr}_${dateStr}.pdf`;
 
     doc.save(fileName);
-    showToast(`✅ ズレ0mmの完成PDF「${fileName}」を出力しました！`);
+    showToast(`✅ ズレ0mm・住宅区画消去済みPDF「${fileName}」を出力しました！`);
   } catch (err) {
     console.error('PDF出力エラー:', err);
     window.print();
@@ -4443,7 +4476,8 @@ async function exportOSSImage() {
   const addr = (document.getElementById('parkingAddress').value || linkedCaseTitle || '申請地').replace(/[\s\/\\:;,.*?"<>|]/g, '_').slice(0, 25);
   const dateStr = new Date().toISOString().slice(0,10);
 
-  const c1 = await html2canvas(page1, { scale: 2, useCORS: true, logging: false });
+  const rawC1 = await html2canvas(page1, { scale: 2, useCORS: true, logging: false });
+  const c1 = applyHighContrastWhitewash(rawC1, parseInt(document.getElementById('contrastSlider')?.value, 10) || 160);
   const l1 = document.createElement('a');
   l1.download = `車庫証明_所在図_${addr}_${dateStr}.png`;
   l1.href = c1.toDataURL('image/png');
