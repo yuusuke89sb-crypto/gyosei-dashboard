@@ -799,17 +799,50 @@ const Cases = {
       const isPdf = (att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf'));
       const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
 
-      // 1. Google DriveのプレビューURL（PDF・画像全対応）
+      // 1. Google Driveのファイル
       if (att.url && att.url.includes('drive.google.com')) {
         const match = att.url.match(/[-\w]{25,}/);
         if (match) {
-          const previewUrl = `https://drive.google.com/file/d/${match[0]}/preview`;
-          if (loading) loading.style.display = 'none';
-          if (iframeEl) {
-            iframeEl.src = previewUrl;
-            iframeEl.style.display = 'block';
+          const fileId = match[0];
+          if (isPdf) {
+            // PDFの場合はiframeでGoogleプレビュー表示
+            const previewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+            if (loading) loading.style.display = 'none';
+            if (iframeEl) {
+              iframeEl.src = previewUrl;
+              iframeEl.style.display = 'block';
+            }
+            return;
+          } else {
+            // 画像（JPG/PNG/TIF等）の場合はネイティブ<img>で直接ロード（90度回転・ズーム・パンに完全対応）
+            if (loading) loading.style.display = 'none';
+            if (imgEl && wrapper) {
+              imgEl.onerror = () => {
+                // サムネイル高画質URLにフォールバック
+                imgEl.onerror = () => {
+                  if (iframeEl) {
+                    wrapper.style.display = 'none';
+                    imgEl.style.display = 'none';
+                    iframeEl.src = `https://drive.google.com/file/d/${fileId}/preview`;
+                    iframeEl.style.display = 'block';
+                  }
+                };
+                imgEl.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2500`;
+              };
+              imgEl.src = `https://lh3.googleusercontent.com/d/${fileId}`;
+              wrapper.style.display = 'flex';
+              imgEl.style.display = 'block';
+              imgEl.onload = () => {
+                this.applyViewerTransform();
+                this.setupViewerInteractions();
+              };
+              if (imgEl.complete) {
+                this.applyViewerTransform();
+                this.setupViewerInteractions();
+              }
+            }
+            return;
           }
-          return;
         }
       }
 
@@ -1020,33 +1053,66 @@ const Cases = {
   rotateImageSource(imgSrc, angle = 90) {
     return new Promise((resolve) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      if (!imgSrc.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (angle === 90 || angle === 270) {
-          canvas.width = img.naturalHeight;
-          canvas.height = img.naturalWidth;
-        } else {
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (angle === 90 || angle === 270) {
+            canvas.width = img.naturalHeight;
+            canvas.height = img.naturalWidth;
+          } else {
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+          }
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angle * Math.PI) / 180);
+          ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+          resolve(canvas.toDataURL('image/jpeg', 0.95));
+        } catch (e) {
+          console.warn('Canvas rotation error (CORS):', e);
+          resolve(null);
         }
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((angle * Math.PI) / 180);
-        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-        resolve(canvas.toDataURL('image/jpeg', 0.95));
       };
-      img.onerror = () => resolve(imgSrc);
+      img.onerror = () => resolve(null);
       img.src = imgSrc;
     });
   },
 
-  rotateViewer() {
+  async rotateViewer() {
     const imgEl = document.getElementById('caseViewerImg');
-    if (!imgEl || !imgEl.src) return;
-    this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
-    this.applyViewerTransform();
-    App.showToast(`🔄 ${this.viewerState.rotation}° 回転しました`);
+    const iframeEl = document.getElementById('caseViewerIframe');
+    
+    // 1. 画像が表示されている場合
+    if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
+      // まずCanvasによる物理回転を試行（解像度・レイアウト比率をそのまま反転）
+      const rotatedSrc = await this.rotateImageSource(imgEl.src, 90);
+      if (rotatedSrc) {
+        imgEl.src = rotatedSrc;
+        this.viewerState.rotation = 0; // 物理回転したのでCSS回転は0に戻す
+        this.applyViewerTransform();
+        App.showToast('🔄 90°回転しました（紙面の向きを変更）');
+        return;
+      }
+
+      // CORS制限等でCanvasが使えない場合：CSS Transformで回転
+      this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
+      this.applyViewerTransform();
+      App.showToast(`🔄 ${this.viewerState.rotation}° 回転しました`);
+      return;
+    }
+
+    // 2. iframe（PDF等）が表示されている場合
+    if (iframeEl && iframeEl.src && iframeEl.style.display !== 'none') {
+      this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
+      this.applyViewerTransform();
+      App.showToast(`🔄 プレビューを ${this.viewerState.rotation}° 回転しました`);
+      return;
+    }
+
+    App.showToast('⚠️ 回転可能なファイルが開かれていません');
   },
 
   toggleWidePreview() {
@@ -1116,27 +1182,45 @@ const Cases = {
   applyViewerTransform() {
     const wrapper = document.getElementById('caseViewerImgWrapper');
     const imgEl = document.getElementById('caseViewerImg');
-    if (!wrapper || !imgEl || !imgEl.src) return;
-
+    const iframeEl = document.getElementById('caseViewerIframe');
     const zoom = this.viewerState.zoom || 1.0;
     const rotation = this.viewerState.rotation || 0;
-    wrapper.style.display = 'flex';
-    wrapper.style.alignItems = 'center';
-    wrapper.style.justifyContent = 'center';
-    wrapper.style.width = '100%';
-    wrapper.style.minHeight = '100%';
-    wrapper.style.overflow = 'visible';
 
-    imgEl.style.maxWidth = (rotation === 90 || rotation === 270) ? '80vh' : '100%';
-    imgEl.style.maxHeight = (rotation === 90 || rotation === 270) ? '95%' : 'none';
-    imgEl.style.height = 'auto';
-    imgEl.style.display = 'block';
-    imgEl.style.margin = '0 auto';
-    imgEl.style.transform = `scale(${zoom}) rotate(${rotation}deg)`;
-    imgEl.style.transformOrigin = 'center center';
-    imgEl.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)';
-    imgEl.style.borderRadius = '4px';
-    imgEl.style.transition = 'transform 0.15s ease';
+    if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
+      const isSideways = (rotation === 90 || rotation === 270);
+      wrapper.style.display = 'flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.justifyContent = 'center';
+      wrapper.style.width = '100%';
+      wrapper.style.minHeight = '100%';
+      wrapper.style.overflow = 'visible';
+      wrapper.style.padding = isSideways ? '20px 0' : '0';
+
+      imgEl.style.display = 'block';
+      imgEl.style.margin = 'auto';
+      imgEl.style.boxShadow = '0 6px 25px rgba(0,0,0,0.6)';
+      imgEl.style.borderRadius = '4px';
+
+      if (isSideways) {
+        imgEl.style.maxWidth = '65vh';
+        imgEl.style.maxHeight = '90%';
+        imgEl.style.width = 'auto';
+        imgEl.style.height = 'auto';
+      } else {
+        imgEl.style.maxWidth = '100%';
+        imgEl.style.maxHeight = 'none';
+        imgEl.style.width = '100%';
+        imgEl.style.height = 'auto';
+      }
+
+      imgEl.style.transform = `scale(${zoom}) rotate(${rotation}deg)`;
+      imgEl.style.transformOrigin = 'center center';
+      imgEl.style.transition = 'transform 0.15s ease';
+    } else if (iframeEl && iframeEl.style.display !== 'none') {
+      iframeEl.style.transform = `rotate(${rotation}deg)`;
+      iframeEl.style.transformOrigin = 'center center';
+      iframeEl.style.transition = 'transform 0.15s ease';
+    }
   },
 
   setupViewerInteractions() {
