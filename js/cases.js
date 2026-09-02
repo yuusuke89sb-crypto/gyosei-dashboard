@@ -461,7 +461,7 @@ const Cases = {
 
             <!-- ─── 👉 右側: 案件登録フォーム ─── -->
             <div id="caseFormPane" style="flex:1; width:100%; max-height:78vh; overflow-y:auto; padding-right:8px;">
-              <form id="caseForm" onsubmit="Cases.onSubmit(event)">
+              <form id="caseForm" onsubmit="Cases.onSubmit(event)" onkeydown="if(event.key==='Enter' && event.target.tagName==='INPUT'){event.preventDefault();}">
                 <div class="form-row">
                   <div class="form-group" style="flex:2">
                     <label>案件名 <span class="required">*</span></label>
@@ -681,11 +681,12 @@ const Cases = {
                   <textarea name="memo" id="csf_memo" rows="4" style="min-height:90px;resize:vertical;font-size:0.88rem;line-height:1.5;width:100%;box-sizing:border-box" placeholder="案件に関するメモ、特記事項、連絡事項など..."></textarea>
                 </div>
                 <div id="caseExtArea"></div>
-                <div class="form-actions">
+                <div class="form-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:20px;">
                   <button type="button" class="btn btn-danger" id="caseDeleteBtn" style="display:none; margin-right:auto"
                     onclick="Cases.onDelete()">🗑️ 削除</button>
-                  <button type="button" class="btn btn-secondary" onclick="Cases.closeModal()">キャンセル</button>
-                  <button type="submit" class="btn btn-primary">保存</button>
+                  <button type="button" class="btn btn-secondary" onclick="Cases.closeModal()" style="margin-right:auto;">✕ 閉じる</button>
+                  <button type="button" class="btn btn-secondary" onclick="Cases.saveCase(false)" style="background:#334155; color:#fff; font-weight:600;">💾 保存（画面を閉じない）</button>
+                  <button type="button" class="btn btn-primary" onclick="Cases.saveCase(true)" style="font-weight:bold;">✅ 保存して閉じる</button>
                 </div>
               </form>
             </div>
@@ -1575,14 +1576,30 @@ const Cases = {
     }, 0);
   },
 
+  _shouldCloseOnSubmit: true,
+
+  saveCase(shouldClose = true) {
+    this._shouldCloseOnSubmit = shouldClose;
+    const form = document.getElementById('caseForm');
+    if (!form) return;
+    if (!form.reportValidity()) return;
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
+  },
+
   closeModal() {
     document.getElementById('caseModal').style.display = 'none';
     this.editingId = null;
+    this._shouldCloseOnSubmit = true;
   },
 
   onSubmit(e) {
     e.preventDefault();
     const form = e.target;
+    const isExisting = !!this.editingId;
     const data = {
       title: form.title.value.trim(),
       orderNo: form.orderNo ? form.orderNo.value.trim() : '',
@@ -1752,12 +1769,33 @@ const Cases = {
     // Googleカレンダーへ案件日程を自動同期
     this.syncCaseDatesToCalendar(savedCase);
 
-    this.closeModal();
-    App.refreshView();
-    if (!this.editingId && data.inboxId) {
-      App.showToast('✅ 案件を登録しました（同じFAXから複数登録する場合は履歴タブの「別案件を追加登録」から可能）');
+    const shouldClose = this._shouldCloseOnSubmit !== false;
+    this._shouldCloseOnSubmit = true; // reset
+
+    if (shouldClose) {
+      this.closeModal();
+      App.refreshView();
+      if (!isExisting && data.inboxId) {
+        App.showToast('✅ 案件を登録しました（同じFAXから複数登録する場合は履歴タブの「別案件を追加登録」から可能）');
+      } else {
+        App.showToast(isExisting ? '案件を更新しました' : '案件を登録しました');
+      }
     } else {
-      App.showToast(this.editingId ? '案件を更新しました' : '案件を登録しました');
+      // 画面を閉じずにそのまま編集を継続
+      this.editingId = savedCase.id;
+      const titleEl = document.getElementById('caseModalTitle');
+      if (titleEl) {
+        const invBadge = savedCase.invoiceNo 
+          ? `<span style="font-size:0.75rem; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; margin-left:10px; font-weight:normal; display:inline-flex; align-items:center; gap:4px;">
+              📄 請求済: <strong>${savedCase.invoiceNo}</strong>
+              <button type="button" onclick="Cases.cancelSingleCaseInvoice('${savedCase.id}')" style="background:#dc2626; color:#fff; border:none; border-radius:3px; padding:1px 6px; font-size:0.7rem; cursor:pointer; font-weight:bold;" title="この案件の請求を取り消して未請求に戻す">❌ 請求取消</button>
+             </span>`
+          : '';
+        titleEl.innerHTML = '案件編集' + invBadge;
+      }
+      const deleteBtn = document.getElementById('caseDeleteBtn');
+      if (deleteBtn) deleteBtn.style.display = 'block';
+      App.showToast('💾 案件データを保存しました（続けて入力できます）');
     }
   },
 

@@ -183,8 +183,8 @@ const ActivityLog = {
       <div class="activity-log-widget">
         <h4>📝 対応履歴</h4>
         <div class="activity-add-row">
-          <input type="text" id="activityInput_${refId}" placeholder="例：電話にて書類の確認をした" style="flex:1">
-          <button class="btn btn-small btn-primary" onclick="ActivityLog.addFromWidget('${type}','${refId}')">追加</button>
+          <input type="text" id="activityInput_${refId}" placeholder="例：電話にて書類の確認をした" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();ActivityLog.addFromWidget('${type}','${refId}');}">
+          <button type="button" class="btn btn-small btn-primary" onclick="ActivityLog.addFromWidget('${type}','${refId}')">追加</button>
         </div>
         <div class="activity-list" id="activityList_${refId}">
           ${logs.length === 0 ? '<p class="empty-message" style="font-size:0.8rem;padding:8px 0">履歴なし</p>' :

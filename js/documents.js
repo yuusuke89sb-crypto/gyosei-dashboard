@@ -212,7 +212,7 @@ const CaseDocs = {
             ? `<a class="doc-btn" href="${doc.driveUrl}" target="_blank" title="Driveで開く / 閲覧">🔗 開く</a>`
             : ''
           }
-          ${!isInbox ? `<button class="doc-btn doc-btn-delete" onclick="CaseDocs.delete('${caseId}', '${doc.id}')" title="削除">🗑️</button>` : ''}
+          ${!isInbox ? `<button type="button" class="doc-btn doc-btn-delete" onclick="CaseDocs.delete('${caseId}', '${doc.id}')" title="削除">🗑️</button>` : ''}
         </div>
       </div>
     `;
