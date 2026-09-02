@@ -102,6 +102,7 @@ const SpreadsheetSync = {
                         parkingAddress: remoteCase.parkingAddress || (localCase && localCase.parkingAddress) || '',
                         carPolice: remoteCase.carPolice || (localCase && localCase.carPolice) || '',
                         carNumber: remoteCase.carNumber || (localCase && localCase.carNumber) || '',
+                        oldCarNumber: remoteCase.oldCarNumber || (localCase && localCase.oldCarNumber) || '',
                         subCategory: remoteCase.subCategory || (localCase && localCase.subCategory) || '',
                         invoiceNo: remoteCase.invoiceNo || (localCase && localCase.invoiceNo) || '',
                         deathDate: remoteCase.deathDate || (localCase && localCase.deathDate) || '',

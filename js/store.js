@@ -184,10 +184,11 @@ const Store = {
       policeLocationId: data.policeLocationId || '',
       landTransportLocationId: data.landTransportLocationId || '',
       registrationDate: data.registrationDate || '',
-      carName: data.carName || '',               // 名前（申請者等）
-      carAddress: data.carAddress || '',         // 住所
+      carName: data.carName || '',               // 名前（申請者・使用者等）
+      carAddress: data.carAddress || '',         // 使用の本拠の位置（自宅住所）
       parkingAddress: data.parkingAddress || '', // 保管場所住所
-      carNumber: data.carNumber || '',           // 車台番号
+      carNumber: data.carNumber || '',           // 自動車登録番号（新ナンバー）
+      oldCarNumber: data.oldCarNumber || '',     // 旧登録番号（旧ナンバー / 返納対象）
       carPolice: data.carPolice || '',           // 所轄警察署
       driveFolderUrl: data.driveFolderUrl || '', // Google DriveフォルダURL
       subCategory: data.subCategory || '',       // 登録種別

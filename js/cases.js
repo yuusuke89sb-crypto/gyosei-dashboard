@@ -666,9 +666,15 @@ const Cases = {
                   </div>
                   <div class="form-row">
                     <div class="form-group">
-                      <label>自動車登録番号（ナンバープレート）</label>
+                      <label>自動車登録番号（新ナンバー）</label>
                       <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：尾張小牧300自1234">
                     </div>
+                    <div class="form-group">
+                      <label>旧登録番号（旧ナンバー / 返納対象）</label>
+                      <input type="text" name="oldCarNumber" id="csf_oldCarNumber" placeholder="例：名古屋500さ5678 (名変・変更時)">
+                    </div>
+                  </div>
+                  <div class="form-row">
                     <div class="form-group">
                       <label>車台番号（VIN）</label>
                       <input type="text" name="vin" id="csf_vin" placeholder="例：ZWR90-0123456">
@@ -1404,7 +1410,11 @@ const Cases = {
         }
         if (prefills.vin || prefills.carNumber) {
           const carNumEl = document.getElementById('csf_carNumber');
-          if (carNumEl) carNumEl.value = prefills.vin || prefills.carNumber;
+          if (carNumEl) carNumEl.value = prefills.carNumber || prefills.vin;
+        }
+        if (prefills.oldCarNumber) {
+          const oldCarNumEl = document.getElementById('csf_oldCarNumber');
+          if (oldCarNumEl) oldCarNumEl.value = prefills.oldCarNumber;
         }
         if (prefills.deadline) document.getElementById('csf_deadline').value = prefills.deadline;
         if (prefills.memo) document.getElementById('csf_memo').value = prefills.memo;
@@ -1491,6 +1501,8 @@ const Cases = {
       const parkAddrEl = document.getElementById('csf_parkingAddress');
       if (parkAddrEl) parkAddrEl.value = c.parkingAddress || '';
       document.getElementById('csf_carNumber').value = c.carNumber || '';
+      const oldCarNumEl = document.getElementById('csf_oldCarNumber');
+      if (oldCarNumEl) oldCarNumEl.value = c.oldCarNumber || '';
       const vinEl = document.getElementById('csf_vin');
       if (vinEl) vinEl.value = c.vin || '';
       document.getElementById('csf_carPolice').value = c.carPolice || '';
@@ -1629,6 +1641,7 @@ const Cases = {
       carAddress: form.carAddress ? form.carAddress.value.trim() : '',
       parkingAddress: form.parkingAddress ? form.parkingAddress.value.trim() : '',
       carNumber: form.carNumber ? form.carNumber.value.trim() : '',
+      oldCarNumber: form.oldCarNumber ? form.oldCarNumber.value.trim() : '',
       vin: form.vin ? form.vin.value.trim() : '',
       carPolice: form.carPolice ? form.carPolice.value.trim() : '',
       faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',

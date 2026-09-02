@@ -119,6 +119,7 @@ const SealReportManager = {
         storePhone: storePhone,
         contactName: contactName,
         carNumber: c.carNumber || '',
+        oldCarNumber: c.oldCarNumber || '',
         vin: c.vin || (c.memo ? (c.memo.match(/[A-Z0-9]{6,17}/) || [''])[0] : ''),
         workerName: staffName || '代表行政書士 日栄 政敏',
         checkVinMethod: '打刻目視確認・車検証原本照合',
@@ -172,6 +173,7 @@ const SealReportManager = {
           (r.storeName && r.storeName.toLowerCase().includes(q)) ||
           (r.applicantName && r.applicantName.toLowerCase().includes(q)) ||
           (r.carNumber && r.carNumber.toLowerCase().includes(q)) ||
+          (r.oldCarNumber && r.oldCarNumber.toLowerCase().includes(q)) ||
           (r.vin && r.vin.toLowerCase().includes(q)) ||
           (r.regTypeLabel && r.regTypeLabel.toLowerCase().includes(q)) ||
           (r.contactName && r.contactName.toLowerCase().includes(q));
@@ -355,7 +357,10 @@ const SealReportManager = {
                       <div style="font-size:0.7rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px;">${r.storeAddress || ''}</div>
                     </td>
                     <td style="padding:7px 6px; font-weight:600;">${r.applicantName || '-'}</td>
-                    <td style="padding:7px 6px; font-weight:bold; color:#10b981;">${r.carNumber || '-'}</td>
+                    <td style="padding:7px 6px;">
+                      <div style="font-weight:bold; color:#10b981;">${r.carNumber || '-'}</div>
+                      ${r.oldCarNumber ? `<div style="font-size:0.7rem; color:#94a3b8;">旧: ${r.oldCarNumber}</div>` : ''}
+                    </td>
                     <td style="padding:7px 6px; font-family:monospace; font-size:0.75rem;">${r.vin || '-'}</td>
                     <td style="padding:7px 6px;">${typeBadge}</td>
                     <td style="padding:7px 6px; font-size:0.75rem;">${r.workerName || '日栄 政敏'}</td>
@@ -536,7 +541,7 @@ const SealReportManager = {
               <th style="width:7%;">注文書№</th>
               <th style="width:17%;">申込店舗・取付場所（所在地・TEL）</th>
               <th style="width:10%;">申請者名</th>
-              <th style="width:11%;">自動車登録番号</th>
+              <th style="width:12%;">自動車登録番号<br><span style="font-size:6.5pt; font-weight:normal;">(新 / 旧)</span></th>
               <th style="width:12%;">車台番号（VIN）</th>
               <th style="width:6%;">委託区分</th>
               <th style="width:7%;">施封者印</th>
@@ -556,7 +561,10 @@ const SealReportManager = {
                   <div style="font-size:7pt; color:#333;">${r.storeAddress || ''} ${r.storePhone ? 'TEL:' + r.storePhone : ''}</div>
                 </td>
                 <td><b>${r.applicantName || '-'}</b></td>
-                <td class="center nowrap"><b>${r.carNumber || '-'}</b></td>
+                <td class="center nowrap">
+                  <b>${r.carNumber || '-'}</b>
+                  ${r.oldCarNumber ? `<div style="font-size:6.5pt; color:#555;">旧: ${r.oldCarNumber}</div>` : ''}
+                </td>
                 <td style="font-family:monospace; font-size:7.5pt;">${r.vin || '-'}</td>
                 <td class="center" style="font-size:7.5pt;">
                   ${r.sealType === 'delegated_out' ? '県外委託' : (r.sealType === 'received_in' ? '県外受託' : '自所施封')}
@@ -674,9 +682,14 @@ const SealReportManager = {
             <td><b>${r.applicantName || '-'}</b> 様</td>
           </tr>
           <tr>
-            <th>自動車登録番号</th>
+            <th>自動車登録番号（新ナンバー）</th>
             <td style="font-size:13pt; font-weight:bold;">${r.carNumber || '-'}</td>
           </tr>
+          ${r.oldCarNumber ? `
+          <tr>
+            <th>旧登録番号（旧ナンバー / 返納対象）</th>
+            <td style="font-size:11pt; color:#475569; font-weight:600;">${r.oldCarNumber}</td>
+          </tr>` : ''}
           <tr>
             <th>車台番号</th>
             <td style="font-family:monospace; font-size:11pt; font-weight:bold;">${r.vin || '-'}</td>
@@ -733,7 +746,7 @@ const SealReportManager = {
   // ─── 📥 CSVエクスポート ───
   exportLedgerCSV() {
     const records = this.getFilteredRecords();
-    const headers = ['施封日', '登録種別', '注文書№', '申込店舗', '店舗住所', '店舗TEL', '担当者名', '申請者名', '自動車登録番号', '車台番号', '委託区分', '施封者', '車台番号確認方法', '旧番返納', '法定保存期限'];
+    const headers = ['施封日', '登録種別', '注文書№', '申込店舗', '店舗住所', '店舗TEL', '担当者名', '申請者名', '新自動車登録番号', '旧自動車登録番号', '車台番号', '委託区分', '施封者', '車台番号確認方法', '旧番返納', '法定保存期限'];
     
     const rows = records.map(r => [
       r.sealDate || '',
@@ -745,6 +758,7 @@ const SealReportManager = {
       r.contactName || '',
       r.applicantName || '',
       r.carNumber || '',
+      r.oldCarNumber || '',
       r.vin || '',
       r.sealType === 'delegated_out' ? '県外委託' : (r.sealType === 'received_in' ? '県外受託' : '自所施封'),
       r.workerName || '',
@@ -833,9 +847,16 @@ const SealReportManager = {
 
           <div class="form-row" style="display:flex; gap:8px; margin-bottom:8px;">
             <div class="form-group" style="flex:1;">
-              <label style="font-size:0.75rem; color:#94a3b8;">自動車登録番号（ナンバー） <span style="color:#ef4444;">*</span></label>
+              <label style="font-size:0.75rem; color:#94a3b8;">自動車登録番号（新ナンバー） <span style="color:#ef4444;">*</span></label>
               <input type="text" name="carNumber" required placeholder="例: 尾張小牧300自1234" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
             </div>
+            <div class="form-group" style="flex:1;">
+              <label style="font-size:0.75rem; color:#94a3b8;">旧登録番号（旧ナンバー / 返納対象）</label>
+              <input type="text" name="oldCarNumber" placeholder="例: 名古屋500さ5678" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
+            </div>
+          </div>
+
+          <div class="form-row" style="display:flex; gap:8px; margin-bottom:8px;">
             <div class="form-group" style="flex:1;">
               <label style="font-size:0.75rem; color:#94a3b8;">車台番号（VIN）</label>
               <input type="text" name="vin" placeholder="例: ZWR90-0123456" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
@@ -888,6 +909,7 @@ const SealReportManager = {
       contactName: form.contactName.value.trim(),
       applicantName: form.applicantName.value.trim(),
       carNumber: form.carNumber.value.trim(),
+      oldCarNumber: form.oldCarNumber ? form.oldCarNumber.value.trim() : '',
       vin: form.vin.value.trim(),
       sealType: form.sealType.value,
       workerName: form.workerName.value.trim(),
