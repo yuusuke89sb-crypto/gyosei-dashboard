@@ -492,12 +492,23 @@ const Cases = {
                   </div>
                 </div>
 
-                <!-- 登録種別（やること）サブカテゴリ -->
+                <!-- 登録種別（やること）サブカテゴリ ＆ 封印事由 -->
                 <div class="form-row" id="csf_subCategory_group" style="display:none">
                   <div class="form-group" style="flex:1">
                     <label>登録種別（やること）</label>
                     <select name="subCategory" id="csf_subCategory" class="form-select" onchange="Cases.onSubCategoryChange(this.value)">
                       ${this.SUB_CATEGORIES.map(sc => `<option value="${sc.key}">${sc.label}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group" style="flex:1" id="csf_regType_group">
+                    <label>封印事由・登録区分 <span style="font-size:0.7rem;color:#10b981;font-weight:bold;">※監査台帳用</span></label>
+                    <select name="regType" id="csf_regType" class="form-select">
+                      <option value="">— 自動判定 —</option>
+                      <option value="new">🚗 新規登録（新車・中古新規）</option>
+                      <option value="transfer">🔄 移転登録（名義変更＋番号変更）</option>
+                      <option value="change">📍 変更登録（住所変更等＋番号変更）</option>
+                      <option value="reseal">🔩 再封印（修繕・破損・再取付）</option>
+                      <option value="plate_change">⭐ 番号変更（希望番号・図柄ナンバー）</option>
                     </select>
                   </div>
                 </div>
@@ -655,8 +666,12 @@ const Cases = {
                   </div>
                   <div class="form-row">
                     <div class="form-group">
-                      <label>車台番号 / ナンバー</label>
-                      <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：6AA-ZWR90W / ZWR90-0123456">
+                      <label>自動車登録番号（ナンバープレート）</label>
+                      <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：尾張小牧300自1234">
+                    </div>
+                    <div class="form-group">
+                      <label>車台番号（VIN）</label>
+                      <input type="text" name="vin" id="csf_vin" placeholder="例：ZWR90-0123456">
                     </div>
                   </div>
                 </div>
@@ -1348,6 +1363,8 @@ const Cases = {
       document.getElementById('csf_category').value = c.category || 'garage_oss';
       const subCatEl = document.getElementById('csf_subCategory');
       if (subCatEl) subCatEl.value = c.subCategory || '';
+      const regTypeEl = document.getElementById('csf_regType');
+      if (regTypeEl) regTypeEl.value = c.regType || '';
       document.getElementById('csf_status').value = c.status || 'received';
       const deadlineEl = document.getElementById('csf_deadline');
       if (deadlineEl) deadlineEl.value = c.deadline || '';
@@ -1361,6 +1378,8 @@ const Cases = {
       const parkAddrEl = document.getElementById('csf_parkingAddress');
       if (parkAddrEl) parkAddrEl.value = c.parkingAddress || '';
       document.getElementById('csf_carNumber').value = c.carNumber || '';
+      const vinEl = document.getElementById('csf_vin');
+      if (vinEl) vinEl.value = c.vin || '';
       document.getElementById('csf_carPolice').value = c.carPolice || '';
       document.getElementById('caseDeleteBtn').style.display = 'block';
       modal.style.display = 'flex';
@@ -1466,6 +1485,7 @@ const Cases = {
       registeredAt: form.registeredAt.value,
       category: form.category.value,
       subCategory: form.subCategory ? form.subCategory.value : '',
+      regType: form.regType ? form.regType.value : '',
       status: form.status.value,
       deadline: (form.deadline && form.deadline.value) ? form.deadline.value : '',
       driveFolderUrl: form.driveFolderUrl.value.trim(),
@@ -1480,6 +1500,7 @@ const Cases = {
       carAddress: form.carAddress ? form.carAddress.value.trim() : '',
       parkingAddress: form.parkingAddress ? form.parkingAddress.value.trim() : '',
       carNumber: form.carNumber ? form.carNumber.value.trim() : '',
+      vin: form.vin ? form.vin.value.trim() : '',
       carPolice: form.carPolice ? form.carPolice.value.trim() : '',
       faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',
       inboxId: document.getElementById('csf_inboxId') ? document.getElementById('csf_inboxId').value : '',
@@ -1747,9 +1768,9 @@ const Cases = {
   },
 
   toggleCategoryFields(category) {
-    const isCarReg = ['car_reg_standard', 'car_reg_light'].includes(category);
+    const isCarRegOrSeal = ['car_reg_standard', 'car_reg_light', 'seal'].includes(category);
     const subCatGroup = document.getElementById('csf_subCategory_group');
-    if (subCatGroup) subCatGroup.style.display = isCarReg ? '' : 'none';
+    if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
 
     // マイルストーン表示の動的切り替え
     const wrap = document.getElementById('csf_milestone_stepper_wrap');

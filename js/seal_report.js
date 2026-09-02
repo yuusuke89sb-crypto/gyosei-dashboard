@@ -1,6 +1,7 @@
 /**
  * 監査対応 丁種出張封印 取付作業管理簿（2年間台帳）＆ 封印取付完了報告書モジュール
  * - 道路運送車両法第11条および丁種封印取扱要領（2年間保存義務）に完全準拠
+ * - 登録種別（新規・移転・変更・再封印・番号変更）完全網羅
  * - 監査提出用 A4横 管理簿（台帳）一括印刷・PDF出力
  * - 個別案件用 A4縦 封印等取付作業完了報告書 発行・印刷
  * - 県外連携（再々委託・受託）ステータス管理
@@ -10,7 +11,16 @@ const SealReportManager = {
   STORAGE_KEY: 'gyosei_seal_records',
   filterPeriod: '2years', // '2years' | '2026' | '2025' | '2024' | 'all'
   filterType: 'all',      // 'all' | 'self' | 'delegated_out' | 'received_in'
+  filterRegType: 'all',   // 'all' | 'new' | 'transfer' | 'change' | 'reseal' | 'plate_change'
   searchQuery: '',
+
+  REG_TYPE_LABELS: {
+    'new': '新規登録',
+    'transfer': '移転登録',
+    'change': '変更登録',
+    'reseal': '再封印',
+    'plate_change': '番号変更'
+  },
 
   // 追加の手動登録レコードを取得
   getCustomRecords() {
@@ -47,6 +57,19 @@ const SealReportManager = {
       let sealDate = c.completedAt ? c.completedAt.slice(0, 10) : '';
       if (!sealDate) sealDate = c.registrationDate || c.storeDeliveryDate || c.policeDeliveryDate || c.applyDate || (c.createdAt ? c.createdAt.slice(0, 10) : Store.getLocalDateStr());
 
+      // 登録種別（新規・移転・変更・再封印・番号変更）の判定
+      let regTypeKey = c.regType || '';
+      let regTypeLabel = this.REG_TYPE_LABELS[regTypeKey] || '';
+      if (!regTypeLabel) {
+        const text = (c.subCategory || '') + ' ' + (c.title || '');
+        if (text.includes('新規')) { regTypeKey = 'new'; regTypeLabel = '新規登録'; }
+        else if (text.includes('移転') || text.includes('名義変更') || text.includes('名変')) { regTypeKey = 'transfer'; regTypeLabel = '移転登録'; }
+        else if (text.includes('変更') || text.includes('住所変更')) { regTypeKey = 'change'; regTypeLabel = '変更登録'; }
+        else if (text.includes('再封印') || text.includes('再交付') || text.includes('修繕')) { regTypeKey = 'reseal'; regTypeLabel = '再封印'; }
+        else if (text.includes('番号変更') || text.includes('希望番号') || text.includes('図柄')) { regTypeKey = 'plate_change'; regTypeLabel = '番号変更'; }
+        else { regTypeKey = 'transfer'; regTypeLabel = '移転登録'; }
+      }
+
       // 顧客店舗住所
       const storeName = client ? (client.companyName || client.name) : 'お客様指定店舗';
       const storeAddr = client ? client.address : (c.parkingAddress || c.carAddress || '愛知県内指定場所');
@@ -69,6 +92,16 @@ const SealReportManager = {
       else if (c.memo && c.memo.includes('県外委託')) sealType = 'delegated_out';
       else if (c.memo && c.memo.includes('県外受託')) sealType = 'received_in';
 
+      // 旧ナンバー返納状況（新規や再封印は原則不要）
+      let plateReturnedStatus = '';
+      if (regTypeKey === 'new') {
+        plateReturnedStatus = '不要(新規)';
+      } else if (regTypeKey === 'reseal') {
+        plateReturnedStatus = '不要(再封)';
+      } else {
+        plateReturnedStatus = c.status === 'done' ? '返納完了' : '手続中';
+      }
+
       return {
         id: 'case_' + c.id,
         caseId: c.id,
@@ -79,15 +112,17 @@ const SealReportManager = {
         sealDate: sealDate,
         retentionDeadline: retentionDeadline,
         sealType: sealType, // 'self' | 'delegated_out' | 'received_in'
+        regTypeKey: regTypeKey,
+        regTypeLabel: regTypeLabel,
         storeName: storeName,
         storeAddress: storeAddr,
         storePhone: storePhone,
         contactName: contactName,
         carNumber: c.carNumber || '',
-        vin: c.vin || (c.carNumber && c.carNumber.includes('-') ? c.carNumber : (c.memo ? (c.memo.match(/[A-Z0-9]{6,17}/) || [''])[0] : '')),
+        vin: c.vin || (c.memo ? (c.memo.match(/[A-Z0-9]{6,17}/) || [''])[0] : ''),
         workerName: staffName || '代表行政書士 日栄 政敏',
         checkVinMethod: '打刻目視確認・車検証原本照合',
-        plateReturned: c.status === 'done' ? '返納完了' : '手続中',
+        plateReturned: plateReturnedStatus,
         sealEngraving: '名 / 愛',
         partnerOffice: c.partnerOffice || '',
         status: c.status || 'received',
@@ -119,8 +154,13 @@ const SealReportManager = {
         if (!r.sealDate || !r.sealDate.startsWith('2024')) return false;
       }
 
-      // 区分フィルター
+      // 区分フィルター（自所/県外）
       if (this.filterType !== 'all' && r.sealType !== this.filterType) {
+        return false;
+      }
+
+      // 登録種別フィルター（新規/移転/変更/再封印等）
+      if (this.filterRegType !== 'all' && r.regTypeKey !== this.filterRegType) {
         return false;
       }
 
@@ -133,6 +173,7 @@ const SealReportManager = {
           (r.applicantName && r.applicantName.toLowerCase().includes(q)) ||
           (r.carNumber && r.carNumber.toLowerCase().includes(q)) ||
           (r.vin && r.vin.toLowerCase().includes(q)) ||
+          (r.regTypeLabel && r.regTypeLabel.toLowerCase().includes(q)) ||
           (r.contactName && r.contactName.toLowerCase().includes(q));
         if (!match) return false;
       }
@@ -172,7 +213,7 @@ const SealReportManager = {
     modal.style.zIndex = '99998';
     modal.innerHTML = `
       <div class="modal-overlay" onclick="document.getElementById('sealLedgerModal').remove()" style="background:rgba(0,0,0,0.85); backdrop-filter:blur(4px); position:fixed; inset:0;"></div>
-      <div class="modal-content" style="max-width:96vw; width:1320px; max-height:94vh; padding:20px; display:flex; flex-direction:column; background:var(--bg-panel, #1e293b); border:1px solid var(--border-color, #334155); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,0.7); z-index:99999; position:relative;">
+      <div class="modal-content" style="max-width:96vw; width:1340px; max-height:94vh; padding:20px; display:flex; flex-direction:column; background:var(--bg-panel, #1e293b); border:1px solid var(--border-color, #334155); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,0.7); z-index:99999; position:relative;">
         
         <!-- モーダルヘッダー -->
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--border-color, #334155);">
@@ -222,7 +263,7 @@ const SealReportManager = {
 
         <!-- フィルターコントロール -->
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
-          <div style="display:flex; gap:6px; align-items:center;">
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
             <span style="font-size:0.78rem; color:#94a3b8; font-weight:bold;">期間:</span>
             <select id="sealFilterPeriod" class="form-select" style="font-size:0.8rem; padding:4px 8px; width:auto; background:#0f172a; color:#fff; border-color:#334155;" onchange="SealReportManager.filterPeriod = this.value; SealReportManager.refreshModal();">
               <option value="2years" ${this.filterPeriod === '2years' ? 'selected' : ''}>⭐ 過去2年間（監査法定保存分）</option>
@@ -232,9 +273,19 @@ const SealReportManager = {
               <option value="all" ${this.filterPeriod === 'all' ? 'selected' : ''}>全期間（全記録）</option>
             </select>
 
-            <span style="font-size:0.78rem; color:#94a3b8; font-weight:bold; margin-left:6px;">区分:</span>
+            <span style="font-size:0.78rem; color:#94a3b8; font-weight:bold; margin-left:6px;">登録種別:</span>
+            <select id="sealFilterRegType" class="form-select" style="font-size:0.8rem; padding:4px 8px; width:auto; background:#0f172a; color:#fff; border-color:#334155;" onchange="SealReportManager.filterRegType = this.value; SealReportManager.refreshModal();">
+              <option value="all" ${this.filterRegType === 'all' ? 'selected' : ''}>すべての種別</option>
+              <option value="new" ${this.filterRegType === 'new' ? 'selected' : ''}>🚗 新規登録</option>
+              <option value="transfer" ${this.filterRegType === 'transfer' ? 'selected' : ''}>🔄 移転登録（名変）</option>
+              <option value="change" ${this.filterRegType === 'change' ? 'selected' : ''}>📍 変更登録</option>
+              <option value="reseal" ${this.filterRegType === 'reseal' ? 'selected' : ''}>🔩 再封印</option>
+              <option value="plate_change" ${this.filterRegType === 'plate_change' ? 'selected' : ''}>⭐ 番号変更</option>
+            </select>
+
+            <span style="font-size:0.78rem; color:#94a3b8; font-weight:bold; margin-left:6px;">委託区分:</span>
             <select id="sealFilterType" class="form-select" style="font-size:0.8rem; padding:4px 8px; width:auto; background:#0f172a; color:#fff; border-color:#334155;" onchange="SealReportManager.filterType = this.value; SealReportManager.refreshModal();">
-              <option value="all" ${this.filterType === 'all' ? 'selected' : ''}>すべての区分</option>
+              <option value="all" ${this.filterType === 'all' ? 'selected' : ''}>すべての委託区分</option>
               <option value="self" ${this.filterType === 'self' ? 'selected' : ''}>自所施封（県内・店舗）</option>
               <option value="delegated_out" ${this.filterType === 'delegated_out' ? 'selected' : ''}>県外再々委託（他県発送）</option>
               <option value="received_in" ${this.filterType === 'received_in' ? 'selected' : ''}>県外受託（愛知施封）</option>
@@ -242,7 +293,7 @@ const SealReportManager = {
           </div>
 
           <div style="display:flex; gap:6px; align-items:center;">
-            <input type="text" id="sealSearchInput" class="form-input" placeholder="🔍 注文№・店舗・ナンバー・車台番号で検索..." value="${this.searchQuery}" style="width:260px; font-size:0.8rem; padding:4px 8px;" oninput="SealReportManager.searchQuery = this.value; SealReportManager.refreshModal();">
+            <input type="text" id="sealSearchInput" class="form-input" placeholder="🔍 注文№・店舗・ナンバー・車台番号で検索..." value="${this.searchQuery}" style="width:250px; font-size:0.8rem; padding:4px 8px;" oninput="SealReportManager.searchQuery = this.value; SealReportManager.refreshModal();">
           </div>
         </div>
 
@@ -251,24 +302,25 @@ const SealReportManager = {
           <table style="width:100%; border-collapse:collapse; font-size:0.78rem; color:#e2e8f0; text-align:left;">
             <thead>
               <tr style="background:#1e293b; color:#94a3b8; border-bottom:1px solid #334155; position:sticky; top:0; z-index:10;">
-                <th style="padding:8px 6px; width:85px;">施封日</th>
-                <th style="padding:8px 6px; width:100px;">注文書№</th>
-                <th style="padding:8px 6px; width:180px;">申込店舗（取付場所）</th>
-                <th style="padding:8px 6px; width:120px;">申請者・使用者</th>
-                <th style="padding:8px 6px; width:110px;">自動車登録番号</th>
-                <th style="padding:8px 6px; width:130px;">車台番号</th>
-                <th style="padding:8px 6px; width:90px;">区分</th>
-                <th style="padding:8px 6px; width:100px;">施封者</th>
-                <th style="padding:8px 6px; width:110px;">車台番号確認</th>
-                <th style="padding:8px 6px; width:75px;">旧番返納</th>
-                <th style="padding:8px 6px; width:85px;">保存期限</th>
-                <th style="padding:8px 6px; width:110px; text-align:center;">操作</th>
+                <th style="padding:8px 6px; width:80px;">施封日</th>
+                <th style="padding:8px 6px; width:80px;">登録種別</th>
+                <th style="padding:8px 6px; width:95px;">注文書№</th>
+                <th style="padding:8px 6px; width:170px;">申込店舗（取付場所）</th>
+                <th style="padding:8px 6px; width:110px;">申請者・使用者</th>
+                <th style="padding:8px 6px; width:105px;">自動車登録番号</th>
+                <th style="padding:8px 6px; width:125px;">車台番号</th>
+                <th style="padding:8px 6px; width:75px;">委託区分</th>
+                <th style="padding:8px 6px; width:90px;">施封者</th>
+                <th style="padding:8px 6px; width:100px;">車台番号確認</th>
+                <th style="padding:8px 6px; width:80px;">旧番返納</th>
+                <th style="padding:8px 6px; width:80px;">保存期限</th>
+                <th style="padding:8px 6px; width:100px; text-align:center;">操作</th>
               </tr>
             </thead>
             <tbody>
               ${records.length === 0 ? `
                 <tr>
-                  <td colspan="12" style="text-align:center; padding:40px 10px; color:#94a3b8;">
+                  <td colspan="13" style="text-align:center; padding:40px 10px; color:#94a3b8;">
                     該当する出張封印の記録がありません。
                   </td>
                 </tr>
@@ -279,20 +331,28 @@ const SealReportManager = {
                   return r.retentionDeadline >= todayStr;
                 })();
 
-                let typeBadge = '<span style="background:rgba(56,189,248,0.15);color:#38bdf8;padding:1px 5px;border-radius:3px;font-weight:600;">自所施封</span>';
+                let typeBadge = '<span style="background:rgba(56,189,248,0.15);color:#38bdf8;padding:1px 5px;border-radius:3px;font-weight:600;">自所</span>';
                 if (r.sealType === 'delegated_out') {
-                  typeBadge = '<span style="background:rgba(245,158,11,0.15);color:#f59e0b;padding:1px 5px;border-radius:3px;font-weight:bold;">県外委託</span>';
+                  typeBadge = '<span style="background:rgba(245,158,11,0.15);color:#f59e0b;padding:1px 5px;border-radius:3px;font-weight:bold;">委託</span>';
                 } else if (r.sealType === 'received_in') {
-                  typeBadge = '<span style="background:rgba(168,85,247,0.15);color:#a855f7;padding:1px 5px;border-radius:3px;font-weight:bold;">県外受託</span>';
+                  typeBadge = '<span style="background:rgba(168,85,247,0.15);color:#a855f7;padding:1px 5px;border-radius:3px;font-weight:bold;">受託</span>';
+                }
+
+                let regBadge = `<span style="background:rgba(16,185,129,0.15);color:#10b981;padding:1px 5px;border-radius:3px;font-weight:bold;">${r.regTypeLabel || '移転登録'}</span>`;
+                if (r.regTypeKey === 'new') {
+                  regBadge = `<span style="background:rgba(59,130,246,0.15);color:#3b82f6;padding:1px 5px;border-radius:3px;font-weight:bold;">新規登録</span>`;
+                } else if (r.regTypeKey === 'reseal') {
+                  regBadge = `<span style="background:rgba(234,179,8,0.15);color:#eab308;padding:1px 5px;border-radius:3px;font-weight:bold;">再封印</span>`;
                 }
 
                 return `
                   <tr style="border-bottom:1px solid #1e293b; ${idx % 2 === 1 ? 'background:rgba(30,41,59,0.3);' : ''}">
                     <td style="padding:7px 6px; font-weight:bold; color:#fff;">${r.sealDate || '-'}</td>
+                    <td style="padding:7px 6px;">${regBadge}</td>
                     <td style="padding:7px 6px; font-family:monospace; color:#38bdf8;">${r.orderNo || '-'}</td>
                     <td style="padding:7px 6px;">
                       <div style="font-weight:600; color:#e2e8f0;">${r.storeName || '-'}</div>
-                      <div style="font-size:0.7rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${r.storeAddress || ''}</div>
+                      <div style="font-size:0.7rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px;">${r.storeAddress || ''}</div>
                     </td>
                     <td style="padding:7px 6px; font-weight:600;">${r.applicantName || '-'}</td>
                     <td style="padding:7px 6px; font-weight:bold; color:#10b981;">${r.carNumber || '-'}</td>
@@ -301,7 +361,7 @@ const SealReportManager = {
                     <td style="padding:7px 6px; font-size:0.75rem;">${r.workerName || '日栄 政敏'}</td>
                     <td style="padding:7px 6px; font-size:0.72rem; color:#10b981;">✔ ${r.checkVinMethod || '目視確認'}</td>
                     <td style="padding:7px 6px;">
-                      <span style="font-size:0.72rem; ${r.plateReturned === '返納完了' ? 'color:#10b981;' : 'color:#f59e0b;'}">${r.plateReturned || '返納済'}</span>
+                      <span style="font-size:0.72rem; ${r.plateReturned.includes('不要') ? 'color:#94a3b8;' : (r.plateReturned === '返納完了' ? 'color:#10b981;' : 'color:#f59e0b;')}">${r.plateReturned || '返納済'}</span>
                     </td>
                     <td style="padding:7px 6px; font-size:0.72rem; ${is2YearsActive ? 'color:#38bdf8;font-weight:bold;' : 'color:#94a3b8;'}">
                       ${r.retentionDeadline ? r.retentionDeadline : '-'}
@@ -380,7 +440,7 @@ const SealReportManager = {
             color: #000;
             background: #fff;
             padding: 10px;
-            font-size: 10pt;
+            font-size: 9.5pt;
           }
           .no-print-bar {
             background: #f1f5f9;
@@ -400,33 +460,33 @@ const SealReportManager = {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             border-bottom: 2px solid #000;
-            padding-bottom: 6px;
+            padding-bottom: 5px;
           }
           .title {
-            font-size: 16pt;
+            font-size: 15pt;
             font-weight: bold;
             letter-spacing: 2px;
           }
           .sub-title {
-            font-size: 8.5pt;
+            font-size: 8pt;
             color: #333;
             margin-top: 2px;
           }
           .office-info {
             text-align: right;
-            font-size: 9pt;
-            line-height: 1.35;
+            font-size: 8.5pt;
+            line-height: 1.3;
           }
           table.ledger-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 8.5pt;
+            font-size: 8pt;
           }
           table.ledger-table th, table.ledger-table td {
             border: 1px solid #000;
-            padding: 5px 4px;
+            padding: 4px 3px;
             text-align: left;
             vertical-align: middle;
           }
@@ -438,17 +498,17 @@ const SealReportManager = {
           .center { text-align: center !important; }
           .nowrap { white-space: nowrap; }
           .footer-note {
-            margin-top: 8px;
+            margin-top: 6px;
             display: flex;
             justify-content: space-between;
-            font-size: 8pt;
+            font-size: 7.5pt;
             color: #444;
           }
         </style>
       </head>
       <body>
         <div class="no-print-bar">
-          <div style="font-weight:bold; font-size:12pt;">📋 監査用 封印管理台帳 印刷プレビュー</div>
+          <div style="font-weight:bold; font-size:11pt;">📋 監査用 封印管理台帳 印刷プレビュー</div>
           <div style="display:flex; gap:8px;">
             <button onclick="window.print()" style="padding:6px 16px; background:#2563eb; color:#fff; font-weight:bold; border:none; border-radius:4px; cursor:pointer;">🖨️ 印刷する / PDF保存</button>
             <button onclick="window.close()" style="padding:6px 12px; background:#cbd5e1; border:none; border-radius:4px; cursor:pointer;">✕ 閉じる</button>
@@ -472,15 +532,16 @@ const SealReportManager = {
             <tr>
               <th style="width:3%;">No.</th>
               <th style="width:7%;">施封日</th>
-              <th style="width:8%;">注文書№</th>
-              <th style="width:18%;">申込店舗・取付場所（所在地・TEL）</th>
+              <th style="width:7%;">登録種別</th>
+              <th style="width:7%;">注文書№</th>
+              <th style="width:17%;">申込店舗・取付場所（所在地・TEL）</th>
               <th style="width:10%;">申請者名</th>
               <th style="width:11%;">自動車登録番号</th>
               <th style="width:12%;">車台番号（VIN）</th>
-              <th style="width:7%;">区分</th>
-              <th style="width:8%;">施封者印</th>
-              <th style="width:10%;">車台番号等確認</th>
-              <th style="width:6%;">旧番返納</th>
+              <th style="width:6%;">委託区分</th>
+              <th style="width:7%;">施封者印</th>
+              <th style="width:8%;">車台番号確認</th>
+              <th style="width:5%;">旧番返納</th>
             </tr>
           </thead>
           <tbody>
@@ -488,20 +549,21 @@ const SealReportManager = {
               <tr>
                 <td class="center">${i + 1}</td>
                 <td class="center nowrap"><b>${r.sealDate || '-'}</b></td>
+                <td class="center nowrap"><b>${r.regTypeLabel || '移転登録'}</b></td>
                 <td class="center" style="font-family:monospace;">${r.orderNo || '-'}</td>
                 <td>
                   <div><b>${r.storeName}</b></div>
-                  <div style="font-size:7.5pt; color:#333;">${r.storeAddress || ''} ${r.storePhone ? 'TEL:' + r.storePhone : ''}</div>
+                  <div style="font-size:7pt; color:#333;">${r.storeAddress || ''} ${r.storePhone ? 'TEL:' + r.storePhone : ''}</div>
                 </td>
                 <td><b>${r.applicantName || '-'}</b></td>
                 <td class="center nowrap"><b>${r.carNumber || '-'}</b></td>
-                <td style="font-family:monospace; font-size:8pt;">${r.vin || '-'}</td>
-                <td class="center" style="font-size:8pt;">
+                <td style="font-family:monospace; font-size:7.5pt;">${r.vin || '-'}</td>
+                <td class="center" style="font-size:7.5pt;">
                   ${r.sealType === 'delegated_out' ? '県外委託' : (r.sealType === 'received_in' ? '県外受託' : '自所施封')}
                 </td>
-                <td class="center" style="font-size:8pt;">${r.workerName ? r.workerName.split(' ').pop() : '日栄'}　印</td>
-                <td style="font-size:7.5pt;">${r.checkVinMethod || '打刻目視確認'}</td>
-                <td class="center" style="font-size:8pt;">${r.plateReturned || '返納済'}</td>
+                <td class="center" style="font-size:7.5pt;">${r.workerName ? r.workerName.split(' ').pop() : '日栄'}　印</td>
+                <td style="font-size:7pt;">${r.checkVinMethod || '打刻目視確認'}</td>
+                <td class="center" style="font-size:7pt;">${r.plateReturned || '返納済'}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -564,8 +626,8 @@ const SealReportManager = {
           .client-box { width: 55%; font-size: 12pt; }
           .office-box { width: 45%; text-align: right; font-size: 10pt; line-height: 1.5; }
           .report-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10.5pt; }
-          .report-table th, .report-table td { border: 1px solid #000; padding: 10px 12px; }
-          .report-table th { background: #f8fafc; width: 25%; font-weight: bold; }
+          .report-table th, .report-table td { border: 1px solid #000; padding: 8px 12px; }
+          .report-table th { background: #f8fafc; width: 26%; font-weight: bold; }
           .check-box-list { margin: 15px 0; padding: 12px 16px; border: 1px solid #000; background: #fafafa; font-size: 10pt; line-height: 1.8; }
           .sign-area { margin-top: 30px; display: flex; justify-content: space-between; gap: 20px; }
           .sign-box { width: 48%; border: 1px solid #000; padding: 15px; min-height: 110px; font-size: 10pt; }
@@ -604,6 +666,10 @@ const SealReportManager = {
 
         <table class="report-table">
           <tr>
+            <th>登録種別（封印事由）</th>
+            <td><b style="font-size:11.5pt; color:#0f172a;">${r.regTypeLabel || '移転登録（管轄変更）'}</b></td>
+          </tr>
+          <tr>
             <th>申請者（使用者）</th>
             <td><b>${r.applicantName || '-'}</b> 様</td>
           </tr>
@@ -626,6 +692,10 @@ const SealReportManager = {
           <tr>
             <th>施封刻印</th>
             <td>${r.sealEngraving || '名 / 愛'}</td>
+          </tr>
+          <tr>
+            <th>旧ナンバー返納状況</th>
+            <td>${r.plateReturned || '返納完了'}</td>
           </tr>
           <tr>
             <th>作業実施者</th>
@@ -663,10 +733,11 @@ const SealReportManager = {
   // ─── 📥 CSVエクスポート ───
   exportLedgerCSV() {
     const records = this.getFilteredRecords();
-    const headers = ['施封日', '注文書№', '申込店舗', '店舗住所', '店舗TEL', '担当者名', '申請者名', '自動車登録番号', '車台番号', '区分', '施封者', '車台番号確認方法', '旧番返納', '法定保存期限'];
+    const headers = ['施封日', '登録種別', '注文書№', '申込店舗', '店舗住所', '店舗TEL', '担当者名', '申請者名', '自動車登録番号', '車台番号', '委託区分', '施封者', '車台番号確認方法', '旧番返納', '法定保存期限'];
     
     const rows = records.map(r => [
       r.sealDate || '',
+      r.regTypeLabel || '',
       r.orderNo || '',
       r.storeName || '',
       r.storeAddress || '',
@@ -718,8 +789,29 @@ const SealReportManager = {
               <input type="date" name="sealDate" required value="${today}" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
             </div>
             <div class="form-group" style="flex:1;">
+              <label style="font-size:0.75rem; color:#94a3b8;">登録種別（封印事由） <span style="color:#ef4444;">*</span></label>
+              <select name="regType" class="form-select" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
+                <option value="transfer">🔄 移転登録（名義変更＋番号変更）</option>
+                <option value="new">🚗 新規登録（新車・中古新規）</option>
+                <option value="change">📍 変更登録（住所変更等＋番号変更）</option>
+                <option value="reseal">🔩 再封印（修繕・破損・再取付）</option>
+                <option value="plate_change">⭐ 番号変更（希望番号・図柄ナンバー）</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row" style="display:flex; gap:8px; margin-bottom:8px;">
+            <div class="form-group" style="flex:1;">
               <label style="font-size:0.75rem; color:#94a3b8;">注文書№</label>
               <input type="text" name="orderNo" placeholder="例: 57500855" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
+            </div>
+            <div class="form-group" style="flex:1;">
+              <label style="font-size:0.75rem; color:#94a3b8;">委託区分</label>
+              <select name="sealType" class="form-select" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
+                <option value="self">自所施封（県内・店舗）</option>
+                <option value="delegated_out">県外再々委託（他県発送）</option>
+                <option value="received_in">県外受託（愛知施封）</option>
+              </select>
             </div>
           </div>
 
@@ -745,24 +837,14 @@ const SealReportManager = {
               <input type="text" name="carNumber" required placeholder="例: 尾張小牧300自1234" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
             </div>
             <div class="form-group" style="flex:1;">
-              <label style="font-size:0.75rem; color:#94a3b8;">車台番号</label>
+              <label style="font-size:0.75rem; color:#94a3b8;">車台番号（VIN）</label>
               <input type="text" name="vin" placeholder="例: ZWR90-0123456" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
             </div>
           </div>
 
-          <div class="form-row" style="display:flex; gap:8px; margin-bottom:8px;">
-            <div class="form-group" style="flex:1;">
-              <label style="font-size:0.75rem; color:#94a3b8;">区分</label>
-              <select name="sealType" class="form-select" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
-                <option value="self">自所施封（県内・店舗）</option>
-                <option value="delegated_out">県外再々委託（他県発送）</option>
-                <option value="received_in">県外受託（愛知施封）</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex:1;">
-              <label style="font-size:0.75rem; color:#94a3b8;">施封担当者</label>
-              <input type="text" name="workerName" value="代表行政書士 日栄 政敏" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
-            </div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <label style="font-size:0.75rem; color:#94a3b8;">施封担当者</label>
+            <input type="text" name="workerName" value="代表行政書士 日栄 政敏" class="form-input" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:6px; border-radius:4px;">
           </div>
 
           <div class="form-actions" style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
@@ -779,6 +861,9 @@ const SealReportManager = {
     e.preventDefault();
     const form = e.target;
     const sealDate = form.sealDate.value;
+    const regTypeKey = form.regType.value;
+    const regTypeLabel = this.REG_TYPE_LABELS[regTypeKey] || '移転登録';
+
     let retentionDeadline = '';
     if (sealDate) {
       const parts = sealDate.split('-');
@@ -787,12 +872,18 @@ const SealReportManager = {
       }
     }
 
+    let plateReturnedStatus = '返納完了';
+    if (regTypeKey === 'new') plateReturnedStatus = '不要(新規)';
+    else if (regTypeKey === 'reseal') plateReturnedStatus = '不要(再封)';
+
     const newRecord = {
       id: 'custom_' + Date.now().toString(36),
       isFromCase: false,
       sealDate: sealDate,
       retentionDeadline: retentionDeadline,
       orderNo: form.orderNo.value.trim(),
+      regTypeKey: regTypeKey,
+      regTypeLabel: regTypeLabel,
       storeName: form.storeName.value.trim(),
       contactName: form.contactName.value.trim(),
       applicantName: form.applicantName.value.trim(),
@@ -801,7 +892,7 @@ const SealReportManager = {
       sealType: form.sealType.value,
       workerName: form.workerName.value.trim(),
       checkVinMethod: '打刻目視確認・車検証照合',
-      plateReturned: '返納完了',
+      plateReturned: plateReturnedStatus,
       sealEngraving: '名 / 愛',
       createdAt: new Date().toISOString()
     };

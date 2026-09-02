@@ -191,6 +191,8 @@ const Store = {
       carPolice: data.carPolice || '',           // 所轄警察署
       driveFolderUrl: data.driveFolderUrl || '', // Google DriveフォルダURL
       subCategory: data.subCategory || '',       // 登録種別
+      regType: data.regType || '',               // 登録種別/封印事由（new | transfer | change | reseal | plate_change）
+      vin: data.vin || '',                       // 車台番号
       milestoneIndex: data.milestoneIndex !== undefined ? data.milestoneIndex : 0,
       faxId: data.faxId || '',                   // 受信FAXとの紐付け用ID
       inboxId: data.inboxId || '',               // インボックス連携用ID
