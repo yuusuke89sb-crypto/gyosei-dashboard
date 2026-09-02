@@ -678,14 +678,14 @@
       <div class="form-group">
         <label class="form-label">使用の本拠の位置（自宅・営業所）</label>
         <div style="display:flex; gap:6px;">
-          <input type="text" id="homeAddress" class="form-input" placeholder="例: 一宮市木曽川町黒田六ノ通り304-12" value="愛知県一宮市木曽川町黒田六ノ通り304番地12" oninput="autoSaveDraft()">
+          <input type="text" id="homeAddress" class="form-input" placeholder="例: 一宮市木曽川町黒田六ノ通り304-12" value="" oninput="autoSaveDraft()">
           <button class="btn btn-secondary" style="padding:4px 10px;" onclick="searchAddress('home')">検索</button>
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">自動車の保管場所の位置（駐車場）</label>
         <div style="display:flex; gap:6px;">
-          <input type="text" id="parkingAddress" class="form-input" placeholder="例: 一宮市木曽川町黒田六ノ通り304-12" value="愛知県一宮市木曽川町黒田六ノ通り304番地12" oninput="autoSaveDraft()">
+          <input type="text" id="parkingAddress" class="form-input" placeholder="例: 一宮市木曽川町黒田六ノ通り304-12" value="" oninput="autoSaveDraft()">
           <button class="btn btn-secondary" style="padding:4px 10px;" onclick="searchAddress('parking')">検索</button>
         </div>
       </div>
@@ -1405,14 +1405,14 @@ function checkUrlCaseParams() {
     if (!savedCaseData && cleanCaseId) {
       savedCaseData = localStorage.getItem('syako_case_map_' + cleanCaseId);
     }
-    if (!savedCaseData && cleanCaseId) {
-      savedCaseData = localStorage.getItem('syako_case_map_-' + cleanCaseId);
-    }
     if (savedCaseData) {
       try {
         const data = JSON.parse(savedCaseData);
         if (data && (data.drawings?.sozai?.length > 0 || data.drawings?.haichi?.length > 0 || data.formData)) {
           restoreProjectData(data);
+          // 案件情報に最新の住所がある場合は反映
+          if (home) document.getElementById('homeAddress').value = home;
+          if (parking) document.getElementById('parkingAddress').value = parking;
           showToast(`📂 案件「${linkedCaseTitle}」の保存済み図面を復元しました`);
           restored = true;
         }
@@ -1421,45 +1421,7 @@ function checkUrlCaseParams() {
       }
     }
 
-    // 2. localStorage 内の全 syako_case_map_* から住所・タイトル・車台番号で合致するデータを探索
-    if (!restored) {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('syako_case_map_')) {
-          try {
-            const raw = localStorage.getItem(k);
-            const d = JSON.parse(raw);
-            const matchAddr = (home && (d.formData?.homeAddr === home || d.formData?.parkAddr === home)) ||
-                              (parking && (d.formData?.parkAddr === parking || d.formData?.homeAddr === parking));
-            const matchReg = regNo && (d.formData?.regNo === regNo);
-            const matchTitle = title && (d.caseTitle === title || d.formData?.caseTitle === title);
-            if ((matchAddr || matchReg || matchTitle) && (d.drawings?.sozai?.length > 0 || d.drawings?.haichi?.length > 0)) {
-              restoreProjectData(d);
-              showToast(`📂 類似案件（${d.caseTitle || d.formData?.parkAddr || ''}）の作図データを復元しました`);
-              restored = true;
-              break;
-            }
-          } catch(e) {}
-        }
-      }
-    }
-
-    // 3. 直近の下書き（syako_map_maker_draft）に有効な作図データがあるか確認
-    if (!restored) {
-      try {
-        const rawDraft = localStorage.getItem('syako_map_maker_draft');
-        if (rawDraft) {
-          const draft = JSON.parse(rawDraft);
-          if (draft && draft.drawings && (draft.drawings.sozai?.length > 0 || draft.drawings.haichi?.length > 0)) {
-            restoreProjectData(draft);
-            showToast(`📂 直前の作図下書きデータを自動復元しました`);
-            restored = true;
-          }
-        }
-      } catch(e) {}
-    }
-
-    // 4. ベクターデータが見つからないが、保存済みサムネイルPNG（gyosei_case_map_png_ID）が存在する場合
+    // 2. この案件の保存済みサムネイル画像がある場合
     if (!restored) {
       const savedPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
       if (savedPng) {
@@ -1472,6 +1434,8 @@ function checkUrlCaseParams() {
             }
           };
           img.src = savedPng;
+          if (home) document.getElementById('homeAddress').value = home;
+          if (parking) document.getElementById('parkingAddress').value = parking;
           showToast(`🖼️ 保存済み配置図画像からプレビューを復元しました`);
           restored = true;
         } catch(e) {}
@@ -1482,23 +1446,33 @@ function checkUrlCaseParams() {
       return true;
     }
 
-    // 5. 新規作成の場合のみ：住所から地図を自動取得
-    if (home) {
-      document.getElementById('homeAddress').value = home;
-      if (parking) {
-        document.getElementById('parkingAddress').value = parking;
-        document.getElementById('sameAddress').checked = (home === parking);
-      } else {
-        document.getElementById('parkingAddress').value = home;
-        document.getElementById('sameAddress').checked = true;
-      }
+    // 3. この案件の図面が未作成の場合：案件の登録住所で確実に新規地図を自動取得（他案件の下書きは混入させない）
+    const targetHome = home || parking || '';
+    const targetParking = parking || home || '';
+    if (targetHome || targetParking) {
+      document.getElementById('homeAddress').value = targetHome;
+      document.getElementById('parkingAddress').value = targetParking;
+      document.getElementById('sameAddress').checked = (targetHome === targetParking || !parking);
       toggleSameAddress();
       setTimeout(() => {
         autoFetchMaps();
-        showToast(`🗺️ 案件住所「${home}」の地図を自動取得しました`);
+        showToast(`🗺️ 案件住所「${targetParking || targetHome}」の地図を自動取得しました`);
       }, 300);
       return true;
     }
+  } else {
+    // 案件IDの指定がない単体起動時のみ、直近の下書きを復元
+    try {
+      const rawDraft = localStorage.getItem('syako_map_maker_draft');
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft);
+        if (draft && draft.drawings && (draft.drawings.sozai?.length > 0 || draft.drawings.haichi?.length > 0)) {
+          restoreProjectData(draft);
+          showToast(`📂 直前の作図下書きデータを自動復元しました`);
+          return true;
+        }
+      }
+    } catch(e) {}
   }
   return false;
 }

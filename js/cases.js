@@ -1965,32 +1965,44 @@ const Cases = {
       targetCase = Store.getCase(this.editingId);
     }
 
+    const modal = document.getElementById('caseModal');
+    const isModalOpen = modal && modal.style.display !== 'none';
+
     const params = new URLSearchParams();
     let storeInfo = '';
 
     if (targetCase) {
       params.set('caseId', targetCase.id);
-      if (targetCase.title) params.set('title', targetCase.title);
-      if (targetCase.carAddress) params.set('home', targetCase.carAddress);
-      if (targetCase.parkingAddress) params.set('parking', targetCase.parkingAddress);
-      if (targetCase.carName) params.set('name', targetCase.carName);
-      if (targetCase.orderNo) params.set('orderNo', targetCase.orderNo);
-      if (targetCase.carNumber) params.set('regNo', targetCase.carNumber);
-      if (targetCase.driveFolderUrl) params.set('folderUrl', targetCase.driveFolderUrl);
-      if (targetCase.contactName) params.set('contact', targetCase.contactName);
+      const title = (isModalOpen && document.getElementById('csf_title')?.value) || targetCase.title || '';
+      const home = (isModalOpen && document.getElementById('csf_carAddress')?.value) || targetCase.carAddress || '';
+      const parking = (isModalOpen && document.getElementById('csf_parkingAddress')?.value) || targetCase.parkingAddress || '';
+      const name = (isModalOpen && document.getElementById('csf_carName')?.value) || targetCase.carName || '';
+      const orderNo = (isModalOpen && document.getElementById('csf_orderNo')?.value) || targetCase.orderNo || '';
+      const regNo = (isModalOpen && document.getElementById('csf_carNumber')?.value) || targetCase.carNumber || '';
+      const folderUrl = (isModalOpen && document.getElementById('csf_driveFolderUrl')?.value) || targetCase.driveFolderUrl || '';
+      const contactName = targetCase.contactName || '';
+
+      if (title) params.set('title', title);
+      if (home) params.set('home', home);
+      if (parking) params.set('parking', parking);
+      if (name) params.set('name', name);
+      if (orderNo) params.set('orderNo', orderNo);
+      if (regNo) params.set('regNo', regNo);
+      if (folderUrl) params.set('folderUrl', folderUrl);
+      if (contactName) params.set('contact', contactName);
       else if (targetCase.clientContactId && typeof Store !== 'undefined' && typeof Store.getClientContact === 'function') {
         const ct = Store.getClientContact(targetCase.clientContactId);
         if (ct && ct.name) params.set('contact', ct.name);
       }
 
       // 顧客マスターから店舗情報を取得
-      if (targetCase.clientId && typeof Store !== 'undefined') {
-        const client = Store.getClient(targetCase.clientId);
+      const clientId = (isModalOpen && document.getElementById('csf_clientId')?.value) || targetCase.clientId;
+      if (clientId && typeof Store !== 'undefined') {
+        const client = Store.getClient(clientId);
         if (client) {
           const company = client.companyName || client.name || '';
           const branch = client.branchName || client.tradeName || client.department || '';
           const phone = client.phone || client.tel || '';
-          // 例: 愛知トヨタ 江南店 TEL 0587-55-6311
           storeInfo = [company, branch].filter(Boolean).join(' ');
           if (phone) storeInfo += (storeInfo ? '　' : '') + 'TEL ' + phone;
         }
