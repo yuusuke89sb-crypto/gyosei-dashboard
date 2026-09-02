@@ -613,9 +613,9 @@ const Cases = {
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
                     <label style="font-weight:600; margin:0">💰 立替金（証紙代・印紙代等）</label>
                     <div style="display:flex; gap:4px; flex-wrap:wrap;">
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('車庫証明証紙代', 2200)">＋ 証紙2,200円</button>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('軽届出証紙代', 500)">＋ 軽500円</button>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('登録印紙代', 500)">＋ 登録印紙500円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('車庫証明証紙代', 2300)">＋ 証紙2,300円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('軽届出証紙代', 700)">＋ 軽700円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('登録印紙代', 700)">＋ 登録印紙700円</button>
                       <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow()">＋ 追加</button>
                     </div>
                   </div>
@@ -1436,7 +1436,11 @@ const Cases = {
       }
       const wrap = document.getElementById('csf_milestone_stepper_wrap');
       if (wrap) wrap.style.display = 'none';
-      Cases.toggleCategoryFields(document.getElementById('csf_category').value);
+      const catVal = document.getElementById('csf_category').value;
+      Cases.toggleCategoryFields(catVal);
+      if (typeof CaseTemplates !== 'undefined') {
+        CaseTemplates.applyTemplate(catVal);
+      }
     }, 0);
   },
 

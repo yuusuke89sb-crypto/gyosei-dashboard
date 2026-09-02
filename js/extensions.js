@@ -301,9 +301,9 @@ const GlobalSearch = {
 // ============================================================
 const CaseTemplates = {
   TEMPLATES: {
-    garage_oss: { fee: 6600 },
-    garage_paper: { fee: 6600 },
-    seal: { fee: 11000 },
+    garage_oss: { fee: 3500 },
+    garage_paper: { fee: 3500 },
+    seal: { fee: 5000 },
     car_reg_standard: { fee: 5500 },
     car_reg_light: { fee: 5500 },
   },
