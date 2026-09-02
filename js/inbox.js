@@ -384,21 +384,26 @@ const InboxManager = {
                       }
                     } else if (h.status === '除外') {
                       statusHtml = `<span style="color:var(--text-muted)">🚫 除外</span>`;
-                      actionHtml = `<button class="btn btn-secondary btn-small" onclick="InboxManager.restoreItem('${h.id}')">復元</button>`;
+                      actionHtml = `
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+                          <button type="button" class="btn btn-secondary btn-small" onclick="InboxManager.restoreItem('${h.id}')">復元</button>
+                          <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
+                        </div>
+                      `;
                     } else if (h.status === '保留') {
                       statusHtml = `<span style="color:#d97706; font-weight:bold">⏸️ 保留中</span>`;
                       actionHtml = `
                         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
-                          <button class="btn btn-secondary btn-small" onclick="InboxManager.unholdItem('${h.id}')">保留解除</button>
-                          <button class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
+                          <button type="button" class="btn btn-secondary btn-small" style="color:#059669; border-color:#059669;" onclick="InboxManager.unholdItem('${h.id}')">▶️ 保留解除</button>
+                          <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
                         </div>
                       `;
                     } else {
                       statusHtml = `<span style="color:#d97706; font-weight:600">⏳ 未対応</span>`;
                       actionHtml = `
                         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
-                          <button class="btn btn-secondary btn-small" style="color:#d97706;" onclick="InboxManager.holdItem('${h.id}')">保留</button>
-                          <button class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
+                          <button type="button" class="btn btn-secondary btn-small" style="color:#d97706; border-color:rgba(217,119,6,0.6);" onclick="InboxManager.holdItem('${h.id}')">⏸️ 保留</button>
+                          <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
                         </div>
                       `;
                     }
@@ -665,8 +670,31 @@ const InboxManager = {
   // 3. インボックスから案件登録モーダルへ展開
   registerCase(itemId) {
     const inbox = Store.getInbox ? Store.getInbox() : [];
-    const item = inbox.find(i => i.id === itemId);
-    if (!item) return;
+    let item = inbox.find(i => String(i.id) === String(itemId));
+
+    // フォールバック: faxLogs
+    if (!item) {
+      const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
+      const foundLog = faxLogs.find(l => String(l.id) === String(itemId) || String(l.faxId) === String(itemId));
+      if (foundLog) {
+        item = {
+          id: foundLog.id || foundLog.faxId || itemId,
+          type: 'FAX',
+          sender: foundLog.fromNumber || foundLog.number || 'FAX',
+          subject: foundLog.subject || '受信FAX',
+          body: foundLog.body || '',
+          date: foundLog.date || foundLog.createdAt || '',
+          attachments: foundLog.attachments || (foundLog.pdfUrl ? [{ name: 'FAX.pdf', url: foundLog.pdfUrl }] : []),
+          status: foundLog.status || '未対応'
+        };
+      }
+    }
+
+    if (!item) {
+      console.warn('受信アイテムが見つかりませんでした: ' + itemId);
+      alert('⚠️ 該当する受信データが見つかりませんでした');
+      return;
+    }
 
     // ディーラー差出人解析・顧客自動マッチング
     let parsed = null;
@@ -711,11 +739,8 @@ const InboxManager = {
       inboxItem: item
     };
 
-    // 案件管理画面へ遷移し、横並びモーダルを開く
-    App.navigate('cases');
-    setTimeout(() => {
-      Cases.showAddModal(prefills);
-    }, 100);
+    // 案件管理モーダルを開く
+    Cases.showAddModal(prefills);
   },
 
   // ─── 🔄 OCR解析用ローディングモーダル ───

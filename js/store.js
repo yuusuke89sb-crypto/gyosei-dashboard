@@ -533,8 +533,38 @@ const Store = {
   updateInboxStatus(id, status, caseId = '') {
     const inbox = this.getInbox();
     const idx = inbox.findIndex(item => item.id === id);
-    if (idx === -1) return null;
-    inbox[idx] = { ...inbox[idx], status, caseId };
+    if (idx === -1) {
+      const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
+      const fIdx = faxLogs.findIndex(l => l.id === id || l.faxId === id);
+      if (fIdx !== -1) {
+        faxLogs[fIdx].status = status;
+        if (caseId) faxLogs[fIdx].caseId = caseId;
+        localStorage.setItem('gyosei_fax_logs', JSON.stringify(faxLogs));
+        
+        // inbox側にもエントリーを追加
+        const createdItem = {
+          id: id,
+          type: 'FAX',
+          sender: faxLogs[fIdx].fromNumber || faxLogs[fIdx].number || 'FAX',
+          subject: faxLogs[fIdx].subject || '受信FAX',
+          body: faxLogs[fIdx].body || '',
+          date: faxLogs[fIdx].date || faxLogs[fIdx].createdAt || new Date().toISOString(),
+          attachments: faxLogs[fIdx].attachments || (faxLogs[fIdx].pdfUrl ? [{ name: 'FAX.pdf', url: faxLogs[fIdx].pdfUrl }] : []),
+          status: status,
+          caseId: caseId || ''
+        };
+        inbox.push(createdItem);
+        this._set(this.KEYS.INBOX, inbox);
+        return createdItem;
+      }
+      return null;
+    }
+    const current = inbox[idx];
+    inbox[idx] = { 
+      ...current, 
+      status, 
+      caseId: caseId ? caseId : (status === '未対応' ? '' : current.caseId || '') 
+    };
     this._set(this.KEYS.INBOX, inbox);
     // スプレッドシートへ自動プッシュ
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {

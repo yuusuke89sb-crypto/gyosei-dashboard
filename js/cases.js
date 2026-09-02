@@ -1363,17 +1363,25 @@ const Cases = {
   },
 
   showAddModal(prefills) {
+    if (typeof App !== 'undefined' && App.currentPage !== 'cases') {
+      App.navigate('cases');
+    }
     this.editingId = null;
-    App.refreshView();
-    setTimeout(() => {
-      document.getElementById('caseModalTitle').textContent = '案件登録';
-      document.getElementById('caseForm').reset();
-      document.getElementById('caseDeleteBtn').style.display = 'none';
-      document.getElementById('caseModal').style.display = 'flex';
-      this.advanceDraft = [];
-      this.renderAdvanceRows();
-      // 顧客担当者リストをリセット
-      this.onClientChange('');
+
+    const modal = document.getElementById('caseModal');
+    if (!modal) {
+      setTimeout(() => this.showAddModal(prefills), 50);
+      return;
+    }
+
+    document.getElementById('caseModalTitle').textContent = '案件登録';
+    document.getElementById('caseForm').reset();
+    document.getElementById('caseDeleteBtn').style.display = 'none';
+    modal.style.display = 'flex';
+    this.advanceDraft = [];
+    this.renderAdvanceRows();
+    // 顧客担当者リストをリセット
+    this.onClientChange('');
 
       // 注文書№ 自動連番付与 (PO-YYYYMMDD-XXX)
       const nextNum = Store.getCases().length + 1;
@@ -1460,24 +1468,23 @@ const Cases = {
     const c = Store.getCase(id);
     if (!c) return;
 
-    // 他のページ（顧客一覧など）から呼ばれた場合は案件管理ページに切り替える
     if (typeof App !== 'undefined' && App.currentPage !== 'cases') {
       App.navigate('cases');
-    } else {
-      App.refreshView();
     }
 
-    setTimeout(() => {
-      const modal = document.getElementById('caseModal');
-      if (!modal) return;
-      
-      const invBadge = c.invoiceNo 
-        ? `<span style="font-size:0.75rem; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; margin-left:10px; font-weight:normal; display:inline-flex; align-items:center; gap:4px;">
-            📄 請求済: <strong>${c.invoiceNo}</strong>
-            <button type="button" onclick="Cases.cancelSingleCaseInvoice('${id}')" style="background:#dc2626; color:#fff; border:none; border-radius:3px; padding:1px 6px; font-size:0.7rem; cursor:pointer; font-weight:bold;" title="この案件の請求を取り消して未請求に戻す">❌ 請求取消</button>
-           </span>`
-        : '';
-      document.getElementById('caseModalTitle').innerHTML = '案件編集' + invBadge;
+    const modal = document.getElementById('caseModal');
+    if (!modal) {
+      setTimeout(() => this.showEditModal(id), 50);
+      return;
+    }
+
+    const invBadge = c.invoiceNo 
+      ? `<span style="font-size:0.75rem; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; margin-left:10px; font-weight:normal; display:inline-flex; align-items:center; gap:4px;">
+          📄 請求済: <strong>${c.invoiceNo}</strong>
+          <button type="button" onclick="Cases.cancelSingleCaseInvoice('${id}')" style="background:#dc2626; color:#fff; border:none; border-radius:3px; padding:1px 6px; font-size:0.7rem; cursor:pointer; font-weight:bold;" title="この案件の請求を取り消して未請求に戻す">❌ 請求取消</button>
+         </span>`
+      : '';
+    document.getElementById('caseModalTitle').innerHTML = '案件編集' + invBadge;
       document.getElementById('csf_title').value = c.title || '';
       document.getElementById('csf_orderNo').value = c.orderNo || c['注文書№'] || c['注文書No'] || c['注文番号'] || '';
       document.getElementById('csf_clientId').value = c.clientId || '';
