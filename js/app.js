@@ -60,10 +60,25 @@ const App = {
     document.getElementById('sidebar').classList.remove('open');
   },
 
+  isAnyModalOpen() {
+    const caseModal = document.getElementById('caseModal');
+    if (caseModal && caseModal.style.display !== 'none' && caseModal.style.display !== '') return true;
+
+    const modals = document.querySelectorAll('.modal, .full-modal, #caseModal, #invoiceSelectModal, #clientDetailModal, #fullMapModal');
+    for (let i = 0; i < modals.length; i++) {
+      const m = modals[i];
+      if (m.style.display && m.style.display !== 'none') return true;
+      try {
+        const comp = window.getComputedStyle(m);
+        if (comp && comp.display !== 'none' && comp.visibility !== 'hidden' && comp.opacity !== '0') return true;
+      } catch (e) {}
+    }
+    return false;
+  },
+
   refreshView() {
     // 案件登録モーダルや各種入力モーダルが開いている最中はDOM再構築をスキップ（入力中のデータ消失を完全防止）
-    const activeModal = document.querySelector('.modal:not([style*="display: none"]):not([style*="display:none"])');
-    if (activeModal && activeModal.offsetParent !== null) {
+    if (this.isAnyModalOpen()) {
       return;
     }
     this.renderContent();

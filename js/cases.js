@@ -1758,7 +1758,14 @@ const Cases = {
       SpreadsheetSync.push('createCaseFolder', folderData).then(res => {
         if (res && res.success && res.folderUrl) {
           Store.updateCase(savedCase.id, { driveFolderUrl: res.folderUrl });
-          App.refreshView();
+          // もし現在該当案件のモーダルが開いている場合はDOMを壊さず入力欄のURLだけ直接更新
+          if (Cases.editingId === savedCase.id) {
+            const driveInput = document.getElementById('csf_driveFolderUrl');
+            if (driveInput) driveInput.value = res.folderUrl;
+          }
+          if (typeof App !== 'undefined' && typeof App.refreshView === 'function') {
+            App.refreshView();
+          }
           if (res.copiedFilesCount > 0) {
             App.showToast(`📁 Google Driveに案件フォルダを作成し、添付書類(${res.copiedFilesCount}件)を保管しました`);
           }
