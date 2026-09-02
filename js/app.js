@@ -120,6 +120,7 @@ const App = {
             👑 管理者メニュー
           </div>
           <button class="btn btn-ghost" onclick="Invoice.showOfficeSettings()" title="請求書の振込先口座・インボイス番号・住所等を設定" style="color:#38bdf8;font-weight:600">🏢 事務所・振込先設定</button>
+          <button class="btn btn-ghost" onclick="SealReportManager.showLedgerModal()" title="丁種出張封印 取付作業管理簿（監査2年間台帳）" style="color:#10b981;font-weight:600">🔩 封印管理簿 (監査2年台帳)</button>
           <button class="btn btn-ghost" onclick="Payments.showPaymentList()" title="入金管理">💴 入金管理</button>
           <button class="btn btn-ghost" onclick="AnnualReport.show()" title="年間収支">📊 年間収支</button>
           <button class="btn btn-ghost" onclick="TaxHelper.show()" title="確定申告集計">📊 確定申告集計</button>
@@ -135,6 +136,7 @@ const App = {
           </button>
         ` : `
           <!-- 一般スタッフ向け：管理者メニュー解除ボタン -->
+          <button class="btn btn-ghost" onclick="SealReportManager.showLedgerModal()" title="丁種出張封印 取付作業管理簿（監査2年間台帳）" style="color:#10b981;font-weight:600;font-size:0.8rem;">🔩 封印管理簿 (監査2年台帳)</button>
           <button class="btn btn-ghost" onclick="Auth.toggleAdminMode()" style="color:var(--accent-gold);font-size:0.75rem;margin-top:6px;border:1px dashed rgba(245,158,11,0.3)" title="代表者PINを入力して管理者メニューを開く">
             🔐 管理者メニュー（要PIN）
           </button>
@@ -143,6 +145,7 @@ const App = {
 
       <div class="sidebar-tools" style="border-top:1px solid var(--border-color);padding-top:4px">
         <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">自動車・実務ツール</div>
+        <button class="btn btn-ghost" onclick="SealReportManager.showLedgerModal()" style="text-decoration:none;display:block;text-align:left;color:#10b981;font-weight:bold;width:100%;">🔩 封印管理簿 (監査2年台帳)</button>
         <a class="btn btn-ghost" href="syako_map_maker.html" target="_blank" style="text-decoration:none;display:block;text-align:left;color:#38bdf8;font-weight:bold;">🚗 車庫証明 所在図・配置図</a>
         <a class="btn btn-ghost" href="請求書サンプル一覧.html" target="_blank" style="text-decoration:none;display:block;text-align:left">📄 ディーラー請求書サンプル</a>
         <a class="btn btn-ghost" href="map-maker/index.html" target="_blank" style="text-decoration:none;display:block;text-align:left">🗺️ 地図メーカー</a>

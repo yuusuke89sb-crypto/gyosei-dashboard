@@ -1420,6 +1420,29 @@ const Cases = {
             </div>
           ` + extHtml;
         }
+
+        // 出張封印案件の場合：封印取付報告書（個別A4縦）および監査管理簿（全体A4横）への連携ウィジェット
+        if (c.category === 'seal' || (c.subCategory && c.subCategory.includes('封印')) || (c.title && c.title.includes('封印'))) {
+          extHtml = `
+            <div class="checklist-widget" style="margin-top:12px; border-left:4px solid #10b981; padding:12px; border-radius:6px; background:rgba(16,185,129,0.05); border:1px solid var(--border-color)">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <h4 style="margin:0; font-size:0.88rem; color:#10b981; display:flex; align-items:center; gap:4px;">
+                  🔩 封印取付報告書・監査管理簿
+                </h4>
+                <span style="font-size:0.7rem; background:#059669; color:#fff; padding:1px 6px; border-radius:3px; font-weight:bold;">2年保存義務</span>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-primary btn-small" onclick="SealReportManager.printSingleReport('${id}')" style="flex:1; font-weight:bold; font-size:0.78rem; background:#2563eb; color:#fff;">
+                  📄 個別完了報告書 (A4縦)
+                </button>
+                <button type="button" class="btn btn-secondary btn-small" onclick="SealReportManager.showLedgerModal()" style="flex:1; font-size:0.78rem;">
+                  📋 全体管理簿 (A4横)
+                </button>
+              </div>
+            </div>
+          ` + extHtml;
+        }
+
         extArea.innerHTML = extHtml;
       }
     }, 0);
