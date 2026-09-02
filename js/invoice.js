@@ -239,10 +239,12 @@ const Invoice = {
                 ${hasPastInvoices ? pastInvoicesHtml : '<option value="">過去の請求書はありません</option>'}
               </select>
             </div>
-            <div id="invoicePreviewInfoReprint" style="margin:12px 0;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.85rem"></div>
-            <div class="form-actions">
-              <button class="btn btn-secondary" onclick="Invoice.showOfficeSettings()">🏢 事務所情報</button>
-              <button class="btn btn-primary" id="reprintInvoiceBtn" onclick="Invoice.generateReprint('${clientId}')" disabled>📄 再印刷する</button>
+            <div class="form-actions" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+              <button type="button" class="btn btn-danger" id="cancelInvoiceBtn" onclick="Invoice.cancelInvoice('${clientId}')" disabled style="background:#dc2626; color:#fff; font-weight:bold;">🗑️ この請求書を取り消す（未請求に戻す）</button>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-secondary" onclick="Invoice.showOfficeSettings()">🏢 事務所情報</button>
+                <button type="button" class="btn btn-primary" id="reprintInvoiceBtn" onclick="Invoice.generateReprint('${clientId}')" disabled>📄 再印刷する</button>
+              </div>
             </div>
           </div>
 
@@ -314,18 +316,21 @@ const Invoice = {
   updateReprintPreview(clientId) {
     const info = document.getElementById('invoicePreviewInfoReprint');
     const btn = document.getElementById('reprintInvoiceBtn');
-    const invoiceNo = document.getElementById('reprintInvoiceNo').value;
+    const cancelBtn = document.getElementById('cancelInvoiceBtn');
+    const invoiceNo = document.getElementById('reprintInvoiceNo') ? document.getElementById('reprintInvoiceNo').value : '';
     
     if (!invoiceNo) {
-      info.innerHTML = '';
-      if(btn) btn.disabled = true;
+      if (info) info.innerHTML = '';
+      if (btn) btn.disabled = true;
+      if (cancelBtn) cancelBtn.disabled = true;
       return;
     }
-    if(btn) btn.disabled = false;
+    if (btn) btn.disabled = false;
+    if (cancelBtn) cancelBtn.disabled = false;
 
     const cases = this.getBilledCases(clientId, invoiceNo);
     if(cases.length === 0) {
-      info.innerHTML = '<span style="color:#eab308">この請求書に紐づく案件データが見つかりません。当時の請求書のみが印刷されます。</span>';
+      if (info) info.innerHTML = '<span style="color:#eab308">この請求書に紐づく案件データが見つかりません。当時の請求書のみが印刷されます。</span>';
       return;
     }
 
@@ -339,7 +344,32 @@ const Invoice = {
       return `・${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
     }).join('<br>');
     html += `<br><strong>報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
-    info.innerHTML = html;
+    if (info) info.innerHTML = html;
+  },
+
+  // 請求書を取り消して対象案件を未請求に戻す
+  cancelInvoice(clientId) {
+    const invoiceNo = document.getElementById('reprintInvoiceNo') ? document.getElementById('reprintInvoiceNo').value : '';
+    if (!invoiceNo) return;
+
+    if (!confirm(`⚠️ 請求書「${invoiceNo}」を取り消して、含まれる案件を「未請求」状態に戻しますか？\n（入金・売掛金データも連動して削除されます）`)) {
+      return;
+    }
+
+    const cases = this.getBilledCases(clientId, invoiceNo);
+    cases.forEach(c => {
+      Store.updateCase(c.id, { invoiceNo: '' });
+    });
+
+    if (typeof Payments !== 'undefined') {
+      Payments.deleteByInvoiceNo(invoiceNo);
+    }
+
+    const modal = document.getElementById('invoiceSelectModal');
+    if (modal) modal.remove();
+
+    App.refreshView();
+    App.showToast(`✅ 請求書 ${invoiceNo} を取り消し、対象案件(${cases.length}件)を未請求に戻しました`);
   },
 
   // 新規に請求書・見積書を発行する

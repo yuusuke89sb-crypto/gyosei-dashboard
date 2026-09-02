@@ -42,6 +42,13 @@ const Payments = {
     this.save(payments);
   },
 
+  // 請求書番号から入金レコードを削除（請求取消時）
+  deleteByInvoiceNo(invoiceNo) {
+    if (!invoiceNo) return;
+    const payments = this.getAll().filter(x => x.invoiceNo !== invoiceNo);
+    this.save(payments);
+  },
+
   markPaid(id, method) {
     const payments = this.getAll();
     const p = payments.find(x => x.id === id);

@@ -1337,6 +1337,23 @@ const Cases = {
     App.showToast('ステータスを更新しました');
   },
 
+  // 個別案件の請求取消（未請求に戻す）
+  cancelSingleCaseInvoice(caseId) {
+    const c = Store.getCase(caseId);
+    if (!c || !c.invoiceNo) return;
+    if (!confirm(`案件「${c.title}」の請求書（${c.invoiceNo}）を取り消して「未請求」に戻しますか？`)) return;
+    const oldInv = c.invoiceNo;
+    Store.updateCase(caseId, { invoiceNo: '' });
+    // 他の案件にこの請求書番号が残っていなければPaymentsからも削除
+    const otherCases = Store.getCases().filter(other => other.id !== caseId && other.invoiceNo === oldInv);
+    if (otherCases.length === 0 && typeof Payments !== 'undefined') {
+      Payments.deleteByInvoiceNo(oldInv);
+    }
+    this.closeModal();
+    App.refreshView();
+    App.showToast(`✅ 案件「${c.title}」を未請求状態に戻しました`);
+  },
+
   showAddModal(prefills) {
     this.editingId = null;
     App.refreshView();
@@ -1437,7 +1454,14 @@ const Cases = {
     setTimeout(() => {
       const modal = document.getElementById('caseModal');
       if (!modal) return;
-      document.getElementById('caseModalTitle').textContent = '案件編集';
+      
+      const invBadge = c.invoiceNo 
+        ? `<span style="font-size:0.75rem; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; margin-left:10px; font-weight:normal; display:inline-flex; align-items:center; gap:4px;">
+            📄 請求済: <strong>${c.invoiceNo}</strong>
+            <button type="button" onclick="Cases.cancelSingleCaseInvoice('${id}')" style="background:#dc2626; color:#fff; border:none; border-radius:3px; padding:1px 6px; font-size:0.7rem; cursor:pointer; font-weight:bold;" title="この案件の請求を取り消して未請求に戻す">❌ 請求取消</button>
+           </span>`
+        : '';
+      document.getElementById('caseModalTitle').innerHTML = '案件編集' + invBadge;
       document.getElementById('csf_title').value = c.title || '';
       document.getElementById('csf_orderNo').value = c.orderNo || c['注文書№'] || c['注文書No'] || c['注文番号'] || '';
       document.getElementById('csf_clientId').value = c.clientId || '';
