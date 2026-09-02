@@ -405,9 +405,29 @@ const Invoice = {
       docType, contactNames, templateType
     });
 
-    const win = window.open('', '_blank');
-    win.document.write(html);
-    win.document.close();
+    try {
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+      } else {
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+        }, 1000);
+      }
+    } catch (err) {
+      console.error('印刷画面オープン失敗:', err);
+      alert('印刷画面を開けませんでした: ' + err.message);
+    }
 
     const modal = document.getElementById('invoiceSelectModal');
     if (modal) modal.remove();
@@ -490,9 +510,29 @@ const Invoice = {
       contactNames, templateType
     });
 
-    const win = window.open('', '_blank');
-    win.document.write(html);
-    win.document.close();
+    try {
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+      } else {
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+        }, 1000);
+      }
+    } catch (err) {
+      console.error('再印刷画面オープン失敗:', err);
+      alert('再印刷画面を開けませんでした: ' + err.message);
+    }
 
     const modal = document.getElementById('invoiceSelectModal');
     if (modal) modal.remove();
@@ -1148,10 +1188,6 @@ const Invoice = {
     ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
   </div>
 </div>
-
-</body>
-</html>`;
-  },
 
 </body>
 </html>`;
