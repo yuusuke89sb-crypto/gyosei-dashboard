@@ -323,6 +323,48 @@ const CaseTemplates = {
 
     this._lastAppliedCategory = category;
   },
+
+  // 9/1以降の受付分で報酬額が未入力の案件にテンプレート額を自動補完
+  backfillSeptemberFees() {
+    if (typeof Store === 'undefined' || typeof Store.getCases !== 'function') return;
+    const cases = Store.getCases();
+    let updatedCount = 0;
+
+    cases.forEach(c => {
+      const regDate = c.registeredAt || (c.createdAt ? c.createdAt.slice(0, 10) : '');
+      // 9月1日以降の受付分
+      if (regDate >= '2026-09-01') {
+        const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
+        if (currentFee === 0) {
+          let fee = 0;
+          if (this.TEMPLATES[c.category] && this.TEMPLATES[c.category].fee) {
+            fee = this.TEMPLATES[c.category].fee;
+          } else {
+            const title = (c.title || '') + ' ' + (c.subCategory || '');
+            if (title.includes('車庫')) fee = 3500;
+            else if (title.includes('封印')) fee = 5000;
+            else if (title.includes('軽')) fee = 5500;
+            else if (title.includes('登録') || title.includes('名変') || title.includes('移転')) fee = 5500;
+            else fee = 3500; // デフォルト車庫
+          }
+
+          if (fee > 0) {
+            Store.updateCase(c.id, { fee: fee });
+            updatedCount++;
+          }
+        }
+      }
+    });
+
+    if (updatedCount > 0) {
+      console.log(`[CaseTemplates] 9/1以降の未入力案件 ${updatedCount}件 にテンプレート報酬額を自動補完しました。`);
+      setTimeout(() => {
+        if (typeof App !== 'undefined' && App.showToast) {
+          App.showToast(`💡 9/1以降の未入力案件（${updatedCount}件）にテンプレート報酬額を自動反映しました`);
+        }
+      }, 1000);
+    }
+  },
 };
 
 // ============================================================

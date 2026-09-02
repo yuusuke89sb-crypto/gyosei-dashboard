@@ -18,6 +18,10 @@ const App = {
     }
     // 旧ステータスの自動変換
     if (typeof Store !== 'undefined') Store._migrateStatuses();
+    // 9/1以降の未入力案件へのテンプレート報酬額自動補完
+    if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.backfillSeptemberFees === 'function') {
+      CaseTemplates.backfillSeptemberFees();
+    }
     this.renderSidebar();
     this.renderContent();
     // セッションタイムアウト監視を開始
@@ -26,7 +30,12 @@ const App = {
     window.addEventListener('resize', () => this.refreshView());
     // スプレッドシート自動同期
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-      SpreadsheetSync.pull().then(() => this.refreshView()).catch(() => { });
+      SpreadsheetSync.pull().then(() => {
+        if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.backfillSeptemberFees === 'function') {
+          CaseTemplates.backfillSeptemberFees();
+        }
+        this.refreshView();
+      }).catch(() => { });
 
       // 3分ごとに自動同期（他デバイスの変更を取り込む）
       setInterval(() => {
