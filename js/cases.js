@@ -1453,14 +1453,13 @@ const Cases = {
         const inboxInput = document.getElementById('csf_inboxId');
         if (inboxInput) inboxInput.value = '';
       }
-      const wrap = document.getElementById('csf_milestone_stepper_wrap');
-      if (wrap) wrap.style.display = 'none';
-      const catVal = document.getElementById('csf_category').value;
-      Cases.toggleCategoryFields(catVal);
-      if (typeof CaseTemplates !== 'undefined') {
-        CaseTemplates.applyTemplate(catVal);
-      }
-    }, 0);
+    const wrap = document.getElementById('csf_milestone_stepper_wrap');
+    if (wrap) wrap.style.display = 'none';
+    const catVal = document.getElementById('csf_category').value;
+    Cases.toggleCategoryFields(catVal);
+    if (typeof CaseTemplates !== 'undefined') {
+      CaseTemplates.applyTemplate(catVal);
+    }
   },
 
   showEditModal(id) {
