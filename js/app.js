@@ -61,6 +61,11 @@ const App = {
   },
 
   refreshView() {
+    // 案件登録モーダルや各種入力モーダルが開いている最中はDOM再構築をスキップ（入力中のデータ消失を完全防止）
+    const activeModal = document.querySelector('.modal:not([style*="display: none"]):not([style*="display:none"])');
+    if (activeModal && activeModal.offsetParent !== null) {
+      return;
+    }
     this.renderContent();
     this.renderSidebar();
   },

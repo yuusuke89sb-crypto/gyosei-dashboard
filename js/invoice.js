@@ -70,16 +70,20 @@ const Invoice = {
     return next;
   },
 
-  // 未請求の完了案件を取得
-  getUnbilledCases(clientId) {
+  // 未請求の案件を取得（デフォルトは完了案件のみ、includeAll=trueで全ステータス）
+  getUnbilledCases(clientId, includeAll = false) {
     const cases = Store.getCasesByClient(clientId);
     return cases.filter(c => {
-      if (c.status !== 'done') return false;
+      if (!includeAll && c.status !== 'done') return false;
       if (c.invoiceNo) return false;
       const hasAdvances = Array.isArray(c.advances) && c.advances.length > 0;
       if (!c.fee && !hasAdvances) return false;
       return true;
     });
+  },
+
+  toggleIncludeAll(clientId, docType, checked) {
+    this.showSelectModal(clientId, docType, checked);
   },
 
   // 再印刷用に特定の請求書番号に紐づく案件を取得
@@ -89,7 +93,7 @@ const Invoice = {
   },
 
   // 請求書・見積書選択モーダルを表示
-  showSelectModal(clientId, docType = 'invoice') {
+  showSelectModal(clientId, docType = 'invoice', includeAll = false) {
     const client = Store.getClient(clientId);
     if (!client) return;
 
@@ -101,17 +105,20 @@ const Invoice = {
     const detectedTpl = this.detectTemplate(client);
 
     // 未請求案件のリスト生成
-    const unbilledCases = this.getUnbilledCases(clientId);
+    const unbilledCases = this.getUnbilledCases(clientId, includeAll);
     let unbilledHtml = '';
     if (unbilledCases.length === 0) {
-      unbilledHtml = `<div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">未請求の完了案件はありません。</div>`;
+      unbilledHtml = `<div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">${includeAll ? '請求可能な案件がありません。' : '未請求の完了案件はありません。（下の「進行中・受付済みも表示」にチェックを入れると未完了案件も請求可能になります）'}</div>`;
     } else {
       unbilledHtml = unbilledCases.map(c => {
         const effectiveFee = c.isPaid ? 0 : Number(c.fee||0);
         const effectiveAdv = c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0);
         let partialBadge = '';
-        if (c.isAdvancePaid && !c.isPaid) partialBadge = '<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">立替済</span>';
-        if (c.isPaid && !c.isAdvancePaid) partialBadge = '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">報酬済</span>';
+        if (c.status !== 'done') {
+          partialBadge = `<span style="background:#fef3c7;color:#b45309;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">${c.status === 'in_progress' ? '進行中' : '受付済'}</span>`;
+        }
+        if (c.isAdvancePaid && !c.isPaid) partialBadge += '<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">立替済</span>';
+        if (c.isPaid && !c.isAdvancePaid) partialBadge += '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">報酬済</span>';
         const amountStr = `報酬 ¥${effectiveFee.toLocaleString()} ${effectiveAdv>0 ? '+ 立替 ¥'+effectiveAdv.toLocaleString() : ''}`;
         return `
           <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.9rem;cursor:pointer;">
@@ -173,7 +180,13 @@ const Invoice = {
             </div>
 
             <div class="form-group" style="background:var(--bg-secondary); padding:12px; border-radius:var(--radius-sm); margin-bottom:16px;">
-              <label>📝 ${docType === 'estimate' ? '見積対象の案件を選択' : '請求対象の案件を選択'}</label>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="margin:0;">📝 ${docType === 'estimate' ? '見積対象の案件を選択' : '請求対象の案件を選択'}</label>
+                <label style="font-size:0.78rem; color:var(--text-muted); display:flex; align-items:center; gap:4px; cursor:pointer;">
+                  <input type="checkbox" ${includeAll ? 'checked' : ''} onchange="Invoice.toggleIncludeAll('${clientId}', '${docType}', this.checked)">
+                  進行中・受付済みも表示
+                </label>
+              </div>
               <div style="margin-top:8px; max-height:160px; overflow-y:auto;">
                 ${unbilledHtml}
               </div>
@@ -872,21 +885,24 @@ const Invoice = {
   },
 
   // =========================================================================
-  // 2. 三菱ふそう様式（業務別集計＋実費・諸費用）
+  // 2. 三菱ふそう様式（業務別集計＋実費・諸費用 ＆ 2ページ目明細書）
   // =========================================================================
-  buildMitsubishiInvoiceHTML({ invoiceNo, issueDate, client, office, cases, feeSubtotal, tax, total, advanceTotal, docType = 'invoice' }) {
-    const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
-    const [issueY, issueM, issueD] = issueDate.split('-');
+  buildMitsubishiInvoiceHTML({ invoiceNo = '', issueDate = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, total = 0, advanceTotal = 0, docType = 'invoice' }) {
+    const clientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
 
     // 業務分類
     let garageCases = [], docCases = [], regCases = [];
     cases.forEach(c => {
-      const t = (c.title || '') + (c.category || '');
+      const t = (c.title || '') + (c.category || '') + (c.subCategory || '');
       if (t.includes('車庫')) garageCases.push(c);
       else if (t.includes('書類') || t.includes('作成')) docCases.push(c);
       else regCases.push(c);
     });
+
+    const garageFee = garageCases.reduce((s,c)=>s+Number(c.fee||0),0);
+    const otherFee = docCases.reduce((s,c)=>s+Number(c.fee||0),0) + regCases.reduce((s,c)=>s+Number(c.fee||0),0);
 
     return `<!DOCTYPE html>
 <html lang="ja">
@@ -901,11 +917,12 @@ const Invoice = {
     color: #000;
     background: #e2e8f0;
     padding: 20px;
+    -webkit-print-color-adjust: exact;
   }
   @media print {
     body { background: #fff; padding: 0; }
     .no-print { display: none !important; }
-    @page { size: A4 portrait; margin: 15mm; }
+    @page { size: A4 portrait; margin: 12mm 15mm; }
     .page-break { page-break-after: always; }
   }
   .page {
@@ -913,20 +930,32 @@ const Invoice = {
     min-height: 297mm;
     background: #fff;
     margin: 0 auto 20px;
-    padding: 20mm;
+    padding: 20mm 20mm 15mm;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    position: relative;
   }
   .no-print-bar { max-width: 210mm; margin: 0 auto 15px; display: flex; justify-content: flex-end; gap: 10px; }
-  .btn { padding: 8px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; border: none; }
+  .btn { padding: 8px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; border: none; font-size: 14px; }
   .btn-print { background: #dc2626; color: #fff; }
   .btn-close { background: #cbd5e1; color: #1e293b; }
 
   .doc-title { text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 10px; margin-bottom: 25px; }
   table.fuso-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
-  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 6px 10px; }
-  table.fuso-table th { background: #f8fafc; text-align: center; }
+  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 7px 10px; }
+  table.fuso-table th { background: #f8fafc; text-align: center; font-weight: bold; }
   .col-num { text-align: right; font-family: 'Noto Sans JP', sans-serif; }
   .col-center { text-align: center; }
+
+  .sender-container {
+    margin-top: 25px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+  .bank-info { width: 50%; }
+  .bank-info h4 { font-size: 13px; margin-bottom: 4px; font-weight: bold; }
+  .office-info { width: 48%; text-align: right; }
 </style>
 </head>
 <body>
@@ -936,6 +965,7 @@ const Invoice = {
   <button class="btn btn-close" onclick="window.close()">✕ 閉じる</button>
 </div>
 
+<!-- 1ページ目：三菱ふそう請求書サマリー -->
 <div class="page page-break">
   <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}</div>
   
@@ -954,17 +984,17 @@ const Invoice = {
     </thead>
     <tbody>
       <tr>
-        <td rowspan="2" class="col-center" style="font-weight:bold;">書類<br>作成<br>業務</td>
+        <td rowspan="2" class="col-center" style="font-weight:bold; vertical-align:middle;">書類<br>作成<br>業務</td>
         <td>車庫証明申請</td>
         <td class="col-center">${garageCases.length}件</td>
-        <td class="col-num">${garageCases.reduce((s,c)=>s+Number(c.fee||0),0).toLocaleString()}</td>
+        <td class="col-num">${garageFee.toLocaleString()}</td>
       </tr>
       <tr>
         <td>登録業務・その他</td>
         <td class="col-center">${(docCases.length + regCases.length)}件</td>
-        <td class="col-num">${(docCases.reduce((s,c)=>s+Number(c.fee||0),0) + regCases.reduce((s,c)=>s+Number(c.fee||0),0)).toLocaleString()}</td>
+        <td class="col-num">${otherFee.toLocaleString()}</td>
       </tr>
-      <tr style="font-weight:bold;">
+      <tr style="font-weight:bold; background:#fafafa;">
         <td colspan="2" class="col-center">計</td>
         <td class="col-center">${cases.length}件</td>
         <td class="col-num">${feeSubtotal.toLocaleString()}</td>
@@ -980,7 +1010,7 @@ const Invoice = {
 
       <!-- 実費・立替 -->
       <tr>
-        <td rowspan="3" class="col-center" style="font-weight:bold;">立替金<br>その他</td>
+        <td rowspan="3" class="col-center" style="font-weight:bold; vertical-align:middle;">立替金<br>その他</td>
         <td>証紙代（愛知・岐阜）</td>
         <td class="col-center">-</td>
         <td class="col-num">${advanceTotal > 0 ? Math.floor(advanceTotal * 0.7).toLocaleString() : '0'}</td>
@@ -995,33 +1025,133 @@ const Invoice = {
         <td class="col-center">-</td>
         <td class="col-num">${advanceTotal > 0 ? (advanceTotal - Math.floor(advanceTotal * 0.7) - Math.floor(advanceTotal * 0.2)).toLocaleString() : '0'}</td>
       </tr>
-      <tr style="font-size:16px; font-weight:bold; background:#f8fafc;">
+      <tr style="font-size:16px; font-weight:bold; background:#f8fafc; border-top:2px solid #000;">
         <td colspan="3" class="col-center">総　合　計</td>
         <td class="col-num">¥${total.toLocaleString()}</td>
       </tr>
     </tbody>
   </table>
 
-  <div style="font-size:13px; margin: 20px 0;">上記のとおりご請求申し上げます。</div>
+  <div style="font-size:13px; margin: 20px 0 10px;">上記のとおりご請求申し上げます。</div>
   <div style="font-size:13px; margin-bottom: 25px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
 
-  <div style="display:flex; justify-content:space-between; font-size:13px;">
-    <div style="width:48%;">
-      <div style="font-weight:bold; margin-bottom:4px;">《 振込先 》</div>
-      <div>${office.bankName} ${office.bankBranch}</div>
-      <div>${office.accountType} ${office.accountNumber}</div>
-      <div>口座名義：${office.accountHolder}</div>
+  <div class="sender-container">
+    <div class="bank-info">
+      <h4>《 振込先 》</h4>
+      <div>${office.bankName || '三菱UFJ銀行'}　${office.bankBranch || '西春支店'}</div>
+      <div>${office.accountType || '普通'}　${office.accountNumber || '0129129'}</div>
+      <div>口座名義：${office.accountHolder || '行政書士法人フェリス'}</div>
+      <div style="font-size:11px; color:#555; margin-top:4px;">※振込手数料は貴社にてご負担願います。</div>
     </div>
-    <div style="width:48%; text-align:right;">
+    <div class="office-info">
       <div>${office.assocName || '愛知県行政書士会会員'}</div>
       <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
-      <div style="font-weight:bold; font-size:14px;">${office.name || '行政書士法人フェリス'}</div>
+      <div style="font-weight:bold; font-size:14px; margin:2px 0;">${office.name || '行政書士法人フェリス'}</div>
       <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
       <div>TEL: ${office.tel || '0586-50-2896'} / FAX: ${office.fax || '0568-26-3714'}</div>
       ${office.registrationNumber ? `<div style="font-size:11px;">登録番号: ${office.registrationNumber}</div>` : ''}
     </div>
   </div>
 </div>
+
+<!-- 2ページ目：三菱ふそう 申請等明細書 -->
+<div class="page">
+  <div class="doc-title" style="font-size:22px; letter-spacing:6px; margin-bottom:15px;">車庫証明・登録申請等明細書</div>
+  
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; font-size:13px;">
+    <div>
+      <div style="font-size:16px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; display:inline-block;">
+        ${clientName}　御中
+      </div>
+    </div>
+    <div style="text-align:right; font-size:12px; line-height:1.6;">
+      <div>〒${office.zip || '481-0033'}</div>
+      <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${issueM || ''} 月分　　NO. 1</div>
+    </div>
+  </div>
+
+  <table class="fuso-table" style="font-size:12px;">
+    <thead>
+      <tr>
+        <th rowspan="2" style="width:7%;">日付</th>
+        <th colspan="4" style="width:65%;">申　請　者</th>
+        <th rowspan="2" style="width:14%;">報酬額</th>
+        <th rowspan="2" style="width:14%;">立替金</th>
+      </tr>
+      <tr>
+        <th style="width:16%;">注文No.</th>
+        <th style="width:21%;">氏　名</th>
+        <th style="width:14%;">管　轄</th>
+        <th style="width:14%;">備　考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${cases.map((c) => {
+        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+        let dateStr = '-';
+        if (rawDate) {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+          } else {
+            const parts = String(rawDate).split(/[-/T]/);
+            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+            else dateStr = String(rawDate).slice(5);
+          }
+        }
+        const orderNo = c.orderNo || c.caseNo || '-';
+        const applicant = c.carName || c.applicantName || c.title || '-';
+        
+        let policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+          const loc = Store.getLocation(c.policeLocationId);
+          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+        }
+        if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+
+        let categoryShort = c.subCategory || '';
+        if (!categoryShort) {
+          if (c.category === 'garage_oss') categoryShort = 'OSS';
+          else if (c.category === 'garage_paper') categoryShort = '車庫';
+          else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
+          else if (c.category === 'car_reg_light') categoryShort = '軽登録';
+          else if (c.category === 'seal') categoryShort = '封印';
+          else categoryShort = '';
+        }
+
+        const fee = Number(c.fee || 0);
+        const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+
+        return `
+        <tr>
+          <td class="col-center">${dateStr}</td>
+          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif;">${orderNo}</td>
+          <td><strong>${applicant}</strong></td>
+          <td class="col-center">${policeName}</td>
+          <td class="col-center">${categoryShort}</td>
+          <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+          <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
+        </tr>`;
+      }).join('')}
+      <tr style="font-weight:bold; background:#f8fafc;">
+        <td colspan="5" class="col-center">合　　計</td>
+        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num">${advanceTotal.toLocaleString()}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
+  </div>
+</div>
+
+</body>
+</html>`;
+  },
 
 </body>
 </html>`;

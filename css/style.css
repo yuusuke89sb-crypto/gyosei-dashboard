@@ -1671,15 +1671,15 @@ a {
   padding-left: 12px;
 }
 
-/* ---- トースト ---- */
+/* ---- トースト（操作を邪魔しない右下フローティング通知） ---- */
 .toast {
   position: fixed;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: var(--accent-green);
+  bottom: 24px;
+  right: 24px;
+  left: auto;
+  transform: translateY(20px);
+  background: #059669;
   color: #fff;
-  padding: 12px 24px;
   border-radius: var(--radius-sm);
   font-weight: 600;
   font-size: 0.88rem;
