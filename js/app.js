@@ -119,6 +119,7 @@ const App = {
           <div style="border-top:1px dashed var(--border-color);margin:6px 0 4px 0;padding-top:4px;font-size:0.68rem;color:var(--accent-gold);font-weight:700;padding-left:8px">
             👑 管理者メニュー
           </div>
+          <button class="btn btn-ghost" onclick="Invoice.showOfficeSettings()" title="請求書の振込先口座・インボイス番号・住所等を設定" style="color:#38bdf8;font-weight:600">🏢 事務所・振込先設定</button>
           <button class="btn btn-ghost" onclick="Payments.showPaymentList()" title="入金管理">💴 入金管理</button>
           <button class="btn btn-ghost" onclick="AnnualReport.show()" title="年間収支">📊 年間収支</button>
           <button class="btn btn-ghost" onclick="TaxHelper.show()" title="確定申告集計">📊 確定申告集計</button>

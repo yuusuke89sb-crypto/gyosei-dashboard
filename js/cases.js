@@ -562,7 +562,10 @@ const Cases = {
                     </select>
                   </div>
                   <div class="form-group">
-                    <label>顧客担当者</label>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <label style="margin:0;">顧客担当者（店舗担当）</label>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.7rem; padding:1px 6px;" onclick="Cases.quickAddContact()" title="店舗担当者を新規登録">＋ 担当者追加</button>
+                    </div>
                     <select name="clientContactId" id="csf_clientContactId" class="form-select">
                       <option value="">— 未選択 —</option>
                     </select>
@@ -590,7 +593,7 @@ const Cases = {
                   </div>
                   <div class="form-group">
                     <label>報酬額（円）</label>
-                    <input type="number" name="fee" id="csf_fee" placeholder="例：55000" min="0" step="1000">
+                    <input type="number" name="fee" id="csf_fee" placeholder="例：55000" min="0" step="1">
                   </div>
                 </div>
 
@@ -1023,15 +1026,12 @@ const Cases = {
     });
   },
 
-  async rotateViewer() {
+  rotateViewer() {
     const imgEl = document.getElementById('caseViewerImg');
     if (!imgEl || !imgEl.src) return;
-    App.showToast('🔄 画像を90°回転中...');
-    const rotated = await this.rotateImageSource(imgEl.src, 90);
-    imgEl.src = rotated;
     this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
     this.applyViewerTransform();
-    App.showToast('🔄 90°回転しました（紙面の向きを変更）');
+    App.showToast(`🔄 ${this.viewerState.rotation}° 回転しました`);
   },
 
   toggleWidePreview() {
@@ -1063,16 +1063,27 @@ const Cases = {
   openViewerInNewTab() {
     const imgEl = document.getElementById('caseViewerImg');
     const iframeEl = document.getElementById('caseViewerIframe');
+    const rotation = this.viewerState.rotation || 0;
     if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
-      const w = window.open('');
+      const w = window.open('', '_blank');
       if (w) {
         w.document.write(`
           <!DOCTYPE html>
-          <html>
-            <head><title>FAX・注文書 原本プレビュー</title><style>body{margin:0;background:#0f172a;display:flex;justify-content:center;align-items:flex-start;padding:20px;min-height:100vh;}img{max-width:100%;height:auto;box-shadow:0 8px 30px rgba(0,0,0,0.8);border-radius:4px;}</style></head>
-            <body><img src="${imgEl.src}"></body>
+          <html lang="ja">
+            <head>
+              <meta charset="utf-8">
+              <title>原本プレビュー</title>
+              <style>
+                body { margin:0; background:#0f172a; display:flex; justify-content:center; align-items:center; min-height:100vh; overflow:auto; padding:20px; box-sizing:border-box; }
+                img { max-width:96vw; max-height:96vh; object-fit:contain; box-shadow:0 8px 30px rgba(0,0,0,0.8); border-radius:4px; transform: rotate(${rotation}deg); }
+              </style>
+            </head>
+            <body>
+              <img src="${imgEl.src}">
+            </body>
           </html>
         `);
+        w.document.close();
       }
     } else if (iframeEl && iframeEl.style.display !== 'none' && iframeEl.src) {
       window.open(iframeEl.src, '_blank');
@@ -1093,19 +1104,24 @@ const Cases = {
     if (!wrapper || !imgEl || !imgEl.src) return;
 
     const zoom = this.viewerState.zoom || 1.0;
-    wrapper.style.display = 'block';
+    const rotation = this.viewerState.rotation || 0;
+    wrapper.style.display = 'flex';
+    wrapper.style.alignItems = 'center';
+    wrapper.style.justifyContent = 'center';
     wrapper.style.width = '100%';
     wrapper.style.minHeight = '100%';
+    wrapper.style.overflow = 'visible';
 
-    imgEl.style.width = '100%';
-    imgEl.style.maxWidth = '100%';
+    imgEl.style.maxWidth = (rotation === 90 || rotation === 270) ? '80vh' : '100%';
+    imgEl.style.maxHeight = (rotation === 90 || rotation === 270) ? '95%' : 'none';
     imgEl.style.height = 'auto';
     imgEl.style.display = 'block';
     imgEl.style.margin = '0 auto';
-    imgEl.style.transform = `scale(${zoom})`;
-    imgEl.style.transformOrigin = 'top center';
+    imgEl.style.transform = `scale(${zoom}) rotate(${rotation}deg)`;
+    imgEl.style.transformOrigin = 'center center';
     imgEl.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)';
     imgEl.style.borderRadius = '4px';
+    imgEl.style.transition = 'transform 0.15s ease';
   },
 
   setupViewerInteractions() {
@@ -1178,8 +1194,28 @@ const Cases = {
     if (!sel) return;
     const contacts = clientId ? Store.getClientContacts(clientId) : [];
     sel.innerHTML = '<option value="">— 未選択 —</option>' +
-      contacts.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      contacts.map(c => `<option value="${c.id}">${c.name}${c.phone ? ' (' + c.phone + ')' : ''}</option>`).join('');
     if (preSelectContactId) sel.value = preSelectContactId;
+  },
+
+  quickAddContact() {
+    const clientSelect = document.getElementById('csf_clientId');
+    const clientId = clientSelect ? clientSelect.value : '';
+    if (!clientId) {
+      App.showToast('⚠️ 先に「顧客店舗」を選択してください');
+      return;
+    }
+    const clientName = clientSelect.options[clientSelect.selectedIndex]?.text || '';
+    const name = prompt(`【${clientName}】の担当者名を入力してください:`);
+    if (!name || !name.trim()) return;
+    const phone = prompt('担当者の電話番号（空欄可）:', '');
+    const newContact = Store.addClientContact({
+      clientId: clientId,
+      name: name.trim(),
+      phone: phone ? phone.trim() : ''
+    });
+    this.onClientChange(clientId, newContact.id);
+    App.showToast(`✅ 担当者「${name.trim()}」を登録・選択しました`);
   },
 
   onFilterChange() {

@@ -164,6 +164,8 @@ const Store = {
       id: this._generateId(),
       clientId: data.clientId || '',
       title: data.title || '',
+      orderNo: data.orderNo || '',
+      staffId: data.staffId || '',
       category: data.category || 'garage_oss',      // garage_oss | garage_paper | seal | car_reg_standard | car_reg_light
       subCategory: data.subCategory || '',          // 登録種別（新規、移転、変更、抹消等）
       status: data.status || 'received',            // received | applying | delivery | done
@@ -178,6 +180,7 @@ const Store = {
       storeDeliveryTime: data.storeDeliveryTime || '',
       locationId: data.locationId || '',
       clientContactId: data.clientContactId || '',
+      contactName: data.contactName || '',
       policeLocationId: data.policeLocationId || '',
       landTransportLocationId: data.landTransportLocationId || '',
       registrationDate: data.registrationDate || '',

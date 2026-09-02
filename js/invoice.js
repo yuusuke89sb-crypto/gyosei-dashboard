@@ -4,9 +4,7 @@
  */
 const Invoice = {
   // 事務所情報（設定で変更可能・デフォルトは行政書士法人フェリス）
-  getOfficeInfo() {
-    const saved = localStorage.getItem('gyosei_office_info');
-    if (saved) return JSON.parse(saved);
+  getDefaultOfficeInfo() {
     return {
       name: '行政書士法人フェリス',
       assocName: '愛知県行政書士会会員',
@@ -23,6 +21,19 @@ const Invoice = {
       accountHolder: '行政書士法人フェリス',
       registrationNumber: '',
     };
+  },
+
+  getOfficeInfo() {
+    const defaults = this.getDefaultOfficeInfo();
+    const saved = localStorage.getItem('gyosei_office_info');
+    if (saved) {
+      try {
+        return { ...defaults, ...JSON.parse(saved) };
+      } catch (e) {
+        return defaults;
+      }
+    }
+    return defaults;
   },
 
   saveOfficeInfo(info) {
@@ -1002,11 +1013,12 @@ const Invoice = {
       <div>口座名義：${office.accountHolder}</div>
     </div>
     <div style="width:48%; text-align:right;">
-      <div>${office.assocName}</div>
-      <div>所在地：${office.address}</div>
-      <div style="font-weight:bold; font-size:14px;">${office.name}</div>
-      <div>${office.representative}</div>
-      <div>TEL: ${office.tel} / FAX: ${office.fax}</div>
+      <div>${office.assocName || '愛知県行政書士会会員'}</div>
+      <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:14px;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div>TEL: ${office.tel || '0586-50-2896'} / FAX: ${office.fax || '0568-26-3714'}</div>
+      ${office.registrationNumber ? `<div style="font-size:11px;">登録番号: ${office.registrationNumber}</div>` : ''}
     </div>
   </div>
 </div>
@@ -1121,11 +1133,12 @@ const Invoice = {
       <div>口座名義：${office.accountHolder}</div>
     </div>
     <div style="width:48%; text-align:right;">
-      <div>${office.assocName}</div>
-      <div>所在地：${office.address}</div>
-      <div style="font-weight:bold; font-size:14px;">${office.name}</div>
-      <div>${office.representative}</div>
-      <div>TEL: ${office.tel} / FAX: ${office.fax}</div>
+      <div>${office.assocName || '愛知県行政書士会会員'}</div>
+      <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:14px;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div>TEL: ${office.tel || '0586-50-2896'} / FAX: ${office.fax || '0568-26-3714'}</div>
+      ${office.registrationNumber ? `<div style="font-size:11px;">登録番号: ${office.registrationNumber}</div>` : ''}
     </div>
   </div>
 </div>

@@ -2961,35 +2961,56 @@ function hitTestElement(targetKey, x, y) {
   const items = drawings[targetKey];
   for (let i = items.length - 1; i >= 0; i--) {
     const it = items[i];
+    let testX = x, testY = y;
+    if (it.angle) {
+      let cx = it.x, cy = it.y;
+      if (it.type.startsWith('rect') || it.type === 'car') {
+        cx = it.x + (it.w || 60) / 2;
+        cy = it.y + (it.h || 60) / 2;
+      } else if (it.type.startsWith('line') || it.type === 'arrow' || it.type === 'dist-line') {
+        cx = (it.x1 + it.x2) / 2;
+        cy = (it.y1 + it.y2) / 2;
+      } else if ((it.type.startsWith('poly') || it.type === 'freehand') && it.points) {
+        const center = getPolygonCenter(it.points);
+        cx = center.cx;
+        cy = center.cy;
+      }
+      const rad = -it.angle * Math.PI / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      testX = cx + (x - cx) * cos - (y - cy) * sin;
+      testY = cy + (x - cx) * sin + (y - cy) * cos;
+    }
+
     if (it.type.startsWith('rect') || it.type === 'car') {
-      if (x >= it.x - 5 && x <= it.x + it.w + 5 && y >= it.y - 5 && y <= it.y + it.h + 5) {
+      if (testX >= it.x - 5 && testX <= it.x + it.w + 5 && testY >= it.y - 5 && testY <= it.y + it.h + 5) {
         return i;
       }
     } else if (it.type.startsWith('poly') && it.points && it.points.length >= 3) {
-      if (isPointInPolygon(x, y, it.points)) return i;
+      if (isPointInPolygon(testX, testY, it.points)) return i;
       for (let pIdx = 0; pIdx < it.points.length; pIdx++) {
         const nextIdx = (pIdx + 1) % it.points.length;
-        if (distToSegment(x, y, it.points[pIdx].x, it.points[pIdx].y, it.points[nextIdx].x, it.points[nextIdx].y) < 10) {
+        if (distToSegment(testX, testY, it.points[pIdx].x, it.points[pIdx].y, it.points[nextIdx].x, it.points[nextIdx].y) < 10) {
           return i;
         }
       }
     } else if (it.type === 'freehand' && it.points && it.points.length > 0) {
       for (let pIdx = 0; pIdx < it.points.length - 1; pIdx++) {
-        if (distToSegment(x, y, it.points[pIdx].x, it.points[pIdx].y, it.points[pIdx+1].x, it.points[pIdx+1].y) < 12) {
+        if (distToSegment(testX, testY, it.points[pIdx].x, it.points[pIdx].y, it.points[pIdx+1].x, it.points[pIdx+1].y) < 12) {
           return i;
         }
       }
     } else if (it.type === 'compass') {
       const s = it.size || 28;
-      if (Math.hypot(it.x - x, it.y - y) <= s * 1.3) {
+      if (Math.hypot(it.x - testX, it.y - testY) <= s * 1.3) {
         return i;
       }
     } else if (it.type === 'text') {
-      if (Math.hypot(it.x - x, it.y - y) < 45) {
+      if (Math.hypot(it.x - testX, it.y - testY) < 45) {
         return i;
       }
     } else if (it.type.startsWith('line') || it.type === 'arrow' || it.type === 'dist-line') {
-      const dist = Math.hypot((it.x1 + it.x2) / 2 - x, (it.y1 + it.y2) / 2 - y);
+      const dist = Math.hypot((it.x1 + it.x2) / 2 - testX, (it.y1 + it.y2) / 2 - testY);
       if (dist < 30) {
         return i;
       }
