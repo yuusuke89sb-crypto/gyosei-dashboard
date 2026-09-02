@@ -691,8 +691,9 @@ const Cases = {
                   <button type="button" class="btn btn-danger" id="caseDeleteBtn" style="display:none; margin-right:auto"
                     onclick="Cases.onDelete()">🗑️ 削除</button>
                   <button type="button" class="btn btn-secondary" onclick="Cases.closeModal()" style="margin-right:auto;">✕ 閉じる</button>
-                  <button type="button" class="btn btn-secondary" onclick="Cases.saveCase(false)" style="background:#334155; color:#fff; font-weight:600;">💾 保存（画面を閉じない）</button>
-                  <button type="button" class="btn btn-primary" onclick="Cases.saveCase(true)" style="font-weight:bold;">✅ 保存して閉じる</button>
+                  <button type="button" class="btn btn-secondary" onclick="Cases.saveCase('keep')" style="background:#334155; color:#fff; font-weight:600;" title="現在の入力内容を保存し、そのまま編集を続けます">💾 途中保存</button>
+                  <button type="button" class="btn btn-primary" id="caseSaveAndNextBtn" onclick="Cases.saveCase('continueNext')" style="background:#0284c7; border-color:#0284c7; color:#fff; font-weight:bold;" title="この案件を登録して、左側のFAX原本を見ながらそのまま次の案件（2台目）を入力します">📑 保存して「同じFAXから続けて登録」</button>
+                  <button type="button" class="btn btn-primary" onclick="Cases.saveCase('close')" style="background:#16a34a; border-color:#16a34a; font-weight:bold;">✅ 保存して閉じる</button>
                 </div>
               </form>
             </div>
@@ -1592,10 +1593,10 @@ const Cases = {
     }, 0);
   },
 
-  _shouldCloseOnSubmit: true,
+  _submitMode: 'close',
 
-  saveCase(shouldClose = true) {
-    this._shouldCloseOnSubmit = shouldClose;
+  saveCase(mode = 'close') {
+    this._submitMode = mode;
     const form = document.getElementById('caseForm');
     if (!form) return;
     if (!form.reportValidity()) return;
@@ -1609,7 +1610,7 @@ const Cases = {
   closeModal() {
     document.getElementById('caseModal').style.display = 'none';
     this.editingId = null;
-    this._shouldCloseOnSubmit = true;
+    this._submitMode = 'close';
   },
 
   onSubmit(e) {
@@ -1793,19 +1794,66 @@ const Cases = {
     // Googleカレンダーへ案件日程を自動同期
     this.syncCaseDatesToCalendar(savedCase);
 
-    const shouldClose = this._shouldCloseOnSubmit !== false;
-    this._shouldCloseOnSubmit = true; // reset
+    const mode = this._submitMode || 'close';
+    this._submitMode = 'close'; // reset
 
-    if (shouldClose) {
+    if (mode === 'close') {
       this.closeModal();
       App.refreshView();
       if (!isExisting && data.inboxId) {
-        App.showToast('✅ 案件を登録しました（同じFAXから複数登録する場合は履歴タブの「別案件を追加登録」から可能）');
+        App.showToast('✅ 案件を登録しました');
       } else {
         App.showToast(isExisting ? '案件を更新しました' : '案件を登録しました');
       }
+    } else if (mode === 'continueNext') {
+      // 画面を閉じずに、店舗や日付・添付プレビューを保持したまま次の車両入力へ移行
+      this.editingId = null;
+
+      const client = Store.getClient(data.clientId);
+      const clientName = client ? (client.companyName || client.name) : '';
+
+      const nextNum = Store.getCases().length + 1;
+      const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
+      const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
+
+      document.getElementById('csf_title').value = clientName ? `${clientName} - ` : '';
+      document.getElementById('csf_orderNo').value = autoOrderNo;
+      document.getElementById('csf_carName').value = '';
+      document.getElementById('csf_carAddress').value = '';
+      document.getElementById('csf_parkingAddress').value = '';
+      document.getElementById('csf_carNumber').value = '';
+      const oldCarNumEl = document.getElementById('csf_oldCarNumber');
+      if (oldCarNumEl) oldCarNumEl.value = '';
+      document.getElementById('csf_vin').value = '';
+      document.getElementById('csf_memo').value = '';
+
+      // 立替金のリセット
+      this.advanceDraft = [];
+      this.renderAdvanceRows();
+
+      // 報酬額テンプレートの再適用
+      if (typeof CaseTemplates !== 'undefined') {
+        CaseTemplates.applyTemplate(data.category);
+      }
+
+      // タイトル表示の更新
+      const titleEl = document.getElementById('caseModalTitle');
+      if (titleEl) {
+        titleEl.innerHTML = '案件登録 <span style="font-size:0.75rem; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:4px; font-weight:bold; margin-left:8px;">📑 同じFAXから続けて登録中</span>';
+      }
+
+      const deleteBtn = document.getElementById('caseDeleteBtn');
+      if (deleteBtn) deleteBtn.style.display = 'none';
+
+      // 車両情報・申請者入力欄にフォーカス
+      const carNameEl = document.getElementById('csf_carName');
+      if (carNameEl) {
+        carNameEl.focus();
+      }
+
+      App.showToast('✅ 案件を登録しました！そのまま2件目を入力できます');
     } else {
-      // 画面を閉じずにそのまま編集を継続
+      // mode === 'keep'（途中保存）
       this.editingId = savedCase.id;
       const titleEl = document.getElementById('caseModalTitle');
       if (titleEl) {
