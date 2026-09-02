@@ -5,6 +5,7 @@ const InboxManager = {
   activeTab: 'inbox', // 'inbox' | 'send' | 'history'
   searchQuery: '',
   filterType: 'all', // 'all' | 'FAX' | 'メール'
+  statusFilter: 'all_active', // 'all_active' | 'unhandled' | 'hold'
 
   render() {
     return `
@@ -57,8 +58,23 @@ const InboxManager = {
   // ─── 📥 受信BOX タブ ──────────────────────────────────────────
   renderInboxTab() {
     const inbox = Store.getInbox ? Store.getInbox() : [];
-    // 未対応のみ表示
-    let filtered = inbox.filter(item => item.status === '未対応');
+    
+    // カウントの集計
+    const allActiveCount = inbox.filter(i => i.status === '未対応' || i.status === '保留').length;
+    const unhandledCount = inbox.filter(i => i.status === '未対応').length;
+    const holdCount = inbox.filter(i => i.status === '保留').length;
+    const faxCount = inbox.filter(i => (i.status === '未対応' || i.status === '保留') && i.type === 'FAX').length;
+    const mailCount = inbox.filter(i => (i.status === '未対応' || i.status === '保留') && i.type === 'メール').length;
+
+    // ステータス絞り込み
+    let filtered = [];
+    if (this.statusFilter === 'unhandled') {
+      filtered = inbox.filter(item => item.status === '未対応');
+    } else if (this.statusFilter === 'hold') {
+      filtered = inbox.filter(item => item.status === '保留');
+    } else {
+      filtered = inbox.filter(item => item.status === '未対応' || item.status === '保留');
+    }
 
     // フィルタ種別
     if (this.filterType !== 'all') {
@@ -86,10 +102,13 @@ const InboxManager = {
       <div>
         <!-- 検索・フィルターバー -->
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; background:var(--bg-secondary); padding:12px; border-radius:8px">
-          <div style="display:flex; gap:8px">
-            <button class="btn btn-small ${this.filterType === 'all' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setFilterType('all')">すべて</button>
-            <button class="btn btn-small ${this.filterType === 'FAX' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setFilterType('FAX')">📠 FAX</button>
-            <button class="btn btn-small ${this.filterType === 'メール' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setFilterType('メール')">📧 メール</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <button class="btn btn-small ${this.statusFilter === 'all_active' && this.filterType === 'all' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setStatusFilter('all_active', 'all')">📥 すべて (${allActiveCount})</button>
+            <button class="btn btn-small ${this.statusFilter === 'unhandled' && this.filterType === 'all' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setStatusFilter('unhandled', 'all')">🆕 未対応のみ (${unhandledCount})</button>
+            <button class="btn btn-small" style="${this.statusFilter === 'hold' ? 'background:#d97706;border-color:#d97706;color:#fff;font-weight:bold;' : 'color:#d97706;border-color:rgba(217,119,6,0.5);background:rgba(217,119,6,0.06);font-weight:600;'}" onclick="InboxManager.setStatusFilter('hold', 'all')">⏸️ 保留中 (${holdCount})</button>
+            <div style="width:1px; height:20px; background:var(--border-color); margin:0 4px;"></div>
+            <button class="btn btn-small ${this.filterType === 'FAX' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setStatusFilter('all_active', 'FAX')">📠 FAX (${faxCount})</button>
+            <button class="btn btn-small ${this.filterType === 'メール' ? 'btn-primary' : 'btn-secondary'}" onclick="InboxManager.setStatusFilter('all_active', 'メール')">📧 メール (${mailCount})</button>
           </div>
           <div style="flex-grow:1; max-width:400px; display:flex; gap:6px">
             <input type="text" id="inboxSearchInput" class="search-input" style="width:100%; margin:0" placeholder="🔍 送信元・件名・本文で検索..." 
@@ -103,8 +122,8 @@ const InboxManager = {
           ? `
             <div style="text-align:center; padding:60px 20px; background:var(--bg-secondary); border-radius:8px; border:2px dashed var(--border-color); margin-top:10px">
               <span style="font-size:3.5rem; display:block; margin-bottom:12px">📥</span>
-              <h3 style="margin:0 0 6px 0; color:var(--text-secondary)">登録前BOXは空です</h3>
-              <p style="margin:0; font-size:0.85rem; color:var(--text-muted)">受信チェックを行うか、新しいFAX・メールが届くまでお待ちください</p>
+              <h3 style="margin:0 0 6px 0; color:var(--text-secondary)">該当するデータはありません</h3>
+              <p style="margin:0; font-size:0.85rem; color:var(--text-muted)">受信チェックを行うか、別のフィルターを選択してください</p>
             </div>
           `
           : `
@@ -129,8 +148,10 @@ const InboxManager = {
 
   renderInboxCard(item) {
     const isFax = item.type === 'FAX';
+    const isHold = item.status === '保留';
     const typeBadgeBg = isFax ? '#10b981' : '#3b82f6'; // Green for FAX, Blue for Mail
     const formattedDate = this.formatDate(item.date);
+    const holdCardStyle = isHold ? 'border-left:5px solid #f59e0b; background:rgba(245,158,11,0.02);' : '';
 
     // 添付ファイルのパース
     let attachments = [];
@@ -151,13 +172,14 @@ const InboxManager = {
       : '';
 
     return `
-      <div class="inbox-card" style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:8px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:transform 0.15s, box-shadow 0.15s; cursor:default; display:flex; flex-direction:column; gap:10px"
+      <div class="inbox-card" style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:8px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05); transition:transform 0.15s, box-shadow 0.15s; cursor:default; display:flex; flex-direction:column; gap:10px; ${holdCardStyle}"
         onmouseover="this.style.boxShadow='0 4px 6px rgba(0,0,0,0.08)'; this.style.transform='translateY(-2px)'"
         onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'; this.style.transform='translateY(0)'">
         
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px">
           <div style="display:flex; align-items:center; gap:8px">
             <span style="background:${typeBadgeBg}; color:#fff; font-size:0.7rem; font-weight:bold; padding:2px 8px; border-radius:4px; text-transform:uppercase">${item.type}</span>
+            ${isHold ? `<span style="background:#fef3c7; color:#b45309; font-size:0.72rem; font-weight:bold; padding:2px 8px; border-radius:4px; border:1px solid #fde68a;">⏸️ 登録保留中</span>` : ''}
             <span style="font-size:0.8rem; color:var(--text-muted)">${formattedDate}</span>
           </div>
           <span style="font-size:0.8rem; font-weight:bold; color:var(--text-secondary)">ID: ${item.id}</span>
@@ -195,6 +217,10 @@ const InboxManager = {
           <button class="btn btn-secondary btn-small" style="color:var(--accent-red,#ef4444); border-color:var(--accent-red,#ef4444)" onclick="InboxManager.ignoreItem('${item.id}')">
             🚫 対象外にする
           </button>
+          ${isHold 
+            ? `<button class="btn btn-secondary btn-small" style="color:#059669; border-color:#059669; font-weight:600; background:rgba(5,150,105,0.06)" onclick="InboxManager.unholdItem('${item.id}')" title="保留を解除して未対応に戻します">▶️ 保留解除</button>`
+            : `<button class="btn btn-secondary btn-small" style="color:#d97706; border-color:rgba(217,119,6,0.6); font-weight:600; background:rgba(217,119,6,0.06)" onclick="InboxManager.holdItem('${item.id}')" title="登録を一時的に保留（保留中）にします">⏸️ 保留にする</button>`
+          }
           <button class="btn btn-secondary btn-small" style="color:#3b82f6; border-color:rgba(59,130,246,0.6); font-weight:600; background:rgba(59,130,246,0.06)" onclick="InboxManager.showAttachToCaseModal('${item.id}')" title="すでに登録済みの案件にこの書類・FAXを追加合流します">
             🔗 既存案件に書類追加
           </button>
@@ -359,9 +385,22 @@ const InboxManager = {
                     } else if (h.status === '除外') {
                       statusHtml = `<span style="color:var(--text-muted)">🚫 除外</span>`;
                       actionHtml = `<button class="btn btn-secondary btn-small" onclick="InboxManager.restoreItem('${h.id}')">復元</button>`;
+                    } else if (h.status === '保留') {
+                      statusHtml = `<span style="color:#d97706; font-weight:bold">⏸️ 保留中</span>`;
+                      actionHtml = `
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+                          <button class="btn btn-secondary btn-small" onclick="InboxManager.unholdItem('${h.id}')">保留解除</button>
+                          <button class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
+                        </div>
+                      `;
                     } else {
                       statusHtml = `<span style="color:#d97706; font-weight:600">⏳ 未対応</span>`;
-                      actionHtml = `<button class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>`;
+                      actionHtml = `
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+                          <button class="btn btn-secondary btn-small" style="color:#d97706;" onclick="InboxManager.holdItem('${h.id}')">保留</button>
+                          <button class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
+                        </div>
+                      `;
                     }
                   }
 
@@ -395,6 +434,12 @@ const InboxManager = {
 
   setFilterType(type) {
     this.filterType = type;
+    App.refreshView();
+  },
+
+  setStatusFilter(statusFilter, filterType = 'all') {
+    this.statusFilter = statusFilter;
+    this.filterType = filterType;
     App.refreshView();
   },
 
@@ -818,6 +863,20 @@ const InboxManager = {
       App.refreshView();
       App.showToast('データをインボックスから除外しました');
     }
+  },
+
+  // 4-B. レコードの保留
+  holdItem(itemId) {
+    Store.updateInboxStatus(itemId, '保留');
+    App.refreshView();
+    App.showToast('⏸️ データを「保留中」に設定しました');
+  },
+
+  // 4-C. 保留の解除
+  unholdItem(itemId) {
+    Store.updateInboxStatus(itemId, '未対応');
+    App.refreshView();
+    App.showToast('▶️ 保留を解除し「未対応」に戻しました');
   },
 
   // 5. レコードの復元
