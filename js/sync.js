@@ -127,9 +127,27 @@ const SpreadsheetSync = {
                 Store._set(Store.KEYS.CASES, mergedCases);
             }
 
-            // インボックスデータを localStorage に保存
-            if (data.inbox) {
-                Store._set(Store.KEYS.INBOX, data.inbox);
+            // インボックスデータを localStorage に保存（ローカルのステータス変更を優先保持）
+            if (data.inbox && Array.isArray(data.inbox)) {
+                const localInbox = Store.getInbox ? Store.getInbox() : [];
+                const mergedInbox = data.inbox.map(remoteItem => {
+                    const localItem = localInbox.find(l => String(l.id) === String(remoteItem.id));
+                    return {
+                        ...remoteItem,
+                        // ローカルで保留・除外・対応済に変更されていればローカルのステータスを優先
+                        status: (localItem && localItem.status && localItem.status !== '未対応')
+                            ? localItem.status
+                            : (remoteItem.status || '未対応'),
+                        caseId: (localItem && localItem.caseId) || remoteItem.caseId || ''
+                    };
+                });
+                // ローカルにしか存在しないアイテムも保持
+                localInbox.forEach(l => {
+                    if (!mergedInbox.some(m => String(m.id) === String(l.id))) {
+                        mergedInbox.push(l);
+                    }
+                });
+                Store._set(Store.KEYS.INBOX, mergedInbox);
             }
 
             // 場所マスタデータを localStorage に保存
