@@ -1363,10 +1363,11 @@ const Cases = {
   },
 
   showAddModal(prefills) {
+    this.editingId = null;
+
     if (typeof App !== 'undefined' && App.currentPage !== 'cases') {
       App.navigate('cases');
     }
-    this.editingId = null;
 
     const modal = document.getElementById('caseModal');
     if (!modal) {
@@ -1374,90 +1375,110 @@ const Cases = {
       return;
     }
 
-    document.getElementById('caseModalTitle').textContent = '案件登録';
-    document.getElementById('caseForm').reset();
-    document.getElementById('caseDeleteBtn').style.display = 'none';
+    const titleEl = document.getElementById('caseModalTitle');
+    if (titleEl) titleEl.textContent = '案件登録';
+    const formEl = document.getElementById('caseForm');
+    if (formEl) formEl.reset();
+    const deleteBtn = document.getElementById('caseDeleteBtn');
+    if (deleteBtn) deleteBtn.style.display = 'none';
     modal.style.display = 'flex';
     this.advanceDraft = [];
     this.renderAdvanceRows();
-    // 顧客担当者リストをリセット
     this.onClientChange('');
 
-      // 注文書№ 自動連番付与 (PO-YYYYMMDD-XXX)
-      const nextNum = Store.getCases().length + 1;
-      const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
-      const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
-      document.getElementById('csf_orderNo').value = (prefills && prefills.orderNo) ? prefills.orderNo : autoOrderNo;
+    // 注文書№ 自動連番付与 (PO-YYYYMMDD-XXX)
+    const nextNum = Store.getCases().length + 1;
+    const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
+    const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
+    const orderNoEl = document.getElementById('csf_orderNo');
+    if (orderNoEl) orderNoEl.value = (prefills && prefills.orderNo) ? prefills.orderNo : autoOrderNo;
 
-      // 添付ファイルプレビューワーの初期化（横並び表示）
-      if (prefills && prefills.attachments && prefills.attachments.length > 0) {
-        this.initAttachmentViewer(prefills.attachments, 0);
-      } else {
-        this.initAttachmentViewer([]);
+    // 添付ファイルプレビューワーの初期化（横並び表示）
+    if (prefills && prefills.attachments && prefills.attachments.length > 0) {
+      this.initAttachmentViewer(prefills.attachments, 0);
+    } else {
+      this.initAttachmentViewer([]);
+    }
+
+    // 受信FAX/メールインボックスからの自動入力（プリフィル）
+    if (prefills) {
+      if (prefills.title) {
+        const tEl = document.getElementById('csf_title');
+        if (tEl) tEl.value = prefills.title;
       }
-
-      // 受信FAX/メールインボックスからの自動入力（プリフィル）
-      if (prefills) {
-        if (prefills.title) document.getElementById('csf_title').value = prefills.title;
-        if (prefills.clientId) {
-          document.getElementById('csf_clientId').value = prefills.clientId;
-          this.onClientChange(prefills.clientId);
-        }
-        if (prefills.category) document.getElementById('csf_category').value = prefills.category;
-        if (prefills.carPolice) document.getElementById('csf_carPolice').value = prefills.carPolice;
-        if (prefills.applicantName || prefills.carName) {
-          const carNameEl = document.getElementById('csf_carName');
-          if (carNameEl) carNameEl.value = prefills.applicantName || prefills.carName;
-        }
-        if (prefills.applicantAddress || prefills.carAddress) {
-          const carAddrEl = document.getElementById('csf_carAddress');
-          if (carAddrEl) carAddrEl.value = prefills.applicantAddress || prefills.carAddress;
-        }
-        if (prefills.garageAddress || prefills.parkingAddress) {
-          const parkAddrEl = document.getElementById('csf_parkingAddress');
-          if (parkAddrEl) parkAddrEl.value = prefills.garageAddress || prefills.parkingAddress;
-        }
-        if (prefills.vin || prefills.carNumber) {
-          const carNumEl = document.getElementById('csf_carNumber');
-          if (carNumEl) carNumEl.value = prefills.carNumber || prefills.vin;
-        }
-        if (prefills.oldCarNumber) {
-          const oldCarNumEl = document.getElementById('csf_oldCarNumber');
-          if (oldCarNumEl) oldCarNumEl.value = prefills.oldCarNumber;
-        }
-        if (prefills.deadline) document.getElementById('csf_deadline').value = prefills.deadline;
-        if (prefills.memo) document.getElementById('csf_memo').value = prefills.memo;
-        
-        let faxInput = document.getElementById('csf_faxId');
-        if (!faxInput) {
-          faxInput = document.createElement('input');
-          faxInput.type = 'hidden';
-          faxInput.name = 'faxId';
-          faxInput.id = 'csf_faxId';
-          document.getElementById('caseForm').appendChild(faxInput);
-        }
-        faxInput.value = prefills.faxId || '';
-
-        let inboxInput = document.getElementById('csf_inboxId');
-        if (!inboxInput) {
-          inboxInput = document.createElement('input');
-          inboxInput.type = 'hidden';
-          inboxInput.name = 'inboxId';
-          inboxInput.id = 'csf_inboxId';
-          document.getElementById('caseForm').appendChild(inboxInput);
-        }
-        inboxInput.value = prefills.inboxId || '';
-      } else {
-        const faxInput = document.getElementById('csf_faxId');
-        if (faxInput) faxInput.value = '';
-        const inboxInput = document.getElementById('csf_inboxId');
-        if (inboxInput) inboxInput.value = '';
+      if (prefills.clientId) {
+        const cEl = document.getElementById('csf_clientId');
+        if (cEl) cEl.value = prefills.clientId;
+        this.onClientChange(prefills.clientId);
       }
+      if (prefills.category) {
+        const catEl = document.getElementById('csf_category');
+        if (catEl) catEl.value = prefills.category;
+      }
+      if (prefills.carPolice) {
+        const polEl = document.getElementById('csf_carPolice');
+        if (polEl) polEl.value = prefills.carPolice;
+      }
+      if (prefills.applicantName || prefills.carName) {
+        const carNameEl = document.getElementById('csf_carName');
+        if (carNameEl) carNameEl.value = prefills.applicantName || prefills.carName;
+      }
+      if (prefills.applicantAddress || prefills.carAddress) {
+        const carAddrEl = document.getElementById('csf_carAddress');
+        if (carAddrEl) carAddrEl.value = prefills.applicantAddress || prefills.carAddress;
+      }
+      if (prefills.garageAddress || prefills.parkingAddress) {
+        const parkAddrEl = document.getElementById('csf_parkingAddress');
+        if (parkAddrEl) parkAddrEl.value = prefills.garageAddress || prefills.parkingAddress;
+      }
+      if (prefills.vin || prefills.carNumber) {
+        const carNumEl = document.getElementById('csf_carNumber');
+        if (carNumEl) carNumEl.value = prefills.carNumber || prefills.vin;
+      }
+      if (prefills.oldCarNumber) {
+        const oldCarNumEl = document.getElementById('csf_oldCarNumber');
+        if (oldCarNumEl) oldCarNumEl.value = prefills.oldCarNumber;
+      }
+      if (prefills.deadline) {
+        const dlEl = document.getElementById('csf_deadline');
+        if (dlEl) dlEl.value = prefills.deadline;
+      }
+      if (prefills.memo) {
+        const memoEl = document.getElementById('csf_memo');
+        if (memoEl) memoEl.value = prefills.memo;
+      }
+      
+      let faxInput = document.getElementById('csf_faxId');
+      if (!faxInput && formEl) {
+        faxInput = document.createElement('input');
+        faxInput.type = 'hidden';
+        faxInput.name = 'faxId';
+        faxInput.id = 'csf_faxId';
+        formEl.appendChild(faxInput);
+      }
+      if (faxInput) faxInput.value = prefills.faxId || '';
+
+      let inboxInput = document.getElementById('csf_inboxId');
+      if (!inboxInput && formEl) {
+        inboxInput = document.createElement('input');
+        inboxInput.type = 'hidden';
+        inboxInput.name = 'inboxId';
+        inboxInput.id = 'csf_inboxId';
+        formEl.appendChild(inboxInput);
+      }
+      if (inboxInput) inboxInput.value = prefills.inboxId || '';
+    } else {
+      const faxInput = document.getElementById('csf_faxId');
+      if (faxInput) faxInput.value = '';
+      const inboxInput = document.getElementById('csf_inboxId');
+      if (inboxInput) inboxInput.value = '';
+    }
     const wrap = document.getElementById('csf_milestone_stepper_wrap');
     if (wrap) wrap.style.display = 'none';
-    const catVal = document.getElementById('csf_category').value;
+    const catEl = document.getElementById('csf_category');
+    const catVal = catEl ? catEl.value : 'garage_oss';
     Cases.toggleCategoryFields(catVal);
-    if (typeof CaseTemplates !== 'undefined') {
+    if (typeof CaseTemplates !== 'undefined' && CaseTemplates.applyTemplate) {
       CaseTemplates.applyTemplate(catVal);
     }
   },

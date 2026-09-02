@@ -669,78 +669,91 @@ const InboxManager = {
 
   // 3. インボックスから案件登録モーダルへ展開
   registerCase(itemId) {
-    const inbox = Store.getInbox ? Store.getInbox() : [];
-    let item = inbox.find(i => String(i.id) === String(itemId));
+    try {
+      const inbox = Store.getInbox ? Store.getInbox() : [];
+      let item = inbox.find(i => String(i.id) === String(itemId));
 
-    // フォールバック: faxLogs
-    if (!item) {
-      const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
-      const foundLog = faxLogs.find(l => String(l.id) === String(itemId) || String(l.faxId) === String(itemId));
-      if (foundLog) {
-        item = {
-          id: foundLog.id || foundLog.faxId || itemId,
-          type: 'FAX',
-          sender: foundLog.fromNumber || foundLog.number || 'FAX',
-          subject: foundLog.subject || '受信FAX',
-          body: foundLog.body || '',
-          date: foundLog.date || foundLog.createdAt || '',
-          attachments: foundLog.attachments || (foundLog.pdfUrl ? [{ name: 'FAX.pdf', url: foundLog.pdfUrl }] : []),
-          status: foundLog.status || '未対応'
-        };
+      // フォールバック: faxLogs
+      if (!item) {
+        const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
+        const foundLog = faxLogs.find(l => String(l.id) === String(itemId) || String(l.faxId) === String(itemId));
+        if (foundLog) {
+          item = {
+            id: foundLog.id || foundLog.faxId || itemId,
+            type: 'FAX',
+            sender: foundLog.fromNumber || foundLog.number || 'FAX',
+            subject: foundLog.subject || '受信FAX',
+            body: foundLog.body || '',
+            date: foundLog.date || foundLog.createdAt || '',
+            attachments: foundLog.attachments || (foundLog.pdfUrl ? [{ name: 'FAX.pdf', url: foundLog.pdfUrl }] : []),
+            status: foundLog.status || '未対応'
+          };
+        }
       }
+
+      if (!item) {
+        console.warn('受信アイテムが見つかりませんでした: ' + itemId);
+        alert('⚠️ 該当する受信データが見つかりませんでした');
+        return;
+      }
+
+      // ディーラー差出人解析・顧客自動マッチング
+      let parsed = null;
+      if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.parse) {
+        try {
+          parsed = DealerDocumentParser.parse(item.body || item.subject || '', item);
+        } catch (e) {
+          console.warn('DealerDocumentParser.parse error:', e);
+        }
+      }
+      const client = this.matchClient(item);
+
+      // 添付ファイルのテキストリスト作成
+      let attachments = [];
+      if (item.attachments) {
+        try {
+          attachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+        } catch (e) { attachments = []; }
+      }
+
+      // カテゴリ自動予測 (件名・解析結果から判定)
+      let category = 'garage_paper'; // デフォルトは紙の車庫証明
+      const subject = item.subject || '';
+      if ((parsed && parsed.isOss) || subject.includes('OSS') || subject.toLowerCase().includes('oss')) {
+        category = 'garage_oss';
+      } else if (subject.includes('相続') || subject.includes('遺産')) {
+        category = 'inheritance';
+      } else if (subject.includes('封印') || subject.includes('ナンバー')) {
+        category = 'seal';
+      }
+
+      const prefills = {
+        title: (parsed && parsed.suggestedTitle) ? parsed.suggestedTitle : `${item.type === 'FAX' ? 'FAX' : 'メール'}依頼: ${item.subject || '無題案件'}`,
+        clientId: (client ? client.id : '') || (parsed ? parsed.matchedClientId : ''),
+        category: category,
+        orderNo: parsed ? parsed.orderNo : '',
+        applicantName: parsed ? parsed.applicantName : '',
+        applicantAddress: parsed ? parsed.applicantAddress : '',
+        memo: '',
+        inboxId: item.id,
+        faxId: item.type === 'FAX' ? item.id : '',
+        attachments: attachments,
+        inboxItem: item
+      };
+
+      // 案件管理画面へ遷移してモーダルを開く
+      if (typeof App !== 'undefined' && App.navigate) {
+        App.navigate('cases');
+      }
+      setTimeout(() => {
+        if (typeof Cases !== 'undefined' && typeof Cases.showAddModal === 'function') {
+          Cases.showAddModal(prefills);
+        }
+      }, 50);
+    } catch (err) {
+      console.error('registerCase error:', err);
+      alert('⚠️ 案件登録の起動中にエラーが発生しました: ' + err.message);
     }
-
-    if (!item) {
-      console.warn('受信アイテムが見つかりませんでした: ' + itemId);
-      alert('⚠️ 該当する受信データが見つかりませんでした');
-      return;
-    }
-
-    // ディーラー差出人解析・顧客自動マッチング
-    let parsed = null;
-    if (typeof DealerDocumentParser !== 'undefined') {
-      parsed = DealerDocumentParser.parse(item.body || item.subject || '', item);
-    }
-    const client = this.matchClient(item);
-
-    // 添付ファイルのテキストリスト作成
-    let attachments = [];
-    if (item.attachments) {
-      try {
-        attachments = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
-      } catch (e) { attachments = []; }
-    }
-    const attachmentText = attachments.length > 0 
-      ? `\n\n【添付書類】\n` + attachments.map(a => `・${a.name}: ${a.url}`).join('\n')
-      : '';
-
-    // カテゴリ自動予測 (件名・解析結果から判定)
-    let category = 'garage_paper'; // デフォルトは紙の車庫証明
-    const subject = item.subject || '';
-    if ((parsed && parsed.isOss) || subject.includes('OSS') || subject.toLowerCase().includes('oss')) {
-      category = 'garage_oss';
-    } else if (subject.includes('相続') || subject.includes('遺産')) {
-      category = 'inheritance';
-    } else if (subject.includes('封印') || subject.includes('ナンバー')) {
-      category = 'seal';
-    }
-
-    const prefills = {
-      title: (parsed && parsed.suggestedTitle) ? parsed.suggestedTitle : `${item.type === 'FAX' ? 'FAX' : 'メール'}依頼: ${item.subject || '無題案件'}`,
-      clientId: (client ? client.id : '') || (parsed ? parsed.matchedClientId : ''),
-      category: category,
-      orderNo: parsed ? parsed.orderNo : '',
-      applicantName: parsed ? parsed.applicantName : '',
-      applicantAddress: parsed ? parsed.applicantAddress : '',
-      memo: '', // メモ欄は本文全文を入れず、クリーンな状態で入力可能にする
-      inboxId: item.id,
-      faxId: item.type === 'FAX' ? item.id : '', // FAXログ互換用
-      attachments: attachments,
-      inboxItem: item
-    };
-
-    // 案件管理モーダルを開く
-    Cases.showAddModal(prefills);
   },
 
   // ─── 🔄 OCR解析用ローディングモーダル ───
