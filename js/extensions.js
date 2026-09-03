@@ -263,11 +263,23 @@ const GlobalSearch = {
       (c.phone || '').includes(q) ||
       (c.companyName || '').toLowerCase().includes(q)
     );
-    const cases = Store.getCases().filter(c =>
-      (c.title || '').toLowerCase().includes(q) ||
-      (c.memo || '').toLowerCase().includes(q) ||
-      (c.orderNo || '').toLowerCase().includes(q)
-    );
+    const cases = Store.getCases().filter(c => {
+      const client = Store.getClient(c.clientId);
+      const clientName = client ? client.name.toLowerCase() : '';
+      return (
+        (c.title || '').toLowerCase().includes(q) ||
+        (c.carName || '').toLowerCase().includes(q) ||
+        (c.applicantName || '').toLowerCase().includes(q) ||
+        (c.orderNo || '').toLowerCase().includes(q) ||
+        (c.carNumber || '').toLowerCase().includes(q) ||
+        (c.oldCarNumber || '').toLowerCase().includes(q) ||
+        (c.vin || '').toLowerCase().includes(q) ||
+        (c.carAddress || '').toLowerCase().includes(q) ||
+        (c.parkingAddress || '').toLowerCase().includes(q) ||
+        (typeof c.memo === 'string' && c.memo.toLowerCase().includes(q)) ||
+        clientName.includes(q)
+      );
+    });
 
     if (clients.length > 0) {
       html += '<div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);padding:8px 0">👥 顧客</div>';
@@ -282,10 +294,12 @@ const GlobalSearch = {
       html += '<div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);padding:8px 0">📋 案件</div>';
       cases.forEach(c => {
         const client = Store.getClient(c.clientId);
+        const applicantInfo = c.carName ? ` ｜ 👤 申請者: <strong>${c.carName}</strong>` : '';
+        const carInfo = (c.carNumber || c.oldCarNumber || c.vin) ? ` ｜ 🚗 ${c.carNumber || c.oldCarNumber || c.vin}` : '';
         html += `<div class="mini-case-item" onclick="document.getElementById('globalSearchModal').remove(); App.navigate('cases'); setTimeout(()=>Cases.showEditModal('${c.id}'),100)" style="cursor:pointer; display:flex; align-items:center;">
           <div style="flex:1;">
             <div class="mini-case-title" style="margin-bottom:2px;">${c.title} ${c.orderNo ? `<span style="font-weight:normal;font-size:0.8rem;color:#6b7280;margin-left:4px">(${c.orderNo})</span>` : ''}</div>
-            <div style="color:var(--text-secondary);font-size:0.8rem">${client ? client.name : ''}</div>
+            <div style="color:var(--text-secondary);font-size:0.8rem">${client ? client.name : '—'}${applicantInfo}${carInfo}</div>
           </div>
           ${c.driveFolderUrl ? `<button class="btn btn-secondary" style="font-size:0.75rem; padding:4px 8px; border-radius:4px;" onclick="event.stopPropagation(); window.open('${c.driveFolderUrl}', '_blank')">📁 Drive</button>` : ''}
         </div>`;

@@ -5,6 +5,7 @@ const Cases = {
   filterCategory: 'all',
   filterStatus: 'all',
   filterMapStatus: 'all', // 'all' | 'uncreated' (車庫証明の図面未作成)
+  searchQuery: '',        // 検索クエリ (申請者名・車台番号・ナンバー・注文書No等)
   editingId: null,
   advanceDraft: [],  // 立替金一時データ [{label, amount}]
 
@@ -56,7 +57,26 @@ const Cases = {
     { key: 'その他', label: 'その他' },
   ],
 
-  render() {
+  onSearchInput(val) {
+    this.searchQuery = val;
+    const container = document.getElementById('casesMainContainer');
+    if (container) {
+      const filtered = this.getFilteredCases();
+      const isMobile = window.innerWidth < 768;
+      container.innerHTML = isMobile ? this.renderList(filtered) : this.renderKanban(filtered);
+    } else {
+      App.refreshView();
+    }
+  },
+
+  clearSearch() {
+    this.searchQuery = '';
+    const input = document.getElementById('caseSearchInput');
+    if (input) input.value = '';
+    App.refreshView();
+  },
+
+  getFilteredCases() {
     const cases = Store.getCases();
     let filtered = cases;
     if (this.filterCategory !== 'all') filtered = filtered.filter(c => c.category === this.filterCategory);
@@ -80,14 +100,47 @@ const Cases = {
       });
     }
 
-    // 進行中の車庫証明案件のうち、図面未作成の件数を集計
-    const activeGarageCases = cases.filter(c => c.status !== 'done' && this.isSyakoCase(c));
-    const uncreatedMapCount = activeGarageCases.filter(c => !this.hasMapData(c.id)).length;
-
     // 図面未作成クイックフィルター適用
     if (this.filterMapStatus === 'uncreated') {
       filtered = filtered.filter(c => this.isSyakoCase(c) && !this.hasMapData(c.id));
     }
+
+    // キーワード検索フィルター（申請者名・車台番号・ナンバー・旧ナンバー・注文書No・メモ・顧客名・住所等）
+    if (this.searchQuery) {
+      const q = this.searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(c => {
+        const client = Store.getClient(c.clientId);
+        const clientName = client ? client.name.toLowerCase() : '';
+        const staffName = c.staffId ? (Store.getStaffName(c.staffId) || '').toLowerCase() : '';
+        return (
+          (c.title || '').toLowerCase().includes(q) ||
+          (c.carName || '').toLowerCase().includes(q) ||
+          (c.applicantName || '').toLowerCase().includes(q) ||
+          (c.orderNo || '').toLowerCase().includes(q) ||
+          (c.carNumber || '').toLowerCase().includes(q) ||
+          (c.oldCarNumber || '').toLowerCase().includes(q) ||
+          (c.vin || '').toLowerCase().includes(q) ||
+          (c.carAddress || '').toLowerCase().includes(q) ||
+          (c.parkingAddress || '').toLowerCase().includes(q) ||
+          (c.carPolice || '').toLowerCase().includes(q) ||
+          (typeof c.memo === 'string' && c.memo.toLowerCase().includes(q)) ||
+          (c.subCategory || '').toLowerCase().includes(q) ||
+          clientName.includes(q) ||
+          staffName.includes(q)
+        );
+      });
+    }
+
+    return filtered;
+  },
+
+  render() {
+    const cases = Store.getCases();
+    const filtered = this.getFilteredCases();
+
+    // 進行中の車庫証明案件のうち、図面未作成の件数を集計
+    const activeGarageCases = cases.filter(c => c.status !== 'done' && this.isSyakoCase(c));
+    const uncreatedMapCount = activeGarageCases.filter(c => !this.hasMapData(c.id)).length;
 
     // ビュー切替: PC=カンバン / モバイルはリスト
     const isMobile = window.innerWidth < 768;
@@ -107,6 +160,14 @@ const Cases = {
         </div>
 
         <div class="filter-bar" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <!-- 🔍 キーワード検索ボックス -->
+          <div class="filter-group" style="position:relative; flex:1; min-width:220px; max-width:380px;">
+            <input type="text" id="caseSearchInput" class="filter-input" placeholder="🔍 申請者名・車台・ナンバー・注文書No等..."
+              value="${this.searchQuery}" oninput="Cases.onSearchInput(this.value)"
+              style="width:100%; padding:6px 28px 6px 10px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-card,#fff); color:var(--text-color); font-size:0.85rem;">
+            ${this.searchQuery ? `<button type="button" onclick="Cases.clearSearch()" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.85rem;" title="検索クリア">✕</button>` : ''}
+          </div>
+
           <div class="filter-group">
             <label>カテゴリ:</label>
             <select id="filterCategory" onchange="Cases.onFilterChange()" class="filter-select">
@@ -134,10 +195,13 @@ const Cases = {
           </div>
         </div>
 
-        ${isMobile ? this.renderList(filtered) : this.renderKanban(filtered)}
+        <div id="casesMainContainer">
+          ${isMobile ? this.renderList(filtered) : this.renderKanban(filtered)}
+        </div>
       </div>
       ${this.renderModal()}
     `;
+  },
   },
 
   renderKanban(cases) {
