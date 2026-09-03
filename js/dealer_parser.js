@@ -489,6 +489,22 @@ const DealerDocumentParser = {
               </div>
             </div>
 
+            <!-- 📄 保存するページ範囲の指定（同一FAX複数案件対策） -->
+            <div style="background:rgba(56, 189, 248, 0.08); border:1px solid rgba(56, 189, 248, 0.3); border-radius:8px; padding:10px 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="font-size:0.8rem; font-weight:bold; color:#38bdf8; margin:0;">📄 この案件に添付・保存するページ範囲</label>
+                <span style="font-size:0.72rem; color:var(--text-muted);">※同一FAXに複数顧客がある場合に指定</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:0.8rem; color:var(--text-secondary);">開始:</span>
+                <input type="number" id="ocr-page-from" min="1" value="1" style="width:55px; font-size:0.85rem; padding:4px; text-align:center; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:4px;">
+                <span style="font-size:0.8rem; color:var(--text-secondary);">枚目 〜 終了:</span>
+                <input type="number" id="ocr-page-to" min="1" value="" placeholder="最終" style="width:55px; font-size:0.85rem; padding:4px; text-align:center; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-color); border-radius:4px;">
+                <span style="font-size:0.8rem; color:var(--text-secondary);">枚目</span>
+                <span style="font-size:0.72rem; color:#94a3b8; margin-left:auto;">※指定外のページは保存されません</span>
+              </div>
+            </div>
+
             <!-- 推奨案件タイトル -->
             <div>
               <label style="display:block; font-size:0.75rem; color:var(--text-muted, #94a3b8); margin-bottom:2px;">推奨案件タイトル</label>
@@ -515,6 +531,10 @@ const DealerDocumentParser = {
     document.getElementById('btn-apply-ocr-case').onclick = () => {
       // ユーザーが画面上で修正した最新値を取得
       const isOss = document.getElementById('ocr-edit-isOss').value === 'true';
+      const pageFrom = parseInt(document.getElementById('ocr-page-from').value, 10) || 1;
+      const pageToVal = document.getElementById('ocr-page-to').value;
+      const pageTo = pageToVal ? parseInt(pageToVal, 10) : null;
+
       const updatedParsed = {
         ...parsed,
         isOss: isOss,
@@ -533,11 +553,15 @@ const DealerDocumentParser = {
         vin: document.getElementById('ocr-edit-vin').value.trim(),
         replaceCar: document.getElementById('ocr-edit-replaceCar').value.trim(),
         targetDeliveryDate: document.getElementById('ocr-edit-targetDeliveryDate').value.trim(),
-        suggestedTitle: document.getElementById('dealer-ocr-title-input').value.trim()
+        suggestedTitle: document.getElementById('dealer-ocr-title-input').value.trim(),
+        pageRange: { from: pageFrom, to: pageTo }
       };
 
       const prefill = this.toCasePrefill(updatedParsed);
-      if (rawAttachmentUrl) {
+      prefill.pageRange = { from: pageFrom, to: pageTo };
+      if (parsed.attachments && parsed.attachments.length > 0) {
+        prefill.attachments = parsed.attachments;
+      } else if (rawAttachmentUrl) {
         prefill.attachments = [{ name: (updatedParsed.orderNo ? `【${updatedParsed.orderNo}】依頼書原本.pdf` : '依頼書原本.pdf'), url: rawAttachmentUrl }];
       }
 
@@ -634,6 +658,53 @@ const DealerDocumentParser = {
       console.warn('TIFF client conversion failed:', e);
     }
     return null;
+  },
+
+  // ─── 📑 マルチページTIFFから各ページごとの個別画像配列を生成 ───
+  convertTiffToPages(arrayBufferOrBase64) {
+    try {
+      let buffer;
+      if (typeof arrayBufferOrBase64 === 'string') {
+        const cleanB64 = arrayBufferOrBase64.includes(',') ? arrayBufferOrBase64.split(',')[1] : arrayBufferOrBase64;
+        const binaryStr = atob(cleanB64.trim());
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        buffer = bytes.buffer;
+      } else {
+        buffer = arrayBufferOrBase64;
+      }
+
+      if (typeof UTIF !== 'undefined') {
+        const ifds = UTIF.decode(buffer);
+        if (ifds && ifds.length > 0) {
+          const pages = [];
+          for (let i = 0; i < ifds.length; i++) {
+            UTIF.decodeImage(buffer, ifds[i]);
+            const rgba = UTIF.toRGBA8(ifds[i]);
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = ifds[i].width;
+            pageCanvas.height = ifds[i].height;
+            const pageCtx = pageCanvas.getContext('2d');
+            const pageImgData = pageCtx.createImageData(ifds[i].width, ifds[i].height);
+            pageImgData.data.set(rgba);
+            pageCtx.putImageData(pageImgData, 0, 0);
+            pages.push({
+              pageNumber: i + 1,
+              name: `ページ ${i + 1} (${ifds[i].width}x${ifds[i].height})`,
+              dataUrl: pageCanvas.toDataURL('image/jpeg', 0.95),
+              width: ifds[i].width,
+              height: ifds[i].height
+            });
+          }
+          return pages;
+        }
+      }
+    } catch (e) {
+      console.warn('TIFF convertTiffToPages failed:', e);
+    }
+    return [];
   },
 
   // ─── 🤖 Gemini Vision による画像/PDFの直接超高精度AI解析 ───

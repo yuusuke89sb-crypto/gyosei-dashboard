@@ -1504,6 +1504,31 @@ function createCaseFolder_(data) {
     if (attList && attList.length > 0) {
       attList.forEach((att, idx) => {
         try {
+          // A. クライアント側で切り出された個別ページ画像（dataUrl/base64）の場合
+          if (att.dataUrl || att.base64Data) {
+            const rawData = att.dataUrl || att.base64Data;
+            const b64 = rawData.includes(',') ? rawData.split(',')[1] : rawData;
+            const mime = att.mimeType || 'image/jpeg';
+            const ext = mime.includes('png') ? '.png' : '.jpg';
+            let targetName = '';
+            const pageSuffix = att.pageNumber ? `_P${att.pageNumber}` : (att.name ? `_${att.name}` : `_${idx + 1}`);
+            if (orderNo && applicant) {
+              targetName = `【${orderNo}】${applicant}${pageSuffix}${ext}`;
+            } else if (applicant) {
+              targetName = `${applicant}${pageSuffix}${ext}`;
+            } else if (orderNo) {
+              targetName = `【${orderNo}】書類${pageSuffix}${ext}`;
+            } else {
+              targetName = `書類${pageSuffix}${ext}`;
+            }
+            targetName = targetName.replace(/[\\/:*?"<>|]/g, '_');
+            const blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, targetName);
+            caseFolder.createFile(blob);
+            copiedFilesCount++;
+            return;
+          }
+
+          // B. 既存Driveファイル（PDF/TIFF等）の場合
           if (att.url) {
             const match = att.url.match(/[-\w]{25,}/);
             if (match) {

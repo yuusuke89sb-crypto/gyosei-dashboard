@@ -553,7 +553,7 @@ const Cases = {
               <!-- ツールバー / ページタブ -->
               <div style="background:rgba(0,0,0,0.3); border-bottom:1px solid var(--border-color, #334155); padding:6px 10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; flex-shrink:0;">
                 <div id="caseAttTabs" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
-                  <span style="font-size:0.75rem; font-weight:bold; color:var(--accent-gold, #f59e0b);">📄 添付:</span>
+                  <span style="font-size:0.75rem; font-weight:bold; color:var(--accent-gold, #f59e0b);">📄 表示:</span>
                   <div id="caseAttTabList" style="display:flex; gap:4px; flex-wrap:wrap;"></div>
                 </div>
                 <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
@@ -566,6 +566,21 @@ const Cases = {
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.resetViewer()" title="リセット">⤢</button>
                   <input type="file" id="caseViewerFileInput" accept=".tif,.tiff,image/*,.pdf" style="display:none;" onchange="Cases.handleViewerFileSelect(event)">
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem; background:#334155;" onclick="document.getElementById('caseViewerFileInput').click()" title="手元のTIF/PDFを選択">📁開く</button>
+                </div>
+              </div>
+              <!-- ページ選択・範囲指定バー（同一FAX複数顧客の切り出し保存対応） -->
+              <div id="casePageSelectBar" style="background:rgba(30,41,59,0.95); border-bottom:1px solid var(--border-color, #334155); padding:6px 10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span style="font-size:0.75rem; font-weight:bold; color:#38bdf8;">📌 案件に保存するページ:</span>
+                  <div id="casePageCheckboxes" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+                </div>
+                <div style="display:flex; align-items:center; gap:4px;">
+                  <span style="font-size:0.72rem; color:var(--text-muted);">範囲:</span>
+                  <input type="number" id="casePageRangeFrom" min="1" style="width:38px; font-size:0.75rem; padding:2px; text-align:center; background:#0f172a; color:#fff; border:1px solid #475569; border-radius:4px;" value="1">
+                  <span style="font-size:0.72rem; color:var(--text-muted);">〜</span>
+                  <input type="number" id="casePageRangeTo" min="1" style="width:38px; font-size:0.75rem; padding:2px; text-align:center; background:#0f172a; color:#fff; border:1px solid #475569; border-radius:4px;">
+                  <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.applyPageRange()">範囲適用</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.selectAllPages()">全選択</button>
                 </div>
               </div>
               <!-- ビューワー本文 -->
@@ -840,10 +855,11 @@ const Cases = {
     currentIndex: 0,
     zoom: 1.0,
     rotation: 0,
-    isOpen: false
+    isOpen: false,
+    selectedPageIndices: [] // 案件に保存する対象ページのインデックス一覧
   },
 
-  initAttachmentViewer(attachments = [], preselectIdx = 0) {
+  initAttachmentViewer(attachments = [], preselectIdx = 0, initialPageRange = null) {
     this.viewerState.attachments = attachments || [];
     this.viewerState.currentIndex = preselectIdx;
     this.viewerState.zoom = 1.0;
@@ -863,6 +879,26 @@ const Cases = {
       content.style.width = '96vw';
       if (toggleBtn) toggleBtn.style.display = 'inline-flex';
 
+      // 保存対象ページの初期化
+      if (initialPageRange && initialPageRange.from) {
+        const from = Math.max(1, initialPageRange.from);
+        const to = initialPageRange.to ? Math.min(attachments.length, initialPageRange.to) : attachments.length;
+        this.viewerState.selectedPageIndices = [];
+        for (let i = from - 1; i < to; i++) {
+          if (i >= 0 && i < attachments.length) this.viewerState.selectedPageIndices.push(i);
+        }
+        const fromInput = document.getElementById('casePageRangeFrom');
+        if (fromInput) fromInput.value = from;
+        const toInput = document.getElementById('casePageRangeTo');
+        if (toInput) toInput.value = to;
+      } else {
+        this.viewerState.selectedPageIndices = attachments.map((_, i) => i);
+        const fromInput = document.getElementById('casePageRangeFrom');
+        if (fromInput) fromInput.value = 1;
+        const toInput = document.getElementById('casePageRangeTo');
+        if (toInput) toInput.value = attachments.length;
+      }
+
       // ページタブの生成
       if (tabList) {
         tabList.innerHTML = attachments.map((att, idx) => `
@@ -874,14 +910,97 @@ const Cases = {
         `).join('');
       }
 
+      this.renderPageCheckboxes();
       this.loadAttachmentByIndex(preselectIdx);
     } else {
       this.viewerState.isOpen = false;
+      this.viewerState.selectedPageIndices = [];
       pane.style.display = 'none';
       content.style.maxWidth = '720px';
       content.style.width = '94%';
       if (toggleBtn) toggleBtn.style.display = 'none';
     }
+  },
+
+  renderPageCheckboxes() {
+    const container = document.getElementById('casePageCheckboxes');
+    if (!container) return;
+    const atts = this.viewerState.attachments || [];
+    if (atts.length <= 1) {
+      container.innerHTML = `<span style="font-size:0.75rem; color:#94a3b8;">1枚のみ（全ページ保存対象）</span>`;
+      return;
+    }
+    container.innerHTML = atts.map((att, idx) => {
+      const isChecked = this.viewerState.selectedPageIndices.includes(idx);
+      return `
+        <label style="font-size:0.75rem; color:#fff; display:inline-flex; align-items:center; gap:4px; cursor:pointer; background:${isChecked ? 'rgba(56,189,248,0.25)' : 'rgba(255,255,255,0.05)'}; padding:2px 7px; border-radius:4px; border:1px solid ${isChecked ? '#38bdf8' : '#475569'}; transition:all 0.15s;">
+          <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="Cases.togglePageSelection(${idx}, this.checked)" style="accent-color:#38bdf8; margin:0; cursor:pointer;">
+          <span>${idx + 1}枚目</span>
+        </label>
+      `;
+    }).join('');
+  },
+
+  togglePageSelection(idx, checked) {
+    if (checked) {
+      if (!this.viewerState.selectedPageIndices.includes(idx)) {
+        this.viewerState.selectedPageIndices.push(idx);
+        this.viewerState.selectedPageIndices.sort((a, b) => a - b);
+      }
+    } else {
+      this.viewerState.selectedPageIndices = this.viewerState.selectedPageIndices.filter(i => i !== idx);
+    }
+    this.renderPageCheckboxes();
+    this.updatePageRangeInputs();
+  },
+
+  applyPageRange() {
+    const fromVal = parseInt(document.getElementById('casePageRangeFrom')?.value, 10) || 1;
+    const toVal = parseInt(document.getElementById('casePageRangeTo')?.value, 10) || (this.viewerState.attachments || []).length;
+    const atts = this.viewerState.attachments || [];
+    this.viewerState.selectedPageIndices = [];
+    for (let i = fromVal - 1; i < toVal; i++) {
+      if (i >= 0 && i < atts.length) {
+        this.viewerState.selectedPageIndices.push(i);
+      }
+    }
+    this.renderPageCheckboxes();
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast(`📌 保存対象を「${fromVal}〜${toVal}枚目」(${this.viewerState.selectedPageIndices.length}枚)に設定しました`);
+    }
+  },
+
+  selectAllPages() {
+    const atts = this.viewerState.attachments || [];
+    this.viewerState.selectedPageIndices = atts.map((_, i) => i);
+    const fromInput = document.getElementById('casePageRangeFrom');
+    if (fromInput) fromInput.value = 1;
+    const toInput = document.getElementById('casePageRangeTo');
+    if (toInput) toInput.value = atts.length;
+    this.renderPageCheckboxes();
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast(`📌 全${atts.length}枚を保存対象に設定しました`);
+    }
+  },
+
+  updatePageRangeInputs() {
+    const indices = this.viewerState.selectedPageIndices;
+    if (indices && indices.length > 0) {
+      const min = Math.min(...indices) + 1;
+      const max = Math.max(...indices) + 1;
+      const fromInput = document.getElementById('casePageRangeFrom');
+      if (fromInput) fromInput.value = min;
+      const toInput = document.getElementById('casePageRangeTo');
+      if (toInput) toInput.value = max;
+    }
+  },
+
+  getSelectedAttachments() {
+    const atts = this.viewerState.attachments || [];
+    if (!this.viewerState.selectedPageIndices || this.viewerState.selectedPageIndices.length === 0) {
+      return atts; // 未選択時は全ページフォールバック
+    }
+    return this.viewerState.selectedPageIndices.map(i => atts[i]).filter(Boolean);
   },
 
   toggleAttachmentSplitView() {
@@ -1526,7 +1645,7 @@ const Cases = {
 
     // 添付ファイルプレビューワーの初期化（横並び表示）
     if (prefills && prefills.attachments && prefills.attachments.length > 0) {
-      this.initAttachmentViewer(prefills.attachments, 0);
+      this.initAttachmentViewer(prefills.attachments, 0, prefills.pageRange || null);
     } else {
       this.initAttachmentViewer([]);
     }
@@ -1813,12 +1932,10 @@ const Cases = {
       const existing = Store.getCase(this.editingId);
       initialDocs = (existing && Array.isArray(existing.docs)) ? [...existing.docs] : [];
     }
-    const incomingAtts = (this.viewerState && this.viewerState.attachments && this.viewerState.attachments.length > 0)
-      ? this.viewerState.attachments
-      : [];
+    const incomingAtts = this.getSelectedAttachments();
     if (incomingAtts.length > 0) {
       incomingAtts.forEach((att, idx) => {
-        const attName = att.name || '受信添付書類';
+        const attName = att.name || `受信添付書類_P${(att.pageNumber || idx + 1)}`;
         const exists = initialDocs.some(d => d.name === attName || (d.driveUrl && att.url && d.driveUrl === att.url));
         if (!exists) {
           initialDocs.push({
@@ -1865,9 +1982,12 @@ const Cases = {
       savedCase = Store.updateCase(this.editingId, data);
     } else {
       savedCase = Store.addCase(data);
-      // インボックスからの移行の場合、ステータスを対応済に更新 ＆ 送信元メールを顧客マスタへ自動学習
+      // インボックスからの移行の場合、ステータスを更新 ＆ 送信元メールを顧客マスタへ自動学習
       if (data.inboxId && typeof Store.updateInboxStatus === 'function') {
-        Store.updateInboxStatus(data.inboxId, '対応済', savedCase.id);
+        const isContinuing = this._submitMode === 'continueNext';
+        const hasUnselectedPages = this.viewerState.attachments && this.viewerState.attachments.length > (this.viewerState.selectedPageIndices || []).length;
+        const newStatus = (isContinuing || hasUnselectedPages) ? '対応中' : '対応済';
+        Store.updateInboxStatus(data.inboxId, newStatus, savedCase.id);
 
         // 顧客マスタへの送信元メール自動学習処理
         const inbox = Store.getInbox ? Store.getInbox() : [];
@@ -1914,13 +2034,13 @@ const Cases = {
       }
     }
 
-    // フォルダ未作成の場合は裏側でGAS連携してフォルダ作成＆添付ファイルの自動保管
+    // フォルダ未作成の場合は裏側でGAS連携してフォルダ作成＆添付ファイルの自動保管（選択ページのみ）
     if (!data.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       const client = Store.getClient(savedCase.clientId);
       const clientName = client ? (client.companyName || client.name) : 'お客様';
       const contact = savedCase.clientContactId ? (typeof Store.getClientContact === 'function' ? Store.getClientContact(savedCase.clientContactId) : null) : null;
       const contactName = contact ? contact.name : (savedCase.contactName || '');
-      const atts = (this.viewerState && this.viewerState.attachments && this.viewerState.attachments.length > 0) ? this.viewerState.attachments : [];
+      const atts = this.getSelectedAttachments();
       const folderData = {
         ...savedCase,
         clientName: clientName,
@@ -2008,7 +2128,26 @@ const Cases = {
         carNameEl.focus();
       }
 
-      App.showToast('✅ 案件を登録しました！そのまま2件目を入力できます');
+      // 次の案件用に保存対象ページを自動繰り上げ
+      const totalPages = (this.viewerState.attachments || []).length;
+      const currentSelected = this.viewerState.selectedPageIndices || [];
+      const maxSelected = currentSelected.length > 0 ? Math.max(...currentSelected) : 0;
+      const nextFrom = maxSelected + 2; // 例: 1〜2枚目(index 0,1)を選択していた場合、次は3枚目(index 2)〜
+      if (nextFrom <= totalPages) {
+        this.viewerState.selectedPageIndices = [];
+        for (let i = nextFrom - 1; i < totalPages; i++) {
+          this.viewerState.selectedPageIndices.push(i);
+        }
+        const fromInput = document.getElementById('casePageRangeFrom');
+        if (fromInput) fromInput.value = nextFrom;
+        const toInput = document.getElementById('casePageRangeTo');
+        if (toInput) toInput.value = totalPages;
+        this.renderPageCheckboxes();
+        this.loadAttachmentByIndex(nextFrom - 1);
+        App.showToast(`📑 1件目を登録しました！続けて「${nextFrom}枚目〜」の2件目を入力できます`);
+      } else {
+        App.showToast('✅ 案件を登録しました！そのまま2件目を入力できます');
+      }
     } else {
       // mode === 'keep'（途中保存）
       this.editingId = savedCase.id;

@@ -826,6 +826,19 @@ const InboxManager = {
               this.updateLoadingStatus('Gemini 2.0 で書類項目（注文No・申請者・車両情報）を抽出中...');
               const geminiParsed = await DealerDocumentParser.parseWithGemini(b64Data.base64, b64Data.mimeType, item);
               if (geminiParsed && (geminiParsed.orderNo || geminiParsed.applicantName || geminiParsed.storeFullName || geminiParsed.vin || geminiParsed.applicantAddress)) {
+                // TIFFマルチページを個別ページに展開（複数案件切り出し用）
+                const isTiffData = (b64Data.mimeType || '').includes('tif') || (firstAtt.name && firstAtt.name.match(/\.tiff?$/i)) || b64Data.base64.startsWith('SUkq') || b64Data.base64.startsWith('TU0A');
+                if (isTiffData && typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToPages) {
+                  const tiffPages = DealerDocumentParser.convertTiffToPages(b64Data.base64);
+                  if (tiffPages && tiffPages.length > 1) {
+                    geminiParsed.attachments = tiffPages.map((p, idx) => ({
+                      name: `FAX原本_P${idx + 1}.jpg`,
+                      dataUrl: p.dataUrl,
+                      pageNumber: idx + 1,
+                      mimeType: 'image/jpeg'
+                    }));
+                  }
+                }
                 this.hideLoadingModal();
                 DealerDocumentParser.showOcrResultModal(geminiParsed, firstAtt.url);
                 return;
