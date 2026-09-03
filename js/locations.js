@@ -54,6 +54,7 @@ const LocationManager = {
         <thead>
           <tr style="border-bottom:2px solid var(--border-color);text-align:left">
             <th style="padding:8px 12px">場所名</th>
+            <th style="padding:8px 12px">車庫報酬(一般)</th>
             <th style="padding:8px 12px">住所</th>
             <th style="padding:8px 12px">メモ</th>
             <th style="padding:8px 12px;width:80px"></th>
@@ -63,6 +64,9 @@ const LocationManager = {
           ${locations.map(loc => `
             <tr style="border-bottom:1px solid var(--border-color)" id="loc-row-${loc.id}">
               <td style="padding:8px 12px;font-weight:600">📍 ${loc.name}</td>
+              <td style="padding:8px 12px;color:var(--accent-gold, #f59e0b);font-weight:600">
+                ${(loc.syakoFee && Number(loc.syakoFee) > 0) ? `¥${Number(loc.syakoFee).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal">—</span>'}
+              </td>
               <td style="padding:8px 12px;color:var(--text-muted)">${loc.address || '—'}</td>
               <td style="padding:8px 12px;color:var(--text-muted)">${loc.memo || '—'}</td>
               <td style="padding:8px 12px;white-space:nowrap">
@@ -102,18 +106,24 @@ const LocationManager = {
       <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;padding:16px;margin-bottom:16px">
         <div style="font-weight:600;margin-bottom:12px">${loc ? '場所を編集' : '場所を追加'}</div>
         <div class="form-row">
-          <div class="form-group">
+          <div class="form-group" style="flex:2">
             <label>場所名 <span class="required">*</span></label>
-            <input type="text" id="lf_name" value="${loc ? loc.name : ''}" placeholder="例：AT江南、名古屋東警察署">
+            <input type="text" id="lf_name" value="${loc ? loc.name : ''}" placeholder="例：一宮警察署、小牧警察署">
           </div>
-          <div class="form-group">
-            <label>住所</label>
-            <input type="text" id="lf_address" value="${loc ? (loc.address || '') : ''}" placeholder="例：名古屋市...">
+          <div class="form-group" style="flex:1">
+            <label>車庫証明 一般報酬（円） <span style="font-size:0.75rem;color:var(--text-muted)">※警察署</span></label>
+            <input type="number" id="lf_syakoFee" value="${loc && loc.syakoFee ? loc.syakoFee : ''}" placeholder="例：4000" min="0" step="100">
           </div>
         </div>
-        <div class="form-group">
-          <label>メモ</label>
-          <input type="text" id="lf_memo" value="${loc ? (loc.memo || '') : ''}" placeholder="備考など">
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label>住所</label>
+            <input type="text" id="lf_address" value="${loc ? (loc.address || '') : ''}" placeholder="例：一宮市本町1-6-20">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label>メモ</label>
+            <input type="text" id="lf_memo" value="${loc ? (loc.memo || '') : ''}" placeholder="例：愛知県警、管轄区域など">
+          </div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
           <button class="btn btn-secondary" onclick="LocationManager.cancelForm()">キャンセル</button>
@@ -132,8 +142,11 @@ const LocationManager = {
   onSubmit() {
     const name = (document.getElementById('lf_name')?.value || '').trim();
     if (!name) { App.showToast('場所名を入力してください'); return; }
+    const syakoFeeVal = document.getElementById('lf_syakoFee')?.value;
+    const syakoFee = (syakoFeeVal !== undefined && syakoFeeVal !== '' && syakoFeeVal !== null) ? Number(syakoFeeVal) : null;
     const data = {
       name,
+      syakoFee,
       address: (document.getElementById('lf_address')?.value || '').trim(),
       memo: (document.getElementById('lf_memo')?.value || '').trim(),
     };

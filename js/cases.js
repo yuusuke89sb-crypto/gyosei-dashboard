@@ -666,9 +666,9 @@ const Cases = {
                 <div class="form-row" id="csf_garageDates_group_police_apply">
                   <div class="form-group">
                     <label>申請先（警察署など）</label>
-                    <select name="policeLocationId" id="csf_policeLocationId" class="form-select">
+                    <select name="policeLocationId" id="csf_policeLocationId" class="form-select" onchange="Cases.onPoliceLocationChange(this.value)">
                       <option value="">— 未選択 —</option>
-                      ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                      ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}${(l.syakoFee && Number(l.syakoFee) > 0) ? ' (¥' + Number(l.syakoFee).toLocaleString() + ')' : ''}</option>`).join('')}
                     </select>
                   </div>
                   <div class="form-group">
@@ -1679,6 +1679,17 @@ const Cases = {
       if (prefills.carPolice) {
         const polEl = document.getElementById('csf_carPolice');
         if (polEl) polEl.value = prefills.carPolice;
+        // 警察署マスタに一致するものがあれば自動選択＆車庫一般なら単価連動
+        const polLocSelect = document.getElementById('csf_policeLocationId');
+        if (polLocSelect && !polLocSelect.value && typeof Store !== 'undefined') {
+          const locs = Store.getLocations();
+          const pName = prefills.carPolice.replace(/\s+/g, '');
+          const matched = locs.find(l => pName.includes(l.name.replace('警察署', '')) || l.name.includes(pName));
+          if (matched) {
+            polLocSelect.value = matched.id;
+            this.onPoliceLocationChange(matched.id);
+          }
+        }
       }
       if (prefills.applicantName || prefills.carName) {
         const carNameEl = document.getElementById('csf_carName');
@@ -2307,10 +2318,39 @@ const Cases = {
     }
   },
 
+  // 申請先警察署の変更時ハンドラ（車庫証明一般のみ単価自動連動）
+  onPoliceLocationChange(locationId) {
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+
+    // ★重要ルール：車庫証明（一般：garage_paper）の時のみ警察署単価を連動
+    if (cat === 'garage_paper') {
+      if (!locationId) return;
+      const loc = typeof Store !== 'undefined' ? Store.getLocation(locationId) : null;
+      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+        const feeEl = document.getElementById('csf_fee');
+        if (feeEl) {
+          feeEl.value = loc.syakoFee;
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast(`📍 ${loc.name}の車庫証明報酬（¥${Number(loc.syakoFee).toLocaleString()}）を反映しました`);
+          }
+        }
+      }
+    }
+  },
+
   toggleCategoryFields(category) {
     const isCarRegOrSeal = ['car_reg_standard', 'car_reg_light', 'seal'].includes(category);
     const subCatGroup = document.getElementById('csf_subCategory_group');
     if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
+
+    // 車庫証明（一般）に切り替えた場合、もし警察署が選択済みならその警察署の単価を反映
+    if (category === 'garage_paper') {
+      const polEl = document.getElementById('csf_policeLocationId');
+      if (polEl && polEl.value) {
+        this.onPoliceLocationChange(polEl.value);
+      }
+    }
 
     // マイルストーン表示の動的切り替え
     const wrap = document.getElementById('csf_milestone_stepper_wrap');

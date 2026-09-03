@@ -78,7 +78,7 @@ const INBOX_HEADERS = [
 ];
 
 const LOCATION_HEADERS = [
-  '場所ID', '場所名', '住所', '備考', '登録日', '更新日',
+  '場所ID', '場所名', '住所', '備考', '車庫証明報酬', '登録日', '更新日',
 ];
 
 const CLIENT_CONTACT_HEADERS = [
@@ -94,6 +94,7 @@ function onOpen() {
     .createMenu('🔧 マスタ管理')
     .addItem('🚀 初期セットアップ', 'initialSetup')
     .addItem('🚗 陸運局・愛知トヨタ初期データ登録', 'forcePopulateDefaults')
+    .addItem('📍 場所マスタ車庫報酬の初期設定', 'updateLocationFees')
     .addSeparator()
     .addItem('✅ データ検証（顧客マスタ）', 'validateCustomerData')
     .addItem('✅ データ検証（担当者マスタ）', 'validateStaffData')
@@ -289,7 +290,7 @@ function setupLocationMaster_() {
   headerRange.setValues([LOCATION_HEADERS]);
   headerRange.setBackground('#e65100').setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center'); // Orange theme
 
-  const widths = [90, 200, 300, 250, 110, 110];
+  const widths = [90, 200, 300, 250, 120, 110, 110];
   widths.forEach((w, i) => sheet.setColumnWidth(i + 1, w));
   sheet.setFrozenRows(1);
 
@@ -1052,7 +1053,7 @@ function getKeyMap_(sheetName) {
   };
   if (sheetName === SHEET_NAMES.JOURNALS) return {'伝票ID': 'id','日付': 'date','借方': 'debit','貸方': 'credit','金額': 'amount','摘要': 'description','案件ID': 'caseId','自動': 'auto','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.INBOX) return {'インボックスID': 'id','日時': 'date','種別': 'type','送信元': 'sender','件名': 'subject','本文': 'body','添付ファイル': 'attachments','ステータス': 'status','案件ID': 'caseId','登録日': 'createdAt'};
-  if (sheetName === SHEET_NAMES.LOCATION) return {'場所ID': 'id','場所名': 'name','住所': 'address','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
+  if (sheetName === SHEET_NAMES.LOCATION) return {'場所ID': 'id','場所名': 'name','住所': 'address','備考': 'memo','車庫証明報酬': 'syakoFee','登録日': 'createdAt','更新日': 'updatedAt'};
   if (sheetName === SHEET_NAMES.CLIENT_CONTACT) return {'担当者ID': 'id','顧客ID': 'clientId','氏名': 'name','電話番号': 'phone','メールアドレス': 'email','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
   return {};
 }
@@ -2524,7 +2525,8 @@ function upsertLocation_(data) {
           const key = keyMap[header];
           if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) sheet.getRange(row, col + 1).setValue(data[key]);
         });
-        sheet.getRange(row, 6).setValue(now);
+        const updateCol = LOCATION_HEADERS.indexOf('更新日') + 1;
+        if (updateCol > 0) sheet.getRange(row, updateCol).setValue(now);
         return { success: true, action: 'updated', id: data.id };
       }
     }
@@ -2919,4 +2921,55 @@ function testCheckInbox() {
   const res = checkIncomingInbox_();
   Logger.log('実行結果: ' + JSON.stringify(res));
   return res;
+}
+
+// ─── 📍 場所マスタの車庫証明報酬（一般）一括設定 ───
+function updateLocationFees() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.LOCATION);
+  if (!sheet) {
+    setupLocationMaster_();
+    sheet = ss.getSheetByName(SHEET_NAMES.LOCATION);
+  }
+  if (!sheet) return;
+
+  // 1. ヘッダー更新
+  sheet.getRange(1, 1, 1, LOCATION_HEADERS.length).setValues([LOCATION_HEADERS]);
+  sheet.getRange(1, 1, 1, LOCATION_HEADERS.length).setBackground('#e65100').setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+
+  // 2. 単価マップ（日栄行政書士事務所様準拠）
+  const feeMap = {
+    '一宮警察署': 4000, '江南警察署': 5000, '稲沢警察署': 5000, '小牧警察署': 6000, '犬山警察署': 6000,
+    '西枇杷島警察署': 6000, '津島警察署': 7000, '蟹江警察署': 8000, '春日井警察署': 8000, '瀬戸警察署': 15000,
+    '愛知警察署': 15000, '東海警察署': 17000, '刈谷警察署': 18000, '豊田警察署': 18000, '知多警察署': 20000,
+    '岡崎警察署': 20000, '安城警察署': 20000, '西尾警察署': 22000, '常滑警察署': 22000, '半田警察署': 22000,
+    '碧南警察署': 22000, '豊川警察署': 15000, '豊橋警察署': 17000,
+    '名古屋北警察署': 6000, '名古屋西警察署': 6000, '名古屋中警察署': 6000, '中警察署': 6000,
+    '名古屋東警察署': 6000, '東警察署': 6000, '名古屋南警察署': 10000, '南警察署': 10000,
+    '中村警察署': 7000, '中川警察署': 8000, '千種警察署': 8000, '熱田警察署': 8000, '名東警察署': 9000,
+    '瑞穂警察署': 9000, '昭和警察署': 9000, '守山警察署': 9000, '天白警察署': 9000, '港警察署': 10000, '緑警察署': 10000,
+    '岐阜羽島警察署': 4000, '岐阜南警察署': 4500, '岐阜中警察署': 5000, '岐阜北警察署': 6000, '各務原警察署': 6000,
+    '北方警察署': 7000, '山県警察署': 7000, '大垣警察署': 7000, '関警察署': 8000, '海津警察署': 8000,
+    '養老警察署': 10000, '垂井警察署': 10000, '加茂警察署': 10000, '揖斐警察署': 11000, '可児警察署': 10000,
+    '多治見警察署': 12000, '郡上警察署': 15000, '中津川警察署': 35000,
+    '四日市北警察署': 22000, '桑名警察署': 12000, '鳥羽警察署': 33000, '甲賀警察署': 25000
+  };
+
+  const lastRow = sheet.getLastRow();
+  let updatedCount = 0;
+  if (lastRow >= 2) {
+    const names = sheet.getRange('B2:B' + lastRow).getValues().flat().map(String);
+    names.forEach((name, i) => {
+      const clean = name.replace(/\s+/g, '');
+      if (feeMap[clean] !== undefined) {
+        sheet.getRange(i + 2, 5).setValue(feeMap[clean]);
+        updatedCount++;
+      }
+    });
+  }
+
+  const ui = SpreadsheetApp.getUi();
+  if (ui) {
+    ui.alert('場所マスタ車庫報酬設定完了', `ヘッダーを更新し、${updatedCount}件の警察署に車庫証明（一般）報酬を設定しました。\nダッシュボード側で「同期」を行ってください。`, ui.ButtonSet.OK);
+  }
 }

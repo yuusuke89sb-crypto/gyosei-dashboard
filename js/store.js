@@ -441,6 +441,7 @@ const Store = {
       name: data.name || '',
       address: data.address || '',
       memo: data.memo || '',
+      syakoFee: (data.syakoFee !== undefined && data.syakoFee !== '' && data.syakoFee !== null) ? Number(data.syakoFee) : null,
       createdAt: data.createdAt || new Date().toISOString(),
       updatedAt: data.updatedAt || new Date().toISOString(),
     };
@@ -457,7 +458,10 @@ const Store = {
     const locations = this.getLocations();
     const idx = locations.findIndex(l => l.id === id);
     if (idx === -1) return null;
-    locations[idx] = { ...locations[idx], ...data, updatedAt: new Date().toISOString() };
+    const syakoFee = (data.syakoFee !== undefined && data.syakoFee !== '' && data.syakoFee !== null)
+      ? Number(data.syakoFee)
+      : (data.syakoFee === '' ? null : (locations[idx].syakoFee !== undefined ? locations[idx].syakoFee : null));
+    locations[idx] = { ...locations[idx], ...data, syakoFee, updatedAt: new Date().toISOString() };
     this._set(this.KEYS.LOCATIONS, locations);
     // スプレッドシートへ自動プッシュ
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {

@@ -30,9 +30,10 @@ const App = {
 
     // 旧ステータスの自動変換
     if (typeof Store !== 'undefined') Store._migrateStatuses();
-    // 9/1以降の未入力案件へのテンプレート報酬額自動補完
-    if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.backfillSeptemberFees === 'function') {
-      CaseTemplates.backfillSeptemberFees();
+    // 警察署別車庫証明報酬マスタの初期適用＆未入力補完
+    if (typeof CaseTemplates !== 'undefined') {
+      if (typeof CaseTemplates.seedPoliceFees === 'function') CaseTemplates.seedPoliceFees();
+      if (typeof CaseTemplates.backfillSeptemberFees === 'function') CaseTemplates.backfillSeptemberFees();
     }
     this.renderSidebar();
     this.renderContent();
@@ -53,8 +54,9 @@ const App = {
     // スプレッドシート自動同期
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.pull().then(() => {
-        if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.backfillSeptemberFees === 'function') {
-          CaseTemplates.backfillSeptemberFees();
+        if (typeof CaseTemplates !== 'undefined') {
+          if (typeof CaseTemplates.seedPoliceFees === 'function') CaseTemplates.seedPoliceFees();
+          if (typeof CaseTemplates.backfillSeptemberFees === 'function') CaseTemplates.backfillSeptemberFees();
         }
         this.refreshView();
       }).catch(() => { });

@@ -340,17 +340,146 @@ const CaseTemplates = {
   _lastAppliedCategory: null,
 
   applyTemplate(category) {
+    const feeEl = document.getElementById('csf_fee');
+    if (!feeEl) return;
+
+    // ★ユーザー指定厳格ルール：車庫証明（一般）かつ警察署が選択済みの場合は警察署の一般報酬を適用！
+    if (category === 'garage_paper') {
+      const polSel = document.getElementById('csf_policeLocationId');
+      const polId = polSel ? polSel.value : '';
+      if (polId && typeof Store !== 'undefined' && Store.getLocation) {
+        const loc = Store.getLocation(polId);
+        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+          feeEl.value = loc.syakoFee;
+          this._lastAppliedCategory = category;
+          return;
+        }
+      }
+    }
+
     const tmpl = this.TEMPLATES[category];
     if (!tmpl) return;
-    const feeEl = document.getElementById('csf_fee');
 
     // 報酬額が空または他テンプレート由来なら初期値をセット
     const currentFee = feeEl ? feeEl.value : '';
     const isTemplateFee = !currentFee || Object.values(this.TEMPLATES).some(t => String(t.fee) === currentFee);
 
-    if (feeEl && isTemplateFee && tmpl.fee) feeEl.value = tmpl.fee;
+    if (isTemplateFee && tmpl.fee) feeEl.value = tmpl.fee;
 
     this._lastAppliedCategory = category;
+  },
+
+  // 日栄行政書士事務所様準拠 管轄警察署別 車庫証明（一般）申請代行料マスター
+  POLICE_FEES: {
+    // 愛知県
+    '一宮警察署': { fee: 4000, address: '愛知県一宮市本町1-6-20', memo: '愛知県警' },
+    '江南警察署': { fee: 5000, address: '愛知県江南市木賀町大島12', memo: '岩倉市、大口町管轄' },
+    '稲沢警察署': { fee: 5000, address: '愛知県稲沢市朝府町15-5', memo: '愛知県警' },
+    '小牧警察署': { fee: 6000, address: '愛知県小牧市大字小牧201', memo: '愛知県警' },
+    '犬山警察署': { fee: 6000, address: '愛知県犬山市大字犬山字薬師東1', memo: '扶桑町管轄' },
+    '西枇杷島警察署': { fee: 6000, address: '愛知県清須市西枇杷島町弁天32-2', memo: '清須市管轄' },
+    '津島警察署': { fee: 7000, address: '愛知県津島市西愛宕町2-4-1', memo: '愛知県警' },
+    '蟹江警察署': { fee: 8000, address: '愛知県海部郡蟹江町富吉3-225', memo: '愛知県警' },
+    '春日井警察署': { fee: 8000, address: '愛知県春日井市八田町2-1-12', memo: '愛知県警' },
+    '瀬戸警察署': { fee: 15000, address: '愛知県瀬戸市原山町1-2', memo: '愛知県警' },
+    '愛知警察署': { fee: 15000, address: '愛知県愛知郡東郷町大字諸輪字向泉82', memo: '日進・東郷・みよし・豊明管轄' },
+    '東海警察署': { fee: 17000, address: '愛知県東海市横須賀町天宝新田52-1', memo: '高速代別¥15,000' },
+    '刈谷警察署': { fee: 18000, address: '愛知県刈谷市寿町1-303', memo: '高速代別¥15,000' },
+    '豊田警察署': { fee: 18000, address: '愛知県豊田市錦町1-30', memo: '高速代別¥15,000' },
+    '知多警察署': { fee: 20000, address: '愛知県知多市緑町30-1', memo: '高速代別¥15,000' },
+    '岡崎警察署': { fee: 20000, address: '愛知県岡崎市明大寺町字銭堤4-1', memo: '高速代別¥18,000' },
+    '安城警察署': { fee: 20000, address: '愛知県安城市横山町下毛賀知117', memo: '高速代別¥16,000' },
+    '西尾警察署': { fee: 22000, address: '愛知県西尾市寄住町下田14', memo: '高速代別¥18,000' },
+    '常滑警察署': { fee: 22000, address: '愛知県常滑市蛇草1-6', memo: '高速代別¥18,000' },
+    '半田警察署': { fee: 22000, address: '愛知県半田市出口町1-180', memo: '高速代別¥17,000' },
+    '碧南警察署': { fee: 22000, address: '愛知県碧南市松本町26-1', memo: '高速代別¥18,000' },
+    '豊川警察署': { fee: 15000, address: '愛知県豊川市諏訪3-245', memo: '高速代別' },
+    '豊橋警察署': { fee: 17000, address: '愛知県豊橋市八町通3-8', memo: '愛知県警' },
+
+    // 名古屋市内
+    '名古屋北警察署': { fee: 6000, address: '愛知県名古屋市北区田幡2-5-10', memo: '愛知県警' },
+    '名古屋西警察署': { fee: 6000, address: '愛知県名古屋市西区天神山町1-25', memo: '愛知県警' },
+    '名古屋中警察署': { fee: 6000, address: '愛知県名古屋市中区千代田2-2-3', memo: '愛知県警（中警察署）' },
+    '中警察署': { fee: 6000, address: '愛知県名古屋市中区千代田2-2-3', memo: '愛知県警' },
+    '名古屋東警察署': { fee: 6000, address: '愛知県名古屋市東区筒井1-1-1', memo: '愛知県警（東警察署）' },
+    '東警察署': { fee: 6000, address: '愛知県名古屋市東区筒井1-1-1', memo: '愛知県警' },
+    '名古屋南警察署': { fee: 10000, address: '愛知県名古屋市南区寺部通2-20', memo: '愛知県警（南警察署）' },
+    '南警察署': { fee: 10000, address: '愛知県名古屋市南区寺部通2-20', memo: '愛知県警' },
+    '中村警察署': { fee: 7000, address: '愛知県名古屋市中村区椿町17-9', memo: '愛知県警' },
+    '中川警察署': { fee: 8000, address: '愛知県名古屋市中川区篠原橋通1-4', memo: '愛知県警' },
+    '千種警察署': { fee: 8000, address: '愛知県名古屋市千種区覚王山通8-30', memo: '愛知県警' },
+    '熱田警察署': { fee: 8000, address: '愛知県名古屋市熱田区横田1-1-20', memo: '愛知県警' },
+    '名東警察署': { fee: 9000, address: '愛知県名古屋市名東区猪高台2-1009', memo: '愛知県警' },
+    '瑞穂警察署': { fee: 9000, address: '愛知県名古屋市瑞穂区瑞穂通2-22', memo: '愛知県警' },
+    '昭和警察署': { fee: 9000, address: '愛知県名古屋市昭和区広路通5-11', memo: '愛知県警' },
+    '守山警察署': { fee: 9000, address: '愛知県名古屋市守山区脇田町401', memo: '愛知県警' },
+    '天白警察署': { fee: 9000, address: '愛知県名古屋市天白区植田南1-401', memo: '愛知県警' },
+    '港警察署': { fee: 10000, address: '愛知県名古屋市港区入船2-4-8', memo: '愛知県警' },
+    '緑警察署': { fee: 10000, address: '愛知県名古屋市緑区青山3-20', memo: '愛知県警' },
+
+    // 岐阜県
+    '岐阜羽島警察署': { fee: 4000, address: '岐阜県羽島市福寿町浅平3-10', memo: '岐阜県警' },
+    '岐阜南警察署': { fee: 4500, address: '岐阜県岐阜市茜部大野1-1-1', memo: '岐阜県警' },
+    '岐阜中警察署': { fee: 5000, address: '岐阜県岐阜市美江寺町2-10', memo: '岐阜県警' },
+    '岐阜北警察署': { fee: 6000, address: '岐阜県岐阜市上土居2-2-22', memo: '岐阜県警' },
+    '各務原警察署': { fee: 6000, address: '岐阜県各務原市蘇原中央町2-1-3', memo: '岐阜県警' },
+    '北方警察署': { fee: 7000, address: '岐阜県本巣郡北方町北方3219-27', memo: '岐阜県警' },
+    '山県警察署': { fee: 7000, address: '岐阜県山県市高富2378-2', memo: '岐阜県警' },
+    '大垣警察署': { fee: 7000, address: '岐阜県大垣市江崎町422-10', memo: '岐阜県警' },
+    '関警察署': { fee: 8000, address: '岐阜県関市緑ケ丘2-3-1', memo: '岐阜県警' },
+    '海津警察署': { fee: 8000, address: '岐阜県海津市海津町福岡341-2', memo: '岐阜県警' },
+    '養老警察署': { fee: 10000, address: '岐阜県養老郡養老町石畑1115-1', memo: '大垣市上石津管轄' },
+    '垂井警察署': { fee: 10000, address: '岐阜県不破郡垂井町1533-9', memo: '岐阜県警' },
+    '加茂警察署': { fee: 10000, address: '岐阜県美濃加茂市古井町下古井2610', memo: '岐阜県警' },
+    '揖斐警察署': { fee: 11000, address: '岐阜県揖斐郡揖斐川町極楽寺71-1', memo: '岐阜県警' },
+    '可児警察署': { fee: 10000, address: '岐阜県可児市中恵土2313-2', memo: '交通費別' },
+    '多治見警察署': { fee: 12000, address: '岐阜県多治見市宝町1-65', memo: '瑞浪市・土岐市管轄' },
+    '郡上警察署': { fee: 15000, address: '岐阜県郡上市八幡町五町282', memo: '交通費別' },
+    '中津川警察署': { fee: 35000, address: '岐阜県中津川市かやの木町1-30', memo: '岐阜県警' },
+
+    // 三重県・滋賀県
+    '四日市北警察署': { fee: 22000, address: '三重県四日市市松原町4-3', memo: '三重県警' },
+    '桑名警察署': { fee: 12000, address: '三重県桑名市大字江場626-2', memo: '三重県警' },
+    '鳥羽警察署': { fee: 33000, address: '三重県鳥羽市松尾町270-1', memo: '三重県警' },
+    '甲賀警察署': { fee: 25000, address: '滋賀県甲賀市水口町水口6026', memo: '滋賀県警' },
+  },
+
+  // 場所マスタに車庫証明代行料マスターを一括適用・反映
+  seedPoliceFees() {
+    if (typeof Store === 'undefined' || typeof Store.getLocations !== 'function') return;
+    const locations = Store.getLocations();
+    let updated = 0;
+    let added = 0;
+
+    Object.entries(this.POLICE_FEES).forEach(([name, info]) => {
+      const cleanName = name.replace(/\s+/g, '');
+      const existing = locations.find(l => l.name.replace(/\s+/g, '') === cleanName);
+      if (existing) {
+        if (existing.syakoFee !== info.fee) {
+          existing.syakoFee = info.fee;
+          if (!existing.address && info.address) existing.address = info.address;
+          if (!existing.memo && info.memo) existing.memo = info.memo;
+          updated++;
+        }
+      } else {
+        // 新規登録
+        locations.push({
+          id: 'LOC-' + String(locations.length + 1).padStart(4, '0'),
+          name: name,
+          address: info.address || '',
+          memo: info.memo || '',
+          syakoFee: info.fee,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        added++;
+      }
+    });
+
+    if (updated > 0 || added > 0) {
+      Store._set(Store.KEYS.LOCATIONS, locations);
+      console.log(`[CaseTemplates] 警察署別車庫証明報酬マスタを更新しました（更新: ${updated}件, 追加: ${added}件）`);
+    }
   },
 
   // 9/1以降の受付分で報酬額が未入力の案件にテンプレート額を自動補完
@@ -366,9 +495,14 @@ const CaseTemplates = {
         const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
         if (currentFee === 0) {
           let fee = 0;
-          if (this.TEMPLATES[c.category] && this.TEMPLATES[c.category].fee) {
+          if (c.category === 'garage_paper' && c.policeLocationId) {
+            const loc = Store.getLocation(c.policeLocationId);
+            if (loc && loc.syakoFee) fee = loc.syakoFee;
+          }
+          if (!fee && this.TEMPLATES[c.category] && this.TEMPLATES[c.category].fee) {
             fee = this.TEMPLATES[c.category].fee;
-          } else {
+          }
+          if (!fee) {
             const title = (c.title || '') + ' ' + (c.subCategory || '');
             if (title.includes('車庫')) fee = 3500;
             else if (title.includes('封印')) fee = 5000;
