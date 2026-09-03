@@ -361,7 +361,9 @@ const Cases = {
         </div>
         <div class="kanban-card-title">${c.title}</div>
         <div class="kanban-card-meta">
-          ${client ? `<span>👤 ${client.name}</span>` : ''}
+          ${client ? `<span>🏢 ${client.name}</span>` : ''}
+          ${c.carName ? `<span style="color:#0369a1; font-weight:600">👤 ${c.carName} 様</span>` : ''}
+          ${(c.carNumber || c.oldCarNumber || c.vin) ? `<span style="font-size:0.75rem; color:var(--text-secondary)">🚗 ${c.carNumber || c.oldCarNumber || ''}${c.vin ? ` (${c.vin})` : ''}</span>` : ''}
           ${contactName ? `<span style="font-size:0.78rem;color:var(--text-muted)">└ ${contactName}</span>` : ''}
           ${c.staffId ? `<span>🏷️ ${staffName}</span>` : ''}
           ${locationsHtml}
@@ -436,7 +438,9 @@ const Cases = {
                   </div>
                   <div class="case-list-title">${c.title}</div>
                     <div class="case-list-meta">
-                      ${client ? `<span>👤 ${client.name}</span>` : ''}
+                      ${client ? `<span>🏢 ${client.name}</span>` : ''}
+                      ${c.carName ? `<span style="color:#0369a1; font-weight:600">👤 ${c.carName} 様</span>` : ''}
+                      ${(c.carNumber || c.oldCarNumber || c.vin) ? `<span style="color:var(--text-secondary)">🚗 ${c.carNumber || c.oldCarNumber || ''}${c.vin ? ` (${c.vin})` : ''}</span>` : ''}
                       ${c.staffId ? `<span>🏷️ ${Store.getStaffName(c.staffId)}</span>` : ''}
                       ${locationsHtml}
                       ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
