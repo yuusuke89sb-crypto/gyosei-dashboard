@@ -4,7 +4,7 @@
 function renderDashboard() {
   const stats = Store.getStats();
   const STATUS_LABELS = { received: '受付', applying: '申請中', delivery: '交付・受取', done: '完了・納品' };
-  const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '📄 車庫証明（紙）', seal: '🔩 出張封印', car_reg_standard: '🚘 普通車登録', car_reg_light: '🚙 軽自動車登録' };
+  const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '📄 車庫証明（一般）', seal: '🔩 出張封印', car_reg_standard: '🚘 普通車登録', car_reg_light: '🚙 軽自動車登録' };
   const CATEGORY_COLORS = { garage_oss: '#2563eb', garage_paper: '#3b82f6', seal: '#f59e0b', car_reg_standard: '#059669', car_reg_light: '#10b981' };
 
   const maxStatus = Math.max(...Object.values(stats.statusCounts), 1);

@@ -22,7 +22,7 @@ const Progress = {
   ],
 
   CATEGORY_LABELS: {
-    garage_oss: '車庫(OSS)', garage_paper: '車庫(紙)', seal: '丁種封印',
+    garage_oss: '車庫(OSS)', garage_paper: '車庫(一般)', seal: '丁種封印',
     inheritance: '相続', realestate: '宅建業', antiques: '古物商',
     cabaret: '風営法', visa_work: '在留資格',
   },

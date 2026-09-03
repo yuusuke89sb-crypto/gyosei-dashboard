@@ -410,7 +410,7 @@ const Invoice = {
 
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
-      garage_paper: '車庫証明(紙)', 
+      garage_paper: '車庫証明(一般)', 
       seal: '出張封印', 
       car_reg_standard: '普通車登録', 
       car_reg_light: '軽自動車登録',
@@ -515,7 +515,7 @@ const Invoice = {
 
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
-      garage_paper: '車庫証明(紙)', 
+      garage_paper: '車庫証明(一般)', 
       seal: '出張封印', 
       car_reg_standard: '普通車登録', 
       car_reg_light: '軽自動車登録',
@@ -606,11 +606,12 @@ const Invoice = {
       }
     });
 
-    // 立替金明細を分類
+    // 立替金明細を分類（区分付きで集計）
     const advMap = {};
     cases.forEach(c => {
       (c.advances || []).forEach(a => {
-        const lbl = a.label || 'その他実費';
+        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : 'その他実費'))));
+        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
         const amt = Number(a.amount || 0);
         if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
         advMap[lbl].count++;
@@ -913,14 +914,19 @@ const Invoice = {
         }
         if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
 
-        let categoryShort = c.subCategory || '';
-        if (!categoryShort) {
-          if (c.category === 'garage_oss') categoryShort = 'OSS';
-          else if (c.category === 'garage_paper') categoryShort = '車庫';
-          else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
-          else if (c.category === 'car_reg_light') categoryShort = '軽登録';
-          else if (c.category === 'seal') categoryShort = '封印';
-          else categoryShort = '';
+        let categoryShort = '';
+        if (c.category === 'garage_oss') {
+          categoryShort = 'OSS';
+        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+          categoryShort = '一般';
+        } else if (c.subCategory) {
+          categoryShort = c.subCategory;
+        } else if (c.category === 'car_reg_standard') {
+          categoryShort = '新規登録';
+        } else if (c.category === 'car_reg_light') {
+          categoryShort = '軽登録';
+        } else if (c.category === 'seal') {
+          categoryShort = '封印';
         }
 
         const fee = Number(c.fee || 0);
@@ -972,6 +978,29 @@ const Invoice = {
     });
 
     const garageFee = garageCases.reduce((s,c)=>s+Number(c.fee||0),0);
+    // 立替金明細の区分別集計
+    let fusoSyoshiAmt = 0, fusoSyoshiCount = 0;
+    let fusoPostAmt = 0, fusoPostCount = 0;
+    let fusoOtherAmt = 0, fusoOtherCount = 0;
+
+    cases.forEach(c => {
+      (c.advances || []).forEach(a => {
+        const amt = Number(a.amount || 0);
+        const cat = a.category || '';
+        const lbl = a.label || '';
+        if (cat === '証紙代' || lbl.includes('証紙')) {
+          fusoSyoshiAmt += amt;
+          fusoSyoshiCount++;
+        } else if (cat === '送料' || lbl.includes('送') || lbl.includes('郵送') || lbl.includes('レターパック')) {
+          fusoPostAmt += amt;
+          fusoPostCount++;
+        } else {
+          fusoOtherAmt += amt;
+          fusoOtherCount++;
+        }
+      });
+    });
+
     const otherFee = docCases.reduce((s,c)=>s+Number(c.fee||0),0) + regCases.reduce((s,c)=>s+Number(c.fee||0),0);
 
     return `<!DOCTYPE html>
@@ -1081,19 +1110,19 @@ const Invoice = {
       <!-- 実費・立替 -->
       <tr>
         <td rowspan="3" class="col-center" style="font-weight:bold; vertical-align:middle;">立替金<br>その他</td>
-        <td>証紙代（愛知・岐阜）</td>
-        <td class="col-center">-</td>
-        <td class="col-num">${advanceTotal > 0 ? Math.floor(advanceTotal * 0.7).toLocaleString() : '0'}</td>
+        <td>証紙代（愛知・岐阜・警察手数料）</td>
+        <td class="col-center">${fusoSyoshiCount > 0 ? fusoSyoshiCount + '件' : '-'}</td>
+        <td class="col-num">${fusoSyoshiAmt.toLocaleString()}</td>
       </tr>
       <tr>
-        <td>郵送依頼分</td>
-        <td class="col-center">-</td>
-        <td class="col-num">${advanceTotal > 0 ? Math.floor(advanceTotal * 0.2).toLocaleString() : '0'}</td>
+        <td>送料・郵送依頼分</td>
+        <td class="col-center">${fusoPostCount > 0 ? fusoPostCount + '件' : '-'}</td>
+        <td class="col-num">${fusoPostAmt.toLocaleString()}</td>
       </tr>
       <tr>
-        <td>交通費・その他実費</td>
-        <td class="col-center">-</td>
-        <td class="col-num">${advanceTotal > 0 ? (advanceTotal - Math.floor(advanceTotal * 0.7) - Math.floor(advanceTotal * 0.2)).toLocaleString() : '0'}</td>
+        <td>印紙代・プレート代・その他実費</td>
+        <td class="col-center">${fusoOtherCount > 0 ? fusoOtherCount + '件' : '-'}</td>
+        <td class="col-num">${fusoOtherAmt.toLocaleString()}</td>
       </tr>
       <tr style="font-size:16px; font-weight:bold; background:#f8fafc; border-top:2px solid #000;">
         <td colspan="3" class="col-center">総　合　計</td>
@@ -1182,14 +1211,19 @@ const Invoice = {
         }
         if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
 
-        let categoryShort = c.subCategory || '';
-        if (!categoryShort) {
-          if (c.category === 'garage_oss') categoryShort = 'OSS';
-          else if (c.category === 'garage_paper') categoryShort = '車庫';
-          else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
-          else if (c.category === 'car_reg_light') categoryShort = '軽登録';
-          else if (c.category === 'seal') categoryShort = '封印';
-          else categoryShort = '';
+        let categoryShort = '';
+        if (c.category === 'garage_oss') {
+          categoryShort = 'OSS';
+        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+          categoryShort = '一般';
+        } else if (c.subCategory) {
+          categoryShort = c.subCategory;
+        } else if (c.category === 'car_reg_standard') {
+          categoryShort = '新規登録';
+        } else if (c.category === 'car_reg_light') {
+          categoryShort = '軽登録';
+        } else if (c.category === 'seal') {
+          categoryShort = '封印';
         }
 
         const fee = Number(c.fee || 0);
@@ -1386,14 +1420,19 @@ const Invoice = {
         }
         if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
 
-        let categoryShort = c.subCategory || '';
-        if (!categoryShort) {
-          if (c.category === 'garage_oss') categoryShort = 'OSS';
-          else if (c.category === 'garage_paper') categoryShort = '車庫';
-          else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
-          else if (c.category === 'car_reg_light') categoryShort = '軽登録';
-          else if (c.category === 'seal') categoryShort = '封印';
-          else categoryShort = '';
+        let categoryShort = '';
+        if (c.category === 'garage_oss') {
+          categoryShort = 'OSS';
+        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+          categoryShort = '一般';
+        } else if (c.subCategory) {
+          categoryShort = c.subCategory;
+        } else if (c.category === 'car_reg_standard') {
+          categoryShort = '新規登録';
+        } else if (c.category === 'car_reg_light') {
+          categoryShort = '軽登録';
+        } else if (c.category === 'seal') {
+          categoryShort = '封印';
         }
 
         const feeTaxIncluded = Math.floor(Number(c.fee || 0) * 1.1);
@@ -1717,7 +1756,7 @@ const Invoice = {
     
     const html = this.buildStandardInvoiceHTML({
       invoiceNo, issueDate: paidAt, dueDate: '', year: new Date(paidAt).getFullYear(), month: new Date(paidAt).getMonth() + 1,
-      client, office, cases, CATS: { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' },
+      client, office, cases, CATS: { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' },
       feeSubtotal, tax, taxRate, advanceTotal, total, note: '領収証として上記正に領収いたしました。',
       docType: 'receipt', contactNames: []
     });

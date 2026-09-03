@@ -36,7 +36,7 @@ const Cases = {
 
   CATEGORIES: [
     { key: 'garage_oss', label: '🚗 車庫証明（OSS）' },
-    { key: 'garage_paper', label: '📄 車庫証明（紙）' },
+    { key: 'garage_paper', label: '📄 車庫証明（一般）' },
     { key: 'seal', label: '🔩 出張封印' },
     { key: 'car_reg_standard', label: '🚘 普通自動車登録' },
     { key: 'car_reg_light', label: '🚙 軽自動車登録' },
@@ -241,17 +241,32 @@ const Cases = {
     `;
   },
 
+  ADVANCE_CATEGORIES: [
+    { key: '証紙代', label: '証紙代' },
+    { key: '印紙代', label: '印紙代' },
+    { key: '送料', label: '送料' },
+    { key: 'プレート代', label: 'プレート代' },
+    { key: '手数料', label: '手数料' },
+    { key: 'その他', label: 'その他' },
+  ],
+
   // 立替金行を再描画
   renderAdvanceRows() {
     const container = document.getElementById('advancesRowsContainer') || document.getElementById('csf_advance_rows');
     if (!container) return;
     if (!this.advanceDraft || this.advanceDraft.length === 0) {
-      container.innerHTML = `<div style="font-size:0.78rem; color:var(--text-muted, #94a3b8); padding:4px 0;">立替金（証紙代・印紙代・プレート代等）がある場合は「＋ 追加」またはプリセットを押してください</div>`;
+      container.innerHTML = `<div style="font-size:0.78rem; color:var(--text-muted, #94a3b8); padding:4px 0;">立替金（証紙代・印紙代・送料・プレート代等）がある場合は「＋ 追加」またはプリセットを押してください</div>`;
       return;
     }
-    container.innerHTML = this.advanceDraft.map((adv, i) => `
+    container.innerHTML = this.advanceDraft.map((adv, i) => {
+      const curCat = adv.category || (adv.label && adv.label.includes('証紙') ? '証紙代' : (adv.label && adv.label.includes('印紙') ? '印紙代' : (adv.label && (adv.label.includes('送') || adv.label.includes('レターパック')) ? '送料' : (adv.label && (adv.label.includes('プレート') || adv.label.includes('ナンバー')) ? 'プレート代' : '証紙代'))));
+      return `
       <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
-        <input type="text" placeholder="内容（例：車庫証明 証紙代）" value="${adv.label || ''}"
+        <select style="width:105px; font-size:0.82rem; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-card,#fff); color:var(--text-color);"
+          data-adv-idx="${i}" data-adv-field="category" onchange="Cases.onAdvInput(this)">
+          ${this.ADVANCE_CATEGORIES.map(ac => `<option value="${ac.key}" ${curCat === ac.key ? 'selected' : ''}>${ac.label}</option>`).join('')}
+        </select>
+        <input type="text" placeholder="内容（例：車庫証明証紙代 / レターパック等）" value="${adv.label || ''}"
           style="flex:2; font-size:0.85rem;" data-adv-idx="${i}" data-adv-field="label"
           oninput="Cases.onAdvInput(this)">
         <input type="number" placeholder="金額（円）" value="${adv.amount !== undefined ? adv.amount : ''}"
@@ -260,12 +275,30 @@ const Cases = {
         <button type="button" class="btn btn-secondary btn-small" style="flex-shrink:0; padding:2px 8px; color:#ef4444; border-color:rgba(239,68,68,0.3);"
           onclick="Cases.removeAdvanceRow(${i})" title="削除">✕</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
   },
 
-  addAdvanceRow(label = '', amount = '') {
+  addAdvanceRow(categoryOrLabel = '証紙代', label = '', amount = '') {
     if (!this.advanceDraft) this.advanceDraft = [];
-    this.advanceDraft.push({ label: label, amount: amount });
+    let cat = '証紙代';
+    let lbl = '';
+    let amt = '';
+    if (typeof categoryOrLabel === 'string' && (label !== '' || amount !== '')) {
+      if (['証紙代', '印紙代', '送料', 'プレート代', '手数料', 'その他'].includes(categoryOrLabel)) {
+        cat = categoryOrLabel;
+        lbl = label;
+        amt = amount;
+      } else {
+        lbl = categoryOrLabel;
+        amt = label;
+        cat = (lbl.includes('証紙') ? '証紙代' : (lbl.includes('印紙') ? '印紙代' : (lbl.includes('送') || lbl.includes('レターパック') ? '送料' : (lbl.includes('プレート') || lbl.includes('ナンバー') ? 'プレート代' : 'その他'))));
+      }
+    } else if (typeof categoryOrLabel === 'string' && label === '' && amount === '') {
+      lbl = categoryOrLabel;
+      cat = (lbl.includes('証紙') ? '証紙代' : (lbl.includes('印紙') ? '印紙代' : (lbl.includes('送') || lbl.includes('レターパック') ? '送料' : (lbl.includes('プレート') || lbl.includes('ナンバー') ? 'プレート代' : 'その他'))));
+    }
+    this.advanceDraft.push({ category: cat, label: lbl, amount: amt });
     this.renderAdvanceRows();
   },
 
@@ -279,7 +312,7 @@ const Cases = {
     const i = parseInt(el.dataset.advIdx, 10);
     const field = el.dataset.advField;
     if (!this.advanceDraft) this.advanceDraft = [];
-    if (!this.advanceDraft[i]) this.advanceDraft[i] = { label: '', amount: '' };
+    if (!this.advanceDraft[i]) this.advanceDraft[i] = { category: '証紙代', label: '', amount: '' };
     this.advanceDraft[i][field] = field === 'amount' ? (el.value === '' ? '' : Number(el.value)) : el.value;
   },
 
@@ -679,12 +712,14 @@ const Cases = {
                 <!-- 立替金入力エリア -->
                 <div class="advances-section" style="margin-bottom:16px; border:1px solid var(--border-color); border-radius:6px; padding:12px; background:var(--bg-secondary)">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
-                    <label style="font-weight:600; margin:0">💰 立替金（証紙代・印紙代等）</label>
+                    <label style="font-weight:600; margin:0">💰 立替金（区分・内容・金額）</label>
                     <div style="display:flex; gap:4px; flex-wrap:wrap;">
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('車庫証明証紙代', 2300)">＋ 証紙2,300円</button>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('軽届出証紙代', 700)">＋ 軽700円</button>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('登録印紙代', 700)">＋ 登録印紙700円</button>
-                      <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow()">＋ 追加</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('証紙代', '車庫証明証紙代', 2300)">＋ 証紙2,300円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('証紙代', '軽届出証紙代', 700)">＋ 軽700円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('印紙代', '登録印紙代', 700)">＋ 印紙700円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('送料', 'レターパックプラス送料', 600)">＋ 送料600円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('プレート代', 'ナンバープレート代', 1440)">＋ プレート1,440円</button>
+                      <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow('その他', '', '')">＋ 追加</button>
                     </div>
                   </div>
                   <div id="advancesRowsContainer"></div>

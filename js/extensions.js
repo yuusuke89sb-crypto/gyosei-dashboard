@@ -1268,7 +1268,7 @@ const MonthlyReport = {
       expenseByAccount[j.debit] += j.amount || 0;
     });
 
-    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '丁種封印', inheritance: '相続' };
     const catCounts = {}, catRevenue = {};
     completedCases.forEach(c => {
       const label = CATS[c.category] || c.category;

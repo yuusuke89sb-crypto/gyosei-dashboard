@@ -243,7 +243,7 @@ const Store = {
     // 同一案件の重複チェック
     if (journals.some(j => j.caseId === c.id)) return;
     const client = this.getClient(c.clientId);
-    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
     journals.push({
       id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       date: this.getLocalDateStr(),

@@ -581,7 +581,7 @@ const Calendar = {
     }
 
     const STATUS_LABELS = { received: '受付', applying: '申請', delivery: '交付', registration: '登録', done: '完了' };
-    const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続' };
+    const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（一般）', seal: '🚙 丁種封印', inheritance: '📜 相続' };
 
     // 終日アイテム（時間指定なし）
     let allDayHtml = '';
@@ -915,7 +915,7 @@ const Calendar = {
       'X-WR-CALNAME:行政書士スケジュール',
     ];
 
-    const CASE_LABELS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(紙)', seal: '丁種封印', inheritance: '相続' };
+    const CASE_LABELS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '丁種封印', inheritance: '相続' };
 
     cases.forEach(c => {
       const client = Store.getClient(c.clientId);
@@ -1048,7 +1048,7 @@ const Calendar = {
   getCaseEvents() {
     const cases = Store.getCases();
     const caseEvents = [];
-    const CATEGORY_LABELS = { garage_oss: '車庫(OSS)', garage_paper: '車庫(紙)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
+    const CATEGORY_LABELS = { garage_oss: '車庫(OSS)', garage_paper: '車庫(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
 
     cases.forEach(c => {
       const catLabel = CATEGORY_LABELS[c.category] || '案件';

@@ -344,7 +344,7 @@ const Analytics = {
     const cases = typeof Store !== 'undefined' ? Store.getCases() : [];
     const CATEGORY_LABELS = { 
       garage_oss: '🚗 車庫証明(OSS)', 
-      garage_paper: '🚗 車庫証明(紙)', 
+      garage_paper: '🚗 車庫証明(一般)', 
       seal: '🚙 丁種封印', 
       inheritance: '📜 相続',
       realestate: '🏢 宅建業新規免許',

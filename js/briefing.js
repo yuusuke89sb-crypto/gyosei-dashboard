@@ -177,7 +177,7 @@ const Briefing = {
     if (existing) existing.remove();
 
     const CATS = {
-      garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（紙）', seal: '🚙 丁種封印', inheritance: '📜 相続'
+      garage_oss: '🚗 車庫証明（OSS）', garage_paper: '🚗 車庫証明（一般）', seal: '🚙 丁種封印', inheritance: '📜 相続'
     };
     const STATUSES = {
       received: '受付', applying: '申請', delivery: '交付', registration: '登録', done: '完了'

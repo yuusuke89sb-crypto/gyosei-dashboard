@@ -310,7 +310,7 @@ const Clients = {
     const client = Store.getClient(id);
     if (!client) return;
     const cases = Store.getCasesByClient(id);
-    const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '📄 車庫証明（紙）', seal: '🔩 出張封印', car_reg_standard: '🚘 普通車登録', car_reg_light: '🚙 軽自動車登録' };
+    const CATEGORY_LABELS = { garage_oss: '🚗 車庫証明（OSS）', garage_paper: '📄 車庫証明（一般）', seal: '🔩 出張封印', car_reg_standard: '🚘 普通車登録', car_reg_light: '🚙 軽自動車登録' };
     const STATUS_LABELS = { received: '受付', applying: '申請中', delivery: '交付・受取', done: '完了・納品' };
     const staffName = Store.getStaffName(client.staffId);
     const typeBadge = client.type === '法人'
