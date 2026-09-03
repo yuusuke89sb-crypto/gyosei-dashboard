@@ -1617,7 +1617,6 @@ const Cases = {
 
         extArea.innerHTML = extHtml;
       }
-    }, 0);
   },
 
   _submitMode: 'close',
