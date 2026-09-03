@@ -76,6 +76,15 @@ const Cases = {
     App.refreshView();
   },
 
+  // 全角半角・スペース・ハイフンを正規化するヘルパー
+  normalizeText(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/[\s\u3000\-_－ー]/g, '')
+      .toLowerCase();
+  },
+
   getFilteredCases() {
     const cases = Store.getCases();
     let filtered = cases;
@@ -89,8 +98,8 @@ const Cases = {
       filtered = filtered.filter(c => c.status === 'done');
     }
 
-    // 完了から7日以上経過した案件を「すべて」選択時に自動非表示（「完了」フィルター選択時は全表示）
-    if (this.filterStatus === 'all') {
+    // 検索語句がない場合のみ、直近7日以前の完了案件を自動非表示（検索時は過去の案件もすべてヒットさせる）
+    if (this.filterStatus === 'all' && !this.searchQuery) {
       const now = Date.now();
       const HIDE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7日
       filtered = filtered.filter(c => {
@@ -105,29 +114,47 @@ const Cases = {
       filtered = filtered.filter(c => this.isSyakoCase(c) && !this.hasMapData(c.id));
     }
 
-    // キーワード検索フィルター（申請者名・車台番号・ナンバー・旧ナンバー・注文書No・メモ・顧客名・住所等）
-    if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase().trim();
+    // キーワード検索フィルター（複数単語AND検索・全角半角・ハイフン・スペース吸収の超柔軟検索）
+    if (this.searchQuery && this.searchQuery.trim()) {
+      const rawWords = this.searchQuery.trim().split(/\s+/).filter(Boolean);
+      const normalizedWords = rawWords.map(w => this.normalizeText(w));
+
       filtered = filtered.filter(c => {
         const client = Store.getClient(c.clientId);
-        const clientName = client ? client.name.toLowerCase() : '';
-        const staffName = c.staffId ? (Store.getStaffName(c.staffId) || '').toLowerCase() : '';
-        return (
-          (c.title || '').toLowerCase().includes(q) ||
-          (c.carName || '').toLowerCase().includes(q) ||
-          (c.applicantName || '').toLowerCase().includes(q) ||
-          (c.orderNo || '').toLowerCase().includes(q) ||
-          (c.carNumber || '').toLowerCase().includes(q) ||
-          (c.oldCarNumber || '').toLowerCase().includes(q) ||
-          (c.vin || '').toLowerCase().includes(q) ||
-          (c.carAddress || '').toLowerCase().includes(q) ||
-          (c.parkingAddress || '').toLowerCase().includes(q) ||
-          (c.carPolice || '').toLowerCase().includes(q) ||
-          (typeof c.memo === 'string' && c.memo.toLowerCase().includes(q)) ||
-          (c.subCategory || '').toLowerCase().includes(q) ||
-          clientName.includes(q) ||
-          staffName.includes(q)
-        );
+        const clientName = client ? client.name : '';
+        const staffName = c.staffId ? Store.getStaffName(c.staffId) : '';
+        const memoStr = typeof c.memo === 'string' ? c.memo : '';
+
+        // 案件の全テキストを結合（生テキスト ＆ 正規化テキスト）
+        const rawFullText = [
+          c.title, c.carName, c.applicantName, c.orderNo, c.caseNo,
+          c.carNumber, c.oldCarNumber, c.vin, c.carAddress, c.parkingAddress,
+          c.carPolice, memoStr, c.subCategory, clientName, staffName
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        const normFullText = [
+          this.normalizeText(c.title),
+          this.normalizeText(c.carName),
+          this.normalizeText(c.applicantName),
+          this.normalizeText(c.orderNo),
+          this.normalizeText(c.caseNo),
+          this.normalizeText(c.carNumber),
+          this.normalizeText(c.oldCarNumber),
+          this.normalizeText(c.vin),
+          this.normalizeText(c.carAddress),
+          this.normalizeText(c.parkingAddress),
+          this.normalizeText(c.carPolice),
+          this.normalizeText(memoStr),
+          this.normalizeText(c.subCategory),
+          this.normalizeText(clientName),
+          this.normalizeText(staffName)
+        ].join('');
+
+        // すべての検索単語が含まれているかチェック (AND検索)
+        return rawWords.every((rw, idx) => {
+          const nw = normalizedWords[idx];
+          return rawFullText.includes(rw.toLowerCase()) || normFullText.includes(nw);
+        });
       });
     }
 
@@ -209,7 +236,7 @@ const Cases = {
         ${this.STATUSES.map(status => {
           let statusCases = cases.filter(c => c.status === status.key);
           let extraFooterHtml = '';
-          if (status.key === 'done' && this.filterStatus === 'all' && statusCases.length > 5) {
+          if (status.key === 'done' && this.filterStatus === 'all' && !this.searchQuery && statusCases.length > 5) {
             const totalDoneCount = statusCases.length;
             statusCases = [...statusCases].sort((a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)).slice(0, 5);
             extraFooterHtml = `
