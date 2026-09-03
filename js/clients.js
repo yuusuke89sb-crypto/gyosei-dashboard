@@ -372,18 +372,15 @@ const Clients = {
           ` : '<p class="empty-message">今月の請求はありません</p>'}
         </div>
         <div class="detail-section">
-          <h3>📋 案件一覧 (${cases.length}件)</h3>
-          ${cases.length === 0
-        ? '<p class="empty-message">紐づく案件はありません</p>'
-        : `<div class="mini-case-list">${cases.map(c => `
-                <div class="mini-case-item" onclick="const m=document.getElementById('clientDetailModal'); if(m) m.remove(); Cases.showEditModal('${c.id}');" style="cursor:pointer; transition:background 0.15s;" onmouseenter="this.style.background='var(--bg-gray, #f3f4f6)'" onmouseleave="this.style.background='transparent'">
-                  <span class="category-tag category-${c.category}">${CATEGORY_LABELS[c.category]}</span>
-                  <span class="mini-case-title">${c.title}</span>
-                  ${c.fee ? `<span class="mini-case-fee">¥${Number(c.fee).toLocaleString()}</span>` : ''}
-                  <span class="status-badge status-${c.status}">${STATUS_LABELS[c.status]}</span>
-                  <span style="color:var(--text-muted); font-size:0.72rem; margin-left:auto;">📝 詳細 ➔</span>
-                </div>`).join('')}</div>`
-      }
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+            <h3 style="margin:0">📋 案件履歴 (進行中: ${cases.filter(c => c.status !== 'done').length}件 / 全${cases.length}件)</h3>
+            <input type="text" id="clientCaseSearchInput_${client.id}" placeholder="🔍 申請者・車台・ナンバーで絞込..."
+              style="font-size:0.8rem; padding:4px 10px; border-radius:6px; border:1px solid var(--border-color); width:230px; background:var(--bg-card,#fff); color:var(--text-color);"
+              oninput="Clients.filterClientCases('${client.id}', this.value)">
+          </div>
+          <div id="clientCasesArea_${client.id}">
+            ${this._renderClientCasesSection(client.id)}
+          </div>
         </div>
         <div class="detail-section">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -400,6 +397,135 @@ const Clients = {
       </div>
     `;
     document.body.appendChild(modal);
+  },
+
+  _renderClientCaseItem(c) {
+    const CATEGORY_LABELS = { garage_oss: '🚗 車庫(OSS)', garage_paper: '📄 車庫(一般)', seal: '🔩 封印', car_reg_standard: '🚘 普通車登録', car_reg_light: '🚙 軽登録' };
+    const STATUS_LABELS = { received: '受付', applying: '申請中', delivery: '交付・受取', done: '完了' };
+    const applicant = c.carName ? ` 👤 ${c.carName}` : '';
+    const carInfo = (c.carNumber || c.vin) ? ` [${c.carNumber || c.vin}]` : '';
+    const dateStr = (c.completedAt || c.registrationDate || c.policeDeliveryDate || c.createdAt || '').slice(0, 10);
+    return `
+      <div class="mini-case-item" onclick="const m=document.getElementById('clientDetailModal'); if(m) m.remove(); Cases.showEditModal('${c.id}');"
+        style="cursor:pointer; display:flex; align-items:center; gap:8px; padding:6px 10px; transition:background 0.15s; border-radius:6px;"
+        onmouseenter="this.style.background='var(--bg-gray, #f3f4f6)'" onmouseleave="this.style.background='transparent'">
+        <span class="category-tag category-${c.category}" style="font-size:0.72rem; padding:1px 6px;">${CATEGORY_LABELS[c.category] || c.category}</span>
+        <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+          <strong style="font-size:0.85rem;">${c.title}</strong>
+          ${applicant ? `<span style="font-size:0.8rem; color:#0369a1; margin-left:4px;">${applicant}</span>` : ''}
+          ${carInfo ? `<span style="font-size:0.75rem; color:var(--text-muted); margin-left:4px;">${carInfo}</span>` : ''}
+        </div>
+        ${dateStr ? `<span style="font-size:0.75rem; color:var(--text-muted);">${dateStr}</span>` : ''}
+        ${c.fee ? `<span class="mini-case-fee" style="font-size:0.8rem; font-weight:600;">¥${Number(c.fee).toLocaleString()}</span>` : ''}
+        <span class="status-badge status-${c.status}" style="font-size:0.72rem;">${STATUS_LABELS[c.status] || c.status}</span>
+        <span style="color:var(--text-muted); font-size:0.72rem;">📝 ➔</span>
+      </div>
+    `;
+  },
+
+  _renderClientCasesSection(clientId, filterQuery = '') {
+    const cases = Store.getCasesByClient(clientId);
+    if (cases.length === 0) return '<p class="empty-message">紐づく案件はありません</p>';
+
+    // 検索語句がある場合のフィルタリング
+    let targetCases = cases;
+    if (filterQuery && filterQuery.trim()) {
+      const q = filterQuery.trim().toLowerCase();
+      targetCases = cases.filter(c => {
+        const full = [c.title, c.carName, c.carNumber, c.oldCarNumber, c.vin, c.orderNo, c.caseNo, c.memo, c.subCategory].filter(Boolean).join(' ').toLowerCase();
+        return full.includes(q);
+      });
+      if (targetCases.length === 0) {
+        return `<p class="empty-message">「${filterQuery}」に一致する案件は見つかりませんでした</p>`;
+      }
+      return `
+        <div class="mini-case-list" style="max-height:400px; overflow-y:auto;">
+          ${targetCases.map(c => this._renderClientCaseItem(c)).join('')}
+        </div>
+      `;
+    }
+
+    // 通常表示: 進行中案件 ＋ 直近30日の完了案件 ＋ 過去案件折りたたみ
+    const now = Date.now();
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const activeCases = cases.filter(c => c.status !== 'done');
+    const recentDoneCases = [];
+    const olderDoneCases = [];
+
+    cases.filter(c => c.status === 'done').forEach(c => {
+      const t = c.completedAt ? new Date(c.completedAt).getTime() : (c.updatedAt ? new Date(c.updatedAt).getTime() : 0);
+      if (t > 0 && (now - t) <= THIRTY_DAYS_MS) {
+        recentDoneCases.push(c);
+      } else {
+        olderDoneCases.push(c);
+      }
+    });
+
+    let html = '';
+
+    // 1. 進行中の案件
+    if (activeCases.length > 0) {
+      html += `
+        <div style="font-size:0.8rem; font-weight:bold; color:var(--primary); margin:6px 0 4px;">⚡ 進行中の案件 (${activeCases.length}件)</div>
+        <div class="mini-case-list" style="margin-bottom:12px;">
+          ${activeCases.map(c => this._renderClientCaseItem(c)).join('')}
+        </div>
+      `;
+    } else {
+      html += '<div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">⚡ 現在進行中の案件はありません</div>';
+    }
+
+    // 2. 直近完了した案件（30日以内）
+    if (recentDoneCases.length > 0) {
+      html += `
+        <div style="font-size:0.8rem; font-weight:bold; color:#10b981; margin:10px 0 4px;">✅ 直近完了した案件（30日以内: ${recentDoneCases.length}件）</div>
+        <div class="mini-case-list" style="margin-bottom:12px;">
+          ${recentDoneCases.map(c => this._renderClientCaseItem(c)).join('')}
+        </div>
+      `;
+    }
+
+    // 3. 過去の完了案件（折りたたみ）
+    if (olderDoneCases.length > 0) {
+      html += `
+        <div style="border-top:1px dashed var(--border-color); padding-top:10px; margin-top:8px;">
+          <button type="button" class="btn btn-secondary btn-small" id="toggleOlderBtn_${clientId}"
+            onclick="Clients.toggleOlderCases('${clientId}')"
+            style="width:100%; text-align:center; background:rgba(0,0,0,0.03); font-size:0.82rem; padding:6px; font-weight:600; cursor:pointer;">
+            📁 過去の完了案件（${olderDoneCases.length}件）を表示する ▼
+          </button>
+          <div id="olderCasesWrap_${clientId}" class="mini-case-list" style="display:none; margin-top:10px; max-height:280px; overflow-y:auto;">
+            ${olderDoneCases.map(c => this._renderClientCaseItem(c)).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    return html;
+  },
+
+  toggleOlderCases(clientId) {
+    const wrap = document.getElementById(`olderCasesWrap_${clientId}`);
+    const btn = document.getElementById(`toggleOlderBtn_${clientId}`);
+    if (!wrap || !btn) return;
+    if (wrap.style.display === 'none' || !wrap.style.display) {
+      wrap.style.display = 'block';
+      btn.innerHTML = '📁 過去の完了案件を閉じる ▲';
+    } else {
+      wrap.style.display = 'none';
+      const cases = Store.getCasesByClient(clientId);
+      const now = Date.now();
+      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+      const count = cases.filter(c => c.status === 'done' && (now - (c.completedAt ? new Date(c.completedAt).getTime() : 0)) > THIRTY_DAYS_MS).length;
+      btn.innerHTML = `📁 過去の完了案件（${count}件）を表示する ▼`;
+    }
+  },
+
+  filterClientCases(clientId, query) {
+    const container = document.getElementById(`clientCasesArea_${clientId}`);
+    if (container) {
+      container.innerHTML = this._renderClientCasesSection(clientId, query);
+    }
   },
 
   exportCSV() {
