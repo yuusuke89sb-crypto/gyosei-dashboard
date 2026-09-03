@@ -202,7 +202,6 @@ const Cases = {
       ${this.renderModal()}
     `;
   },
-  },
 
   renderKanban(cases) {
     return `
