@@ -151,44 +151,67 @@ const CaseDocs = {
       }
     }
     const hasGas = SpreadsheetSync.isConfigured();
+    const driveFolderUrl = c?.driveFolderUrl || (c?.id ? `https://drive.google.com/drive/search?q=${encodeURIComponent(c.id)}` : '');
 
     return `
-      <div class="docs-panel">
-        <div class="docs-panel-header">
-          <span class="docs-title">📎 添付書類</span>
-          <span class="docs-badge" id="docsCount_${caseId}">${docs.length}件</span>
-          ${!hasGas ? `<span class="docs-warn" title="GAS連携が必要">⚠️ 未連携</span>` : ''}
+      <div class="docs-panel" style="border:1px solid var(--border-color); border-radius:8px; padding:14px; background:var(--bg-card,#fff); margin-top:14px;">
+        <div class="docs-panel-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="docs-title" style="font-weight:700; font-size:0.95rem;">📎 添付書類・領収書・現調写真</span>
+            <span class="docs-badge" id="docsCount_${caseId}" style="background:var(--primary); color:#fff; font-size:0.75rem; padding:2px 8px; border-radius:12px;">${docs.length}件</span>
+            ${!hasGas ? `<span class="docs-warn" style="font-size:0.75rem; color:#ef4444; background:#fee2e2; padding:2px 6px; border-radius:4px;">⚠️ GAS連携未設定</span>` : ''}
+          </div>
+          ${c?.driveFolderUrl ? `
+            <a href="${c.driveFolderUrl}" target="_blank" class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:3px 8px; text-decoration:none; display:inline-flex; align-items:center; gap:4px;">
+              📁 案件Driveフォルダ ↗
+            </a>
+          ` : ''}
         </div>
 
-        <div class="docs-list" id="docsList_${caseId}">
+        <!-- ドラッグ＆ドロップ対応アップロード枠 -->
+        <div id="docsDropZone_${caseId}" class="docs-dropzone"
+          style="border:2px dashed var(--border-color); border-radius:8px; padding:12px; text-align:center; background:var(--bg-secondary, #f8fafc); margin-bottom:12px; transition:all 0.2s;"
+          ondragover="event.preventDefault(); this.style.borderColor='var(--primary)'; this.style.background='rgba(99,102,241,0.08)';"
+          ondragleave="this.style.borderColor='var(--border-color)'; this.style.background='var(--bg-secondary, #f8fafc)';"
+          ondrop="CaseDocs.onFileDrop('${caseId}', event)">
+          <div style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:8px;">
+            📂 ここにファイルをドラッグ＆ドロップ または 下記ボタンから追加
+          </div>
+          <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+            <!-- ファイル選択 -->
+            <label class="btn btn-primary btn-small" style="cursor:pointer; font-size:0.8rem; margin:0;" id="docsUploadBtn_${caseId}">
+              <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.tif,.tiff,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                style="display:none" onchange="CaseDocs.onFileSelect('${caseId}', this)" ${!hasGas ? 'disabled' : ''}>
+              📎 ファイル選択
+            </label>
+            <!-- 写真・領収書撮影（スマホカメラ直結） -->
+            <label class="btn btn-secondary btn-small" style="cursor:pointer; font-size:0.8rem; margin:0; background:#f0fdf4; border-color:#86efac; color:#15803d;">
+              <input type="file" accept="image/*" capture="environment"
+                style="display:none" onchange="CaseDocs.onFileSelect('${caseId}', this)" ${!hasGas ? 'disabled' : ''}>
+              📸 写真・領収書撮影
+            </label>
+          </div>
+          <div style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">
+            ※ 車検証コピー、証紙レシート、現地調査写真、FAX原本などをGoogle Driveに自動保存します
+          </div>
+        </div>
+
+        <!-- 添付ファイル一覧 -->
+        <div class="docs-list" id="docsList_${caseId}" style="display:flex; flex-direction:column; gap:6px;">
           ${docs.length === 0
-            ? '<div class="docs-empty">書類が添付されていません</div>'
+            ? '<div class="docs-empty" style="text-align:center; padding:12px; color:var(--text-muted); font-size:0.8rem;">まだ書類・画像は添付されていません</div>'
             : docs.map(d => this.renderDocItem(caseId, d)).join('')
           }
         </div>
 
-        <div class="docs-upload-area">
-          <label class="docs-upload-btn" id="docsUploadBtn_${caseId}">
-            <input type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.gif,.tif,.tiff,.doc,.docx,.xls,.xlsx,.csv,.txt"
-              style="display:none"
-              onchange="CaseDocs.onFileSelect('${caseId}', this)"
-              ${!hasGas ? 'disabled' : ''}>
-            📎 書類を追加
-          </label>
-          <span class="docs-hint">PDF・TIF・画像・Word・Excel / 最大15MB</span>
-        </div>
-
-        <div class="docs-export-area" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
-          <div style="display:flex; gap:8px;">
-            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'receipt')">📥 お預かり証</button>
-            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'transmittal')">📤 送付状</button>
-            <button type="button" class="btn btn-primary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'poa')">📝 委任状</button>
-          </div>
-          <div style="display:flex; gap:8px;">
-            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'estimate')">📊 見積書</button>
-            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'agreement')">🤝 委託契約</button>
-            <button type="button" class="btn btn-secondary" style="flex:1; font-size:0.8rem; padding:6px" onclick="CaseDocs.generateDocument('${caseId}', 'antisocial')">🔒 反社表明確約</button>
+        <!-- 書類自動作成ボタン群 -->
+        <div class="docs-export-area" style="margin-top:14px; padding-top:10px; border-top:1px solid var(--border-color); display:flex; flex-direction:column; gap:6px;">
+          <div style="font-size:0.75rem; font-weight:600; color:var(--text-secondary);">📄 各種書類の自動作成・印刷:</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-small" style="flex:1; min-width:85px; font-size:0.75rem; padding:4px" onclick="CaseDocs.generateDocument('${caseId}', 'receipt')">📥 お預かり証</button>
+            <button type="button" class="btn btn-secondary btn-small" style="flex:1; min-width:85px; font-size:0.75rem; padding:4px" onclick="CaseDocs.generateDocument('${caseId}', 'transmittal')">📤 送付状</button>
+            <button type="button" class="btn btn-primary btn-small" style="flex:1; min-width:85px; font-size:0.75rem; padding:4px" onclick="CaseDocs.generateDocument('${caseId}', 'poa')">📝 委任状</button>
+            <button type="button" class="btn btn-secondary btn-small" style="flex:1; min-width:85px; font-size:0.75rem; padding:4px" onclick="CaseDocs.generateDocument('${caseId}', 'estimate')">📊 見積書</button>
           </div>
         </div>
       </div>
@@ -200,29 +223,53 @@ const CaseDocs = {
     const size = this.formatSize(doc.size);
     const date = doc.uploadedAt ? doc.uploadedAt.slice(0, 10) : '';
     const isInbox = doc.source === 'inbox';
+    const isImg = doc.mimeType && doc.mimeType.startsWith('image/');
     return `
-      <div class="doc-item" id="doc_${doc.id}">
-        <span class="doc-icon">${icon}</span>
-        <div class="doc-info">
-          <div class="doc-name">${doc.name} ${isInbox ? '<span style="font-size:0.7rem; background:rgba(59,130,246,0.15); color:#38bdf8; padding:1px 5px; border-radius:4px; margin-left:4px;">受信原本</span>' : ''}</div>
-          <div class="doc-meta">${[size, date].filter(Boolean).join(' · ')}</div>
+      <div class="doc-item" id="doc_${doc.id}" style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--bg-secondary, #f8fafc); border:1px solid var(--border-color); border-radius:6px;">
+        <span class="doc-icon" style="font-size:1.1rem;">${icon}</span>
+        <div class="doc-info" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+          <div class="doc-name" style="font-size:0.82rem; font-weight:600;">
+            ${doc.name}
+            ${isInbox ? '<span style="font-size:0.68rem; background:rgba(59,130,246,0.15); color:#2563eb; padding:1px 5px; border-radius:4px; margin-left:4px;">受信原本</span>' : ''}
+          </div>
+          <div class="doc-meta" style="font-size:0.72rem; color:var(--text-muted);">${[size, date].filter(Boolean).join(' · ')}</div>
         </div>
-        <div class="doc-actions">
+        <div class="doc-actions" style="display:flex; gap:6px; align-items:center;">
           ${doc.driveUrl
-            ? `<a class="doc-btn" href="${doc.driveUrl}" target="_blank" title="Driveで開く / 閲覧">🔗 開く</a>`
+            ? `<a class="btn btn-secondary btn-small" href="${doc.driveUrl}" target="_blank" style="font-size:0.75rem; padding:2px 8px; text-decoration:none;" title="Driveで開く / 閲覧">🔗 閲覧</a>`
             : ''
           }
-          ${!isInbox ? `<button type="button" class="doc-btn doc-btn-delete" onclick="CaseDocs.delete('${caseId}', '${doc.id}')" title="削除">🗑️</button>` : ''}
+          ${!isInbox ? `<button type="button" class="btn btn-small" style="color:#ef4444; border:1px solid rgba(239,68,68,0.3); background:none; padding:2px 6px;" onclick="CaseDocs.delete('${caseId}', '${doc.id}')" title="削除">🗑️</button>` : ''}
         </div>
       </div>
     `;
   },
 
-  async onFileSelect(caseId, input) {
-    const file = input.files[0];
-    if (!file) return;
-    input.value = ''; // リセット（同じファイルを再選択できるよう）
+  async onFileDrop(caseId, event) {
+    event.preventDefault();
+    const zone = document.getElementById(`docsDropZone_${caseId}`);
+    if (zone) {
+      zone.style.borderColor = 'var(--border-color)';
+      zone.style.background = 'var(--bg-secondary, #f8fafc)';
+    }
+    const files = event.dataTransfer ? Array.from(event.dataTransfer.files) : [];
+    if (files.length === 0) return;
+    for (const file of files) {
+      await this.uploadAndAppend(caseId, file);
+    }
+  },
 
+  async onFileSelect(caseId, input) {
+    const files = input.files ? Array.from(input.files) : [];
+    if (files.length === 0) return;
+    input.value = ''; // リセット
+
+    for (const file of files) {
+      await this.uploadAndAppend(caseId, file);
+    }
+  },
+
+  async uploadAndAppend(caseId, file) {
     const meta = await this.upload(caseId, file);
     if (!meta) return;
 

@@ -431,6 +431,8 @@ const Cases = {
           ${c.registrationDate ? `<span style="color:#d97706;font-weight:600">🚗 登録: ${c.registrationDate.slice(5)}</span>` : ''}
           ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
           ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
+          ${(c.docs && c.docs.length > 0) ? `<span style="font-size:0.75rem; color:#2563eb; font-weight:600;">📎 ${c.docs.length}件</span>` : ''}
+          ${c.driveFolderUrl ? `<span style="font-size:0.75rem; color:#059669; font-weight:600; cursor:pointer;" onclick="event.stopPropagation(); window.open('${c.driveFolderUrl}', '_blank')" title="Google Driveフォルダを開く">📁 Drive↗</span>` : ''}
         </div>
         ${milestoneHtml}
         ${(c.memo && typeof c.memo === 'string' && c.memo.trim()) ? `<div class="kanban-card-memo" style="font-size:0.75rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;" title="${String(c.memo).replace(/"/g, '&quot;')}">📝 ${String(c.memo).trim()}</div>` : ''}
