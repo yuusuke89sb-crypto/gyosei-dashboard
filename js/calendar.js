@@ -197,7 +197,7 @@ const Calendar = {
                             <div class="timeline-meta">
                               ${client ? `👤 ${client.name}` : '—'}
                               ${ce.staffId ? ` ・ 🏷️ ${staffName}` : ''}
-                              ${ce.memo && ce.memo.trim() ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;word-break:break-word;">📝 ${ce.memo.trim()}</div>` : ''}
+                              ${(ce.memo && typeof ce.memo === 'string' && ce.memo.trim()) ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;word-break:break-word;">📝 ${String(ce.memo).trim()}</div>` : ''}
                             </div>
                           </div>
                         </div>`;
@@ -215,7 +215,7 @@ const Calendar = {
                             <div class="timeline-title">${icon} ${e.title}</div>
                             <div class="timeline-meta">
                               ${e.staffId ? `🏷️ ${staffName}` : ''}
-                              ${e.memo && e.memo.trim() ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;word-break:break-word;">📝 ${e.memo.trim()}</div>` : ''}
+                              ${(e.memo && typeof e.memo === 'string' && e.memo.trim()) ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;white-space:pre-wrap;word-break:break-word;">📝 ${String(e.memo).trim()}</div>` : ''}
                             </div>
                           </div>
                         </div>`;

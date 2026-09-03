@@ -308,7 +308,7 @@ const Cases = {
           ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
         </div>
         ${milestoneHtml}
-        ${c.memo && c.memo.trim() ? `<div class="kanban-card-memo" style="font-size:0.75rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;" title="${c.memo.replace(/"/g, '&quot;')}">📝 ${c.memo.trim()}</div>` : ''}
+        ${(c.memo && typeof c.memo === 'string' && c.memo.trim()) ? `<div class="kanban-card-memo" style="font-size:0.75rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;" title="${String(c.memo).replace(/"/g, '&quot;')}">📝 ${String(c.memo).trim()}</div>` : ''}
         ${c.createdAt ? `<div class="kanban-card-date">📋 ${c.createdAt.slice(0, 10)}</div>` : ''}
         ${c.fee ? `<div class="kanban-card-fee">💰 報酬 ${Number(c.fee).toLocaleString()}円${(c.advances||[]).length > 0 ? ` + 立替 ${(c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0).toLocaleString()}円` : ''}</div>` : ''}
       </div>
@@ -383,7 +383,7 @@ const Cases = {
                       ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
                       ${c.fee ? `<span>💰 ${Number(c.fee).toLocaleString()}円</span>` : ''}
                     </div>
-                  ${c.memo && c.memo.trim() ? `<div class="case-list-memo" style="font-size:0.78rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;">📝 ${c.memo.trim()}</div>` : ''}
+                  ${(c.memo && typeof c.memo === 'string' && c.memo.trim()) ? `<div class="case-list-memo" style="font-size:0.78rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;">📝 ${String(c.memo).trim()}</div>` : ''}
                   <div class="case-list-status-controls">
                     ${this.STATUSES.map(s => `
                       <button class="status-step-btn ${c.status === s.key ? 'active' : ''}"
