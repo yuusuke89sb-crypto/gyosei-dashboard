@@ -2,7 +2,7 @@
  * 顧客管理画面
  */
 const Clients = {
-  searchQuery: '',
+  searchQuery: sessionStorage.getItem('gyosei_clients_search') || '',
   editingId: null,
 
   render() {
@@ -194,6 +194,7 @@ const Clients = {
 
   onSearch(query) {
     this.searchQuery = query;
+    try { sessionStorage.setItem('gyosei_clients_search', query); } catch(e) {}
     App.refreshView();
   },
 

@@ -2,10 +2,12 @@
  * 登録前BOX（受信インボックス ＆ FAX管理）モジュール
  */
 const InboxManager = {
-  activeTab: 'inbox', // 'inbox' | 'send' | 'history'
-  searchQuery: '',
-  filterType: 'all', // 'all' | 'FAX' | 'メール'
-  statusFilter: 'all_active', // 'all_active' | 'unhandled' | 'hold'
+  activeTab: sessionStorage.getItem('gyosei_inbox_tab') || 'inbox', // 'inbox' | 'send' | 'history'
+  searchQuery: sessionStorage.getItem('gyosei_inbox_search') || '',
+  historySearchQuery: sessionStorage.getItem('gyosei_inbox_hist_search') || '',
+  filterType: sessionStorage.getItem('gyosei_inbox_filter') || 'all', // 'all' | 'FAX' | 'メール'
+  historyFilterType: sessionStorage.getItem('gyosei_inbox_hist_filter') || 'all',
+  statusFilter: sessionStorage.getItem('gyosei_inbox_status') || 'all_active', // 'all_active' | 'unhandled' | 'hold'
 
   render() {
     return `
@@ -290,125 +292,78 @@ const InboxManager = {
     const inbox = Store.getInbox ? Store.getInbox() : [];
     const cases = Store.getCases();
     const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
+            <input type="text" id="historySearchInput" class="search-input" style="width:100%; margin:0" placeholder="🔍 送信元・件名・案件名で検索..." 
+              value="${this.historySearchQuery || ''}" oninput="InboxManager.searchHistory(this.value)">
+            ${this.historySearchQuery ? `<button class="btn btn-secondary btn-small" onclick="InboxManager.searchHistory('')">クリア</button>` : ''}
+          </div>
+        </div>
 
-    // 履歴データ構築
-    const histories = [];
+        <div style="overflow-x:auto; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:8px">
+          <table style="width:100%; border-collapse:collapse; font-size:0.85rem">
+            <thead>
+              <tr style="background:var(--bg-secondary); text-align:left">
+                <th style="padding:12px; border-bottom:1px solid var(--border-color)">日時</th>
+                <th style="padding:12px; border-bottom:1px solid var(--border-color)">種別</th>
+                <th style="padding:12px; border-bottom:1px solid var(--border-color)">番号/宛先</th>
+                <th style="padding:12px; border-bottom:1px solid var(--border-color)">件名</th>
+                <th style="padding:12px; border-bottom:1px solid var(--border-color)">処理状態</th>
+                <th style="padding:12px; border-bottom:1px solid var(--border-color)">対応内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${histories.length === 0 
+                ? `<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--text-muted)">該当する送受信履歴はありません</td></tr>`
+                : histories.map(h => {
+                    let statusHtml = '';
+                    let actionHtml = '';
 
-    // 1. インボックスデータ追加 (受信FAX & 受信メール)
-    inbox.forEach(item => {
-      let linkedCase = null;
-      if (item.caseId) {
-        linkedCase = cases.find(c => c.id === item.caseId);
-      } else {
-        // IDや日付で案件と紐付ける (フォールバック)
-        linkedCase = cases.find(c => c.inboxId === item.id || c.faxId === item.id);
-      }
-
-      histories.push({
-        id: item.id,
-        date: item.date,
-        direction: '受信',
-        type: item.type,
-        sender: item.sender,
-        subject: item.subject,
-        status: item.status,
-        caseId: linkedCase ? linkedCase.id : '',
-        caseTitle: linkedCase ? linkedCase.title : '',
-      });
-    });
-
-    // 2. 送信FAXを追加 (faxLogsから送信のもの)
-    faxLogs.forEach((l, i) => {
-      if (l.direction === '送信') {
-        histories.push({
-          id: 'SENT-FAX-' + i,
-          date: l.date,
-          direction: '送信',
-          type: 'FAX',
-          sender: l.number, // 送信先番号
-          subject: l.subject,
-          status: '対応済',
-          caseId: '',
-          caseTitle: l.clientName || '—',
-        });
-      }
-    });
-
-    // ソート (日付新しい順)
-    histories.sort((a, b) => {
-      const ta = a.date ? new Date(String(a.date).includes('-') && !String(a.date).includes('T') ? String(a.date).replace(/-/g, '/') : a.date).getTime() : 0;
-      const tb = b.date ? new Date(String(b.date).includes('-') && !String(b.date).includes('T') ? String(b.date).replace(/-/g, '/') : b.date).getTime() : 0;
-      return tb - ta;
-    });
-
-    return `
-      <div style="overflow-x:auto; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:8px">
-        <table style="width:100%; border-collapse:collapse; font-size:0.85rem">
-          <thead>
-            <tr style="background:var(--bg-secondary); text-align:left">
-              <th style="padding:12px; border-bottom:1px solid var(--border-color)">日時</th>
-              <th style="padding:12px; border-bottom:1px solid var(--border-color)">種別</th>
-              <th style="padding:12px; border-bottom:1px solid var(--border-color)">番号/宛先</th>
-              <th style="padding:12px; border-bottom:1px solid var(--border-color)">件名</th>
-              <th style="padding:12px; border-bottom:1px solid var(--border-color)">処理状態</th>
-              <th style="padding:12px; border-bottom:1px solid var(--border-color)">対応内容</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${histories.length === 0 
-              ? `<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--text-muted)">送受信履歴はありません</td></tr>`
-              : histories.map(h => {
-                  let statusHtml = '';
-                  let actionHtml = '';
-
-                  if (h.direction === '送信') {
-                    statusHtml = `<span style="color:var(--text-muted)">送信完了</span>`;
-                    actionHtml = `<span style="color:var(--text-muted)">顧客: ${h.caseTitle}</span>`;
-                  } else {
-                    if (h.status === '対応済') {
-                      statusHtml = `<span style="color:#16a34a; font-weight:600">✅ 処理済</span>`;
-                      if (h.caseId) {
+                    if (h.direction === '送信') {
+                      statusHtml = `<span style="color:var(--text-muted)">送信完了</span>`;
+                      actionHtml = `<span style="color:var(--text-muted)">顧客: ${h.caseTitle}</span>`;
+                    } else {
+                      if (h.status === '対応済') {
+                        statusHtml = `<span style="color:#16a34a; font-weight:600">✅ 処理済</span>`;
+                        if (h.caseId) {
+                          actionHtml = `
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                              <a href="#" onclick="event.preventDefault(); Cases.showEditModal('${h.caseId}', 'inbox', 'history')" style="font-weight:600; color:var(--primary-color)">📋 案件: ${h.caseTitle}</a>
+                              <button class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:2px 8px; color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.5)" onclick="InboxManager.registerCase('${h.id}')" title="同じFAX/メールから別の案件を新規登録">📑 別案件を追加登録</button>
+                            </div>
+                          `;
+                        } else {
+                          actionHtml = `
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                              <span style="color:var(--text-muted)">手動対応済</span>
+                              <button class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:2px 8px; color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.5)" onclick="InboxManager.registerCase('${h.id}')" title="同じFAX/メールから別の案件を新規登録">📑 別案件を追加登録</button>
+                            </div>
+                          `;
+                        }
+                      } else if (h.status === '除外') {
+                        statusHtml = `<span style="color:var(--text-muted)">🚫 除外</span>`;
                         actionHtml = `
-                          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
-                            <a href="#" onclick="event.preventDefault(); App.navigate('cases'); setTimeout(() => Cases.showEditModal('${h.caseId}'), 100)" style="font-weight:600; color:var(--primary-color)">📋 案件: ${h.caseTitle}</a>
-                            <button class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:2px 8px; color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.5)" onclick="InboxManager.registerCase('${h.id}')" title="同じFAX/メールから別の案件を新規登録">📑 別案件を追加登録</button>
+                          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+                            <button type="button" class="btn btn-secondary btn-small" onclick="InboxManager.restoreItem('${h.id}')">復元</button>
+                            <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
+                          </div>
+                        `;
+                      } else if (h.status === '保留') {
+                        statusHtml = `<span style="color:#d97706; font-weight:bold">⏸️ 保留中</span>`;
+                        actionHtml = `
+                          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+                            <button type="button" class="btn btn-secondary btn-small" style="color:#059669; border-color:#059669;" onclick="InboxManager.unholdItem('${h.id}')">▶️ 保留解除</button>
+                            <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
                           </div>
                         `;
                       } else {
+                        statusHtml = `<span style="color:#d97706; font-weight:600">⏳ 未対応</span>`;
                         actionHtml = `
-                          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
-                            <span style="color:var(--text-muted)">手動対応済</span>
-                            <button class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:2px 8px; color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.5)" onclick="InboxManager.registerCase('${h.id}')" title="同じFAX/メールから別の案件を新規登録">📑 別案件を追加登録</button>
+                          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+                            <button type="button" class="btn btn-secondary btn-small" style="color:#d97706; border-color:rgba(217,119,6,0.6);" onclick="InboxManager.holdItem('${h.id}')">⏸️ 保留</button>
+                            <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
                           </div>
                         `;
                       }
-                    } else if (h.status === '除外') {
-                      statusHtml = `<span style="color:var(--text-muted)">🚫 除外</span>`;
-                      actionHtml = `
-                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
-                          <button type="button" class="btn btn-secondary btn-small" onclick="InboxManager.restoreItem('${h.id}')">復元</button>
-                          <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
-                        </div>
-                      `;
-                    } else if (h.status === '保留') {
-                      statusHtml = `<span style="color:#d97706; font-weight:bold">⏸️ 保留中</span>`;
-                      actionHtml = `
-                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
-                          <button type="button" class="btn btn-secondary btn-small" style="color:#059669; border-color:#059669;" onclick="InboxManager.unholdItem('${h.id}')">▶️ 保留解除</button>
-                          <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
-                        </div>
-                      `;
-                    } else {
-                      statusHtml = `<span style="color:#d97706; font-weight:600">⏳ 未対応</span>`;
-                      actionHtml = `
-                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
-                          <button type="button" class="btn btn-secondary btn-small" style="color:#d97706; border-color:rgba(217,119,6,0.6);" onclick="InboxManager.holdItem('${h.id}')">⏸️ 保留</button>
-                          <button type="button" class="btn btn-primary btn-small" onclick="InboxManager.registerCase('${h.id}')">➕ 案件登録</button>
-                        </div>
-                      `;
                     }
-                  }
-
                   const directionBadge = h.direction === '送信' 
                     ? `<span style="background:#dbeafe; color:#2563eb; font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px">送信 ${h.type}</span>`
                     : `<span style="background:#dcfce7; color:#16a34a; font-size:0.7rem; font-weight:bold; padding:2px 6px; border-radius:4px">受信 ${h.type}</span>`;

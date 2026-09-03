@@ -2,11 +2,13 @@
  * 案件管理画面
  */
 const Cases = {
-  filterCategory: 'all',
-  filterStatus: 'all',
-  filterMapStatus: 'all', // 'all' | 'uncreated' (車庫証明の図面未作成)
-  searchQuery: '',        // 検索クエリ (申請者名・車台番号・ナンバー・注文書No等)
+  filterCategory: sessionStorage.getItem('gyosei_cases_cat') || 'all',
+  filterStatus: sessionStorage.getItem('gyosei_cases_status') || 'all',
+  filterMapStatus: sessionStorage.getItem('gyosei_cases_map') || 'all', // 'all' | 'uncreated' (車庫証明の図面未作成)
+  searchQuery: sessionStorage.getItem('gyosei_cases_search') || '',        // 検索クエリ (申請者名・車台番号・ナンバー・注文書No等)
   editingId: null,
+  returnPage: null,
+  returnTab: null,
   advanceDraft: [],  // 立替金一時データ [{label, amount}]
 
   // 車庫証明案件判定
@@ -24,6 +26,7 @@ const Cases = {
   // 図面未作成クイックフィルター切り替え
   toggleMapFilter() {
     this.filterMapStatus = this.filterMapStatus === 'uncreated' ? 'all' : 'uncreated';
+    try { sessionStorage.setItem('gyosei_cases_map', this.filterMapStatus); } catch(e) {}
     App.refreshView();
   },
 
@@ -59,6 +62,7 @@ const Cases = {
 
   onSearchInput(val) {
     this.searchQuery = val;
+    try { sessionStorage.setItem('gyosei_cases_search', val); } catch(e) {}
     const container = document.getElementById('casesMainContainer');
     if (container) {
       const filtered = this.getFilteredCases();
@@ -71,6 +75,7 @@ const Cases = {
 
   clearSearch() {
     this.searchQuery = '';
+    try { sessionStorage.removeItem('gyosei_cases_search'); } catch(e) {}
     const input = document.getElementById('caseSearchInput');
     if (input) input.value = '';
     App.refreshView();
@@ -1578,6 +1583,10 @@ const Cases = {
   onFilterChange() {
     this.filterCategory = document.getElementById('filterCategory').value;
     this.filterStatus = document.getElementById('filterStatus').value;
+    try {
+      sessionStorage.setItem('gyosei_cases_cat', this.filterCategory);
+      sessionStorage.setItem('gyosei_cases_status', this.filterStatus);
+    } catch(e) {}
     App.refreshView();
   },
 
@@ -1612,11 +1621,13 @@ const Cases = {
     App.showToast(`✅ 案件「${c.title}」を未請求状態に戻しました`);
   },
 
-  showAddModal(prefills) {
+  showAddModal(prefills, returnPage = null, returnTab = null) {
     this.editingId = null;
+    this.returnPage = returnPage || (prefills && (prefills.inboxId || prefills.faxId) ? 'inbox' : null);
+    this.returnTab = returnTab;
 
     if (typeof App !== 'undefined' && App.currentPage !== 'cases') {
-      App.navigate('cases');
+      App.navigate('cases', false);
     }
 
     const modal = document.getElementById('caseModal');
@@ -1733,13 +1744,15 @@ const Cases = {
     }
   },
 
-  showEditModal(id) {
+  showEditModal(id, returnPage = null, returnTab = null) {
     this.editingId = id;
+    this.returnPage = returnPage;
+    this.returnTab = returnTab;
     const c = Store.getCase(id);
     if (!c) return;
 
     if (typeof App !== 'undefined' && App.currentPage !== 'cases') {
-      App.navigate('cases');
+      App.navigate('cases', false);
     }
 
     const modal = document.getElementById('caseModal');
@@ -1887,6 +1900,16 @@ const Cases = {
     document.getElementById('caseModal').style.display = 'none';
     this.editingId = null;
     this._submitMode = 'close';
+    if (this.returnPage) {
+      const page = this.returnPage;
+      const tab = this.returnTab;
+      this.returnPage = null;
+      this.returnTab = null;
+      App.navigate(page);
+      if (page === 'inbox' && tab && typeof InboxManager !== 'undefined') {
+        InboxManager.switchTab(tab);
+      }
+    }
   },
 
   onSubmit(e) {
@@ -2075,8 +2098,11 @@ const Cases = {
     this._submitMode = 'close'; // reset
 
     if (mode === 'close') {
+      const hadReturn = !!this.returnPage;
       this.closeModal();
-      App.refreshView();
+      if (!hadReturn) {
+        App.refreshView();
+      }
       if (!isExisting && data.inboxId) {
         App.showToast('✅ 案件を登録しました');
       } else {

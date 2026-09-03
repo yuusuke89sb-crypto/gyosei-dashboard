@@ -225,6 +225,8 @@ const ActivityLog = {
 // 3. グローバル検索
 // ============================================================
 const GlobalSearch = {
+  _lastQuery: '',
+
   show() {
     const existing = document.getElementById('globalSearchModal');
     if (existing) existing.remove();
@@ -240,6 +242,7 @@ const GlobalSearch = {
           <button class="modal-close" onclick="document.getElementById('globalSearchModal').remove()">✕</button>
         </div>
         <input type="text" id="globalSearchInput" class="search-input" placeholder="顧客名・案件名で検索..." autofocus
+          value="${this._lastQuery || ''}"
           oninput="GlobalSearch.onSearch(this.value)" style="width:100%;margin-bottom:12px">
         <div id="globalSearchResults" class="mini-case-list" style="max-height:400px;overflow-y:auto">
           <p class="empty-message">キーワードを入力してください</p>
@@ -247,10 +250,20 @@ const GlobalSearch = {
       </div>
     `;
     document.body.appendChild(modal);
-    setTimeout(() => document.getElementById('globalSearchInput').focus(), 50);
+    if (this._lastQuery) {
+      this.onSearch(this._lastQuery);
+    }
+    setTimeout(() => {
+      const inp = document.getElementById('globalSearchInput');
+      if (inp) {
+        inp.focus();
+        inp.select();
+      }
+    }, 50);
   },
 
   onSearch(q) {
+    this._lastQuery = q;
     q = q.trim().toLowerCase();
     const results = document.getElementById('globalSearchResults');
     if (!q) { results.innerHTML = '<p class="empty-message">キーワードを入力してください</p>'; return; }
@@ -281,6 +294,8 @@ const GlobalSearch = {
       );
     });
 
+    const curPage = (typeof App !== 'undefined' && App.currentPage) ? App.currentPage : 'dashboard';
+
     if (clients.length > 0) {
       html += '<div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);padding:8px 0">👥 顧客</div>';
       clients.forEach(c => {
@@ -296,7 +311,7 @@ const GlobalSearch = {
         const client = Store.getClient(c.clientId);
         const applicantInfo = c.carName ? ` ｜ 👤 申請者: <strong>${c.carName}</strong>` : '';
         const carInfo = (c.carNumber || c.oldCarNumber || c.vin) ? ` ｜ 🚗 ${c.carNumber || c.oldCarNumber || c.vin}` : '';
-        html += `<div class="mini-case-item" onclick="document.getElementById('globalSearchModal').remove(); App.navigate('cases'); setTimeout(()=>Cases.showEditModal('${c.id}'),100)" style="cursor:pointer; display:flex; align-items:center;">
+        html += `<div class="mini-case-item" onclick="document.getElementById('globalSearchModal').remove(); Cases.showEditModal('${c.id}', '${curPage}')" style="cursor:pointer; display:flex; align-items:center;">
           <div style="flex:1;">
             <div class="mini-case-title" style="margin-bottom:2px;">${c.title} ${c.orderNo ? `<span style="font-weight:normal;font-size:0.8rem;color:#6b7280;margin-left:4px">(${c.orderNo})</span>` : ''}</div>
             <div style="color:var(--text-secondary);font-size:0.8rem">${client ? client.name : '—'}${applicantInfo}${carInfo}</div>

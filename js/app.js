@@ -16,6 +16,18 @@ const App = {
       setTimeout(() => { const pw = document.getElementById('authPassword'); if (pw) pw.focus(); }, 100);
       return; // 初期化を中断
     }
+    // 🌟 URLハッシュまたは直前のセッションからページを復元（リロードや戻るでダッシュボードに戻るのを防止）
+    const validPages = ['dashboard', 'clients', 'cases', 'advances', 'inheritance-casefile', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    if (hash && validPages.includes(hash)) {
+      this.currentPage = hash;
+    } else {
+      const savedPage = sessionStorage.getItem('gyosei_current_page');
+      if (savedPage && validPages.includes(savedPage)) {
+        this.currentPage = savedPage;
+      }
+    }
+
     // 旧ステータスの自動変換
     if (typeof Store !== 'undefined') Store._migrateStatuses();
     // 9/1以降の未入力案件へのテンプレート報酬額自動補完
@@ -24,6 +36,16 @@ const App = {
     }
     this.renderSidebar();
     this.renderContent();
+    this.updateNav();
+
+    // 🌟 ブラウザの「戻る」「進む」キー連動
+    window.addEventListener('hashchange', () => {
+      const newHash = (window.location.hash || '').replace(/^#/, '');
+      if (newHash && validPages.includes(newHash) && newHash !== this.currentPage) {
+        this.navigate(newHash, false);
+      }
+    });
+
     // セッションタイムアウト監視を開始
     if (typeof Auth !== 'undefined') Auth.startSessionTimer();
     // リサイズ時に再描画
@@ -58,11 +80,28 @@ const App = {
         e.preventDefault();
         GlobalSearch.show();
       }
+      if (e.key === 'Escape') {
+        const caseModal = document.getElementById('caseModal');
+        if (caseModal && caseModal.style.display !== 'none' && typeof Cases !== 'undefined') {
+          Cases.closeModal();
+          return;
+        }
+        const ocrModal = document.getElementById('dealer-ocr-result-modal');
+        if (ocrModal) { ocrModal.remove(); return; }
+        const gsModal = document.getElementById('globalSearchModal');
+        if (gsModal) { gsModal.remove(); return; }
+      }
     });
   },
 
-  navigate(page) {
+  navigate(page, updateHash = true) {
     this.currentPage = page;
+    try {
+      sessionStorage.setItem('gyosei_current_page', page);
+      if (updateHash && window.location.hash !== '#' + page) {
+        window.location.hash = page;
+      }
+    } catch (e) {}
     this.renderContent();
     this.updateNav();
     // モバイルでサイドバーが開いていたら閉じる

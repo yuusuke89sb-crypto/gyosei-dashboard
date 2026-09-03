@@ -133,7 +133,7 @@ function renderDashboard() {
             <span style="font-weight:700; color:var(--accent-orange); font-size: 0.95rem; display:flex; align-items:center; gap:8px">
               ⚠️ 未登録の受信FAXがあります (${unprocessed.length}件)
             </span>
-            <button class="btn btn-secondary btn-small" onclick="App.navigate('fax'); setTimeout(() => FaxManager.loadLog(), 100)">📠 FAX一覧を開く</button>
+            <button class="btn btn-secondary btn-small" onclick="App.navigate('inbox'); setTimeout(() => InboxManager.switchTab('history'), 50)">📠 FAX・履歴一覧を開く</button>
           </div>
           <div style="display:flex; flex-direction:column; gap:8px">
             ${unprocessed.slice(0, 3).map(f => `
