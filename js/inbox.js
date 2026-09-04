@@ -17,9 +17,12 @@ const InboxManager = {
             <span style="font-size:2rem">📥</span>
             <h1 style="margin:0">登録前BOX</h1>
           </div>
-          <div style="display:flex; gap:8px">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <button class="btn btn-secondary" onclick="InboxManager.checkIncomingInbox()" id="inboxCheckBtn">
               🔄 受信チェック
+            </button>
+            <button class="btn btn-secondary" onclick="InboxManager.checkIncomingInbox({ days: 14, maxThreads: 100 })" id="inboxDeepCheckBtn" title="8月29日前後を含む過去14日分の未取得メール・FAXを深層再スキャンします" style="font-size:0.82rem; border-color:var(--accent-gold, #f59e0b); color:var(--accent-gold, #d97706);">
+              📅 過去14日分を再取得
             </button>
           </div>
         </div>
@@ -473,24 +476,25 @@ const InboxManager = {
     App.refreshView();
   },
 
-  // 1. メール・FAX受信チェック
-  async checkIncomingInbox() {
+  // 1. メール・FAX受信チェック（通常チェック / 過去14日分深層スキャン両対応）
+  async checkIncomingInbox(options = {}) {
     if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
       App.showToast('⚙️ スプレッドシート連携を設定してください');
       return;
     }
 
-    const btn = document.getElementById('inboxCheckBtn');
+    const isDeep = !!options.days;
+    const btn = document.getElementById(isDeep ? 'inboxDeepCheckBtn' : 'inboxCheckBtn');
     if (btn) {
       btn.disabled = true;
-      btn.textContent = '⏳ チェック中...';
+      btn.textContent = '⏳ スキャン中...';
     }
 
-    App.showToast('📥 新規メールおよびFAXをスキャン中...');
+    App.showToast(isDeep ? '📥 8月29日前後を含む過去14日分のメール・FAXを深層スキャン中...' : '📥 新規メールおよびFAXをスキャン中...');
 
     try {
       // GAS側でGmail検索とインボックス書込を実行
-      const result = await SpreadsheetSync.pushCalendarEvent('checkInbox', {});
+      const result = await SpreadsheetSync.pushCalendarEvent('checkInbox', options);
 
       if (result && result.success) {
         // GASからローカルストレージへデータをプル
@@ -507,7 +511,8 @@ const InboxManager = {
         }
 
         App.refreshView();
-        App.showToast(`✅ スキャン完了！ 新規に ${result.saved} 件を取り込みました`);
+        const timedOutNote = result.timedOut ? '（※実行制限時間のため一部を取得しました。もう一度押すと続きを取得します）' : '';
+        App.showToast(`✅ スキャン完了！ 新規に ${result.saved} 件を取り込みました${timedOutNote}`);
       } else if (result && result.error) {
         App.showToast('❌ 取り込みエラー: ' + result.error);
       }
@@ -516,7 +521,7 @@ const InboxManager = {
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = '🔄 受信チェック';
+        btn.textContent = isDeep ? '📅 過去14日分を再取得' : '🔄 受信チェック';
       }
     }
   },
