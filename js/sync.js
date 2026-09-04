@@ -185,12 +185,18 @@ const SpreadsheetSync = {
                 var remoteKeys = {};
                 data.journals.forEach(function(j){
                     if (j.id) remoteKeys[j.id] = true;
-                    var key = (j.date || '') + '_' + (j.debit || '') + '_' + (j.credit || '') + '_' + (j.amount || 0) + '_' + (j.description || '');
+                    if (j.caseId) {
+                        remoteKeys['case_' + j.caseId] = true;
+                    }
+                    var orderNo = j.orderNo || (j.description && j.description.match(/\[注:([^\]]+)\]/)?.[1]) || '';
+                    var key = (j.date || '') + '_' + (j.debit || '') + '_' + (j.credit || '') + '_' + (j.amount || 0) + '_' + orderNo + '_' + (j.description || '');
                     remoteKeys[key] = true;
                 });
                 var localOnly = local.filter(function(j){
                     if (j.id && remoteKeys[j.id]) return false;
-                    var key = (j.date || '') + '_' + (j.debit || '') + '_' + (j.credit || '') + '_' + (j.amount || 0) + '_' + (j.description || '');
+                    if (j.caseId && remoteKeys['case_' + j.caseId]) return false;
+                    var orderNo = j.orderNo || (j.description && j.description.match(/\[注:([^\]]+)\]/)?.[1]) || '';
+                    var key = (j.date || '') + '_' + (j.debit || '') + '_' + (j.credit || '') + '_' + (j.amount || 0) + '_' + orderNo + '_' + (j.description || '');
                     return !remoteKeys[key];
                 });
                 var merged = data.journals.concat(localOnly);
