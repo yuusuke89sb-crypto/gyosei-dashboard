@@ -752,6 +752,13 @@ const Cases = {
                     <input type="date" name="deadline" id="csf_deadline">
                   </div>
                   <div class="form-group">
+                    <label>完了日 <span style="font-size:0.72rem;color:var(--accent-blue, #3b82f6);font-weight:bold;">(請求書明細の日付)</span></label>
+                    <input type="date" name="completedAt" id="csf_completedAt" title="請求書の別紙明細に印字される完了日です。未入力時は完了にした日付が自動採用されます">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
                     <label>報酬額（円）</label>
                     <input type="number" name="fee" id="csf_fee" placeholder="例：55000" min="0" step="1">
                   </div>
@@ -1648,6 +1655,8 @@ const Cases = {
     this.onClientChange('');
 
     // 注文書№ 自動連番付与 (PO-YYYYMMDD-XXX)
+    const compEl = document.getElementById('csf_completedAt');
+    if (compEl) compEl.value = '';
     const nextNum = Store.getCases().length + 1;
     const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
     const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
@@ -1838,6 +1847,8 @@ const Cases = {
       if (storeDeliveryDateEl) storeDeliveryDateEl.value = c.storeDeliveryDate || '';
       const storeDeliveryTimeEl = document.getElementById('csf_storeDeliveryTime');
       if (storeDeliveryTimeEl) storeDeliveryTimeEl.value = c.storeDeliveryTime || '';
+      const completedAtEl = document.getElementById('csf_completedAt');
+      if (completedAtEl) completedAtEl.value = c.completedAt ? c.completedAt.slice(0, 10) : '';
 
       // マイルストーン表示制御
       Cases.renderMilestoneStepper(id);
@@ -1947,6 +1958,7 @@ const Cases = {
       policeDeliveryDate: (form.policeDeliveryDate && form.policeDeliveryDate.value) ? form.policeDeliveryDate.value : (form.applyDate ? form.applyDate.value : ''),
       policeLocationId: form.policeLocationId ? form.policeLocationId.value : '',
       registrationDate: form.registrationDate ? form.registrationDate.value : '',
+      completedAt: (form.completedAt && form.completedAt.value) ? form.completedAt.value : undefined,
       landTransportLocationId: form.landTransportLocationId ? form.landTransportLocationId.value : '',
       carName: form.carName ? form.carName.value.trim() : '',
       carAddress: form.carAddress ? form.carAddress.value.trim() : '',
