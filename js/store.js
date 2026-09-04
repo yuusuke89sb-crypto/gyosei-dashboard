@@ -216,11 +216,18 @@ const Store = {
     const idx = cases.findIndex(c => c.id === id);
     if (idx === -1) return null;
     const oldStatus = cases[idx].status;
-    // 完了日を自動記録（完了→他ステータスに戻したらクリア）
-    if (data.status === 'done' && oldStatus !== 'done') {
-      data.completedAt = new Date().toISOString();
+    // 完了日記録（手動指定があれば最優先、無くて未完了→完了なら現在時刻、完了から他ステータスに戻したらクリア）
+    if (data.status === 'done') {
+      if (data.completedAt) {
+        data.completedAt = String(data.completedAt).includes('T') ? data.completedAt : `${data.completedAt}T12:00:00.000Z`;
+      } else if (oldStatus !== 'done' && !cases[idx].completedAt) {
+        data.completedAt = new Date().toISOString();
+      }
     } else if (data.status && data.status !== 'done') {
       data.completedAt = null;
+    } else if (data.completedAt !== undefined) {
+      // status変更なしで完了日だけ編集・変更された場合
+      data.completedAt = data.completedAt ? (String(data.completedAt).includes('T') ? data.completedAt : `${data.completedAt}T12:00:00.000Z`) : null;
     }
     cases[idx] = { ...cases[idx], ...data, updatedAt: new Date().toISOString() };
     this._set(this.KEYS.CASES, cases);
@@ -229,6 +236,20 @@ const Store = {
     const updatedCase = cases[idx];
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('upsertCase', updatedCase);
+    }
+
+    // 完了日が手動変更された場合、紐づく仕訳の日付も連動更新
+    if (updatedCase.completedAt && updatedCase.status === 'done') {
+      const compDateStr = updatedCase.completedAt.slice(0, 10);
+      const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+      const jIdx = journals.findIndex(j => j.caseId === id);
+      if (jIdx !== -1 && journals[jIdx].date !== compDateStr) {
+        journals[jIdx].date = compDateStr;
+        localStorage.setItem('gyosei_journals', JSON.stringify(journals));
+        if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+          SpreadsheetSync.push('upsertJournal', journals[jIdx]);
+        }
+      }
     }
 
     // 完了時に報酬があれば仕訳を自動生成
@@ -245,9 +266,10 @@ const Store = {
     const client = this.getClient(c.clientId);
     const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
     const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
+    const journalDate = (c.completedAt ? c.completedAt.slice(0, 10) : this.getLocalDateStr());
     journals.push({
       id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-      date: this.getLocalDateStr(),
+      date: journalDate,
       debit: '売掛金',
       credit: '売上高',
       amount: Number(c.fee),
