@@ -244,14 +244,16 @@ const Store = {
     if (journals.some(j => j.caseId === c.id)) return;
     const client = this.getClient(c.clientId);
     const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
+    const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
     journals.push({
       id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       date: this.getLocalDateStr(),
       debit: '売掛金',
       credit: '売上高',
       amount: Number(c.fee),
-      description: `[${CATS[c.category] || c.category}] ${c.title}${client ? ' / ' + client.name : ''}`,
+      description: `[${CATS[c.category] || c.category}] ${c.title}${client ? ' / ' + client.name : ''}${orderStr}`,
       caseId: c.id,
+      orderNo: c.orderNo || '',
       auto: true,
       createdAt: new Date().toISOString(),
     });
