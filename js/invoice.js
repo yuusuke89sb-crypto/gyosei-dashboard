@@ -931,6 +931,10 @@ const Invoice = {
 
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+        const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
+          const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
+          return `${cat}:${Number(a.amount).toLocaleString()}`;
+        }).join(' ');
 
         return `
         <tr>
@@ -940,7 +944,7 @@ const Invoice = {
           <td class="col-center">${policeName}</td>
           <td class="col-center">${categoryShort}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
+          <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
         </tr>`;
       }).join('')}
       <tr style="font-weight:bold; background:#f8fafc;">
@@ -1437,6 +1441,10 @@ const Invoice = {
 
         const feeTaxIncluded = Math.floor(Number(c.fee || 0) * 1.1);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+        const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
+          const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
+          return `${cat}:${Number(a.amount).toLocaleString()}`;
+        }).join(' ');
 
         return `
         <tr>
@@ -1446,7 +1454,7 @@ const Invoice = {
           <td style="text-align:center;">${policeName}</td>
           <td style="text-align:center;">${categoryShort}</td>
           <td class="col-num">${feeTaxIncluded > 0 ? '¥' + feeTaxIncluded.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? '¥' + advSum.toLocaleString() : ''}</td>
+          <td class="col-num">${advSum > 0 ? `¥${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
         </tr>`;
       }).join('')}
       <tr style="font-weight:bold; background:#f8fafc;">
@@ -1467,9 +1475,15 @@ const Invoice = {
   // =========================================================================
   buildStandardInvoiceHTML({ invoiceNo, issueDate, dueDate, year, month, client, office, cases, CATS, feeSubtotal, tax, taxRate, advanceTotal, total, note, docType = 'invoice', contactNames = [] }) {
     const allAdvances = cases.flatMap(c =>
-      (c.advances||[]).filter(a => a.label || Number(a.amount) > 0).map(a => ({
-        label: a.label, amount: Number(a.amount||0), caseTitle: c.title
-      }))
+      (c.advances||[]).filter(a => a.label || Number(a.amount) > 0).map(a => {
+        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : '実費・その他'))));
+        return {
+          category: cat,
+          label: a.label || cat,
+          amount: Number(a.amount||0),
+          caseTitle: c.title
+        };
+      })
     );
     const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
 
@@ -1582,6 +1596,7 @@ const Invoice = {
     <thead>
       <tr>
         <th style="width:8%;">No.</th>
+        <th style="width:18%;">区分</th>
         <th>立替金・実費項目</th>
         <th>対象案件</th>
         <th class="num" style="width:20%;">立替金額</th>
@@ -1591,6 +1606,7 @@ const Invoice = {
       ${allAdvances.map((a, i) => `
       <tr>
         <td>${i + 1}</td>
+        <td><span style="display:inline-block; padding:2px 8px; background:#e2e8f0; border-radius:4px; font-size:11px; font-weight:bold; color:#0f172a;">${a.category}</span></td>
         <td>${a.label}</td>
         <td style="color:#64748b;">${a.caseTitle}</td>
         <td class="num">¥${a.amount.toLocaleString()}</td>
