@@ -693,7 +693,7 @@ function doPost(e) {
       case 'deleteCalendarEvent': result = deleteCalendarEvent_(data); break;
       case 'sendFax': result = sendFax_(data); break;
       case 'checkFax': result = checkIncomingFax_(); break;
-      case 'checkInbox': result = checkIncomingInbox_(); break;
+      case 'checkInbox': result = checkIncomingInbox_(data); break;
       case 'upsertInboxItem': result = upsertInboxItem_(data, lineToken, lineUserId, lineNotifyInbox); break;
       case 'upsertCase': result = upsertCase_(data, lineToken, lineUserId, lineNotifyCase); break;
       case 'deleteCase': result = deleteRow_(SHEET_NAMES.CASES, data.id); break;
@@ -2334,7 +2334,14 @@ function getInboxDriveFolder_(subfolderName) {
   }
 }
 
-function checkIncomingInbox_() {
+function checkIncomingInbox_(options) {
+  options = options || {};
+  const days = options.days ? Number(options.days) : 10; // デフォルトを3日から10日（約1週間半）に拡大
+  const maxExecutionTimeMs = options.maxTimeMs || 25000; // Web Appの30秒タイムアウト対策（25秒で安全終了）
+  const maxThreads = options.maxThreads || 100;           // 検索スレッド上限を50から100に拡大
+  const startTime = Date.now();
+  let timedOut = false;
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let sheet = ss.getSheetByName(SHEET_NAMES.INBOX);
@@ -2356,17 +2363,34 @@ function checkIncomingInbox_() {
       });
     }
 
+    // ドライブフォルダをループ外で1度だけ事前取得（高速化）
+    const faxFolder = getInboxDriveFolder_('FAX受信');
+    const mailFolder = getInboxDriveFolder_('メール添付');
+    const rowsToInsert = [];
+
     // A. FAX通知メールスキャン（Apeos複合機、bihoku@, yoshimura@felis-car.jp, 【FAX】など）
-    const faxQuery = 'newer_than:3d (Apeos OR FAX OR bihoku OR felis-car.jp OR efax)';
+    const faxQuery = options.faxQuery || ('newer_than:' + days + 'd (Apeos OR FAX OR bihoku OR felis-car.jp OR efax)');
     try {
-      const faxThreads = GmailApp.search(faxQuery, 0, 50);
-      faxThreads.forEach(thread => {
-        thread.getMessages().forEach(msg => {
+      const faxThreads = GmailApp.search(faxQuery, 0, maxThreads);
+      for (let tIdx = 0; tIdx < faxThreads.length; tIdx++) {
+        if (Date.now() - startTime > maxExecutionTimeMs) {
+          Logger.log('GAS実行制限時間に近づいたため安全に中断して書き込みます');
+          timedOut = true;
+          break;
+        }
+        const thread = faxThreads[tIdx];
+        const messages = thread.getMessages();
+        for (let mIdx = 0; mIdx < messages.length; mIdx++) {
+          if (Date.now() - startTime > maxExecutionTimeMs) {
+            timedOut = true;
+            break;
+          }
+          const msg = messages[mIdx];
           const msgId = msg.getId();
           const newId = 'INB-' + msgId;
 
           // 既にシートに存在する場合はスキップ（二重登録防止）
-          if (existingIds.has(newId)) return;
+          if (existingIds.has(newId)) continue;
 
           const toStr = (msg.getTo() || '').toLowerCase();
           const fromStr = (msg.getFrom() || '').toLowerCase();
@@ -2375,11 +2399,11 @@ function checkIncomingInbox_() {
 
           // システム通知・一般サービスの除外
           const ignoreSenders = ['google.com', 'github.com', 'youtube.com', 'microsoft.com', 'stripe.com', 'amazon.', 'no-reply@', 'noreply@'];
-          if (ignoreSenders.some(ign => fromStr.includes(ign))) return;
+          if (ignoreSenders.some(ign => fromStr.includes(ign))) continue;
 
           // FAXまたは業務メールかの判定（Apeos、bihoku@、FAX、yoshimura@）
           const isFax = fromStr.includes('bihoku') || fromStr.includes('efax') || subjLower.includes('fax') || subjLower.includes('apeos') || toStr.includes('yoshimura@felis-car.jp') || toStr.includes('bihoku');
-          if (!isFax) return;
+          if (!isFax) continue;
 
           const date = msg.getDate();
           const dStr = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
@@ -2390,10 +2414,11 @@ function checkIncomingInbox_() {
 
           try {
             msg.getAttachments().forEach(att => {
-              const folder = getInboxDriveFolder_('FAX受信');
-              const file = folder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
-              try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
-              attachments.push({ name: att.getName(), url: file.getUrl() });
+              if (faxFolder) {
+                const file = faxFolder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
+                try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+                attachments.push({ name: att.getName(), url: file.getUrl() });
+              }
             });
           } catch (attErr) {
             Logger.log('FAX添付ファイル保存エラー: ' + attErr.message);
@@ -2411,95 +2436,111 @@ function checkIncomingInbox_() {
             '',
             now
           ];
-          sheet.appendRow(rowData);
+          rowsToInsert.push(rowData);
           existingIds.add(newId);
           savedCount++;
           try { msg.markRead(); } catch (e) {}
-        });
-      });
+        }
+      }
     } catch (err) {
       Logger.log('FAX受信チェックエラー: ' + err.message);
     }
 
     // B. 一般顧客メールスキャン (car@felis-car.jp, hiei-gyousei@athena.ocn.ne.jp 等)
-    const emailQuery = 'newer_than:3d (car@felis-car.jp OR hiei-gyousei@athena.ocn.ne.jp)';
-    try {
-      const emailThreads = GmailApp.search(emailQuery, 0, 30);
-      emailThreads.forEach(thread => {
-        thread.getMessages().forEach(msg => {
-          const msgId = msg.getId();
-          const newId = 'INB-' + msgId;
-
-          // 既にシートに存在する場合はスキップ
-          if (existingIds.has(newId)) return;
-
-          const toStr = (msg.getTo() || '').toLowerCase();
-          const ccStr = (msg.getCc() || '').toLowerCase();
-          const fromStr = (msg.getFrom() || '').toLowerCase();
-
-          // システム通知・一般サービスの除外
-          const ignoreSenders = ['google.com', 'github.com', 'youtube.com', 'microsoft.com', 'stripe.com', 'amazon.', 'no-reply@', 'noreply@'];
-          if (ignoreSenders.some(ign => fromStr.includes(ign))) return;
-
-          const validRecipients = ['car@felis-car.jp', 'hiei-gyousei@athena.ocn.ne.jp'];
-          const isTargetRecipient = validRecipients.some(addr => toStr.includes(addr) || ccStr.includes(addr));
-          if (!isTargetRecipient) return;
-
-          const date = msg.getDate();
-          const dStr = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
-          const subject = msg.getSubject() || '';
-          const body = msg.getPlainBody() || '';
-          const ts = dStr;
-          const attachments = [];
-
-          try {
-            msg.getAttachments().forEach(att => {
-              const folder = getInboxDriveFolder_('メール添付');
-              const file = folder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
-              try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
-              attachments.push({ name: att.getName(), url: file.getUrl() });
-            });
-          } catch (attErr) {
-            Logger.log('メール添付ファイル保存エラー: ' + attErr.message);
+    if (!timedOut) {
+      const emailQuery = options.emailQuery || ('newer_than:' + days + 'd (car@felis-car.jp OR hiei-gyousei@athena.ocn.ne.jp)');
+      try {
+        const emailThreads = GmailApp.search(emailQuery, 0, Math.min(maxThreads, 60));
+        for (let tIdx = 0; tIdx < emailThreads.length; tIdx++) {
+          if (Date.now() - startTime > maxExecutionTimeMs) {
+            Logger.log('GAS実行制限時間に近づいたためメールスキャンを中断して書き込みます');
+            timedOut = true;
+            break;
           }
+          const thread = emailThreads[tIdx];
+          const messages = thread.getMessages();
+          for (let mIdx = 0; mIdx < messages.length; mIdx++) {
+            if (Date.now() - startTime > maxExecutionTimeMs) {
+              timedOut = true;
+              break;
+            }
+            const msg = messages[mIdx];
+            const msgId = msg.getId();
+            const newId = 'INB-' + msgId;
 
-          const rowData = [
-            newId,
-            date,
-            'メール',
-            fromStr,
-            subject,
-            body.substring(0, 1000),
-            JSON.stringify(attachments),
-            '未対応',
-            '',
-            now
-          ];
-          sheet.appendRow(rowData);
-          existingIds.add(newId);
-          savedCount++;
-          try { msg.markRead(); } catch (e) {}
-        });
-      });
-    } catch (err) {
-      Logger.log('メール受信チェックエラー: ' + err.message);
+            if (existingIds.has(newId)) continue;
+
+            const toStr = (msg.getTo() || '').toLowerCase();
+            const ccStr = (msg.getCc() || '').toLowerCase();
+            const fromStr = (msg.getFrom() || '').toLowerCase();
+
+            const ignoreSenders = ['google.com', 'github.com', 'youtube.com', 'microsoft.com', 'stripe.com', 'amazon.', 'no-reply@', 'noreply@'];
+            if (ignoreSenders.some(ign => fromStr.includes(ign))) continue;
+
+            const validRecipients = ['car@felis-car.jp', 'hiei-gyousei@athena.ocn.ne.jp'];
+            const isTargetRecipient = validRecipients.some(addr => toStr.includes(addr) || ccStr.includes(addr));
+            if (!isTargetRecipient) continue;
+
+            const date = msg.getDate();
+            const dStr = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
+            const subject = msg.getSubject() || '';
+            const body = msg.getPlainBody() || '';
+            const ts = dStr;
+            const attachments = [];
+
+            try {
+              msg.getAttachments().forEach(att => {
+                if (mailFolder) {
+                  const file = mailFolder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
+                  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+                  attachments.push({ name: att.getName(), url: file.getUrl() });
+                }
+              });
+            } catch (attErr) {
+              Logger.log('メール添付ファイル保存エラー: ' + attErr.message);
+            }
+
+            const rowData = [
+              newId,
+              date,
+              'メール',
+              fromStr,
+              subject,
+              body.substring(0, 1000),
+              JSON.stringify(attachments),
+              '未対応',
+              '',
+              now
+            ];
+            rowsToInsert.push(rowData);
+            existingIds.add(newId);
+            savedCount++;
+            try { msg.markRead(); } catch (e) {}
+          }
+        }
+      } catch (err) {
+        Logger.log('メール受信チェックエラー: ' + err.message);
+      }
+    }
+
+    // まとめて一括書き込み（個別appendRowに比べ数十倍高速化、タイムアウトを徹底防止）
+    if (rowsToInsert.length > 0) {
+      const startRow = sheet.getLastRow() + 1;
+      sheet.getRange(startRow, 1, rowsToInsert.length, INBOX_HEADERS.length).setValues(rowsToInsert);
     }
 
     // C. 後方互換用のFAXログへの書き込み (FAXのみ)
     try {
-      if (savedCount > 0) {
-        const inboxData = sheet.getRange(sheet.getLastRow() - savedCount + 1, 1, savedCount, INBOX_HEADERS.length).getValues();
-        inboxData.forEach(row => {
+      if (rowsToInsert.length > 0) {
+        rowsToInsert.forEach(row => {
           if (row[2] === 'FAX') {
             logFax_('受信', row[3], row[4], '');
           }
         });
       }
-    } catch (e) {
-      // 互換書き込みエラーは無視
-    }
+    } catch (e) {}
 
-    return { success: true, saved: savedCount };
+    return { success: true, saved: savedCount, timedOut: timedOut };
   } catch (globalErr) {
     Logger.log('checkIncomingInbox 全体エラー: ' + globalErr.message);
     return { error: '受信チェック処理で例外が発生しました: ' + globalErr.message, saved: 0 };
@@ -2920,6 +2961,21 @@ function testCheckInbox() {
   Logger.log('=== 受信チェックテスト開始 ===');
   const res = checkIncomingInbox_();
   Logger.log('実行結果: ' + JSON.stringify(res));
+  return res;
+}
+
+/**
+ * 8月29日前後を含む未取得FAX・メールを一括救出・取り込みする専用関数
+ * Apps Scriptエディタ上部の関数プルダウンから「recoverAugust29Inbox」を選択して「実行」を押すと即座に救出されます。
+ */
+function recoverAugust29Inbox() {
+  Logger.log('=== 8月29日前後を含む未取得FAX・メール救出スキャン開始 ===');
+  const res = checkIncomingInbox_({
+    days: 14,
+    maxThreads: 150,
+    maxTimeMs: 300000 // エディタからの実行時は最大5分間じっくり実行可能
+  });
+  Logger.log('救出スキャン完了: ' + JSON.stringify(res));
   return res;
 }
 
