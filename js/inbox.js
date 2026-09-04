@@ -292,6 +292,71 @@ const InboxManager = {
     const inbox = Store.getInbox ? Store.getInbox() : [];
     const cases = Store.getCases();
     const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
+
+    // データ構築
+    let histories = [];
+
+    // 1. インボックスデータ追加 (受信FAX & 受信メール)
+    inbox.forEach(item => {
+      let linkedCase = null;
+      if (item.caseId) {
+        linkedCase = cases.find(c => c.id === item.caseId);
+      } else {
+        // ID付きで案件と紐付け (フォールバック)
+        linkedCase = cases.find(c => c.inboxId === item.id || c.faxId === item.id);
+      }
+
+      histories.push({
+        id: item.id,
+        date: item.date,
+        direction: '受信',
+        type: item.type,
+        sender: item.sender,
+        subject: item.subject,
+        status: item.status,
+        caseId: linkedCase ? linkedCase.id : '',
+        caseTitle: linkedCase ? linkedCase.title : '',
+      });
+    });
+
+    // 2. 送信FAX追加 (faxLogsから送信のみ)
+    faxLogs.forEach((l, i) => {
+      if (l.direction === '送信') {
+        histories.push({
+          id: 'SENT-FAX-' + i,
+          date: l.date,
+          direction: '送信',
+          type: 'FAX',
+          sender: l.number, // 送信先番号
+          subject: l.subject,
+          status: '対応済',
+          caseId: '',
+          caseTitle: l.clientName || '—',
+        });
+      }
+    });
+
+    // 検索フィルター適用
+    if (this.historySearchQuery && this.historySearchQuery.trim()) {
+      const q = this.historySearchQuery.trim().toLowerCase();
+      histories = histories.filter(h => 
+        (h.sender && h.sender.toLowerCase().includes(q)) ||
+        (h.subject && h.subject.toLowerCase().includes(q)) ||
+        (h.caseTitle && h.caseTitle.toLowerCase().includes(q))
+      );
+    }
+
+    // ソート (日付降順)
+    histories.sort((a, b) => {
+      const ta = a.date ? new Date(String(a.date).includes('-') && !String(a.date).includes('T') ? String(a.date).replace(/-/g, '/') : a.date).getTime() : 0;
+      const tb = b.date ? new Date(String(b.date).includes('-') && !String(b.date).includes('T') ? String(b.date).replace(/-/g, '/') : b.date).getTime() : 0;
+      return tb - ta;
+    });
+
+    return `
+      <div class="inbox-history-container">
+        <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
+          <div style="flex:1; position:relative; display:flex; gap:4px;">
             <input type="text" id="historySearchInput" class="search-input" style="width:100%; margin:0" placeholder="🔍 送信元・件名・案件名で検索..." 
               value="${this.historySearchQuery || ''}" oninput="InboxManager.searchHistory(this.value)">
             ${this.historySearchQuery ? `<button class="btn btn-secondary btn-small" onclick="InboxManager.searchHistory('')">クリア</button>` : ''}
