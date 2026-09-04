@@ -1,4 +1,4 @@
-/**
+﻿/**
  * スプレッドシート同期モジュール
  * Google Apps Script の Web API 経由でスプレッドシートとデータを同期
  */
@@ -117,6 +117,7 @@ const SpreadsheetSync = {
                         policeLocationId: remoteCase.policeLocationId || (localCase && localCase.policeLocationId) || '',
                         landTransportLocationId: remoteCase.landTransportLocationId || (localCase && localCase.landTransportLocationId) || '',
                         registrationDate: remoteCase.registrationDate || (localCase && localCase.registrationDate) || '',
+                        completedAt: remoteCase.completedAt || remoteCase['螳御ｺ・律'] || (localCase && localCase.completedAt) || '',
                         milestoneIndex: remoteCase.milestoneIndex !== undefined && remoteCase.milestoneIndex !== ''
                             ? Number(remoteCase.milestoneIndex)
                             : (localCase && localCase.milestoneIndex) !== undefined && (localCase && localCase.milestoneIndex) !== ''
