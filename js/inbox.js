@@ -1004,18 +1004,54 @@ const InboxManager = {
 
     modalEl.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(5px);';
 
+    const normalizeText = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+        .replace(/[\s\u3000\-_－ー]/g, '')
+        .toLowerCase();
+    };
+
     const renderCaseList = (filterText = '') => {
-      const q = filterText.toLowerCase().trim();
+      const q = (filterText || '').trim();
+      const rawWords = q ? q.split(/\s+/).filter(Boolean) : [];
+      const normWords = rawWords.map(w => normalizeText(w));
+
       const filtered = sortedCases.filter(c => {
-        if (!q) return true;
+        if (rawWords.length === 0) return true;
         const cl = Store.getClient ? Store.getClient(c.clientId) : null;
         const cName = cl ? (cl.name + ' ' + (cl.companyName || '')) : '';
-        return (c.title && c.title.toLowerCase().includes(q)) ||
-               (c.applicantName && c.applicantName.toLowerCase().includes(q)) ||
-               (c.orderNo && c.orderNo.toLowerCase().includes(q)) ||
-               (c.carNumber && c.carNumber.toLowerCase().includes(q)) ||
-               (c.carName && c.carName.toLowerCase().includes(q)) ||
-               cName.toLowerCase().includes(q);
+        const memoStr = typeof c.memo === 'string' ? c.memo : '';
+
+        const rawFullText = [
+          c.title, c.applicantName, c.orderNo, c.caseNo,
+          c.carNumber, c.oldCarNumber, c.vin, c.carName, c.carModel,
+          c.carAddress, c.parkingAddress, c.carPolice, c.subCategory,
+          cName, memoStr
+        ].filter(Boolean).map(String).join(' ').toLowerCase();
+
+        const normFullText = [
+          normalizeText(c.title),
+          normalizeText(c.applicantName),
+          normalizeText(c.orderNo),
+          normalizeText(c.caseNo),
+          normalizeText(c.carNumber),
+          normalizeText(c.oldCarNumber),
+          normalizeText(c.vin),
+          normalizeText(c.carName),
+          normalizeText(c.carModel),
+          normalizeText(c.carAddress),
+          normalizeText(c.parkingAddress),
+          normalizeText(c.carPolice),
+          normalizeText(c.subCategory),
+          normalizeText(cName),
+          normalizeText(memoStr)
+        ].join('');
+
+        return rawWords.every((rw, idx) => {
+          const nw = normWords[idx];
+          return rawFullText.includes(rw.toLowerCase()) || (nw && normFullText.includes(nw));
+        });
       });
 
       if (filtered.length === 0) {
@@ -1085,7 +1121,7 @@ const InboxManager = {
           <div>
             <input type="text" id="attach-case-search" class="search-input" style="width:100%; box-sizing:border-box; background:var(--bg-secondary); border:1px solid var(--border-color); color:#fff; border-radius:6px; padding:8px 12px; font-size:0.9rem;"
               placeholder="🔍 合流先の案件を検索（案件名・顧客名・申請者名・車番・注文Noなど）..."
-              oninput="document.getElementById('attach-case-list').innerHTML = InboxManager._renderAttachCaseList('${item.id}', this.value)">
+              oninput="InboxManager.onAttachCaseSearch('${item.id}', this.value)">
           </div>
 
           <div id="attach-case-list" style="overflow-y:auto; max-height:420px; padding-right:4px;">
@@ -1103,6 +1139,18 @@ const InboxManager = {
 
     // 検索用内部ヘルパー
     this._renderAttachCaseList = (itId, q) => renderCaseList(q);
+  },
+
+  onAttachCaseSearch(itemId, query) {
+    const listEl = document.getElementById('attach-case-list');
+    if (!listEl) return;
+    if (typeof this._renderAttachCaseList === 'function') {
+      try {
+        listEl.innerHTML = this._renderAttachCaseList(itemId, query);
+      } catch (err) {
+        console.error('onAttachCaseSearch error:', err);
+      }
+    }
   },
 
   // ─── 確定：既存案件へ合流実行 ─────────────────────────────
