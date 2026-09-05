@@ -28,16 +28,40 @@ const App = {
       }
     }
 
-    // 旧ステータスの自動変換
-    if (typeof Store !== 'undefined') Store._migrateStatuses();
-    // 警察署別車庫証明報酬マスタの初期適用＆未入力補完
-    if (typeof CaseTemplates !== 'undefined') {
-      if (typeof CaseTemplates.seedPoliceFees === 'function') CaseTemplates.seedPoliceFees();
-      if (typeof CaseTemplates.backfillSeptemberFees === 'function') CaseTemplates.backfillSeptemberFees();
+    try {
+      // 旧ステータスの自動変換
+      if (typeof Store !== 'undefined' && typeof Store._migrateStatuses === 'function') {
+        Store._migrateStatuses();
+      }
+    } catch (e) {
+      console.warn('[App.init] _migrateStatuses error:', e);
     }
-    this.renderSidebar();
-    this.renderContent();
-    this.updateNav();
+
+    try {
+      // 警察署別車庫証明報酬マスタの初期適用＆未入力補完
+      if (typeof CaseTemplates !== 'undefined') {
+        if (typeof CaseTemplates.seedPoliceFees === 'function') CaseTemplates.seedPoliceFees();
+        if (typeof CaseTemplates.backfillSeptemberFees === 'function') CaseTemplates.backfillSeptemberFees();
+      }
+    } catch (e) {
+      console.warn('[App.init] CaseTemplates error:', e);
+    }
+
+    try {
+      this.renderSidebar();
+    } catch (e) {
+      console.error('[App.init] renderSidebar error:', e);
+    }
+    try {
+      this.renderContent();
+    } catch (e) {
+      console.error('[App.init] renderContent error:', e);
+    }
+    try {
+      this.updateNav();
+    } catch (e) {
+      console.error('[App.init] updateNav error:', e);
+    }
 
     // 🌟 ブラウザの「戻る」「進む」キー連動
     window.addEventListener('hashchange', () => {
