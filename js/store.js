@@ -208,6 +208,10 @@ const Store = {
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('upsertCase', newCase);
     }
+    // 完了案件として登録され報酬がある場合は仕訳を自動生成
+    if (newCase.status === 'done' && newCase.fee && Number(newCase.fee) > 0) {
+      this._autoCreateJournal(newCase);
+    }
     return newCase;
   },
 
@@ -238,24 +242,55 @@ const Store = {
       SpreadsheetSync.push('upsertCase', updatedCase);
     }
 
-    // 完了日が手動変更された場合、紐づく仕訳の日付も連動更新
-    if (updatedCase.completedAt && updatedCase.status === 'done') {
-      const compDateStr = updatedCase.completedAt.slice(0, 10);
-      const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
-      const jIdx = journals.findIndex(j => j.caseId === id);
-      if (jIdx !== -1 && journals[jIdx].date !== compDateStr) {
-        journals[jIdx].date = compDateStr;
-        localStorage.setItem('gyosei_journals', JSON.stringify(journals));
-        if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-          SpreadsheetSync.push('upsertJournal', journals[jIdx]);
+    // 完了ステータス案件と売上仕訳の双方向自動連動（単価変更・完了日変更・ステータス変更に即時追従）
+    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    const jIdx = journals.findIndex(j => j.caseId === id);
+
+    if (updatedCase.status === 'done' && updatedCase.fee && Number(updatedCase.fee) > 0) {
+      if (jIdx !== -1) {
+        let changed = false;
+        const compDateStr = updatedCase.completedAt ? updatedCase.completedAt.slice(0, 10) : (updatedCase.registrationDate || updatedCase.policeDeliveryDate || this.getLocalDateStr());
+        const expectedFee = Number(updatedCase.fee);
+        const client = this.getClient(updatedCase.clientId);
+        const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
+        const orderStr = updatedCase.orderNo ? ` [注:${updatedCase.orderNo}]` : '';
+        const expectedDesc = `[${CATS[updatedCase.category] || updatedCase.category}] ${updatedCase.title}${client ? ' / ' + client.name : ''}${orderStr}`;
+
+        if (journals[jIdx].date !== compDateStr) {
+          journals[jIdx].date = compDateStr;
+          changed = true;
         }
+        if (journals[jIdx].amount !== expectedFee) {
+          journals[jIdx].amount = expectedFee;
+          changed = true;
+        }
+        if (journals[jIdx].description !== expectedDesc) {
+          journals[jIdx].description = expectedDesc;
+          changed = true;
+        }
+        if (journals[jIdx].orderNo !== (updatedCase.orderNo || '')) {
+          journals[jIdx].orderNo = updatedCase.orderNo || '';
+          changed = true;
+        }
+        if (changed) {
+          localStorage.setItem('gyosei_journals', JSON.stringify(journals));
+          if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+            SpreadsheetSync.push('upsertJournal', journals[jIdx]);
+          }
+        }
+      } else {
+        // 完了時に未登録だった場合や、後から単価を入れた場合は自動生成
+        this._autoCreateJournal(updatedCase);
+      }
+    } else if (updatedCase.status !== 'done' && jIdx !== -1 && journals[jIdx].auto) {
+      // 完了ステータスから未完了（進行中・受付等）に戻された場合、自動生成仕訳を取り消し
+      const deletedJournal = journals.splice(jIdx, 1)[0];
+      localStorage.setItem('gyosei_journals', JSON.stringify(journals));
+      if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+        SpreadsheetSync.push('deleteJournal', { id: deletedJournal.id });
       }
     }
 
-    // 完了時に報酬があれば仕訳を自動生成
-    if (data.status === 'done' && oldStatus !== 'done' && updatedCase.fee && Number(updatedCase.fee) > 0) {
-      this._autoCreateJournal(updatedCase);
-    }
     return updatedCase;
   },
 

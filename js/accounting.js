@@ -56,59 +56,77 @@ const Accounting = {
     localStorage.setItem('gyosei_journals', JSON.stringify(data));
   },
 
-  // 案件完了から消えてしまった売上仕訳を自動復旧
+  // 完了案件と帳簿の売上仕訳を自動照合・同期（不足分の復元＋単価・完了日変更の連動更新）
   restoreMissingCaseJournals() {
-    if (typeof Store === 'undefined') return;
+    if (typeof Store === 'undefined') return 0;
     const cases = Store.getCases();
     const journals = this.getJournals();
     const doneCases = cases.filter(c => c.status === 'done' && Number(c.fee || 0) > 0);
     
-    const existingCaseIds = new Set(journals.filter(j => j.caseId).map(j => j.caseId));
     let restoredCount = 0;
-    const newJournals = [];
+    let updatedCount = 0;
+    const modifiedJournals = [...journals];
+    const pushJournals = [];
 
     const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
 
     doneCases.forEach(c => {
-      if (!existingCaseIds.has(c.id)) {
-        const client = Store.getClient(c.clientId);
-        const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
-        const desc = `[${CATS[c.category] || c.category}] ${c.title}${client ? ' / ' + client.name : ''}${orderStr}`;
-        const doneDate = c.completedAt ? c.completedAt.slice(0, 10) : (c.registrationDate || c.policeDeliveryDate || Store.getLocalDateStr());
-        
-        newJournals.push({
+      const client = Store.getClient(c.clientId);
+      const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
+      const desc = `[${CATS[c.category] || c.category}] ${c.title}${client ? ' / ' + client.name : ''}${orderStr}`;
+      const doneDate = c.completedAt ? c.completedAt.slice(0, 10) : (c.registrationDate || c.policeDeliveryDate || Store.getLocalDateStr());
+      const expectedAmount = Number(c.fee);
+
+      const jIdx = modifiedJournals.findIndex(j => j.caseId === c.id);
+      if (jIdx === -1) {
+        const newJ = {
           id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + restoredCount,
           date: doneDate,
           debit: '売掛金',
           credit: '売上高',
-          amount: Number(c.fee),
+          amount: expectedAmount,
           description: desc,
           caseId: c.id,
           orderNo: c.orderNo || '',
           auto: true,
           createdAt: new Date().toISOString(),
-        });
+        };
+        modifiedJournals.push(newJ);
+        pushJournals.push(newJ);
         restoredCount++;
+      } else {
+        const j = modifiedJournals[jIdx];
+        let changed = false;
+        if (j.amount !== expectedAmount) { j.amount = expectedAmount; changed = true; }
+        if (j.date !== doneDate) { j.date = doneDate; changed = true; }
+        if (j.description !== desc) { j.description = desc; changed = true; }
+        if (j.orderNo !== (c.orderNo || '')) { j.orderNo = c.orderNo || ''; changed = true; }
+        if (changed) {
+          pushJournals.push(j);
+          updatedCount++;
+        }
       }
     });
 
-    if (restoredCount === 0) {
-      if (typeof App !== 'undefined') App.showToast('✅ 完了案件の売上仕訳はすべて正常に登録されています（消失なし）');
+    if (restoredCount === 0 && updatedCount === 0) {
+      if (typeof App !== 'undefined') App.showToast('✅ 完了案件と帳簿の売上仕訳（単価・日付）はすべて最新に同期されています');
       return 0;
     }
 
-    const updated = [...journals, ...newJournals];
-    this.saveJournals(updated);
+    this.saveJournals(modifiedJournals);
 
-    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-      SpreadsheetSync.push('bulkUpsertJournals', newJournals).catch(e => console.warn('復元仕訳Push失敗:', e));
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured() && pushJournals.length > 0) {
+      SpreadsheetSync.push('bulkUpsertJournals', pushJournals).catch(e => console.warn('仕訳Push失敗:', e));
     }
 
     if (typeof App !== 'undefined') {
       App.refreshView();
-      App.showToast(`✨ 完了案件から不足していた売上仕訳 ${restoredCount} 件を復元しました！`);
+      const parts = [];
+      if (restoredCount > 0) parts.push(`新規復元 ${restoredCount}件`);
+      if (updatedCount > 0) parts.push(`単価・日付更新 ${updatedCount}件`);
+      App.showToast(`✨ 完了案件の売上仕訳を同期しました（${parts.join('、')}）`);
     }
-    return restoredCount;
+    return restoredCount + updatedCount;
   },
 
   cleanDuplicates() {
@@ -214,7 +232,7 @@ const Accounting = {
         <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <h1>💹 帳簿</h1>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-secondary" onclick="Accounting.restoreMissingCaseJournals()" style="background:rgba(59,130,246,0.1); border-color:#3b82f6; color:#2563eb; font-weight:600;" title="完了案件の中で帳簿から消えてしまった売上仕訳を自動照合して復元します">🔄 完了案件から仕訳を復元</button>
+            <button class="btn btn-secondary" onclick="Accounting.restoreMissingCaseJournals()" style="background:rgba(59,130,246,0.1); border-color:#3b82f6; color:#2563eb; font-weight:600;" title="完了案件の単価・完了日・注文書№変更を帳簿に即時同期し、不足仕訳を復元します">🔄 完了案件と仕訳を同期</button>
             <button class="btn btn-secondary" onclick="Accounting.cleanDuplicates()" style="border-color:rgba(239,68,68,0.5); color:#f87171; font-weight:600;" title="同一日付・金額・摘要の重複仕訳を整理（案件・注文書№別の仕訳は保護されます）">🧹 重複仕訳を整理</button>
             <button class="btn btn-secondary" onclick="ReceiptOCR.showModal('accounting')" style="background:rgba(245,158,11,0.15); border:1px solid var(--accent-gold); color:var(--accent-gold); font-weight:700;">🤖 AIレシートOCR</button>
             <button class="btn btn-primary" onclick="Accounting.showAddModal()">＋ 仕訳追加</button>
