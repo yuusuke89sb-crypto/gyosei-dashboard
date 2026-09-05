@@ -95,6 +95,7 @@ function onOpen() {
     .addItem('🚀 初期セットアップ', 'initialSetup')
     .addItem('🚗 陸運局・愛知トヨタ初期データ登録', 'forcePopulateDefaults')
     .addItem('📍 場所マスタ車庫報酬の初期設定', 'updateLocationFees')
+    .addItem('📍 案件マスタの報酬を最新警察署単価で一括更新', 'updateCaseFeesFromLocations')
     .addSeparator()
     .addItem('✅ データ検証（顧客マスタ）', 'validateCustomerData')
     .addItem('✅ データ検証（担当者マスタ）', 'validateStaffData')
@@ -1082,6 +1083,8 @@ function getJournalsSheetData_() {
   let colCreditAmt = headers.findIndex(h => h.includes('貸方金額'));
   let colDesc = headers.findIndex(h => h.includes('摘要') || h.includes('内容') || h.includes('品名'));
   let colMemo = headers.findIndex(h => h.includes('メモ') || h.includes('仕訳メモ'));
+  let colCaseId = headers.findIndex(h => h.includes('案件ID') || h.toLowerCase() === 'caseid');
+  let colOrderNo = headers.findIndex(h => h.includes('注文書№') || h.includes('注文書No') || h.includes('注文書') || h.toLowerCase() === 'orderno');
 
   if (colDate === -1) colDate = 1;
   if (colDebit === -1) colDebit = 2;
@@ -1133,6 +1136,8 @@ function getJournalsSheetData_() {
     if (memo) fullDesc = desc ? `${desc} (${memo})` : memo;
 
     let id = txNo ? ('j_ss_' + txNo + '_' + rIdx) : ('j_ss_' + rIdx);
+    let caseId = colCaseId !== -1 ? String(row[colCaseId]).trim() : '';
+    let orderNo = colOrderNo !== -1 ? String(row[colOrderNo]).trim() : '';
 
     journals.push({
       id: id,
@@ -1141,6 +1146,8 @@ function getJournalsSheetData_() {
       credit: credit,
       amount: amount,
       description: fullDesc,
+      caseId: caseId,
+      orderNo: orderNo,
       auto: false,
       createdAt: new Date().toISOString()
     });
@@ -3027,5 +3034,67 @@ function updateLocationFees() {
   const ui = SpreadsheetApp.getUi();
   if (ui) {
     ui.alert('場所マスタ車庫報酬設定完了', `ヘッダーを更新し、${updatedCount}件の警察署に車庫証明（一般）報酬を設定しました。\nダッシュボード側で「同期」を行ってください。`, ui.ButtonSet.OK);
+  }
+}
+
+// ─── 📍 案件マスタの車庫証明報酬を警察署マスタ単価で一括更新 ───
+function updateCaseFeesFromLocations() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const caseSheet = ss.getSheetByName(SHEET_NAMES.CASES);
+  const locSheet = ss.getSheetByName(SHEET_NAMES.LOCATION);
+  if (!caseSheet || !locSheet) return;
+
+  const locLastRow = locSheet.getLastRow();
+  if (locLastRow < 2) return;
+  const locData = locSheet.getRange(2, 1, locLastRow - 1, 5).getValues();
+  const locFeeMapById = {};
+  const locFeeMapByName = {};
+  locData.forEach(r => {
+    const id = String(r[0]).trim();
+    const name = String(r[1]).replace(/\s+/g, '');
+    const fee = Number(r[4]) || 0;
+    if (fee > 0) {
+      if (id) locFeeMapById[id] = fee;
+      if (name) locFeeMapByName[name] = fee;
+    }
+  });
+
+  const caseLastRow = caseSheet.getLastRow();
+  if (caseLastRow < 2) return;
+  const caseHeaders = caseSheet.getRange(1, 1, 1, caseSheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const feeCol = caseHeaders.indexOf('報酬') + 1;
+  const polLocCol = caseHeaders.indexOf('警察署場所ID') + 1;
+  const carPoliceCol = caseHeaders.indexOf('所轄警察署') + 1;
+  if (feeCol === 0) return;
+
+  const caseRows = caseSheet.getRange(2, 1, caseLastRow - 1, caseSheet.getLastColumn()).getValues();
+  let updatedCount = 0;
+  caseRows.forEach((r, idx) => {
+    const polId = polLocCol > 0 ? String(r[polLocCol - 1]).trim() : '';
+    const carPolice = carPoliceCol > 0 ? String(r[carPoliceCol - 1]).replace(/\s+/g, '') : '';
+    let targetFee = 0;
+    if (polId && locFeeMapById[polId]) {
+      targetFee = locFeeMapById[polId];
+    } else if (carPolice) {
+      for (const [name, fee] of Object.entries(locFeeMapByName)) {
+        if (carPolice.includes(name.replace('警察署', '')) || name.includes(carPolice.replace('警察署', ''))) {
+          targetFee = fee;
+          break;
+        }
+      }
+    }
+
+    if (targetFee > 0) {
+      const currentFee = Number(r[feeCol - 1]) || 0;
+      if (currentFee !== targetFee) {
+        caseSheet.getRange(idx + 2, feeCol).setValue(targetFee);
+        updatedCount++;
+      }
+    }
+  });
+
+  const ui = SpreadsheetApp.getUi();
+  if (ui) {
+    ui.alert('案件マスタ報酬更新完了', `${updatedCount}件の案件の報酬を警察署マスタの最新単価に更新しました。\nダッシュボード側で「同期」を行ってください。`, ui.ButtonSet.OK);
   }
 }

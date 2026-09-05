@@ -244,7 +244,11 @@ const Store = {
 
     // 完了ステータス案件と売上仕訳の双方向自動連動（単価変更・完了日変更・ステータス変更に即時追従）
     const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
-    const jIdx = journals.findIndex(j => j.caseId === id);
+    let jIdx = journals.findIndex(j => j.caseId === id);
+    if (jIdx === -1 && updatedCase.orderNo) {
+      jIdx = journals.findIndex(j => (j.orderNo && j.orderNo === updatedCase.orderNo) || (j.description && j.description.includes(updatedCase.orderNo)));
+      if (jIdx !== -1) journals[jIdx].caseId = id;
+    }
 
     if (updatedCase.status === 'done' && updatedCase.fee && Number(updatedCase.fee) > 0) {
       if (jIdx !== -1) {

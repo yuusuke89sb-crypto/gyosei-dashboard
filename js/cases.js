@@ -182,6 +182,9 @@ const Cases = {
         <div class="page-header">
           <h1>案件管理</h1>
           <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-ghost" onclick="Cases.promptApplyLatestPoliceFees()" title="警察署マスタの最新報酬単価（一宮4000円、江南5000円等）を案件に一括適用" style="font-size:0.82rem; color:var(--accent-primary, #4f46e5); font-weight:600; border:1px solid rgba(79,70,229,0.25);">
+              📍 警察署最新単価を一括適用
+            </button>
             <button class="btn btn-ghost" onclick="Cases.syncAllCasesToCalendar()" title="進行中の全案件をGoogleカレンダーに一括同期" style="font-size:0.82rem;">
               📅 カレンダー一括同期
             </button>
@@ -759,8 +762,11 @@ const Cases = {
 
                 <div class="form-row">
                   <div class="form-group">
-                    <label>報酬額（円）</label>
-                    <input type="number" name="fee" id="csf_fee" placeholder="例：55000" min="0" step="1">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:4px;">
+                      <label style="margin:0;">報酬額（円）</label>
+                      <span id="csf_fee_hint" style="font-size:0.75rem;"></span>
+                    </div>
+                    <input type="number" name="fee" id="csf_fee" placeholder="例：4000" min="0" step="1">
                   </div>
                 </div>
 
@@ -1803,7 +1809,33 @@ const Cases = {
       const deadlineEl = document.getElementById('csf_deadline');
       if (deadlineEl) deadlineEl.value = c.deadline || '';
       document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
-      document.getElementById('csf_fee').value = c.fee || '';
+      // 警察署の特定（ID未指定なら所轄警察署テキストから自動マッチ）
+      let resolvedPolId = c.policeLocationId || '';
+      if (!resolvedPolId && c.carPolice && typeof Store !== 'undefined') {
+        const locs = Store.getLocations();
+        const pClean = c.carPolice.replace(/\s+/g, '');
+        const matched = locs.find(l => {
+          const lClean = l.name.replace(/\s+/g, '');
+          return pClean.includes(lClean.replace('警察署', '')) || lClean.includes(pClean.replace('警察署', ''));
+        });
+        if (matched) resolvedPolId = matched.id;
+      }
+      const policeLocationIdEl = document.getElementById('csf_policeLocationId');
+      if (policeLocationIdEl) policeLocationIdEl.value = resolvedPolId;
+
+      // 報酬額の反映（未設定または旧デフォルト3,500円で警察署マスタ単価があれば最新単価を自動補完）
+      let curFee = c.fee;
+      if (resolvedPolId && typeof Store !== 'undefined') {
+        const loc = Store.getLocation(resolvedPolId);
+        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+          if (!curFee || Number(curFee) === 0 || Number(curFee) === 3500) {
+            curFee = loc.syakoFee;
+          }
+        }
+      }
+      document.getElementById('csf_fee').value = curFee || '';
+      Cases.updateFeeHint(resolvedPolId);
+
       const locSel = document.getElementById('csf_locationId');
       if (locSel) locSel.value = c.locationId || '';
       document.getElementById('csf_memo').value = c.memo || '';
@@ -1823,7 +1855,7 @@ const Cases = {
       this.advanceDraft = Array.isArray(c.advances) ? JSON.parse(JSON.stringify(c.advances)) : [];
       this.renderAdvanceRows();
 
-      // カテゴリに応じたフィールド表示制御
+      // カテゴリに応じたフィールド表示制御（警察署ID設定後に呼出）
       Cases.toggleCategoryFields(c.category || 'garage_oss');
 
       const deathDateEl = document.getElementById('csf_deathDate');
@@ -1837,8 +1869,6 @@ const Cases = {
       if (applyDateEl) applyDateEl.value = c.applyDate || '';
       const policeDeliveryDateEl = document.getElementById('csf_policeDeliveryDate');
       if (policeDeliveryDateEl) policeDeliveryDateEl.value = c.policeDeliveryDate || '';
-      const policeLocationIdEl = document.getElementById('csf_policeLocationId');
-      if (policeLocationIdEl) policeLocationIdEl.value = c.policeLocationId || '';
       const registrationDateEl = document.getElementById('csf_registrationDate');
       if (registrationDateEl) registrationDateEl.value = c.registrationDate || '';
       const landTransportLocationIdEl = document.getElementById('csf_landTransportLocationId');
@@ -2330,14 +2360,17 @@ const Cases = {
     }
   },
 
-  // 申請先警察署の変更時ハンドラ（車庫証明一般のみ単価自動連動）
+  // 申請先警察署の変更時ハンドラ（車庫証明全般で単価自動連動）
   onPoliceLocationChange(locationId) {
     const catEl = document.getElementById('csf_category');
     const cat = catEl ? catEl.value : '';
+    const isGarage = cat === 'garage_paper' || cat === 'garage_oss' || (cat && cat.includes('garage'));
 
-    // ★重要ルール：車庫証明（一般：garage_paper）の時のみ警察署単価を連動
-    if (cat === 'garage_paper') {
-      if (!locationId) return;
+    if (isGarage) {
+      if (!locationId) {
+        this.updateFeeHint('');
+        return;
+      }
       const loc = typeof Store !== 'undefined' ? Store.getLocation(locationId) : null;
       if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
         const feeEl = document.getElementById('csf_fee');
@@ -2348,6 +2381,55 @@ const Cases = {
           }
         }
       }
+      this.updateFeeHint(locationId);
+    }
+  },
+
+  updateFeeHint(locationId) {
+    const hintEl = document.getElementById('csf_fee_hint');
+    if (!hintEl) return;
+    if (!locationId && typeof Store !== 'undefined') {
+      const polEl = document.getElementById('csf_policeLocationId');
+      if (polEl && polEl.value) locationId = polEl.value;
+    }
+    const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
+    if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+      const currentFee = document.getElementById('csf_fee')?.value;
+      const isDiff = Number(currentFee) !== Number(loc.syakoFee);
+      hintEl.innerHTML = `
+        <span style="color:var(--text-secondary); font-size:0.75rem;">
+          📍 警察署マスタ: <strong style="color:var(--accent-primary, #4f46e5)">¥${Number(loc.syakoFee).toLocaleString()}</strong>
+        </span>
+        ${isDiff ? `<button type="button" class="btn btn-secondary btn-small" style="font-size:0.68rem; padding:1px 6px; margin-left:4px;" onclick="Cases.applyPoliceFeeToForm(${loc.syakoFee})">最新単価を適用</button>` : ' <span style="color:#10b981; font-size:0.72rem;">✓ 反映済</span>'}
+      `;
+    } else {
+      hintEl.innerHTML = '';
+    }
+  },
+
+  applyPoliceFeeToForm(fee) {
+    const feeEl = document.getElementById('csf_fee');
+    if (feeEl && fee) {
+      feeEl.value = fee;
+      this.updateFeeHint();
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast(`📍 報酬額をマスタ単価（¥${Number(fee).toLocaleString()}）に更新しました`);
+      }
+    }
+  },
+
+  promptApplyLatestPoliceFees() {
+    if (typeof CaseTemplates === 'undefined' || typeof CaseTemplates.applyLatestPoliceFeesToCases !== 'function') return;
+    const res = CaseTemplates.applyLatestPoliceFeesToCases(true);
+    if (res.count > 0) {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast(`📍 ${res.count}件の案件に警察署の最新単価を反映しました！（帳簿・請求書も自動連動）`);
+      }
+      App.refreshView();
+    } else {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('すべての車庫証明案件はすでに最新単価に一致しています');
+      }
     }
   },
 
@@ -2356,8 +2438,8 @@ const Cases = {
     const subCatGroup = document.getElementById('csf_subCategory_group');
     if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
 
-    // 車庫証明（一般）に切り替えた場合、もし警察署が選択済みならその警察署の単価を反映
-    if (category === 'garage_paper') {
+    // 車庫証明に切り替えた場合、もし警察署が選択済みならその警察署の単価を反映
+    if (category === 'garage_paper' || category === 'garage_oss' || (category && category.includes('garage'))) {
       const polEl = document.getElementById('csf_policeLocationId');
       if (polEl && polEl.value) {
         this.onPoliceLocationChange(polEl.value);

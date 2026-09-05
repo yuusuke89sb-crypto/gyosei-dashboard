@@ -343,8 +343,8 @@ const CaseTemplates = {
     const feeEl = document.getElementById('csf_fee');
     if (!feeEl) return;
 
-    // ★ユーザー指定厳格ルール：車庫証明（一般）かつ警察署が選択済みの場合は警察署の一般報酬を適用！
-    if (category === 'garage_paper') {
+    // ★警察署が選択済みの場合は警察署の一般報酬を適用！
+    if (category === 'garage_paper' || category === 'garage_oss' || (category && category.includes('garage'))) {
       const polSel = document.getElementById('csf_policeLocationId');
       const polId = polSel ? polSel.value : '';
       if (polId && typeof Store !== 'undefined' && Store.getLocation) {
@@ -482,24 +482,79 @@ const CaseTemplates = {
     }
   },
 
-  // 9/1以降の受付分で報酬額が未入力の案件にテンプレート額を自動補完
-  backfillSeptemberFees() {
-    if (typeof Store === 'undefined' || typeof Store.getCases !== 'function') return;
+  // 警察署マスタの最新報酬単価を案件に一括適用
+  applyLatestPoliceFeesToCases(forceAll = false) {
+    if (typeof Store === 'undefined' || typeof Store.getCases !== 'function') return { count: 0, details: [] };
     const cases = Store.getCases();
+    const locations = (typeof Store.getLocations === 'function') ? Store.getLocations() : [];
     let updatedCount = 0;
+    const details = [];
 
     cases.forEach(c => {
+      const isGarage = c.category === 'garage_paper' || c.category === 'garage_oss' ||
+                       (c.title && c.title.includes('車庫')) || (c.memo && c.memo.includes('車庫'));
+      if (!isGarage) return;
+
       const regDate = c.registeredAt || (c.createdAt ? c.createdAt.slice(0, 10) : '');
-      // 9月1日以降の受付分
-      if (regDate >= '2026-09-01') {
+      // 9月請求対象（2026-08-26以降）または未完了案件、またはforceAll時
+      const isTarget = forceAll || regDate >= '2026-08-26' || c.status !== 'done';
+      if (!isTarget) return;
+
+      // 警察署の特定
+      let loc = null;
+      if (c.policeLocationId) {
+        loc = locations.find(l => String(l.id) === String(c.policeLocationId));
+      }
+      if (!loc && c.carPolice) {
+        const pClean = c.carPolice.replace(/\s+/g, '');
+        loc = locations.find(l => {
+          const lClean = l.name.replace(/\s+/g, '');
+          return pClean.includes(lClean.replace('警察署', '')) || lClean.includes(pClean.replace('警察署', ''));
+        });
+      }
+      if (!loc && (c.parkingAddress || c.carAddress)) {
+        const addr = (c.parkingAddress || c.carAddress || '').replace(/\s+/g, '');
+        loc = locations.find(l => {
+          const city = l.name.replace('警察署', '').trim();
+          return city && city.length >= 2 && addr.includes(city);
+        });
+      }
+
+      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+        const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
+        const targetFee = Number(loc.syakoFee);
+        const needUpdate = forceAll ? (currentFee !== targetFee) : (currentFee === 0 || currentFee === 3500 || currentFee !== targetFee);
+
+        if (needUpdate) {
+          const updateData = { fee: targetFee };
+          if (!c.policeLocationId) updateData.policeLocationId = loc.id;
+          Store.updateCase(c.id, updateData);
+          updatedCount++;
+          details.push(`${c.title || '案件'}: ¥${currentFee} → ¥${targetFee} (${loc.name})`);
+        }
+      }
+    });
+
+    return { count: updatedCount, details };
+  },
+
+  // 9月請求分（8/26以降）および未入力・旧単価案件に最新マスタ額を自動補完
+  backfillSeptemberFees() {
+    if (typeof Store === 'undefined' || typeof Store.getCases !== 'function') return;
+    
+    // 1. まず警察署マスタ報酬を一括適用
+    const policeResult = this.applyLatestPoliceFeesToCases(false);
+    let updatedCount = policeResult.count;
+
+    // 2. その他の未入力案件にカテゴリ別テンプレート額を補完
+    const cases = Store.getCases();
+    cases.forEach(c => {
+      const regDate = c.registeredAt || (c.createdAt ? c.createdAt.slice(0, 10) : '');
+      if (regDate >= '2026-08-26' || c.status !== 'done') {
         const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
         if (currentFee === 0) {
           let fee = 0;
-          if (c.category === 'garage_paper' && c.policeLocationId) {
-            const loc = Store.getLocation(c.policeLocationId);
-            if (loc && loc.syakoFee) fee = loc.syakoFee;
-          }
-          if (!fee && this.TEMPLATES[c.category] && this.TEMPLATES[c.category].fee) {
+          if (this.TEMPLATES[c.category] && this.TEMPLATES[c.category].fee) {
             fee = this.TEMPLATES[c.category].fee;
           }
           if (!fee) {
@@ -508,9 +563,8 @@ const CaseTemplates = {
             else if (title.includes('封印')) fee = 5000;
             else if (title.includes('軽')) fee = 5500;
             else if (title.includes('登録') || title.includes('名変') || title.includes('移転')) fee = 5500;
-            else fee = 3500; // デフォルト車庫
+            else fee = 3500;
           }
-
           if (fee > 0) {
             Store.updateCase(c.id, { fee: fee });
             updatedCount++;
@@ -520,10 +574,10 @@ const CaseTemplates = {
     });
 
     if (updatedCount > 0) {
-      console.log(`[CaseTemplates] 9/1以降の未入力案件 ${updatedCount}件 にテンプレート報酬額を自動補完しました。`);
+      console.log(`[CaseTemplates] 案件 ${updatedCount}件 に最新報酬単価を自動反映しました。`);
       setTimeout(() => {
         if (typeof App !== 'undefined' && App.showToast) {
-          App.showToast(`💡 9/1以降の未入力案件（${updatedCount}件）にテンプレート報酬額を自動反映しました`);
+          App.showToast(`💡 案件（${updatedCount}件）に最新警察署・マスタ報酬額を自動反映しました`);
         }
       }, 1000);
     }

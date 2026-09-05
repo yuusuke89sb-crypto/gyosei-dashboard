@@ -249,6 +249,12 @@ const DealerDocumentParser = {
       result.targetDeliveryDate = `${deliveryMatch[1]}/${deliveryMatch[2]}`;
     }
 
+    // ─── 9.5 所轄警察署の抽出 ───
+    const policeMatch = cleanText.match(/([^\s\n\r:：]{2,8}警察署)/);
+    if (policeMatch) {
+      result.carPolice = policeMatch[1].trim();
+    }
+
     // ─── 10. 顧客マスターとの自動照合 ───
     if (typeof Store !== 'undefined' && typeof Store.getClients === 'function') {
       const clients = Store.getClients();
@@ -301,7 +307,7 @@ const DealerDocumentParser = {
 
     return {
       title: parsed.suggestedTitle,
-      category: 'garage_oss',
+      category: parsed.isOss ? 'garage_oss' : 'garage_paper',
       orderNo: parsed.orderNo || '',
       clientId: parsed.matchedClientId || '',
       clientName: parsed.matchedClientName || parsed.storeFullName || parsed.dealerName || '',
@@ -314,6 +320,13 @@ const DealerDocumentParser = {
       isOss: parsed.isOss,
       applicantName: parsed.applicantName,
       applicantAddress: parsed.applicantAddress,
+      garageAddress: parsed.garageAddress,
+      carName: parsed.carName,
+      carAddress: parsed.applicantAddress,
+      parkingAddress: parsed.garageAddress,
+      carNumber: parsed.registrationNo,
+      vin: parsed.vin,
+      carPolice: parsed.carPolice || '',
       staffName: parsed.staffName,
       staffPhone: parsed.staffPhone
     };

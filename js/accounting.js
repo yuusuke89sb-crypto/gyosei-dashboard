@@ -77,7 +77,13 @@ const Accounting = {
       const doneDate = c.completedAt ? c.completedAt.slice(0, 10) : (c.registrationDate || c.policeDeliveryDate || Store.getLocalDateStr());
       const expectedAmount = Number(c.fee);
 
-      const jIdx = modifiedJournals.findIndex(j => j.caseId === c.id);
+      let jIdx = modifiedJournals.findIndex(j => j.caseId === c.id);
+      if (jIdx === -1 && c.orderNo) {
+        jIdx = modifiedJournals.findIndex(j => (j.orderNo && j.orderNo === c.orderNo) || (j.description && j.description.includes(c.orderNo)));
+        if (jIdx !== -1) {
+          modifiedJournals[jIdx].caseId = c.id;
+        }
+      }
       if (jIdx === -1) {
         const newJ = {
           id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + restoredCount,

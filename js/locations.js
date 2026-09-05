@@ -32,9 +32,12 @@ const LocationManager = {
           <h2>📍 場所マスター管理</h2>
           <button class="modal-close" onclick="LocationManager.close()">✕</button>
         </div>
-        <div style="margin-bottom:12px">
+        <div style="margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="LocationManager.showAddForm()">
             <span class="btn-icon">＋</span> 場所を追加
+          </button>
+          <button class="btn btn-secondary" onclick="Cases.promptApplyLatestPoliceFees()" style="font-size:0.85rem;" title="登録済みの車庫証明案件に、警察署マスタの最新報酬額を一括適用します">
+            📍 登録案件に最新報酬を一括適用
           </button>
         </div>
         <div id="locationFormArea"></div>
