@@ -174,10 +174,13 @@ const Store = {
       advances: data.advances || [],             // [{label, amount}] 立替金
       docs: data.docs || [],                     // [{id, name, driveUrl, ...}] 添付書類
       deathDate: data.deathDate || '',
+      surveyDate: data.surveyDate || '',
+      surveyLocationId: data.surveyLocationId || '',
       applyDate: data.applyDate || '',
       policeDeliveryDate: data.policeDeliveryDate || '',
       storeDeliveryDate: data.storeDeliveryDate || '',
       storeDeliveryTime: data.storeDeliveryTime || '',
+      completedAt: data.completedAt || '',
       locationId: data.locationId || '',
       clientContactId: data.clientContactId || '',
       contactName: data.contactName || '',

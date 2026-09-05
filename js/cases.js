@@ -676,14 +676,14 @@ const Cases = {
                   </div>
                   <div class="form-group">
                     <label>申請日</label>
-                    <input type="date" name="applyDate" id="csf_applyDate" onchange="if(!document.getElementById('csf_policeDeliveryDate').value) document.getElementById('csf_policeDeliveryDate').value = this.value">
+                    <input type="date" name="applyDate" id="csf_applyDate">
                   </div>
                 </div>
 
-                <!-- 交付日 -->
+                <!-- 交付予定日 -->
                 <div class="form-row" id="csf_garageDates_group_police_delivery">
                   <div class="form-group">
-                    <label>交付日 <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は申請日と同日)</span></label>
+                    <label>交付予定日（受取日）</label>
                     <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
                   </div>
                 </div>
@@ -1734,6 +1734,26 @@ const Cases = {
         const memoEl = document.getElementById('csf_memo');
         if (memoEl) memoEl.value = prefills.memo;
       }
+      if (prefills.applyDate) {
+        const el = document.getElementById('csf_applyDate');
+        if (el) el.value = prefills.applyDate;
+      }
+      if (prefills.policeDeliveryDate) {
+        const el = document.getElementById('csf_policeDeliveryDate');
+        if (el) el.value = prefills.policeDeliveryDate;
+      }
+      if (prefills.storeDeliveryDate) {
+        const el = document.getElementById('csf_storeDeliveryDate');
+        if (el) el.value = prefills.storeDeliveryDate;
+      }
+      if (prefills.storeDeliveryTime) {
+        const el = document.getElementById('csf_storeDeliveryTime');
+        if (el) el.value = prefills.storeDeliveryTime;
+      }
+      if (prefills.registrationDate) {
+        const el = document.getElementById('csf_registrationDate');
+        if (el) el.value = prefills.registrationDate;
+      }
       
       let faxInput = document.getElementById('csf_faxId');
       if (!faxInput && formEl) {
@@ -1984,8 +2004,13 @@ const Cases = {
       driveFolderUrl: form.driveFolderUrl.value.trim(),
       fee: form.fee.value,
       advances: this.advanceDraft.filter(a => a.label || Number(a.amount) > 0),
-      applyDate: form.applyDate ? form.applyDate.value : '',
-      policeDeliveryDate: (form.policeDeliveryDate && form.policeDeliveryDate.value) ? form.policeDeliveryDate.value : (form.applyDate ? form.applyDate.value : ''),
+      deathDate: (form.deathDate && form.deathDate.value) ? form.deathDate.value : (document.getElementById('csf_deathDate')?.value || ''),
+      surveyDate: (form.surveyDate && form.surveyDate.value) ? form.surveyDate.value : (document.getElementById('csf_surveyDate')?.value || ''),
+      surveyLocationId: (form.surveyLocationId && form.surveyLocationId.value) ? form.surveyLocationId.value : (document.getElementById('csf_surveyLocationId')?.value || ''),
+      applyDate: (form.applyDate && form.applyDate.value) ? form.applyDate.value : '',
+      policeDeliveryDate: (form.policeDeliveryDate && form.policeDeliveryDate.value) ? form.policeDeliveryDate.value : '',
+      storeDeliveryDate: (form.storeDeliveryDate && form.storeDeliveryDate.value) ? form.storeDeliveryDate.value : (document.getElementById('csf_storeDeliveryDate')?.value || ''),
+      storeDeliveryTime: (form.storeDeliveryTime && form.storeDeliveryTime.value) ? form.storeDeliveryTime.value.trim() : (document.getElementById('csf_storeDeliveryTime')?.value.trim() || ''),
       policeLocationId: form.policeLocationId ? form.policeLocationId.value : '',
       registrationDate: form.registrationDate ? form.registrationDate.value : '',
       completedAt: (form.completedAt && form.completedAt.value) ? form.completedAt.value : undefined,

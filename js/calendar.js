@@ -1070,9 +1070,9 @@ const Calendar = {
         });
       }
       // 3. 申請 ＆ 4. 交付 (同日の場合は合算して1行にまとめる。さらに交付と店届が同日の場合は店届へマージする)
-      const effectiveDeliveryDate = c.policeDeliveryDate || c.applyDate;
-      const isDeliverySameDayAsStore = c.storeDeliveryDate && effectiveDeliveryDate && effectiveDeliveryDate === c.storeDeliveryDate;
-      const isApplySameDayAsDelivery = c.applyDate && effectiveDeliveryDate && c.applyDate === effectiveDeliveryDate;
+      const hasDelivery = !!c.policeDeliveryDate;
+      const isApplySameDayAsDelivery = hasDelivery && c.applyDate && c.applyDate === c.policeDeliveryDate;
+      const isDeliverySameDayAsStore = hasDelivery && c.storeDeliveryDate && c.policeDeliveryDate === c.storeDeliveryDate;
 
       if (isApplySameDayAsDelivery) {
         if (isDeliverySameDayAsStore) {
@@ -1107,7 +1107,7 @@ const Calendar = {
           });
         }
       } else {
-        // 申請と交付が別日の場合
+        // 申請と交付が別日または交付未定の場合
         if (c.applyDate) {
           caseEvents.push({
             id: `${c.id}-apply`,
@@ -1122,12 +1122,12 @@ const Calendar = {
             type: 'case-apply'
           });
         }
-        if (effectiveDeliveryDate && !isDeliverySameDayAsStore) {
+        if (hasDelivery && !isDeliverySameDayAsStore) {
           // 交付が店届と別日の場合のみ、個別に警察署へ表示
           caseEvents.push({
             id: `${c.id}-delivery`,
             caseId: c.id,
-            date: effectiveDeliveryDate,
+            date: c.policeDeliveryDate,
             title: `📄交付: ${c.title}`,
             category: c.category,
             status: c.status,
