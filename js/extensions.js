@@ -1259,8 +1259,10 @@ const GoalTracker = {
 
   renderWidget() {
     const goals = this.getGoals();
-    const year = new Date().getFullYear();
-    const month = new Date().getMonth() + 1;
+    const now = new Date();
+    const period = typeof Store !== 'undefined' && Store.getCurrentBillingPeriod ? Store.getCurrentBillingPeriod(now) : null;
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
 
     // 年間実績
     const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
@@ -1270,13 +1272,28 @@ const GoalTracker = {
       .reduce((s, j) => s + (j.amount || 0), 0);
 
     const cases = Store.getCases();
-    const yearlyCases = cases.filter(c => c.completedAt && c.completedAt.startsWith(String(year))).length;
+    const yearlyCases = cases.filter(c => {
+      if (c.status !== 'done') return false;
+      const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.updatedAt || c.createdAt || '';
+      return rawDate.slice(0, 4) === String(year);
+    }).length;
+
     const ym = `${year}-${String(month).padStart(2, '0')}`;
-    const monthlyCases = cases.filter(c => c.completedAt && c.completedAt.startsWith(ym)).length;
+    const monthlyCases = cases.filter(c => {
+      if (c.status !== 'done') return false;
+      const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.updatedAt || c.createdAt || '';
+      const d = rawDate.slice(0, 10);
+      if (period && period.startDate && period.endDate) {
+        return d >= period.startDate && d <= period.endDate;
+      }
+      return d.startsWith(ym);
+    }).length;
 
     const revPct = goals.annualRevenue > 0 ? Math.min(100, Math.round(yearlyIncome / goals.annualRevenue * 100)) : 0;
     const caseYPct = goals.annualCases > 0 ? Math.min(100, Math.round(yearlyCases / goals.annualCases * 100)) : 0;
     const caseMPct = goals.monthlyCases > 0 ? Math.min(100, Math.round(monthlyCases / goals.monthlyCases * 100)) : 0;
+
+    const periodLabel = period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/20' : `${month === 1 ? 12 : month - 1}/21〜${month}/20`) : '';
 
     return `
       <div class="goal-tracker">
@@ -1295,7 +1312,7 @@ const GoalTracker = {
           <div style="text-align:right;font-size:0.72rem;color:var(--text-muted)">${caseYPct}%</div>
         </div>
         <div class="goal-item">
-          <div class="goal-label">📅 今月案件数 <span style="float:right">${monthlyCases} / ${goals.monthlyCases}件</span></div>
+          <div class="goal-label">📅 今月案件数 ${periodLabel ? `<span style="font-size:0.75rem;color:var(--text-muted)">(${periodLabel})</span>` : ''} <span style="float:right">${monthlyCases} / ${goals.monthlyCases}件</span></div>
           <div class="checklist-bar"><div class="checklist-fill" style="width:${caseMPct}%;background:${caseMPct >= 80 ? 'var(--accent-green)' : caseMPct >= 50 ? 'var(--accent-gold)' : 'var(--accent-orange)'}"></div></div>
           <div style="text-align:right;font-size:0.72rem;color:var(--text-muted)">${caseMPct}%</div>
         </div>
@@ -1382,9 +1399,16 @@ const MonthlyReport = {
 
   // データ収集（指定月）
   _collectData(year, month) {
+    const period = typeof Store !== 'undefined' && Store.getBillingPeriod ? Store.getBillingPeriod(year, month) : null;
     const ym = `${year}-${String(month).padStart(2, '0')}`;
     const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
-    const filtered = journals.filter(j => j.date && j.date.startsWith(ym));
+    const filtered = journals.filter(j => {
+      if (!j.date) return false;
+      if (period && period.startDate && period.endDate) {
+        return j.date >= period.startDate && j.date <= period.endDate;
+      }
+      return j.date.startsWith(ym);
+    });
     const INCOME = ['売上高', '雑収入'];
     const EXPENSE_ACCOUNTS = typeof Accounting !== 'undefined' ? Accounting.ACCOUNTS.expense : [];
 
@@ -1396,14 +1420,33 @@ const MonthlyReport = {
     });
 
     const cases = Store.getCases();
-    const monthCases = cases.filter(c => c.createdAt && c.createdAt.startsWith(ym));
-    const completedCases = cases.filter(c => c.completedAt && c.completedAt.startsWith(ym));
+    const monthCases = cases.filter(c => {
+      const d = (c.createdAt || '').slice(0, 10);
+      if (period && period.startDate && period.endDate) return d >= period.startDate && d <= period.endDate;
+      return d.startsWith(ym);
+    });
+    const completedCases = cases.filter(c => {
+      if (c.status !== 'done') return false;
+      const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.updatedAt || c.createdAt || '';
+      const d = rawDate.slice(0, 10);
+      if (period && period.startDate && period.endDate) return d >= period.startDate && d <= period.endDate;
+      return d.startsWith(ym);
+    });
     const activeCases = cases.filter(c => c.status !== 'done');
     const clients = Store.getClients();
-    const newClients = clients.filter(c => c.createdAt && c.createdAt.startsWith(ym));
+    const newClients = clients.filter(c => {
+      const d = (c.createdAt || '').slice(0, 10);
+      if (period && period.startDate && period.endDate) return d >= period.startDate && d <= period.endDate;
+      return d.startsWith(ym);
+    });
 
     const payments = JSON.parse(localStorage.getItem('gyosei_payments') || '[]');
-    const monthPayments = payments.filter(p => p.paidAt && p.paidAt.startsWith(ym));
+    const monthPayments = payments.filter(p => {
+      if (!p.paidAt) return false;
+      const d = p.paidAt.slice(0, 10);
+      if (period && period.startDate && period.endDate) return d >= period.startDate && d <= period.endDate;
+      return d.startsWith(ym);
+    });
     const totalPaid = monthPayments.reduce((s, p) => s + (p.amount || 0), 0);
     const unpaid = payments.filter(p => p.status === 'unpaid');
     const totalUnpaid = unpaid.reduce((s, p) => s + (p.amount || 0), 0);
@@ -1433,7 +1476,7 @@ const MonthlyReport = {
     });
 
     return {
-      year, month, ym,
+      year, month, ym, period,
       totalIncome, totalExpense, profit: totalIncome - totalExpense,
       incomeItems, expenseItems, filtered,
       monthCases, completedCases, activeCases,
@@ -1922,15 +1965,22 @@ const MonthlyReport = {
 const RevenueWidget = {
   renderWidget() {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    const period = typeof Store !== 'undefined' && Store.getCurrentBillingPeriod ? Store.getCurrentBillingPeriod(now) : null;
+    const year = period ? period.year : now.getFullYear();
+    const month = period ? period.month : (now.getMonth() + 1);
     const ym = `${year}-${String(month).padStart(2, '0')}`;
 
     const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
     const INCOME = ['売上高', '雑収入'];
     const EXPENSE_ACCOUNTS = typeof Accounting !== 'undefined' ? Accounting.ACCOUNTS.expense : [];
 
-    const monthFiltered = journals.filter(j => j.date && j.date.startsWith(ym));
+    const monthFiltered = journals.filter(j => {
+      if (!j.date) return false;
+      if (period && period.startDate && period.endDate) {
+        return j.date >= period.startDate && j.date <= period.endDate;
+      }
+      return j.date.startsWith(ym);
+    });
     let monthIncome = 0, monthExpense = 0;
     monthFiltered.forEach(j => {
       if (INCOME.includes(j.credit)) monthIncome += j.amount || 0;
@@ -1941,8 +1991,16 @@ const RevenueWidget = {
     // 前月比較
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear = month === 1 ? year - 1 : year;
+    const prevPeriod = typeof Store !== 'undefined' && Store.getBillingPeriod ? Store.getBillingPeriod(prevYear, prevMonth) : null;
     const prevYm = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
-    const prevFiltered = journals.filter(j => j.date && j.date.startsWith(prevYm));
+    
+    const prevFiltered = journals.filter(j => {
+      if (!j.date) return false;
+      if (prevPeriod && prevPeriod.startDate && prevPeriod.endDate) {
+        return j.date >= prevPeriod.startDate && j.date <= prevPeriod.endDate;
+      }
+      return j.date.startsWith(prevYm);
+    });
     let prevIncome = 0;
     prevFiltered.forEach(j => {
       if (INCOME.includes(j.credit)) prevIncome += j.amount || 0;
@@ -1952,10 +2010,12 @@ const RevenueWidget = {
     const diffLabel = diff > 0 ? `↑ +¥${diff.toLocaleString()}` : diff < 0 ? `↓ ¥${diff.toLocaleString()}` : '→ 変動なし';
     const diffColor = diff > 0 ? '#2dd4a8' : diff < 0 ? '#ff6b6b' : '#888';
 
+    const periodLabel = period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/20' : `${month === 1 ? 12 : month - 1}/21〜${month}/20`) : '';
+
     return `
       <div class="goal-tracker" style="cursor:pointer" onclick="MonthlyReport.show()" title="クリックで月次レポートを表示">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h3 style="font-size:0.95rem;margin:0">💰 ${month}月の収支</h3>
+          <h3 style="font-size:0.95rem;margin:0">💰 ${month}月の収支 ${periodLabel ? `<span style="font-size:0.75rem;font-weight:normal;color:var(--text-muted)">(${periodLabel})</span>` : ''}</h3>
           <span style="font-size:0.72rem;color:${diffColor};font-weight:600">${diffLabel}（前月比）</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">

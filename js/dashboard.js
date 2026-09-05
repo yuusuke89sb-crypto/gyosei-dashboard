@@ -10,22 +10,35 @@ function renderDashboard() {
   const maxStatus = Math.max(...Object.values(stats.statusCounts), 1);
   const maxCategory = Math.max(...Object.values(stats.categoryCounts), 1);
 
-  // 今月の売上（完了案件の報酬）
+  // 今期の売上（20日締め・翌月25日払、9月分は8/26〜9/20、以降は前月21日〜当月20日）
   const now = new Date();
+  const period = typeof Store !== 'undefined' && Store.getCurrentBillingPeriod
+    ? Store.getCurrentBillingPeriod(now)
+    : null;
   const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const allCases = Store.getCases();
   const thisMonthCompleted = allCases.filter(c => {
     if (c.status !== 'done' || !c.fee) return false;
-    const doneDate = c.completedAt || c.updatedAt || '';
+    const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.updatedAt || c.createdAt || '';
+    const doneDate = rawDate.slice(0, 10);
+    if (period && period.startDate && period.endDate) {
+      return doneDate >= period.startDate && doneDate <= period.endDate;
+    }
     return doneDate.startsWith(yearMonth);
   });
   const monthlyRevenue = thisMonthCompleted.reduce((sum, c) => sum + Number(c.fee || 0), 0);
 
-  // 今月の経費（帳簿から）
+  // 今期の経費（帳簿から）
   const EXPENSE_ACCOUNTS = ['旅費交通費', '通信費', '消耗品費', '事務用品費', '家賃地代', '水道光熱費', '接待交際費', '広告宣伝費', '支払手数料', '租税公課', '研修費', '新聞図書費', '保険料', '減価償却費', '雑費'];
   const journals = typeof Accounting !== 'undefined' ? Accounting.getJournals() : [];
   const monthlyExpense = journals
-    .filter(j => j.date && j.date.startsWith(yearMonth) && EXPENSE_ACCOUNTS.includes(j.debit))
+    .filter(j => {
+      if (!j.date || !EXPENSE_ACCOUNTS.includes(j.debit)) return false;
+      if (period && period.startDate && period.endDate) {
+        return j.date >= period.startDate && j.date <= period.endDate;
+      }
+      return j.date.startsWith(yearMonth);
+    })
     .reduce((sum, j) => sum + (j.amount || 0), 0);
 
   // 今日の予定
@@ -189,7 +202,7 @@ function renderDashboard() {
           <div class="stat-icon">💰</div>
           <div class="stat-info">
             <div class="stat-number">¥${monthlyRevenue.toLocaleString()}</div>
-            <div class="stat-label">今月売上</div>
+            <div class="stat-label">${period ? `${period.month}月売上` : '今月売上'} <span style="font-size:0.72rem;font-weight:normal;opacity:0.85">(${period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/20' : `${period.month === 1 ? 12 : period.month - 1}/21〜${period.month}/20`) : ''})</span></div>
           </div>
         </div>
         ${typeof Payments !== 'undefined' && Payments.getUnpaid().length > 0 ? `
@@ -246,7 +259,7 @@ function renderDashboard() {
         <!-- 今月の収支ウィジェット -->
         <div class="dashboard-section">
           ${typeof RevenueWidget !== 'undefined' ? RevenueWidget.renderWidget() : `
-          <h2 class="section-title">💰 今月の収支</h2>
+          <h2 class="section-title">💰 ${period ? `${period.month}月の収支` : '今月の収支'} <span style="font-size:0.8rem;font-weight:normal;color:var(--text-muted)">(${period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/20' : `${period.month === 1 ? 12 : period.month - 1}/21〜${period.month}/20`) : ''})</span></h2>
           <div class="revenue-summary">
             <div class="revenue-row">
               <span>売上（完了案件）</span>
