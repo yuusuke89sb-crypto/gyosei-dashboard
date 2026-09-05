@@ -185,9 +185,9 @@ const Advances = {
     const isSelected = cs.clientId == this.selectedClientId;
     const totalUnpaid = cs.totalUnpaidFee + cs.totalUnpaidAdvance;
 
-    let cycleBadge = '<span class="badge" style="background:#e0f2fe; color:#0369a1; font-size:0.7rem;">翌月末</span>';
+    let cycleBadge = '<span class="badge" style="background:#e0f2fe; color:#0369a1; font-size:0.7rem;">翌月25日払</span>';
     if (cs.cycle === 'current') cycleBadge = '<span class="badge" style="background:#dcfce7; color:#15803d; font-size:0.7rem;">当月回収</span>';
-    if (cs.cycle === 'month2') cycleBadge = '<span class="badge" style="background:#fef3c7; color:#b45309; font-size:0.7rem;">翌々月末</span>';
+    if (cs.cycle === 'month2') cycleBadge = '<span class="badge" style="background:#fef3c7; color:#b45309; font-size:0.7rem;">翌々月25日払</span>';
 
     return `
       <div onclick="Advances.selectClient('${cs.clientId}')" style="

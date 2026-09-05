@@ -49,18 +49,25 @@ const Clients = {
     `;
   },
 
-  // 今月完了分の請求額を計算
+  // 請求対象期間（20日締め・翌月25日払、9月分は8/26〜9/20）完了分の請求額を計算
   getMonthlyBilling(clientId) {
-    const now = new Date();
-    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const period = (typeof Store !== 'undefined' && Store.getCurrentBillingPeriod)
+      ? Store.getCurrentBillingPeriod()
+      : null;
     const cases = Store.getCasesByClient(clientId);
     const completed = cases.filter(c => {
       if (c.status !== 'done' || !c.fee) return false;
-      const doneDate = c.completedAt || c.updatedAt || '';
+      const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.updatedAt || c.createdAt || '';
+      const doneDate = rawDate.slice(0, 10);
+      if (period && period.startDate && period.endDate) {
+        return doneDate >= period.startDate && doneDate <= period.endDate;
+      }
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       return doneDate.startsWith(yearMonth);
     });
     const total = completed.reduce((sum, c) => sum + Number(c.fee || 0), 0);
-    return { total, cases: completed };
+    return { total, cases: completed, period };
   },
 
   renderCard(client) {
@@ -99,7 +106,7 @@ const Clients = {
           ${client.email ? `<div class="client-detail"><span class="detail-icon">✉️</span> ${client.email}</div>` : ''}
           ${client.address ? `<div class="client-detail"><span class="detail-icon">📍</span> ${client.address}</div>` : ''}
           ${client.staffId ? `<div class="client-detail"><span class="detail-icon">👤</span> 担当: ${staffName}</div>` : ''}
-          ${billing.total > 0 ? `<div class="client-billing">💰 今月請求: <strong>${billing.total.toLocaleString()}円</strong> (${billing.cases.length}件)</div>` : ''}
+          ${billing.total > 0 ? `<div class="client-billing">💰 ${billing.period ? billing.period.shortLabel : '今月'}請求: <strong>${billing.total.toLocaleString()}円</strong> (${billing.cases.length}件)</div>` : ''}
         </div>
       </div>
     `;
@@ -318,8 +325,8 @@ const Clients = {
       ? '<span class="badge badge-corp">法人</span>'
       : '<span class="badge badge-personal">個人</span>';
     const billing = this.getMonthlyBilling(id);
-    const now = new Date();
-    const billingMonth = `${now.getFullYear()}年${now.getMonth() + 1}月`;
+    const period = billing.period || (typeof Store !== 'undefined' && Store.getCurrentBillingPeriod ? Store.getCurrentBillingPeriod() : null);
+    const billingMonth = period ? period.label : `${new Date().getFullYear()}年${new Date().getMonth() + 1}月分`;
 
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -357,7 +364,7 @@ const Clients = {
           </div>
         </div>
         <div class="detail-section billing-section">
-          <h3>💰 ${billingMonth}分 請求額</h3>
+          <h3>💰 ${billingMonth} 請求額</h3>
           ${billing.total > 0 ? `
             <div class="billing-total">¥${billing.total.toLocaleString()}</div>
             <div class="billing-breakdown">
@@ -369,8 +376,8 @@ const Clients = {
                 </div>
               `).join('')}
             </div>
-            <div class="billing-note">※ 完了案件のみ・月末締め</div>
-          ` : '<p class="empty-message">今月の請求はありません</p>'}
+            <div class="billing-note">※ 完了案件のみ・20日締め（翌月25日払）</div>
+          ` : '<p class="empty-message">この期間の請求案件はありません</p>'}
         </div>
         <div class="detail-section">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">

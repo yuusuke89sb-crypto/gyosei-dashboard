@@ -92,16 +92,23 @@ const Invoice = {
     return cases.filter(c => c.invoiceNo === invoiceNo);
   },
 
+  getBillingPeriod(year, month) {
+    return Store.getBillingPeriod(year, month);
+  },
+
+  getCurrentBillingPeriod(refDate) {
+    return Store.getCurrentBillingPeriod(refDate);
+  },
+
   // 請求書・見積書選択モーダルを表示
   showSelectModal(clientId, docType = 'invoice', includeAll = false) {
     const client = Store.getClient(clientId);
     if (!client) return;
 
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
+    const currentPeriod = this.getCurrentBillingPeriod(now);
     const defaultIssueDate = Store.getLocalDateStr(now);
-    const endOfMonth = Store.getLocalDateStr(new Date(currentYear, currentMonth, 0));
+    const defaultDueDate = currentPeriod.dueDate;
     const detectedTpl = this.detectTemplate(client);
 
     // 未請求案件のリスト生成
@@ -119,11 +126,17 @@ const Invoice = {
         }
         if (c.isAdvancePaid && !c.isPaid) partialBadge += '<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">立替済</span>';
         if (c.isPaid && !c.isAdvancePaid) partialBadge += '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">報酬済</span>';
+
+        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || (c.createdAt ? c.createdAt.slice(0, 10) : '') || '';
+        const cDate = rawDate.slice(0, 10);
+        const inPeriod = currentPeriod ? (cDate >= currentPeriod.startDate && cDate <= currentPeriod.endDate) : true;
+        const dateBadge = cDate ? `<span style="background:${inPeriod ? '#e0f2fe;color:#0369a1;' : '#f1f5f9;color:#64748b;'}padding:1px 5px;border-radius:3px;font-size:0.7rem;margin-left:4px;">${inPeriod ? '📅 ' + cDate.slice(5) : '⚠️ 期間外 ' + cDate.slice(5)}</span>` : '';
+
         const amountStr = `報酬 ¥${effectiveFee.toLocaleString()} ${effectiveAdv>0 ? '+ 立替 ¥'+effectiveAdv.toLocaleString() : ''}`;
         return `
-          <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.9rem;cursor:pointer;">
-            <input type="checkbox" name="targetCases" value="${c.id}" checked class="case-checkbox" onchange="Invoice.updatePreview('${clientId}')">
-            <span>${c.title}${partialBadge} <small style="color:var(--text-muted)">(${amountStr})</small></span>
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.9rem;cursor:pointer;border-bottom:1px solid rgba(0,0,0,0.03);">
+            <input type="checkbox" name="targetCases" value="${c.id}" data-case-date="${cDate}" ${inPeriod ? 'checked' : ''} class="case-checkbox" onchange="Invoice.updatePreview('${clientId}')">
+            <span>${c.title}${partialBadge}${dateBadge} <small style="color:var(--text-muted)">(${amountStr})</small></span>
           </label>
         `;
       }).join('');
@@ -167,7 +180,16 @@ const Invoice = {
 
           <!-- 新規発行エリア -->
           <div id="areaNew">
-            <div class="form-row" style="margin-bottom:12px;">
+            <div class="form-row" style="margin-bottom:12px; gap:12px;">
+              <div class="form-group" style="flex:1;">
+                <label>🗓️ 請求対象月（20日締め・翌月25日払）</label>
+                <select id="invoiceBillingPeriod" class="form-select" style="font-weight:600;" onchange="Invoice.onPeriodChange('${clientId}', '${docType}', this.value)">
+                  <option value="2026-09" ${currentPeriod.year === 2026 && currentPeriod.month === 9 ? 'selected' : ''}>令和8年 9月分 (2026/08/26 〜 09/20 締 / 10/25 払)</option>
+                  <option value="2026-10" ${currentPeriod.year === 2026 && currentPeriod.month === 10 ? 'selected' : ''}>令和8年 10月分 (2026/09/21 〜 10/20 締 / 11/25 払)</option>
+                  <option value="2026-11" ${currentPeriod.year === 2026 && currentPeriod.month === 11 ? 'selected' : ''}>令和8年 11月分 (2026/10/21 〜 11/20 締 / 12/25 払)</option>
+                  <option value="all">全未請求案件（期間指定なし）</option>
+                </select>
+              </div>
               <div class="form-group" style="flex:1;">
                 <label>📋 請求書様式（テンプレート）</label>
                 <select id="invoiceTemplateType" class="form-select" style="font-weight:600;">
@@ -180,12 +202,19 @@ const Invoice = {
             </div>
 
             <div class="form-group" style="background:var(--bg-secondary); padding:12px; border-radius:var(--radius-sm); margin-bottom:16px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
                 <label style="margin:0;">📝 ${docType === 'estimate' ? '見積対象の案件を選択' : '請求対象の案件を選択'}</label>
-                <label style="font-size:0.78rem; color:var(--text-muted); display:flex; align-items:center; gap:4px; cursor:pointer;">
-                  <input type="checkbox" ${includeAll ? 'checked' : ''} onchange="Invoice.toggleIncludeAll('${clientId}', '${docType}', this.checked)">
-                  進行中・受付済みも表示
-                </label>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <div style="display:flex; gap:4px;">
+                    <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Invoice.selectCasesByPeriod('${clientId}', 'period')">🎯 期間内のみ</button>
+                    <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Invoice.selectCasesByPeriod('${clientId}', 'all')">全選択</button>
+                    <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Invoice.selectCasesByPeriod('${clientId}', 'none')">解除</button>
+                  </div>
+                  <label style="font-size:0.78rem; color:var(--text-muted); display:flex; align-items:center; gap:4px; cursor:pointer;">
+                    <input type="checkbox" ${includeAll ? 'checked' : ''} onchange="Invoice.toggleIncludeAll('${clientId}', '${docType}', this.checked)">
+                    進行中・受付済みも表示
+                  </label>
+                </div>
               </div>
               <div style="margin-top:8px; max-height:160px; overflow-y:auto;">
                 ${unbilledHtml}
@@ -198,8 +227,8 @@ const Invoice = {
                 <input type="date" id="invoiceDate" value="${defaultIssueDate}">
               </div>
               <div class="form-group" style="${docType === 'estimate' ? 'display:none' : ''}">
-                <label>支払期限</label>
-                <input type="date" id="invoiceDueDate" value="${endOfMonth}">
+                <label>支払期限（翌月25日）</label>
+                <input type="date" id="invoiceDueDate" value="${defaultDueDate}">
               </div>
             </div>
             <div class="form-row">
@@ -252,6 +281,63 @@ const Invoice = {
       </div>
     `;
     document.body.appendChild(modal);
+    this.updatePreview(clientId);
+  },
+
+  onPeriodChange(clientId, docType, periodKey) {
+    const dueDateInput = document.getElementById('invoiceDueDate');
+    let period = null;
+    if (periodKey && periodKey !== 'all') {
+      const parts = periodKey.split('-');
+      period = this.getBillingPeriod(parts[0], parts[1]);
+    }
+
+    if (period && dueDateInput) {
+      dueDateInput.value = period.dueDate;
+    }
+
+    // チェックボックスの自動選別
+    const checkboxes = document.querySelectorAll('.case-checkbox');
+    checkboxes.forEach(cb => {
+      const caseDate = cb.getAttribute('data-case-date') || '';
+      if (!period || periodKey === 'all') {
+        cb.checked = true;
+      } else if (caseDate) {
+        cb.checked = (caseDate >= period.startDate && caseDate <= period.endDate);
+      } else {
+        cb.checked = true;
+      }
+    });
+
+    this.updatePreview(clientId);
+  },
+
+  selectCasesByPeriod(clientId, mode) {
+    const periodKey = document.getElementById('invoiceBillingPeriod') ? document.getElementById('invoiceBillingPeriod').value : 'all';
+    let period = null;
+    if (periodKey && periodKey !== 'all') {
+      const parts = periodKey.split('-');
+      period = this.getBillingPeriod(parts[0], parts[1]);
+    }
+
+    const checkboxes = document.querySelectorAll('.case-checkbox');
+    checkboxes.forEach(cb => {
+      if (mode === 'all') {
+        cb.checked = true;
+      } else if (mode === 'none') {
+        cb.checked = false;
+      } else if (mode === 'period') {
+        const caseDate = cb.getAttribute('data-case-date') || '';
+        if (!period || periodKey === 'all') {
+          cb.checked = true;
+        } else if (caseDate) {
+          cb.checked = (caseDate >= period.startDate && caseDate <= period.endDate);
+        } else {
+          cb.checked = true;
+        }
+      }
+    });
+
     this.updatePreview(clientId);
   },
 
@@ -391,11 +477,17 @@ const Invoice = {
     const dueDate = docType === 'estimate' ? '' : document.getElementById('invoiceDueDate').value;
     const taxRate = parseInt(document.getElementById('invoiceTaxRate').value) || 10;
     const note = document.getElementById('invoiceNote').value;
-    const templateType = document.getElementById('invoiceTemplateType') ? document.getElementById('invoiceTemplateType').value : 'standard';
-    
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    const periodKey = document.getElementById('invoiceBillingPeriod') ? document.getElementById('invoiceBillingPeriod').value : '';
+    let year, month;
+    if (periodKey && periodKey !== 'all') {
+      const parts = periodKey.split('-');
+      year = parseInt(parts[0]);
+      month = parseInt(parts[1]);
+    } else {
+      const curP = this.getCurrentBillingPeriod();
+      year = curP.year;
+      month = curP.month;
+    }
     let invoiceNo = this.generateInvoiceNumber(clientId, year, month);
     if (docType === 'estimate') {
       invoiceNo = invoiceNo.replace('INV-', 'EST-');
@@ -833,8 +925,12 @@ const Invoice = {
     </tbody>
   </table>
 
-  <div style="font-size:13px; margin-bottom: 15px;">上記のとおりご請求申し上げます。</div>
-  <div style="font-size:13px; margin-bottom: 25px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
+  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  ${dueDate && docType !== 'estimate' ? `
+  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+    お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
+  </div>` : '<div style="margin-bottom: 20px;"></div>'}
 
   <div class="sender-container">
     <div class="bank-info">
@@ -871,7 +967,7 @@ const Invoice = {
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
       <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
-      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${issueM} 月分　　NO. 1</div>
+      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM} 月分　　NO. 1</div>
     </div>
   </div>
 
@@ -967,7 +1063,7 @@ const Invoice = {
   // =========================================================================
   // 2. 三菱ふそう様式（業務別集計＋実費・諸費用 ＆ 2ページ目明細書）
   // =========================================================================
-  buildMitsubishiInvoiceHTML({ invoiceNo = '', issueDate = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, total = 0, advanceTotal = 0, docType = 'invoice' }) {
+  buildMitsubishiInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, total = 0, advanceTotal = 0, docType = 'invoice' }) {
     const clientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
     const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
@@ -1135,8 +1231,12 @@ const Invoice = {
     </tbody>
   </table>
 
-  <div style="font-size:13px; margin: 20px 0 10px;">上記のとおりご請求申し上げます。</div>
-  <div style="font-size:13px; margin-bottom: 25px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  <div style="font-size:13px; margin: 15px 0 8px;">上記のとおりご請求申し上げます。</div>
+  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  ${dueDate && docType !== 'estimate' ? `
+  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+    お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
+  </div>` : '<div style="margin-bottom: 20px;"></div>'}
 
   <div class="sender-container">
     <div class="bank-info">
@@ -1172,7 +1272,7 @@ const Invoice = {
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
       <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
-      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${issueM || ''} 月分　　NO. 1</div>
+      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM || ''} 月分　　NO. 1</div>
     </div>
   </div>
 
@@ -1264,7 +1364,7 @@ const Invoice = {
   // =========================================================================
   // 3. 日産愛知販売様式（別紙明細報酬＋税目別立替集計）
   // =========================================================================
-  buildNissanInvoiceHTML({ invoiceNo, issueDate, client, office, cases, feeSubtotal, tax, total, advanceTotal, docType = 'invoice' }) {
+  buildNissanInvoiceHTML({ invoiceNo, issueDate, dueDate = '', year = '', month = '', client, office, cases, feeSubtotal, tax, total, advanceTotal, docType = 'invoice' }) {
     const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
     const [issueY, issueM, issueD] = issueDate.split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
@@ -1356,8 +1456,12 @@ const Invoice = {
     </tbody>
   </table>
 
-  <div style="font-size:13px; margin: 20px 0;">上記のとおりご請求申し上げます。</div>
-  <div style="font-size:13px; margin-bottom: 30px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  <div style="font-size:13px; margin: 15px 0 8px;">上記のとおりご請求申し上げます。</div>
+  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  ${dueDate && docType !== 'estimate' ? `
+  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 20px;">
+    お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
+  </div>` : '<div style="margin-bottom: 25px;"></div>'}
 
   <div style="display:flex; justify-content:space-between; font-size:13px;">
     <div style="width:48%;">
@@ -1382,7 +1486,7 @@ const Invoice = {
   <div class="doc-title" style="font-size:20px; letter-spacing:4px; margin-bottom:15px;">別 紙 納 品 ・ 請 求 明 細 書</div>
   <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-size:13px;">
     <div><strong>${clientName} 御中</strong></div>
-    <div>令和 ${reiwaYear} 年 ${issueM} 月分</div>
+    <div>令和 ${reiwaYear} 年 ${month || issueM} 月分</div>
   </div>
 
   <table class="nissan-table" style="font-size:12px;">
@@ -1553,7 +1657,7 @@ const Invoice = {
     <div class="client-side">
       <div class="client-name">${clientName} 御中</div>
       ${contactNames && contactNames.length > 0 ? `<div style="color:#64748b;">ご担当：${contactNames.join(' 様、')} 様</div>` : ''}
-      ${dueDate && docType !== 'estimate' ? `<div style="color:#e11d48; margin-top:4px; font-weight:bold;">お支払期日：${dueDate}</div>` : ''}
+      ${dueDate && docType !== 'estimate' ? `<div style="color:#e11d48; margin-top:4px; font-weight:bold;">お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）</div>` : ''}
     </div>
     <div class="office-side">
       <div class="office-name">${office.name}</div>
