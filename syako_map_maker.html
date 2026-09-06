@@ -5175,6 +5175,7 @@ async function exportOSSImage() {
 async function captureCleanCanvasContainer(container) {
   if (!container) return '';
   const isSozai = container.id === 'sozaiContainer';
+  const targetKey = isSozai ? 'sozai' : 'haichi';
   const mode = isSozai ? sozaiMode : haichiMode;
   const canvas = isSozai ? sozaiCanvas : haichiCanvas;
 
@@ -5244,13 +5245,21 @@ async function captureCleanCanvasContainer(container) {
   }
 
   // フォールバック：直接canvas合成
+  const fw = (canvas && canvas.width > 50) ? canvas.width : (container.clientWidth || 800);
+  const fh = (canvas && canvas.height > 50) ? canvas.height : (container.clientHeight || 500);
   const fallbackCanvas = document.createElement('canvas');
-  fallbackCanvas.width = canvas.width;
-  fallbackCanvas.height = canvas.height;
+  fallbackCanvas.width = fw;
+  fallbackCanvas.height = fh;
   const fbCtx = fallbackCanvas.getContext('2d');
   fbCtx.fillStyle = '#FFFFFF';
-  fbCtx.fillRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
-  fbCtx.drawImage(canvas, 0, 0);
+  fbCtx.fillRect(0, 0, fw, fh);
+  if (canvas && canvas.width > 0 && canvas.height > 0) {
+    fbCtx.drawImage(canvas, 0, 0);
+  }
+  const fbItems = drawings[targetKey] || [];
+  fbItems.forEach(item => {
+    drawElement(fbCtx, item);
+  });
   return fallbackCanvas.toDataURL('image/png');
 }
 
