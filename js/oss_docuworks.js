@@ -61,72 +61,97 @@ const OssDocuWorks = {
     };
   },
 
-  // 3. Excel 書類確認書の生成（Blob）
+  // 3. Excel 書類確認書の生成（Blob） - 原本Excelの書式・罫線・フォント・行高・印刷設定を100%完全保持
   async generateExcelBlob(payload) {
-    if (typeof XLSX === 'undefined') {
-      throw new Error('XLSXライブラリが読み込まれていません');
+    if (typeof ExcelJS !== 'undefined') {
+      const resp = await fetch(this.TPL_EXCEL);
+      const ab = await resp.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(ab);
+
+      // サンプルと完全一致の「編集」シートを取得
+      const ws = workbook.getWorksheet('編集') || workbook.worksheets[0];
+
+      // 1. 店舗名（F3セルに「御中」が固定配置されているため、店舗名のみ設定）
+      const cleanDealer = (payload.dealerName || '').replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').replace(/[\s\u3000]*御中\s*$/, '').trim();
+      if (cleanDealer) ws.getCell('A3').value = cleanDealer;
+
+      // 2. 令和日付（サンプル準拠: 令　和　X　年　X　月X日　）
+      const now = new Date();
+      const reiwaYear = now.getFullYear() - 2018;
+      const dateStr = `令　和　${reiwaYear}　年　${now.getMonth() + 1}　月${now.getDate()}日　`;
+      ws.getCell('A7').value = dateStr;
+
+      // 3. 注文書番号
+      if (payload.orderNo) ws.getCell('F9').value = payload.orderNo;
+
+      // 4. 担当者名（J9セルに「様」があるため名前のみ）
+      if (payload.contactName) {
+        ws.getCell('I9').value = payload.contactName.replace(/様$/, '').trim();
+      }
+
+      // 5. 使用の本拠の位置・保管場所
+      ws.getCell('D10').value = '申請者に同じ';
+      if (payload.parkingAddress) ws.getCell('D11').value = payload.parkingAddress;
+
+      // 6. 郵便番号
+      const rawZip = String(payload.zip || '').replace(/[^0-9]/g, '');
+      if (rawZip) {
+        ws.getCell('D12').value = Number(rawZip) || rawZip;
+      }
+
+      // 7. 申請者住所 & 氏名
+      if (payload.carAddress) ws.getCell('D13').value = payload.carAddress;
+      if (payload.applicantName) ws.getCell('D14').value = payload.applicantName;
+
+      // 8. 作成担当者
+      if (payload.staffName) ws.getCell('K17').value = payload.staffName;
+
+      // 「編集」シートを開いた際のアクティブ表示に設定
+      const activeIdx = workbook.worksheets.findIndex(w => w.name === ws.name);
+      workbook.views = [
+        {
+          x: 0, y: 0, width: 10000, height: 20000,
+          firstSheet: 0, activeTab: activeIdx >= 0 ? activeIdx : 0, visibility: 'visible'
+        }
+      ];
+
+      const outBuffer = await workbook.xlsx.writeBuffer();
+      return new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     }
-    // Fetch template
-    const resp = await fetch(this.TPL_EXCEL);
-    const ab = await resp.arrayBuffer();
-    const wb = XLSX.read(ab, { type: 'array' });
-    
-    // サンプル（西春店）と完全一致の「編集」シートをベースに設定
-    const wsName = wb.SheetNames.includes('編集') ? '編集' : wb.SheetNames[0];
-    const ws = wb.Sheets[wsName];
 
-    // Helper to set cell value
-    const setCell = (cellRef, val) => {
-      if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
-      ws[cellRef].v = val;
-      ws[cellRef].t = typeof val === 'number' ? 'n' : 's';
-    };
-
-    // 店舗名（セルF3に「御中」が固定配置されているため重複させずに設定）
-    const cleanDealer = (payload.dealerName || '').replace(/[\s\u3000]*御中\s*$/, '').trim();
-    setCell('A3', cleanDealer);
-
-    // Japanese Era date (サンプル準拠: 令　和　X　年　X　月X日　)
-    const now = new Date();
-    const reiwaYear = now.getFullYear() - 2018;
-    const dateStr = `令　和　${reiwaYear}　年　${now.getMonth() + 1}　月${now.getDate()}日　`;
-    setCell('A7', dateStr);
-
-    setCell('F9', payload.orderNo || '');
-    setCell('I9', payload.contactName || '');
-    setCell('J9', '様');
-    setCell('D10', '申請者に同じ');
-    setCell('D11', payload.parkingAddress || '同上');
-
-    // 郵便番号
-    const rawZip = String(payload.zip || '').replace(/[^0-9]/g, '');
-    if (rawZip) {
-      setCell('D12', Number(rawZip) || rawZip);
+    // フォールバック（万が一ExcelJS未ロード時のSheetJS）
+    if (typeof XLSX !== 'undefined') {
+      const resp = await fetch(this.TPL_EXCEL);
+      const ab = await resp.arrayBuffer();
+      const wb = XLSX.read(ab, { type: 'array' });
+      const wsName = wb.SheetNames.includes('編集') ? '編集' : wb.SheetNames[0];
+      const ws = wb.Sheets[wsName];
+      const setCell = (cellRef, val) => {
+        if (!ws[cellRef]) ws[cellRef] = { t: 's', v: '' };
+        ws[cellRef].v = val;
+        ws[cellRef].t = typeof val === 'number' ? 'n' : 's';
+      };
+      const cleanDealer = (payload.dealerName || '').replace(/[\s\u3000]*御中\s*$/, '').trim();
+      setCell('A3', cleanDealer);
+      const now = new Date();
+      const reiwaYear = now.getFullYear() - 2018;
+      const dateStr = `令　和　${reiwaYear}　年　${now.getMonth() + 1}　月${now.getDate()}日　`;
+      setCell('A7', dateStr);
+      setCell('F9', payload.orderNo || '');
+      setCell('I9', (payload.contactName || '').replace(/様$/, '').trim());
+      setCell('D10', '申請者に同じ');
+      setCell('D11', payload.parkingAddress || '同上');
+      const rawZip = String(payload.zip || '').replace(/[^0-9]/g, '');
+      if (rawZip) setCell('D12', Number(rawZip) || rawZip);
+      setCell('D13', payload.carAddress || '');
+      setCell('D14', payload.applicantName || '');
+      setCell('K17', payload.staffName || '田中');
+      const outBytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      return new Blob([outBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     }
 
-    setCell('D13', payload.carAddress || '');
-    setCell('D14', payload.applicantName || '');
-    setCell('C15', '有');
-    setCell('F15', '配置図作成');
-    setCell('I15', '現地調査');
-    setCell('C16', '有');
-    setCell('F16', '所在図作成');
-    setCell('I16', '現地調査');
-    setCell('C18', '有');
-    setCell('K17', payload.staffName || '田中');
-
-    // Office info
-    setCell('K20', '　　　　　　行政書士法人　フェリス');
-    setCell('K21', '　　　　　　TEL　０５８６－５０－２８９６');
-    setCell('K22', '　　　　　　FAX　０５８６－８７－６６８７');
-
-    // 開いた時に確実にこのシートがメイン表示されるよう「書類確認書（OSS）」単一シートとして再構成
-    const mainSheetName = '書類確認書（OSS）';
-    wb.SheetNames = [mainSheetName];
-    wb.Sheets = { [mainSheetName]: ws };
-
-    const outBytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    return new Blob([outBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    throw new Error('Excel生成ライブラリ（ExcelJS）が読み込まれていません');
   },
 
   // 4. 正式様式PDF（配置図・所在図 2ページ）の生成（Blob）
