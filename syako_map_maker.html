@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>行政書士法人フェリス ｜ 車庫証明 OSS 所在図・配置図 作成ツール</title>
 <!-- Leaflet.js -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -866,6 +869,12 @@
           <button class="property-btn" onclick="setTextLandmarkDot('left')" id="btnDotLeft" title="文字の左に●（目印）を配置">左◀</button>
           <button class="property-btn" onclick="setTextLandmarkDot('right')" id="btnDotRight" title="文字の右に●（目印）を配置">右▶</button>
         </div>
+        <!-- 🛣️ 道路選択時: T字路成形・開口ボタン -->
+        <div class="property-row" id="propertyRoadActionsRow" style="display:none; margin-top:4px; gap:4px;">
+          <button class="btn btn-secondary" onclick="autoCleanRoadIntersections()" style="flex:1; font-size:0.72rem; padding:3px 6px; background:#064e3b; border-color:#10b981; color:#34d399; font-weight:bold;">
+            ✂️ T字路を成形（交差部を自動開口）
+          </button>
+        </div>
         <!-- 🔤 フォントサイズ調整（arrow, line-dim, text, dist-line用） -->
         <div class="property-row" id="propertyFontSizeRow" style="display:none; align-items:center; gap:4px; margin-top:4px;">
           <span style="font-size:0.72rem; color:#38BDF8; width:52px; flex-shrink:0;">🔤 文字大:</span>
@@ -940,6 +949,9 @@
         </button>
         <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')">
           <span class="tool-btn-icon">🧹</span>要素削除
+        </button>
+        <button class="tool-btn" id="tool-road-cut" onclick="setTool('road-cut')" title="道路線をクリックして開口部を作る（T字路を手動開口）">
+          <span class="tool-btn-icon">✂️</span>道路カット
         </button>
         <button class="tool-btn" id="tool-ortho-toggle" onclick="toggleOrthoLock()" title="水平・垂直の直交ロック（Shiftキーでも可）" style="background:#1e293b; border-color:#38bdf8;">
           <span class="tool-btn-icon">📐</span>直交ロック <span id="orthoLockBadge" style="font-size:0.65rem; padding:1px 3px; border-radius:3px; background:#475569; color:#fff;">OFF</span>
@@ -1978,6 +1990,59 @@ function resetDefaultStamps() {
 // ─── 選択中要素のプロパティパネル操作（回転・サイズ変更・テキスト編集） ───
 
 // ─── 🛣️ 道路のT字路・交差点自動成形（貫通線の開口＆接続） ───
+
+// ─── ✂️ クリック地点の道路線を開口・カットする手動ツール ───
+function cutRoadAtPoint(targetKey, cx, cy) {
+  const list = drawings[targetKey];
+  if (!list || list.length === 0) return;
+
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i];
+    if (item.type === 'line-road' || (item.type === 'line-straight' && (item.lineWidth >= 3 || item.isRoad))) {
+      const dx = item.x2 - item.x1;
+      const dy = item.y2 - item.y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 10) continue;
+
+      const t = ((cx - item.x1) * dx + (cy - item.y1) * dy) / (len * len);
+      const projX = item.x1 + t * dx;
+      const projY = item.y1 + t * dy;
+      const dist = Math.hypot(cx - projX, cy - projY);
+
+      if (dist <= 22 && t > 0.03 && t < 0.97) {
+        pushHistory();
+        const halfGap = 20; // 40pxのきれいな開口部
+        const deltaT = halfGap / len;
+        const t1 = Math.max(0, t - deltaT);
+        const t2 = Math.min(1, t + deltaT);
+
+        const seg1 = {
+          ...item,
+          x1: item.x1,
+          y1: item.y1,
+          x2: Math.round(item.x1 + t1 * dx),
+          y2: Math.round(item.y1 + t1 * dy)
+        };
+        const seg2 = {
+          ...item,
+          x1: Math.round(item.x1 + t2 * dx),
+          y1: Math.round(item.y1 + t2 * dy),
+          x2: item.x2,
+          y2: item.y2
+        };
+
+        list.splice(i, 1, seg1, seg2);
+        redraw(targetKey);
+        autoSaveDraft();
+        showToast('✂️ 道路に開口部を作成しました（道を接続）');
+        return;
+      }
+    }
+  }
+  showToast('💡 道路線の上をクリックすると開口部を作れます');
+}
+window.cutRoadAtPoint = cutRoadAtPoint;
+
 function autoCleanRoadIntersections(targetKey) {
   const tKey = targetKey || activeTarget || 'haichi';
   const list = drawings[tKey];
@@ -2002,7 +2067,7 @@ function autoCleanRoadIntersections(targetKey) {
   pushHistory();
   let modified = false;
 
-  function intersectSegs(x1, y1, x2, y2, x3, y3, x4, y4, tol = 16) {
+  function intersectSegs(x1, y1, x2, y2, x3, y3, x4, y4, tol = 26) {
     const dx1 = x2 - x1, dy1 = y2 - y1;
     const dx2 = x4 - x3, dy2 = y4 - y3;
     const denom = dy2 * dx1 - dx2 * dy1;
@@ -2041,7 +2106,7 @@ function autoCleanRoadIntersections(targetKey) {
         20
       );
       if (inter) {
-        const isTouchingEnd = inter.ub <= 0.18 || inter.ub >= 0.82;
+        const isTouchingEnd = inter.ub <= 0.25 || inter.ub >= 0.75;
         intersections.push({
           otherIdx: oIdx,
           ua: inter.ua,
@@ -2064,12 +2129,12 @@ function autoCleanRoadIntersections(targetKey) {
         cutIntervals.push({ startUa: p1.ua, endUa: p2.ua, startPt: p1, endPt: p2 });
 
         const line1 = list[p1.otherIdx];
-        if (p1.ub <= 0.18) { line1.x1 = Math.round(p1.x); line1.y1 = Math.round(p1.y); }
-        else if (p1.ub >= 0.82) { line1.x2 = Math.round(p1.x); line1.y2 = Math.round(p1.y); }
+        if (p1.ub <= 0.25) { line1.x1 = Math.round(p1.x); line1.y1 = Math.round(p1.y); }
+        else if (p1.ub >= 0.75) { line1.x2 = Math.round(p1.x); line1.y2 = Math.round(p1.y); }
 
         const line2 = list[p2.otherIdx];
-        if (p2.ub <= 0.18) { line2.x1 = Math.round(p2.x); line2.y1 = Math.round(p2.y); }
-        else if (p2.ub >= 0.82) { line2.x2 = Math.round(p2.x); line2.y2 = Math.round(p2.y); }
+        if (p2.ub <= 0.25) { line2.x1 = Math.round(p2.x); line2.y1 = Math.round(p2.y); }
+        else if (p2.ub >= 0.75) { line2.x2 = Math.round(p2.x); line2.y2 = Math.round(p2.y); }
 
         k++;
       }
@@ -2158,7 +2223,7 @@ function showPropertyPanel(targetKey, index) {
   const textRow = document.getElementById('propertyTextRow');
   const textInput = document.getElementById('propertyTextInput');
   if (textRow && textInput) {
-    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail' || item.type === 'arrow' || item.label !== undefined || item.type === 'rect-spot' || item.type === 'poly-spot') {
+    if (item.type === 'text' || item.type === 'landmark-dot' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail' || item.type === 'arrow' || item.label !== undefined || item.type === 'rect-spot' || item.type === 'poly-spot') {
       textRow.style.display = 'flex';
       textInput.value = item.label !== undefined ? item.label : (item.text || '');
       textInput.placeholder = item.type === 'arrow' ? '幅員を入力（例: 幅員 4.0m, 出入口 5.0m）' : (item.type === 'rect-spot' || item.type === 'poly-spot' ? '文字を入力（空欄でラベル非表示）' : 'テキストを入力');
@@ -2174,6 +2239,15 @@ function showPropertyPanel(targetKey, index) {
       updateLandmarkDotButtons(item.landmarkDot || 'none');
     } else {
       landmarkRow.style.display = 'none';
+    }
+  }
+
+  const roadActionRow = document.getElementById('propertyRoadActionsRow');
+  if (roadActionRow) {
+    if (item.type === 'line-road' || (item.type === 'line-straight' && (item.lineWidth >= 3 || item.isRoad))) {
+      roadActionRow.style.display = 'flex';
+    } else {
+      roadActionRow.style.display = 'none';
     }
   }
 
@@ -2254,7 +2328,13 @@ function onPropertyTextInputChange(val) {
   const item = drawings[targetKey][index];
   if (!item) return;
 
-  if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail') {
+  if (item.type === 'landmark-dot' && val.trim() !== '') {
+    item.type = 'text';
+    item.text = val.trim();
+    item.fontSize = 14;
+    item.color = '#000000';
+    item.landmarkDot = 'bottom';
+  } else if (item.type === 'text' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail') {
     item.text = val;
   } else if (item.label !== undefined || item.type === 'arrow' || item.type === 'rect-spot' || item.type === 'poly-spot') {
     item.label = val;
@@ -3306,16 +3386,40 @@ function setupCanvasEvents(canvas, targetKey) {
         return;
       }
     } else if (currentTool === 'landmark-dot') {
-      newIndex = drawings[targetKey].length;
-      drawings[targetKey].push({
-        type: 'landmark-dot',
-        x: startX,
-        y: startY,
-        radius: 4.5,
-        color: '#000000',
-        angle: 0
-      });
-      showToast('⚫ 目印(黒丸)を配置しました');
+      const dotText = prompt('目印の名称・施設名を入力してください（例: 栄徳医院, 柏森南公民館, GS, コンビニ など / 空欄で黒丸のみ配置）:', '');
+      if (dotText !== null) {
+        newIndex = drawings[targetKey].length;
+        const cleanDot = dotText.trim();
+        if (cleanDot !== '') {
+          drawings[targetKey].push({
+            type: 'text',
+            x: startX,
+            y: startY,
+            text: cleanDot,
+            fontSize: 14,
+            color: '#000000',
+            angle: 0,
+            landmarkDot: 'bottom'
+          });
+          showToast(`⚫ 「${cleanDot}」を目印付きで配置しました（調整バーで位置変更可能）`);
+        } else {
+          drawings[targetKey].push({
+            type: 'landmark-dot',
+            x: startX,
+            y: startY,
+            radius: 4.5,
+            color: '#000000',
+            angle: 0
+          });
+          showToast('⚫ 目印(黒丸)を配置しました');
+        }
+      } else {
+        return;
+      }
+    } else if (currentTool === 'road-cut') {
+      cutRoadAtPoint(targetKey, startX, startY);
+      isDrawing = false;
+      return;
     }
 
     pushHistory();
@@ -5075,14 +5179,28 @@ async function captureCleanCanvasContainer(container) {
   const canvas = isSozai ? sozaiCanvas : haichiCanvas;
 
   if (mode === 'blank') {
-    // 白紙モード：HTML5 Canvasの作図を直接ホワイト背景に合成して高解像度PNG出力（html2canvas不要・100%確実・白紙化防止）
+    // 白紙モード：作図データを確実に反映（DOM canvas + drawings配列描画の二重保証で絶対に白紙にならない）
+    redraw(targetKey);
+    const w = (canvas && canvas.width > 50) ? canvas.width : (container.clientWidth || 800);
+    const h = (canvas && canvas.height > 50) ? canvas.height : (container.clientHeight || 500);
+
     const outCanvas = document.createElement('canvas');
-    outCanvas.width = canvas.width;
-    outCanvas.height = canvas.height;
+    outCanvas.width = w;
+    outCanvas.height = h;
     const outCtx = outCanvas.getContext('2d');
     outCtx.fillStyle = '#FFFFFF';
-    outCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
-    outCtx.drawImage(canvas, 0, 0);
+    outCtx.fillRect(0, 0, w, h);
+
+    // 1. DOM Canvasの描画を転写
+    if (canvas && canvas.width > 0 && canvas.height > 0) {
+      outCtx.drawImage(canvas, 0, 0);
+    }
+    // 2. drawings 配列の全アイテムも直接再描画（二重保証）
+    const items = drawings[targetKey] || [];
+    items.forEach(item => {
+      drawElement(outCtx, item);
+    });
+
     return outCanvas.toDataURL('image/png');
   }
 
@@ -5362,6 +5480,20 @@ async function executeDocuWorksExport(action) {
   if (!p) return;
 
   try {
+    if (action === 'pdf' || action === 'xdw') {
+      showToast('⏳ 地図作図を確実に取得中...');
+      const hContainer = document.getElementById('haichiContainer');
+      const sContainer = document.getElementById('sozaiContainer');
+      if (hContainer) {
+        const freshHaichi = await captureCleanCanvasContainer(hContainer);
+        if (freshHaichi) p.haichiMapPng = freshHaichi;
+      }
+      if (sContainer && ((drawings.sozai && drawings.sozai.length > 0) || sozaiMode === 'map')) {
+        const freshSozai = await captureCleanCanvasContainer(sContainer);
+        if (freshSozai) p.sozaiMapPng = freshSozai;
+      }
+    }
+
     if (action === 'pdf') {
       showToast('⏳ 正式PDF生成中...');
       const blob = await OssDocuWorks.generatePdfBlob(p);
@@ -5403,7 +5535,7 @@ async function executeDocuWorksExport(action) {
 <script src="js/xlsx.full.min.js"></script>
 <script src="js/store.js?v=20260906_2030"></script>
 <script src="js/sync.js?v=20260906_2030"></script>
-<script src="js/oss_docuworks.js?v=20260906_2150"></script>
+<script src="js/oss_docuworks.js?v=20260906_2355"></script>
 
 </body>
 </html>

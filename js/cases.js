@@ -2858,6 +2858,7 @@ const Cases = {
       if (storeInfo) params.set('storeInfo', storeInfo);
     }
 
+    params.set('_v', Date.now());
     window.open('syako_map_maker.html?' + params.toString(), '_blank');
   },
 
