@@ -5238,8 +5238,8 @@ async function captureCleanCanvasContainer(container) {
       container.style.outline = prevOutline;
       container.style.boxShadow = prevShadow;
       if (hadGrid) container.classList.add('grid-bg');
-      controls.forEach(({ el, display }) => {
-        el.style.display = display;
+      prevDisplays.forEach(({ el, display }) => {
+        if (el && el.style) el.style.display = display;
       });
     }
   }
@@ -5317,8 +5317,8 @@ async function copyMapToClipboard(targetType) {
         container.style.outline = prevOutline;
         container.style.boxShadow = prevShadow;
         if (hadGrid) container.classList.add('grid-bg');
-        controls.forEach(({ el, display }) => {
-          el.style.display = display;
+        prevDisplays.forEach(({ el, display }) => {
+          if (el && el.style) el.style.display = display;
         });
       }
     }
@@ -5542,9 +5542,9 @@ async function executeDocuWorksExport(action) {
 <!-- OSS DocuWorks Pack & Master Store Scripts -->
 <script src="js/pdf-lib.min.js"></script>
 <script src="js/xlsx.full.min.js"></script>
-<script src="js/store.js?v=20260906_2030"></script>
-<script src="js/sync.js?v=20260906_2030"></script>
-<script src="js/oss_docuworks.js?v=20260906_2355"></script>
+<script src="js/store.js?v=20260907_0000"></script>
+<script src="js/sync.js?v=20260907_0000"></script>
+<script src="js/oss_docuworks.js?v=20260907_0000"></script>
 
 </body>
 </html>

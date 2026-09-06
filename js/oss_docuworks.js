@@ -69,6 +69,8 @@ const OssDocuWorks = {
     const resp = await fetch(this.TPL_EXCEL);
     const ab = await resp.arrayBuffer();
     const wb = XLSX.read(ab, { type: 'array' });
+    
+    // サンプル（西春店）と完全一致の「編集」シートをベースに設定
     const wsName = wb.SheetNames.includes('編集') ? '編集' : wb.SheetNames[0];
     const ws = wb.Sheets[wsName];
 
@@ -79,28 +81,48 @@ const OssDocuWorks = {
       ws[cellRef].t = typeof val === 'number' ? 'n' : 's';
     };
 
-    const dealerDisplay = payload.dealerName.endsWith('御中') ? payload.dealerName : `${payload.dealerName}　　御中`;
-    
-    // Japanese Era date
+    // 店舗名（セルF3に「御中」が固定配置されているため重複させずに設定）
+    const cleanDealer = (payload.dealerName || '').replace(/[\s\u3000]*御中\s*$/, '').trim();
+    setCell('A3', cleanDealer);
+
+    // Japanese Era date (サンプル準拠: 令　和　X　年　X　月X日　)
     const now = new Date();
     const reiwaYear = now.getFullYear() - 2018;
-    const dateStr = `令和${reiwaYear}年${now.getMonth() + 1}月${now.getDate()}日`;
-
-    setCell('A3', dealerDisplay);
+    const dateStr = `令　和　${reiwaYear}　年　${now.getMonth() + 1}　月${now.getDate()}日　`;
     setCell('A7', dateStr);
-    setCell('F9', payload.orderNo);
-    setCell('I9', payload.contactName);
+
+    setCell('F9', payload.orderNo || '');
+    setCell('I9', payload.contactName || '');
+    setCell('J9', '様');
     setCell('D10', '申請者に同じ');
-    setCell('D11', payload.parkingAddress);
-    setCell('D12', payload.zip);
-    setCell('D13', payload.carAddress);
-    setCell('D14', payload.applicantName);
-    setCell('K17', payload.staffName);
+    setCell('D11', payload.parkingAddress || '同上');
+
+    // 郵便番号
+    const rawZip = String(payload.zip || '').replace(/[^0-9]/g, '');
+    if (rawZip) {
+      setCell('D12', Number(rawZip) || rawZip);
+    }
+
+    setCell('D13', payload.carAddress || '');
+    setCell('D14', payload.applicantName || '');
+    setCell('C15', '有');
+    setCell('F15', '配置図作成');
+    setCell('I15', '現地調査');
+    setCell('C16', '有');
+    setCell('F16', '所在図作成');
+    setCell('I16', '現地調査');
+    setCell('C18', '有');
+    setCell('K17', payload.staffName || '田中');
 
     // Office info
     setCell('K20', '　　　　　　行政書士法人　フェリス');
     setCell('K21', '　　　　　　TEL　０５８６－５０－２８９６');
     setCell('K22', '　　　　　　FAX　０５８６－８７－６６８７');
+
+    // 開いた時に確実にこのシートがメイン表示されるよう「書類確認書（OSS）」単一シートとして再構成
+    const mainSheetName = '書類確認書（OSS）';
+    wb.SheetNames = [mainSheetName];
+    wb.Sheets = { [mainSheetName]: ws };
 
     const outBytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     return new Blob([outBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
