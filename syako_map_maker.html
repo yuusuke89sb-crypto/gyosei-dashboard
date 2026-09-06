@@ -653,6 +653,7 @@
     <button class="btn btn-secondary" onclick="loadKurodaSample()">🏠 黒田サンプル</button>
     <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ クリア</button>
     <button class="btn btn-primary" onclick="exportOSSImage()">🖼️ OSS画像(2枚)保存</button>
+    <button class="btn btn-secondary" onclick="copyMapToClipboard()" style="background:#0F172A; border-color:#10B981; color:#34D399; font-weight:600;" title="選択中の図面（所在図または配置図）を枠線なし・透過PNGとしてクリップボードにコピー（DocuWorks等に直接Ctrl+V貼り付け可能）">📋 透過コピー(DW貼付)</button>
     <button class="btn btn-success" onclick="exportA4PDF()">🖨️ 印刷 / PDF保存</button>
     <button class="btn" onclick="openDocuWorksExportModal()" style="background:linear-gradient(135deg, #2563eb, #7c3aed); color:#fff; font-weight:bold; box-shadow:0 2px 8px rgba(37,99,235,0.4);" title="DocuWorks完全一致PDF・xdw・確認書Excel・メール送信の一括出力">📑 OSS正式様式パック（DW準拠）</button>
   </div>
@@ -4489,23 +4490,157 @@ async function exportOSSImage() {
   }, 500);
 }
 
+// ─── キャンバス・コンテナの境界線なしクリーンキャプチャ ───
+async function captureCleanCanvasContainer(container) {
+  if (!container || typeof html2canvas === 'undefined') return '';
+
+  const prevBorder = container.style.border;
+  const prevOutline = container.style.outline;
+  const prevShadow = container.style.boxShadow;
+  const hadGrid = container.classList.contains('grid-bg');
+  if (hadGrid) container.classList.remove('grid-bg');
+  container.style.border = 'none';
+  container.style.outline = 'none';
+  container.style.boxShadow = 'none';
+
+  const controls = container.querySelectorAll('.print-hide, .map-zoom-bar, .canvas-mode-toggle');
+  const prevDisplays = [];
+  controls.forEach(ctrl => {
+    prevDisplays.push({ el: ctrl, display: ctrl.style.display });
+    ctrl.style.display = 'none';
+  });
+
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+    return canvas.toDataURL('image/png');
+  } catch (err) {
+    console.warn('captureCleanCanvasContainer error:', err);
+    return '';
+  } finally {
+    container.style.border = prevBorder;
+    container.style.outline = prevOutline;
+    container.style.boxShadow = prevShadow;
+    if (hadGrid) container.classList.add('grid-bg');
+    controls.forEach(({ el, display }) => {
+      el.style.display = display;
+    });
+  }
+}
+
+// ─── DocuWorks手動貼付用：枠線なし・透過クリップボードコピー ───
+async function copyMapToClipboard(targetType) {
+  const target = targetType || activeTarget || 'haichi';
+  const containerId = target === 'sozai' ? 'sozaiContainer' : 'haichiContainer';
+  const canvasId = target === 'sozai' ? 'sozaiCanvas' : 'haichiCanvas';
+  const container = document.getElementById(containerId);
+  const canvas = document.getElementById(canvasId);
+  const titleName = target === 'sozai' ? '所在図' : '配置図';
+
+  if (!container || !canvas) {
+    alert('作図キャンバスが見つかりません。');
+    return;
+  }
+
+  showToast(`⏳ ${titleName}を透過クリップボード用に準備中...`);
+  const isMapMode = (target === 'sozai' ? sozaiMode : haichiMode) === 'map';
+
+  try {
+    let blob = null;
+
+    if (!isMapMode) {
+      // 白紙モード：canvasの背景は完全透明（alpha=0）の透過PNG！枠線も一切なし！
+      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    } else {
+      // 地図モード：枠線やボタンを消去してキャプチャ
+      const prevBorder = container.style.border;
+      const prevOutline = container.style.outline;
+      const prevShadow = container.style.boxShadow;
+      const hadGrid = container.classList.contains('grid-bg');
+      if (hadGrid) container.classList.remove('grid-bg');
+      container.style.border = 'none';
+      container.style.outline = 'none';
+      container.style.boxShadow = 'none';
+
+      const controls = container.querySelectorAll('.print-hide, .map-zoom-bar, .canvas-mode-toggle');
+      const prevDisplays = [];
+      controls.forEach(ctrl => {
+        prevDisplays.push({ el: ctrl, display: ctrl.style.display });
+        ctrl.style.display = 'none';
+      });
+
+      try {
+        const c = await html2canvas(container, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        });
+        blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
+      } finally {
+        container.style.border = prevBorder;
+        container.style.outline = prevOutline;
+        container.style.boxShadow = prevShadow;
+        if (hadGrid) container.classList.add('grid-bg');
+        controls.forEach(({ el, display }) => {
+          el.style.display = display;
+        });
+      }
+    }
+
+    if (!blob) throw new Error('画像生成に失敗しました');
+
+    let copied = false;
+    if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        copied = true;
+      } catch (e) {
+        console.warn('Direct clipboard write failed:', e);
+      }
+    }
+
+    if (copied) {
+      showToast(`✅ ${titleName}を枠線なし透過コピーしました！DocuWorks上で「Ctrl+V」で綺麗に貼り付けできます。`, 4500);
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `車庫証明_${titleName}_枠線なし貼付用.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`✅ ${titleName}を枠線なしPNGとして保存しました！DocuWorksへ貼り付けできます。`, 4500);
+    }
+  } catch (err) {
+    console.error('copyMapToClipboard error:', err);
+    alert('コピーに失敗しました: ' + err.message);
+  }
+}
+window.copyMapToClipboard = copyMapToClipboard;
+
 // ─── OSS正式様式パック（DocuWorks完全一致）モーダル ───
 async function openDocuWorksExportModal() {
   showToast('⏳ 地図描画をキャプチャ中...');
   
-  // 1. 所在図と配置図のキャンバス部分をキャプチャ
+  // 1. 所在図と配置図のキャンバス部分を枠線なしでキャプチャ
   let sozaiMapPng = '';
   let haichiMapPng = '';
   try {
     const sContainer = document.getElementById('sozaiContainer');
     const hContainer = document.getElementById('haichiContainer');
-    if (sContainer && typeof html2canvas !== 'undefined') {
-      const c1 = await html2canvas(sContainer, { scale: 2, useCORS: true, logging: false });
-      sozaiMapPng = c1.toDataURL('image/png');
+    
+    // 所在図の作図または地図があるか確認
+    const hasSozaiContent = (drawings.sozai && drawings.sozai.length > 0) || sozaiMode === 'map';
+    if (sContainer && hasSozaiContent) {
+      sozaiMapPng = await captureCleanCanvasContainer(sContainer);
     }
-    if (hContainer && typeof html2canvas !== 'undefined') {
-      const c2 = await html2canvas(hContainer, { scale: 2, useCORS: true, logging: false });
-      haichiMapPng = c2.toDataURL('image/png');
+    
+    if (hContainer) {
+      haichiMapPng = await captureCleanCanvasContainer(hContainer);
     }
   } catch(e) {
     console.warn('Canvas capture error:', e);
@@ -4536,15 +4671,13 @@ async function openDocuWorksExportModal() {
       parkingAddress: parkAddr,
       zip: '',
       staffName: '田中',
-      mapPng: haichiMapPng || sozaiMapPng,
       sozaiMapPng: sozaiMapPng,
       haichiMapPng: haichiMapPng,
       driveFolderUrl: linkedFolderUrl || ''
     };
   } else {
-    if (sozaiMapPng) payload.sozaiMapPng = sozaiMapPng;
-    if (haichiMapPng) payload.haichiMapPng = haichiMapPng;
-    if (haichiMapPng) payload.mapPng = haichiMapPng;
+    payload.sozaiMapPng = sozaiMapPng;
+    payload.haichiMapPng = haichiMapPng;
   }
 
   window._activeOssPayload = payload;
@@ -4594,6 +4727,21 @@ async function openDocuWorksExportModal() {
           <button type="button" class="btn" onclick="executeDocuWorksExport('drive')" style="padding:10px; background:#d97706; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
             ☁️ 案件Google Driveへ一括保存
           </button>
+        </div>
+
+        <div style="border-top:1px dashed #334155; padding-top:10px; display:flex; flex-direction:column; gap:6px;">
+          <div style="font-size:0.75rem; color:#94a3b8; display:flex; align-items:center; gap:4px;">
+            <span>📋</span>
+            <span>DocuWorksへ手動貼り付けしたい場合（枠線なし・背景透過でCtrl+V貼付）:</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <button type="button" class="btn" onclick="copyMapToClipboard('haichi')" style="padding:7px; background:#0f172a; border:1px solid #10b981; color:#34d399; border-radius:6px; font-weight:bold; font-size:0.78rem; display:flex; align-items:center; justify-content:center; gap:5px; cursor:pointer;">
+              📋 配置図を透過コピー
+            </button>
+            <button type="button" class="btn" onclick="copyMapToClipboard('sozai')" style="padding:7px; background:#0f172a; border:1px solid #38bdf8; color:#38bdf8; border-radius:6px; font-weight:bold; font-size:0.78rem; display:flex; align-items:center; justify-content:center; gap:5px; cursor:pointer;">
+              📋 所在図を透過コピー
+            </button>
+          </div>
         </div>
 
         <button type="button" class="btn" onclick="executeDocuWorksExport('email')" style="padding:10px; margin-top:4px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; border-radius:6px; font-weight:bold; font-size:0.85rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
@@ -4649,9 +4797,9 @@ async function executeDocuWorksExport(action) {
 <!-- OSS DocuWorks Pack & Master Store Scripts -->
 <script src="js/pdf-lib.min.js"></script>
 <script src="js/xlsx.full.min.js"></script>
-<script src="js/store.js?v=20260906_1930"></script>
-<script src="js/sync.js?v=20260906_1930"></script>
-<script src="js/oss_docuworks.js?v=20260906_1930"></script>
+<script src="js/store.js?v=20260906_2030"></script>
+<script src="js/sync.js?v=20260906_2030"></script>
+<script src="js/oss_docuworks.js?v=20260906_2030"></script>
 
 </body>
 </html>
