@@ -849,15 +849,28 @@ const InboxManager = {
             const b64Data = await b64Res.json();
             if (b64Data && b64Data.success && b64Data.base64) {
               this.updateLoadingStatus('Gemini 2.0 で書類項目（注文No・申請者・車両情報）を抽出中...');
-              const geminiParsed = await DealerDocumentParser.parseWithGemini(b64Data.base64, b64Data.mimeType, item);
+              
+              // TIFFの場合はあらかじめ270度正立回転したJPEGにしてからGemini解析に渡す（文字認識精度が大幅向上）
+              let analysisBase64 = b64Data.base64;
+              let analysisMime = b64Data.mimeType || '';
+              const isTiffData = analysisMime.includes('tif') || (firstAtt.name && firstAtt.name.match(/\.tiff?$/i)) || b64Data.base64.startsWith('SUkq') || b64Data.base64.startsWith('TU0A');
+              
+              if (isTiffData && typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+                const rotatedJpg = DealerDocumentParser.convertTiffToJpeg(b64Data.base64, 270);
+                if (rotatedJpg && rotatedJpg.includes(',')) {
+                  analysisBase64 = rotatedJpg.split(',')[1];
+                  analysisMime = 'image/jpeg';
+                }
+              }
+
+              const geminiParsed = await DealerDocumentParser.parseWithGemini(analysisBase64, analysisMime, item);
               if (geminiParsed && (geminiParsed.orderNo || geminiParsed.applicantName || geminiParsed.storeFullName || geminiParsed.vin || geminiParsed.applicantAddress)) {
-                // TIFFマルチページを個別ページに展開（複数案件切り出し用）
-                const isTiffData = (b64Data.mimeType || '').includes('tif') || (firstAtt.name && firstAtt.name.match(/\.tiff?$/i)) || b64Data.base64.startsWith('SUkq') || b64Data.base64.startsWith('TU0A');
+                // TIFFを個別ページに展開（単一ページでも270度正立画像を保持して案件Drive保存へ引き継ぐ）
                 if (isTiffData && typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToPages) {
-                  const tiffPages = DealerDocumentParser.convertTiffToPages(b64Data.base64);
-                  if (tiffPages && tiffPages.length > 1) {
+                  const tiffPages = DealerDocumentParser.convertTiffToPages(b64Data.base64, 270);
+                  if (tiffPages && tiffPages.length > 0) {
                     geminiParsed.attachments = tiffPages.map((p, idx) => ({
-                      name: `FAX原本_P${idx + 1}.jpg`,
+                      name: tiffPages.length === 1 ? `FAX原本_正立270度.jpg` : `FAX原本_P${idx + 1}.jpg`,
                       dataUrl: p.dataUrl,
                       pageNumber: idx + 1,
                       mimeType: 'image/jpeg'

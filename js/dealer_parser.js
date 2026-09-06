@@ -594,8 +594,38 @@ const DealerDocumentParser = {
     };
   },
 
-  // ─── 🔄 TIFFをJPEG Base64にクライアント側で瞬時変換するヘルパー（マルチページFAX対応） ───
-  convertTiffToJpeg(arrayBufferOrBase64) {
+  // ─── 🔄 TIFFのページを正立回転（デフォルト270°）してCanvas描画するヘルパー ───
+  _renderRotatedPageCanvas(ifd, rgba, angle = 270) {
+    const origCanvas = document.createElement('canvas');
+    origCanvas.width = ifd.width;
+    origCanvas.height = ifd.height;
+    const origCtx = origCanvas.getContext('2d');
+    const imgData = origCtx.createImageData(origCanvas.width, origCanvas.height);
+    imgData.data.set(rgba);
+    origCtx.putImageData(imgData, 0, 0);
+
+    const normAngle = ((angle % 360) + 360) % 360;
+    if (normAngle === 0) {
+      return origCanvas;
+    }
+
+    const rotCanvas = document.createElement('canvas');
+    if (normAngle === 90 || normAngle === 270) {
+      rotCanvas.width = ifd.height;
+      rotCanvas.height = ifd.width;
+    } else {
+      rotCanvas.width = ifd.width;
+      rotCanvas.height = ifd.height;
+    }
+    const rotCtx = rotCanvas.getContext('2d');
+    rotCtx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+    rotCtx.rotate((normAngle * Math.PI) / 180);
+    rotCtx.drawImage(origCanvas, -origCanvas.width / 2, -origCanvas.height / 2);
+    return rotCanvas;
+  },
+
+  // ─── 🔄 TIFFをJPEG Base64にクライアント側で瞬時変換するヘルパー（マルチページFAX対応、デフォルト270度正立回転） ───
+  convertTiffToJpeg(arrayBufferOrBase64, rotateAngle = 270) {
     try {
       let buffer;
       if (typeof arrayBufferOrBase64 === 'string') {
@@ -613,21 +643,16 @@ const DealerDocumentParser = {
       if (typeof UTIF !== 'undefined') {
         const ifds = UTIF.decode(buffer);
         if (ifds && ifds.length > 0) {
-          // 単一ページの場合
+          // 単一ページの場合（デフォルト270°回転）
           if (ifds.length === 1) {
             UTIF.decodeImage(buffer, ifds[0]);
             const rgba = UTIF.toRGBA8(ifds[0]);
-            const canvas = document.createElement('canvas');
-            canvas.width = ifds[0].width;
-            canvas.height = ifds[0].height;
-            const ctx = canvas.getContext('2d');
-            const imgData = ctx.createImageData(canvas.width, canvas.height);
-            imgData.data.set(rgba);
-            ctx.putImageData(imgData, 0, 0);
-            return canvas.toDataURL('image/jpeg', 0.95);
+            const rotCanvas = this._renderRotatedPageCanvas(ifds[0], rgba, rotateAngle);
+            console.log(`✅ 単一ページTIFFを${rotateAngle}°正立回転してJPEG変換しました: ${rotCanvas.width}x${rotCanvas.height}`);
+            return rotCanvas.toDataURL('image/jpeg', 0.95);
           }
 
-          // 複数ページ（マルチページFAX: 1枚目依頼書 + 2枚目車検証等）の場合、縦に結合
+          // 複数ページ（マルチページFAX: 1枚目依頼書 + 2枚目車検証等）の場合、各ページを270°回転後に縦に結合
           let maxWidth = 0;
           let totalHeight = 0;
           const pages = [];
@@ -635,9 +660,10 @@ const DealerDocumentParser = {
           for (let i = 0; i < ifds.length; i++) {
             UTIF.decodeImage(buffer, ifds[i]);
             const rgba = UTIF.toRGBA8(ifds[i]);
-            pages.push({ ifd: ifds[i], rgba: rgba });
-            maxWidth = Math.max(maxWidth, ifds[i].width);
-            totalHeight += ifds[i].height;
+            const rotPageCanvas = this._renderRotatedPageCanvas(ifds[i], rgba, rotateAngle);
+            pages.push(rotPageCanvas);
+            maxWidth = Math.max(maxWidth, rotPageCanvas.width);
+            totalHeight += rotPageCanvas.height;
           }
 
           const combinedCanvas = document.createElement('canvas');
@@ -650,20 +676,14 @@ const DealerDocumentParser = {
           ctx.fillRect(0, 0, maxWidth, totalHeight);
 
           let currentY = 0;
-          for (const p of pages) {
-            const pageCanvas = document.createElement('canvas');
-            pageCanvas.width = p.ifd.width;
-            pageCanvas.height = p.ifd.height;
-            const pageCtx = pageCanvas.getContext('2d');
-            const pageImgData = pageCtx.createImageData(p.ifd.width, p.ifd.height);
-            pageImgData.data.set(p.rgba);
-            pageCtx.putImageData(pageImgData, 0, 0);
-
-            ctx.drawImage(pageCanvas, 0, currentY);
-            currentY += p.ifd.height;
+          for (const pageCanvas of pages) {
+            // 幅が異なる場合は中央揃えで配置
+            const offsetX = Math.floor((maxWidth - pageCanvas.width) / 2);
+            ctx.drawImage(pageCanvas, offsetX, currentY);
+            currentY += pageCanvas.height;
           }
 
-          console.log(`✅ マルチページTIFF (${ifds.length}ページ) をJPEGへ結合変換しました: ${maxWidth}x${totalHeight}`);
+          console.log(`✅ マルチページTIFF (${ifds.length}ページ) を各${rotateAngle}°正立回転してJPEG結合変換しました: ${maxWidth}x${totalHeight}`);
           return combinedCanvas.toDataURL('image/jpeg', 0.95);
         }
       }
@@ -673,8 +693,8 @@ const DealerDocumentParser = {
     return null;
   },
 
-  // ─── 📑 マルチページTIFFから各ページごとの個別画像配列を生成 ───
-  convertTiffToPages(arrayBufferOrBase64) {
+  // ─── 📑 マルチページTIFFから各ページごとの個別画像配列を生成（デフォルト270度正立回転） ───
+  convertTiffToPages(arrayBufferOrBase64, rotateAngle = 270) {
     try {
       let buffer;
       if (typeof arrayBufferOrBase64 === 'string') {
@@ -696,21 +716,16 @@ const DealerDocumentParser = {
           for (let i = 0; i < ifds.length; i++) {
             UTIF.decodeImage(buffer, ifds[i]);
             const rgba = UTIF.toRGBA8(ifds[i]);
-            const pageCanvas = document.createElement('canvas');
-            pageCanvas.width = ifds[i].width;
-            pageCanvas.height = ifds[i].height;
-            const pageCtx = pageCanvas.getContext('2d');
-            const pageImgData = pageCtx.createImageData(ifds[i].width, ifds[i].height);
-            pageImgData.data.set(rgba);
-            pageCtx.putImageData(pageImgData, 0, 0);
+            const rotPageCanvas = this._renderRotatedPageCanvas(ifds[i], rgba, rotateAngle);
             pages.push({
               pageNumber: i + 1,
-              name: `ページ ${i + 1} (${ifds[i].width}x${ifds[i].height})`,
-              dataUrl: pageCanvas.toDataURL('image/jpeg', 0.95),
-              width: ifds[i].width,
-              height: ifds[i].height
+              name: `ページ ${i + 1} (${rotPageCanvas.width}x${rotPageCanvas.height})`,
+              dataUrl: rotPageCanvas.toDataURL('image/jpeg', 0.95),
+              width: rotPageCanvas.width,
+              height: rotPageCanvas.height
             });
           }
+          console.log(`✅ マルチページTIFF (${ifds.length}ページ) を各${rotateAngle}°正立回転して個別ページ展開しました`);
           return pages;
         }
       }

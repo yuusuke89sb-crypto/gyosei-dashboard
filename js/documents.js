@@ -24,7 +24,26 @@ const CaseDocs = {
       const reader = new FileReader();
       reader.onload = async (e) => {
         // base64部分のみ抽出（data:xxx;base64, を除去）
-        const base64Data = e.target.result.split(',')[1];
+        let base64Data = e.target.result.split(',')[1];
+        let uploadFileName = file.name;
+        let uploadMimeType = file.type || 'application/octet-stream';
+
+        // TIFFファイルの場合、270度正立回転した高精細JPEGに自動変換してGoogle Driveに保存
+        const isTiff = file.name.match(/\.tiff?$/i) || (file.type && file.type.includes('tif'));
+        if (isTiff && typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+          try {
+            const rotatedJpg = DealerDocumentParser.convertTiffToJpeg(e.target.result, 270);
+            if (rotatedJpg && rotatedJpg.includes(',')) {
+              base64Data = rotatedJpg.split(',')[1];
+              uploadFileName = file.name.replace(/\.tiff?$/i, '') + '_正立270度.jpg';
+              uploadMimeType = 'image/jpeg';
+              App.showToast('🔄 TIFF画像を270°正立回転してDrive保存用に変換しました');
+            }
+          } catch(convErr) {
+            console.warn('TIFF auto-rotation failed:', convErr);
+          }
+        }
+
         const btn = document.getElementById(`docsUploadBtn_${caseId}`);
         if (btn) { btn.disabled = true; btn.textContent = '⏳ アップロード中...'; }
 
@@ -54,8 +73,8 @@ const CaseDocs = {
             caseId,
             caseTitle,
             clientName,
-            fileName: file.name,
-            mimeType: file.type || 'application/octet-stream',
+            fileName: uploadFileName,
+            mimeType: uploadMimeType,
             base64Data,
             folderUrl: c ? c.driveFolderUrl : undefined,
           });

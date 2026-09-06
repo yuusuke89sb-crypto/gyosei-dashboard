@@ -578,8 +578,8 @@ const Cases = {
                   <span style="font-size:0.75rem; font-weight:bold; color:var(--accent-gold, #f59e0b);">📄 表示:</span>
                   <div id="caseAttTabList" style="display:flex; gap:4px; flex-wrap:wrap;"></div>
                 </div>
-                <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#475569;" onclick="Cases.rotateViewer()" title="90度回転（横向き・縦向き切り替え）">🔄 90°回転</button>
+                  <button type="button" class="btn btn-secondary btn-small" id="btnSaveRotatedToDrive" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#38bdf8; color:#38bdf8;" onclick="Cases.saveCurrentRotatedImageToDrive()" title="現在の回転角度・表示状態の画像をそのままGoogle Driveに保存">💾 向きをDrive保存</button>
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem; background:#1e293b; border-color:#475569;" onclick="Cases.fitWidthViewer()" title="横幅に合わせて最大フィット">↕ 幅フィット</button>
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.zoomViewer(0.25)" title="拡大">🔍＋</button>
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.zoomViewer(-0.25)" title="縮小">🔍−</button>
@@ -1403,6 +1403,73 @@ const Cases = {
     }
 
     App.showToast('⚠️ 回転可能なファイルが開かれていません');
+  },
+
+  async saveCurrentRotatedImageToDrive() {
+    const imgEl = document.getElementById('caseViewerImg');
+    if (!imgEl || !imgEl.src || imgEl.style.display === 'none') {
+      App.showToast('⚠️ 保存可能な画像が表示されていません');
+      return;
+    }
+    const caseId = this.editingId || this._currentOpeningCaseId;
+    if (!caseId) {
+      App.showToast('⚠️ 保存先案件が特定できません（新規登録時は保存後に実行してください）');
+      return;
+    }
+    const c = Store.getCase(caseId);
+    if (!c) {
+      App.showToast('⚠️ 案件データが見つかりません');
+      return;
+    }
+
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
+      App.showToast('⚠️ Google Drive連携が設定されていません');
+      return;
+    }
+
+    App.showToast('☁️ 現在の向き（回転状態）の画像をGoogle Driveへ保管中...');
+    try {
+      let dataUrl = imgEl.src;
+      if (this.viewerState.rotation && this.viewerState.rotation !== 0) {
+        const baked = await this.rotateImageSource(imgEl.src, this.viewerState.rotation);
+        if (baked) dataUrl = baked;
+      }
+
+      const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      const client = c.clientId ? Store.getClient(c.clientId) : null;
+      const clientName = client ? (client.companyName || client.name) : 'お客様';
+      const fileName = `FAX原本_正立回転済_${Date.now().toString(36)}.jpg`;
+
+      const res = await SpreadsheetSync.push('saveCaseDocument', {
+        caseId: c.id,
+        caseTitle: c.title || '車庫証明案件',
+        clientName: clientName,
+        fileName: fileName,
+        mimeType: 'image/jpeg',
+        base64Data: b64,
+        folderUrl: c.driveFolderUrl || undefined
+      });
+
+      if (res && res.success) {
+        const docMeta = {
+          id: 'doc_' + Date.now().toString(36),
+          name: fileName,
+          driveUrl: res.url || '',
+          driveId: res.fileId || '',
+          mimeType: 'image/jpeg',
+          size: Math.round(b64.length * 0.75),
+          uploadedAt: new Date().toISOString()
+        };
+        const docs = Array.isArray(c.docs) ? [...c.docs, docMeta] : [docMeta];
+        Store.updateCase(c.id, { docs });
+        App.showToast(`✅ 正立した画像をGoogle Drive（${fileName}）へ保存しました！`);
+      } else {
+        App.showToast(`❌ Drive保存失敗: ${res?.error || '不明なエラー'}`);
+      }
+    } catch(err) {
+      console.error('saveCurrentRotatedImageToDrive error:', err);
+      App.showToast('❌ 保存エラー: ' + err.message);
+    }
   },
 
   toggleWidePreview() {
