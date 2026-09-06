@@ -605,11 +605,17 @@ E-mail: info@ichinomiya-gyoseioffice.com
     }
   },
 
-  // Helper: PythonスクリプトによるXDW生成
-  generateXdwViaPython(payload) {
-    const scriptCmd = `python scripts/oss_docuworks_generator.py`;
-    navigator.clipboard?.writeText(scriptCmd);
-    alert(`【DocuWorks (.xdw) 生成完了】\n\nPC上のDocuWorks Printerと連携して.xdwが生成されます。\n\n出力先フォルダ:\nd:\\行政書士\\開業\\gyosei-dashboard\\output\\oss\\\n\nコマンド実行:\n${scriptCmd}\n（コマンドをクリップボードにコピーしました）`);
+  // Helper: DocuWorks(.xdw)取込用ファイルのダウンロードと案内
+  async generateXdwViaPython(payload) {
+    try {
+      const blob = await this.generatePdfBlob(payload);
+      const cleanApplicant = (payload.applicantName || '申請者').replace(/[\/\\:*?"<>|]/g, '_').slice(0, 20);
+      const fileName = `【${payload.orderNo}】${cleanApplicant}_所在図配置図_DW取込用.pdf`;
+      this._downloadBlob(blob, fileName);
+      alert(`【DocuWorks取込用ファイルをダウンロードしました】\n\nファイル名: 「${fileName}」\n\n💡 DocuWorks (.xdw) への変換方法:\nダウンロードしたファイルを【DocuWorks Desk】の画面上にそのままマウスでドラッグ＆ドロップしてください。\nDocuWorksが自動で一瞬で「.xdw」形式に変換してデスクに取り込みます！`);
+    } catch(e) {
+      alert('DocuWorks用ファイルの生成に失敗しました: ' + e.message);
+    }
   },
 
   _downloadBlob(blob, filename) {

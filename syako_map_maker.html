@@ -5472,8 +5472,8 @@ async function openDocuWorksExportModal() {
           <button type="button" class="btn" onclick="executeDocuWorksExport('pdf')" style="padding:10px; background:#0284c7; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
             📄 正式PDF出力 (DW完全一致)
           </button>
-          <button type="button" class="btn" onclick="executeDocuWorksExport('xdw')" style="padding:10px; background:#7c3aed; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
-            📑 DocuWorks形式 (.xdw) 出力
+          <button type="button" class="btn" onclick="executeDocuWorksExport('xdw')" style="padding:10px; background:#7c3aed; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;" title="DocuWorks Deskへドラッグ＆ドロップで一瞬で.xdwに自動変換できるDW完全一致ファイルをダウンロード">
+            📑 DocuWorks (.xdw) 取込用出力
           </button>
           <button type="button" class="btn" onclick="executeDocuWorksExport('excel')" style="padding:10px; background:#059669; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
             📊 書類確認書 (Excel .xlsx)
@@ -5540,7 +5540,7 @@ async function executeDocuWorksExport(action) {
       OssDocuWorks._downloadBlob(blob, fileName);
       showToast(`✅ 「${fileName}」をダウンロードしました！`);
     } else if (action === 'xdw') {
-      OssDocuWorks.generateXdwViaPython(p);
+      await OssDocuWorks.generateXdwViaPython(p);
     } else if (action === 'drive') {
       if (linkedCaseId) {
         await OssDocuWorks.saveAllToDrive(linkedCaseId);
