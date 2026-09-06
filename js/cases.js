@@ -9,7 +9,21 @@ const Cases = {
   editingId: null,
   returnPage: null,
   returnTab: null,
+  returnClientId: null,
   advanceDraft: [],  // 立替金一時データ [{label, amount}]
+
+  ensureModalInDOM(force = false) {
+    let holder = document.getElementById('caseModalHolder');
+    if (!holder) {
+      holder = document.createElement('div');
+      holder.id = 'caseModalHolder';
+      document.body.appendChild(holder);
+    }
+    const modal = document.getElementById('caseModal');
+    if (!modal || force) {
+      holder.innerHTML = this.renderModal();
+    }
+  },
 
   // 車庫証明案件判定
   isSyakoCase(c) {
@@ -234,7 +248,7 @@ const Cases = {
           ${isMobile ? this.renderList(filtered) : this.renderKanban(filtered)}
         </div>
       </div>
-      ${this.renderModal()}
+      ${!document.getElementById('caseModal') ? this.renderModal() : ''}
     `;
   },
 
@@ -1636,16 +1650,15 @@ const Cases = {
 
   showAddModal(prefills, returnPage = null, returnTab = null) {
     this.editingId = null;
-    this.returnPage = returnPage || (prefills && (prefills.inboxId || prefills.faxId) ? 'inbox' : null);
+    this.returnPage = returnPage !== null ? returnPage : (prefills && (prefills.inboxId || prefills.faxId) ? 'inbox' : (typeof App !== 'undefined' ? App.currentPage : 'cases'));
     this.returnTab = returnTab;
+    this.returnClientId = null;
 
-    if (typeof App !== 'undefined' && App.currentPage !== 'cases') {
-      App.navigate('cases', false);
-    }
+    this.ensureModalInDOM(true);
 
     const modal = document.getElementById('caseModal');
     if (!modal) {
-      setTimeout(() => this.showAddModal(prefills), 50);
+      setTimeout(() => this.showAddModal(prefills, returnPage, returnTab), 50);
       return;
     }
 
@@ -1790,20 +1803,19 @@ const Cases = {
     }
   },
 
-  showEditModal(id, returnPage = null, returnTab = null) {
+  showEditModal(id, returnPage = null, returnTab = null, returnClientId = null) {
     this.editingId = id;
-    this.returnPage = returnPage;
+    this.returnPage = returnPage !== null ? returnPage : (typeof App !== 'undefined' ? App.currentPage : 'cases');
     this.returnTab = returnTab;
+    this.returnClientId = returnClientId;
     const c = Store.getCase(id);
     if (!c) return;
 
-    if (typeof App !== 'undefined' && App.currentPage !== 'cases') {
-      App.navigate('cases', false);
-    }
+    this.ensureModalInDOM(true);
 
     const modal = document.getElementById('caseModal');
     if (!modal) {
-      setTimeout(() => this.showEditModal(id), 50);
+      setTimeout(() => this.showEditModal(id, returnPage, returnTab, returnClientId), 50);
       return;
     }
 
@@ -1975,18 +1987,38 @@ const Cases = {
   },
 
   closeModal() {
-    document.getElementById('caseModal').style.display = 'none';
+    const modal = document.getElementById('caseModal');
+    if (modal) modal.style.display = 'none';
     this.editingId = null;
     this._submitMode = 'close';
-    if (this.returnPage) {
-      const page = this.returnPage;
-      const tab = this.returnTab;
-      this.returnPage = null;
-      this.returnTab = null;
-      App.navigate(page);
+
+    const retClientId = this.returnClientId;
+    this.returnClientId = null;
+
+    const page = this.returnPage;
+    const tab = this.returnTab;
+    this.returnPage = null;
+    this.returnTab = null;
+
+    if (page) {
+      if (typeof App !== 'undefined') {
+        if (page !== App.currentPage) {
+          App.navigate(page);
+        } else {
+          App.refreshView();
+        }
+      }
       if (page === 'inbox' && tab && typeof InboxManager !== 'undefined') {
         InboxManager.switchTab(tab);
       }
+    } else {
+      if (typeof App !== 'undefined') {
+        App.refreshView();
+      }
+    }
+
+    if (retClientId && typeof Clients !== 'undefined' && typeof Clients.showDetail === 'function') {
+      Clients.showDetail(retClientId);
     }
   },
 

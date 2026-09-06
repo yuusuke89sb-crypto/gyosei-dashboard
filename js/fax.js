@@ -237,7 +237,7 @@ const FaxManager = {
               let actionHtml = '';
               if (l.direction === '受信') {
                 if (linkedCase) {
-                  actionHtml = `<span style="color:var(--accent-green);font-weight:600;cursor:pointer" onclick="App.navigate('cases'); setTimeout(() => Cases.showEditModal('${linkedCase.id}'), 100)">✅ 案件登録済</span>`;
+                  actionHtml = `<span style="color:var(--accent-green);font-weight:600;cursor:pointer" onclick="Cases.showEditModal('${linkedCase.id}', App.currentPage)">✅ 案件登録済</span>`;
                 } else {
                   actionHtml = `<button class="btn btn-secondary btn-small" onclick="FaxManager.createCase('${l.date}', '${l.number}', '${l.subject}', '${l.clientName || ''}')">➕ 案件登録</button>`;
                 }
@@ -286,10 +286,9 @@ const FaxManager = {
       faxId: faxId
     };
     
-    App.navigate('cases');
-    setTimeout(() => {
-      Cases.showAddModal(prefills);
-    }, 100);
+    if (typeof Cases !== 'undefined' && typeof Cases.showAddModal === 'function') {
+      Cases.showAddModal(prefills, App.currentPage);
+    }
   },
 
   // 未対応の受信FAXを抽出する

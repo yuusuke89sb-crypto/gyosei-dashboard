@@ -819,7 +819,7 @@ const InheritanceDeadlines = {
             let urgencyClass = dl.diffDays < 0 ? 'overdue' : dl.diffDays <= 30 ? 'warning' : '';
             let urgencyLabel = dl.diffDays < 0 ? `${Math.abs(dl.diffDays)}日超過` : `あと${dl.diffDays}日`;
             return `
-              <div class="urgent-item ${urgencyClass}" onclick="App.navigate('cases'); setTimeout(()=>Cases.showEditModal('${dl.caseId}'),100)">
+              <div class="urgent-item ${urgencyClass}" onclick="Cases.showEditModal('${dl.caseId}', App.currentPage)" style="cursor:pointer;" title="クリックで案件詳細を開く">
                 <div class="urgent-item-header">
                   <span class="urgent-badge badge-${urgencyClass || 'info'}">${icon} ${urgencyLabel}</span>
                   <span class="category-tag category-inheritance">📜 相続</span>
@@ -2461,7 +2461,7 @@ const GarageScheduleWidget = {
             }
 
             return `
-              <div class="urgent-item ${urgencyClass}" onclick="App.navigate('cases'); setTimeout(() => Cases.showEditModal('${s.caseId}'), 100)">
+              <div class="urgent-item ${urgencyClass}" onclick="Cases.showEditModal('${s.caseId}', App.currentPage)" style="cursor:pointer;" title="クリックで案件詳細を開く">
                 <div class="urgent-item-header">
                   <span class="urgent-badge badge-${urgencyClass}">${s.label}</span>
                   <span class="category-tag category-garage_oss" style="font-size:0.7rem">${s.police}</span>

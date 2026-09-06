@@ -314,7 +314,17 @@ const Clients = {
     App.showToast(this.editingId ? '顧客情報を更新しました' : '顧客を登録しました');
   },
 
+  openCaseDetail(caseId, clientId) {
+    const modal = document.getElementById('clientDetailModal');
+    if (modal) modal.remove();
+    if (typeof Cases !== 'undefined' && typeof Cases.showEditModal === 'function') {
+      Cases.showEditModal(caseId, 'clients', null, clientId);
+    }
+  },
+
   showDetail(id) {
+    const oldModal = document.getElementById('clientDetailModal');
+    if (oldModal) oldModal.remove();
     const client = Store.getClient(id);
     if (!client) return;
     const cases = Store.getCasesByClient(id);
@@ -369,7 +379,7 @@ const Clients = {
             <div class="billing-total">¥${billing.total.toLocaleString()}</div>
             <div class="billing-breakdown">
               ${billing.cases.map(c => `
-                <div class="billing-item">
+                <div class="billing-item" onclick="Clients.openCaseDetail('${c.id}', '${client.id}')" style="cursor:pointer;" title="クリックで案件詳細を開く">
                   <span class="category-tag category-${c.category}">${CATEGORY_LABELS[c.category]}</span>
                   <span class="billing-item-title">${c.title}</span>
                   <span class="billing-item-fee">¥${Number(c.fee).toLocaleString()}</span>
@@ -407,14 +417,15 @@ const Clients = {
     document.body.appendChild(modal);
   },
 
-  _renderClientCaseItem(c) {
+  _renderClientCaseItem(c, clientId = null) {
+    const cid = clientId || c.clientId;
     const CATEGORY_LABELS = { garage_oss: '🚗 車庫(OSS)', garage_paper: '📄 車庫(一般)', seal: '🔩 封印', car_reg_standard: '🚘 普通車登録', car_reg_light: '🚙 軽登録' };
     const STATUS_LABELS = { received: '受付', applying: '申請中', delivery: '交付・受取', done: '完了' };
     const applicant = c.carName ? ` 👤 ${c.carName}` : '';
     const carInfo = (c.carNumber || c.vin) ? ` [${c.carNumber || c.vin}]` : '';
     const dateStr = (c.completedAt || c.registrationDate || c.policeDeliveryDate || c.createdAt || '').slice(0, 10);
     return `
-      <div class="mini-case-item" onclick="const m=document.getElementById('clientDetailModal'); if(m) m.remove(); Cases.showEditModal('${c.id}');"
+      <div class="mini-case-item" onclick="Clients.openCaseDetail('${c.id}', '${cid || ''}')"
         style="cursor:pointer; display:flex; align-items:center; gap:8px; padding:6px 10px; transition:background 0.15s; border-radius:6px;"
         onmouseenter="this.style.background='var(--bg-gray, #f3f4f6)'" onmouseleave="this.style.background='transparent'">
         <span class="category-tag category-${c.category}" style="font-size:0.72rem; padding:1px 6px;">${CATEGORY_LABELS[c.category] || c.category}</span>

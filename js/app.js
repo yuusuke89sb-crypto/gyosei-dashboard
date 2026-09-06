@@ -58,6 +58,13 @@ const App = {
       console.error('[App.init] renderContent error:', e);
     }
     try {
+      if (typeof Cases !== 'undefined' && typeof Cases.ensureModalInDOM === 'function') {
+        Cases.ensureModalInDOM();
+      }
+    } catch (e) {
+      console.warn('[App.init] ensureModalInDOM error:', e);
+    }
+    try {
       this.updateNav();
     } catch (e) {
       console.error('[App.init] updateNav error:', e);

@@ -72,7 +72,7 @@ const Calendar = {
         // 案件（現調・申請・交付など）
         dayCaseEvents.slice(0, 2).forEach(ce => {
           const statusClass = ce.status === 'done' ? 'done' : (isPast ? 'overdue' : '');
-          items.push(`<div class="cal-event ${statusClass} category-${ce.category}" title="${ce.title}" onclick="event.stopPropagation(); Cases.showEditModal('${ce.caseId}'); App.navigate('cases')">${ce.title.substring(0, 8)}</div>`);
+          items.push(`<div class="cal-event ${statusClass} category-${ce.category}" title="${ce.title}" onclick="event.stopPropagation(); Cases.showEditModal('${ce.caseId}', 'calendar')">${ce.title.substring(0, 8)}</div>`);
         });
         // 予定
         dayEvents.slice(0, 3 - items.length).forEach(e => {
@@ -190,7 +190,7 @@ const Calendar = {
             const urgencyClass = isApplyingOrDone ? (ce.status === 'done' ? 'done' : 'applying') : (diff < 0 ? 'overdue' : diff <= 3 ? 'urgent' : diff <= 7 ? 'soon' : '');
             const urgencyLabel = isApplyingOrDone ? (ce.status === 'done' ? '完了' : '申請中') : (diff < 0 ? `${Math.abs(diff)}日超過` : diff === 0 ? '本日' : `あと${diff}日`);
             return `
-                        <div class="timeline-item ${urgencyClass}" onclick="Cases.showEditModal('${ce.caseId}'); App.navigate('cases')">
+                        <div class="timeline-item ${urgencyClass}" onclick="Cases.showEditModal('${ce.caseId}', 'calendar')">
                           <div class="timeline-date">${ce.date}<br><span class="timeline-diff">${urgencyLabel}</span></div>
                           <div class="timeline-content">
                             <div class="timeline-title">${ce.icon} ${ce.title}</div>
@@ -225,7 +225,7 @@ const Calendar = {
             const urgencyLabel = dl.diffDays === 0 ? '本日' : `あと${dl.diffDays}日`;
             const urgencyClass = dl.diffDays <= 30 ? 'urgent' : '';
             return `
-                        <div class="timeline-item ${urgencyClass}" onclick="Cases.showEditModal('${dl.caseId}'); App.navigate('cases')" style="border-left:3px solid #dc2626">
+                        <div class="timeline-item ${urgencyClass}" onclick="Cases.showEditModal('${dl.caseId}', 'calendar')" style="border-left:3px solid #dc2626">
                           <div class="timeline-date">${dl.date}<br><span class="timeline-diff">${urgencyLabel}</span></div>
                           <div class="timeline-content">
                             <div class="timeline-title">${icon} ${dl.label}</div>
@@ -672,7 +672,7 @@ const Calendar = {
           const staffName = Store.getStaffName(item.staffId);
           const clickAction = item.type === 'event'
             ? `Calendar.showEventEditModal('${item.id}')`
-            : `App.navigate('cases'); setTimeout(() => Cases.showEditModal('${item.id}'), 100)`;
+            : `Cases.showEditModal('${item.id}', 'calendar')`;
           const icon = item.type === 'event'
             ? (this.EVENT_CATEGORIES.find(ec => ec.key === item.category)?.label.split(' ')[0] || '📌')
             : item.label;

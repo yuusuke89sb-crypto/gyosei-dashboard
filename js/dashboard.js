@@ -71,7 +71,7 @@ function renderDashboard() {
       const urgencyLabel = diffDays < 0 ? `${Math.abs(diffDays)}日超過` : diffDays === 0 ? '本日期限' : `あと${diffDays}日`;
       const memoHtml = (c.memo && typeof c.memo === 'string' && c.memo.trim()) ? `<div class="urgent-item-memo" style="font-size:0.75rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;">📝 ${String(c.memo).trim()}</div>` : '';
       return `
-        <div class="urgent-item ${urgencyClass}" onclick="App.navigate('cases')">
+        <div class="urgent-item ${urgencyClass}" onclick="Cases.showEditModal('${c.id}', 'dashboard')" style="cursor:pointer;" title="クリックで案件詳細を開く">
           <div class="urgent-item-header">
             <span class="urgent-badge badge-${urgencyClass}">${urgencyLabel}</span>
             <span class="category-tag category-${c.category}">${CATEGORY_LABELS[c.category] || c.category}</span>
@@ -93,7 +93,7 @@ function renderDashboard() {
       const diffDays = Store.getDiffDays(c.deadline);
       const memoHtml = (c.memo && typeof c.memo === 'string' && c.memo.trim()) ? `<div class="upcoming-item-memo" style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap;word-break:break-word;">📝 ${String(c.memo).trim()}</div>` : '';
       return `
-        <div class="upcoming-item" onclick="App.navigate('cases')">
+        <div class="upcoming-item" onclick="Cases.showEditModal('${c.id}', 'dashboard')" style="cursor:pointer;" title="クリックで案件詳細を開く">
           <span class="upcoming-days">あと${diffDays}日</span>
           <div>
             <div class="upcoming-title">${c.title}</div>
@@ -119,7 +119,7 @@ function renderDashboard() {
       else if (c.status === 'applying') actionLabel = '交付待ち';
       const memoHtml = (c.memo && typeof c.memo === 'string' && c.memo.trim()) ? `<div style="font-size:0.75rem;color:var(--text-muted);padding-left:24px;white-space:pre-wrap;word-break:break-word;">📝 ${String(c.memo).trim()}</div>` : '';
       todayScheduleHtml += `
-        <div class="today-item" onclick="App.navigate('cases')" style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">
+        <div class="today-item" onclick="Cases.showEditModal('${c.id}', 'dashboard')" style="display:flex;flex-direction:column;gap:2px;align-items:flex-start;cursor:pointer;" title="クリックで案件詳細を開く">
           <div><span class="today-icon">📋</span>[${actionLabel}] ${c.title}</div>
           ${memoHtml}
         </div>`;
@@ -220,7 +220,7 @@ function renderDashboard() {
         <button class="quick-btn" onclick="App.navigate('clients'); setTimeout(() => Clients.showAddModal(), 100)">
           <span class="quick-icon">👤</span>顧客追加
         </button>
-        <button class="quick-btn" onclick="App.navigate('cases'); setTimeout(() => Cases.showAddModal(), 100)">
+        <button class="quick-btn" onclick="Cases.showAddModal(null, 'dashboard')">
           <span class="quick-icon">📋</span>案件登録
         </button>
         <button class="quick-btn" onclick="App.navigate('calendar'); setTimeout(() => Calendar.showEventModal(), 100)">
