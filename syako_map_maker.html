@@ -701,6 +701,21 @@
           <button class="btn btn-accent" style="font-size:0.74rem; padding:4px 8px;" onclick="calcDistance(true)">📏 距離算出＆プロット</button>
         </div>
       </div>
+
+      <!-- 外部地図連携（いつもNAVI・Googleマップで目印＆距離測定） -->
+      <div style="margin-top:10px; padding-top:8px; border-top:1px dashed #334155;">
+        <div style="font-size:0.74rem; color:#94A3B8; font-weight:600; margin-bottom:5px; display:flex; align-items:center; gap:4px;">
+          <span>🌐</span> 外部地図で目印・距離を調査（別窓）:
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-secondary" type="button" style="flex:1; font-size:0.75rem; padding:5px 6px; justify-content:center; background:#1e293b; border-color:#0284c7; color:#38bdf8; font-weight:600;" onclick="openExternalMap('its-mo')" title="いつもNAVI（ゼンリン詳細地図）で周辺の目印（店舗・施設・交差点等）を調査">
+            🌐 いつもNAVI
+          </button>
+          <button class="btn btn-secondary" type="button" style="flex:1; font-size:0.75rem; padding:5px 6px; justify-content:center; background:#1e293b; border-color:#10b981; color:#34d399; font-weight:600;" onclick="openExternalMap('google')" title="Googleマップで出入口や前面道路幅の距離を測定">
+            🗺️ Googleマップ
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 2. 配置図パラメータ -->
@@ -3744,6 +3759,34 @@ async function searchAddress(type) {
 function autoFetchMaps() {
   searchAddress('home');
   searchAddress('parking');
+}
+
+/**
+ * 外部地図（いつもNAVI・Googleマップ）を別タブで開く
+ * @param {'its-mo'|'google'} service 
+ */
+function openExternalMap(service) {
+  const pAddr = (document.getElementById('parkingAddress')?.value || '').trim();
+  const hAddr = (document.getElementById('homeAddress')?.value || '').trim();
+  let addr = pAddr;
+  if (!addr || addr === '同上') {
+    addr = hAddr;
+  }
+  if (!addr) {
+    alert('住所が入力されていません。「使用の本拠の位置」または「保管場所の位置」を入力してください。');
+    return;
+  }
+  let url = '';
+  if (service === 'its-mo') {
+    // いつもNAVI（ゼンリン詳細地図）：目印・施設調査用
+    url = `https://www.its-mo.com/search/all/?keyword=${encodeURIComponent(addr)}`;
+  } else if (service === 'google') {
+    // Googleマップ：距離・出入口幅・前面道路の測定用
+    url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+  }
+  if (url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 }
 
 function toggleSameAddress() {

@@ -812,11 +812,15 @@ const Cases = {
 
                 <!-- 車両・保管場所情報 -->
                 <div id="csf_car_fields" style="background:rgba(59,130,246,0.05); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:12px; margin-bottom:16px">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
                     <span style="font-weight:600; font-size:0.9rem; color:var(--primary-color)">🚗 車両・保管場所情報</span>
-                    <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openSyakoMapMaker()" style="font-size:0.75rem; background:#2563eb; color:#fff; border-color:#2563eb; font-weight:bold;">
-                      🗺️ 所在図・配置図を作成
-                    </button>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                      <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openExternalMap('its-mo')" style="font-size:0.75rem; background:var(--bg-secondary); color:#0284c7; border-color:#0284c7; font-weight:600;" title="いつもNAVI（ゼンリン詳細地図）で周辺の目印（店舗・施設・交差点等）を調査（別窓）">🌐 いつもNAVI</button>
+                      <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openExternalMap('google')" style="font-size:0.75rem; background:var(--bg-secondary); color:#16a34a; border-color:#16a34a; font-weight:600;" title="Googleマップで距離・出入口・道路幅を測定（別窓）">🗺️ Googleマップ</button>
+                      <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openSyakoMapMaker()" style="font-size:0.75rem; background:#2563eb; color:#fff; border-color:#2563eb; font-weight:bold;">
+                        🗺️ 所在図・配置図を作成
+                      </button>
+                    </div>
                   </div>
                   <div class="form-row">
                     <div class="form-group">
@@ -2825,6 +2829,48 @@ const Cases = {
     }
 
     window.open('syako_map_maker.html?' + params.toString(), '_blank');
+  },
+
+  /**
+   * 外部地図（いつもNAVI・Googleマップ）を別窓で開く
+   * @param {'its-mo'|'google'} service 
+   * @param {string} [caseId] 
+   */
+  openExternalMap(service, caseId) {
+    let targetCase = null;
+    if (caseId) {
+      targetCase = Store.getCase(caseId);
+    } else if (this.editingId) {
+      targetCase = Store.getCase(this.editingId);
+    }
+
+    const modal = document.getElementById('caseModal');
+    const isModalOpen = modal && modal.style.display !== 'none';
+
+    let parkAddr = (isModalOpen && document.getElementById('csf_parkingAddress')?.value) || (targetCase && targetCase.parkingAddress) || '';
+    let carAddr = (isModalOpen && document.getElementById('csf_carAddress')?.value) || (targetCase && targetCase.carAddress) || '';
+
+    let addr = parkAddr.trim();
+    if (!addr || addr === '同上') {
+      addr = carAddr.trim();
+    }
+
+    if (!addr) {
+      alert('住所が入力されていません。「使用の本拠の位置（自宅）」または「保管場所の位置（車庫）」を入力してください。');
+      return;
+    }
+
+    let url = '';
+    if (service === 'its-mo') {
+      // いつもNAVI（ゼンリン詳細地図）：目印・施設調査用
+      url = `https://www.its-mo.com/search/all/?keyword=${encodeURIComponent(addr)}`;
+    } else if (service === 'google') {
+      // Googleマップ：距離・出入口幅・前面道路の測定用
+      url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+    }
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   },
 
   renderMapWidget(caseId) {
