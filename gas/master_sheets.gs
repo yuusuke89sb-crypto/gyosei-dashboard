@@ -95,7 +95,9 @@ function onOpen() {
     .addItem('🚀 初期セットアップ', 'initialSetup')
     .addItem('🚗 陸運局・愛知トヨタ初期データ登録', 'forcePopulateDefaults')
     .addItem('📍 場所マスタ車庫報酬の初期設定', 'updateLocationFees')
-    .addItem('📍 案件マスタの報酬を最新警察署単価で一括更新', 'updateCaseFeesFromLocations')
+    .addItem('📍 案件マスタの報酬を最新警察署単価で一括更新（一般のみ）', 'updateCaseFeesFromLocations')
+    .addItem('🚗 車庫証明（OSS）の報酬を一律3,500円に復元', 'restoreAllOssFeesTo3500')
+    .addItem('📥 インボックス「保留」入力規則の修復', 'fixInboxStatusValidation')
     .addSeparator()
     .addItem('✅ データ検証（顧客マスタ）', 'validateCustomerData')
     .addItem('✅ データ検証（担当者マスタ）', 'validateStaffData')
@@ -254,7 +256,7 @@ function setupInboxSheet_() {
   const widths = [130, 130, 70, 180, 200, 300, 250, 90, 130, 130];
   widths.forEach((w, i) => sheet.setColumnWidth(i + 1, w));
 
-  const statusRule = SpreadsheetApp.newDataValidation().requireValueInList(['未対応', '対応済', '除外'], true).setAllowInvalid(false).build();
+  const statusRule = SpreadsheetApp.newDataValidation().requireValueInList(['未対応', '保留', '対応済', '除外'], true).setAllowInvalid(false).build();
   sheet.getRange('H2:H1000').setDataValidation(statusRule);
 
   const typeRule = SpreadsheetApp.newDataValidation().requireValueInList(['FAX', 'メール'], true).setAllowInvalid(false).build();
@@ -265,14 +267,32 @@ function setupInboxSheet_() {
 
   // 条件付き書式
   const unprocessedRule = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('未対応').setBackground('#fff9c4').setRanges([sheet.getRange('H2:H1000')]).build();
+  const onHoldRule = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('保留').setBackground('#fff3cd').setFontColor('#856404').setRanges([sheet.getRange('H2:H1000')]).build();
   const processedRule = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('対応済').setBackground('#e8f5e9').setRanges([sheet.getRange('H2:H1000')]).build();
   const excludedRule = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('除外').setBackground('#f5f5f5').setFontColor('#9e9e9e').setRanges([sheet.getRange('H2:H1000')]).build();
-  sheet.setConditionalFormatRules([unprocessedRule, processedRule, excludedRule]);
+  sheet.setConditionalFormatRules([unprocessedRule, onHoldRule, processedRule, excludedRule]);
 
   if (!sheet.getFilter()) {
     sheet.getRange(1, 1, sheet.getMaxRows(), INBOX_HEADERS.length).createFilter();
   }
   sheet.setFrozenRows(1);
+}
+
+/**
+ * 登録前BOX（Inbox）のH列の入力規則に「保留」を追加し既存シートを修復する
+ */
+function fixInboxStatusValidation() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.INBOX);
+  if (!sheet) return;
+  const statusRule = SpreadsheetApp.newDataValidation().requireValueInList(['未対応', '保留', '対応済', '除外'], true).setAllowInvalid(false).build();
+  sheet.getRange('H2:H1000').setDataValidation(statusRule);
+  
+  const unprocessedRule = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('未対応').setBackground('#fff9c4').setRanges([sheet.getRange('H2:H1000')]).build();
+  const onHoldRule = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('保留').setBackground('#fff3cd').setFontColor('#856404').setRanges([sheet.getRange('H2:H1000')]).build();
+  const processedRule = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('対応済').setBackground('#e8f5e9').setRanges([sheet.getRange('H2:H1000')]).build();
+  const excludedRule = SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('除外').setBackground('#f5f5f5').setFontColor('#9e9e9e').setRanges([sheet.getRange('H2:H1000')]).build();
+  sheet.setConditionalFormatRules([unprocessedRule, onHoldRule, processedRule, excludedRule]);
 }
 
 // ============================================================
@@ -3065,11 +3085,31 @@ function updateCaseFeesFromLocations() {
   const feeCol = caseHeaders.indexOf('報酬') + 1;
   const polLocCol = caseHeaders.indexOf('警察署場所ID') + 1;
   const carPoliceCol = caseHeaders.indexOf('所轄警察署') + 1;
+  const catCol = caseHeaders.indexOf('カテゴリ') + 1;
+  const titleCol = caseHeaders.indexOf('案件名') + 1;
+  const memoCol = caseHeaders.indexOf('備考') + 1;
   if (feeCol === 0) return;
 
   const caseRows = caseSheet.getRange(2, 1, caseLastRow - 1, caseSheet.getLastColumn()).getValues();
   let updatedCount = 0;
   caseRows.forEach((r, idx) => {
+    const cat = catCol > 0 ? String(r[catCol - 1]).trim() : '';
+    const title = titleCol > 0 ? String(r[titleCol - 1]).trim() : '';
+    const memo = memoCol > 0 ? String(r[memoCol - 1]).trim() : '';
+    const isOss = cat === 'garage_oss' || cat.toUpperCase().indexOf('OSS') !== -1 ||
+                  title.toUpperCase().indexOf('OSS') !== -1 || memo.toUpperCase().indexOf('OSS') !== -1;
+    
+    // 所轄警察署で単価が変わるのは「車庫証明（一般）」のみ。車庫証明（OSS）は警察署に行かないため対象外
+    if (isOss) {
+      // OSS車庫証明案件は警察署に出頭しないため一律3,500円（もし誤って所轄単価に変更されていた場合は3,500円に復元）
+      const currentFee = Number(r[feeCol - 1]) || 0;
+      if (currentFee !== 3500 && currentFee > 0) {
+        caseSheet.getRange(idx + 2, feeCol).setValue(3500);
+        updatedCount++;
+      }
+      return;
+    }
+
     const polId = polLocCol > 0 ? String(r[polLocCol - 1]).trim() : '';
     const carPolice = carPoliceCol > 0 ? String(r[carPoliceCol - 1]).replace(/\s+/g, '') : '';
     let targetFee = 0;
@@ -3095,6 +3135,46 @@ function updateCaseFeesFromLocations() {
 
   const ui = SpreadsheetApp.getUi();
   if (ui) {
-    ui.alert('案件マスタ報酬更新完了', `${updatedCount}件の案件の報酬を警察署マスタの最新単価に更新しました。\nダッシュボード側で「同期」を行ってください。`, ui.ButtonSet.OK);
+    ui.alert('案件マスタ報酬更新完了', `${updatedCount}件の案件の報酬を更新しました（一般車庫は最新所轄単価、OSS車庫は一律3,500円を復元）。\nダッシュボード側で「同期」を行ってください。`, ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * 🚗 車庫証明（OSS）案件の報酬を一括で3,500円に復元する専用修復関数
+ */
+function restoreAllOssFeesTo3500() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const caseSheet = ss.getSheetByName(SHEET_NAMES.CASES);
+  if (!caseSheet) return;
+
+  const caseLastRow = caseSheet.getLastRow();
+  if (caseLastRow < 2) return;
+  const caseHeaders = caseSheet.getRange(1, 1, 1, caseSheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const feeCol = caseHeaders.indexOf('報酬') + 1;
+  const catCol = caseHeaders.indexOf('カテゴリ') + 1;
+  const titleCol = caseHeaders.indexOf('案件名') + 1;
+  const memoCol = caseHeaders.indexOf('備考') + 1;
+  if (feeCol === 0 || catCol === 0) return;
+
+  const caseRows = caseSheet.getRange(2, 1, caseLastRow - 1, caseSheet.getLastColumn()).getValues();
+  let updatedCount = 0;
+  caseRows.forEach((r, idx) => {
+    const cat = String(r[catCol - 1]).trim();
+    const title = titleCol > 0 ? String(r[titleCol - 1]).trim() : '';
+    const memo = memoCol > 0 ? String(r[memoCol - 1]).trim() : '';
+    const isOss = cat === 'garage_oss' || cat.toUpperCase().indexOf('OSS') !== -1 ||
+                  title.toUpperCase().indexOf('OSS') !== -1 || memo.toUpperCase().indexOf('OSS') !== -1;
+    if (isOss) {
+      const currentFee = Number(r[feeCol - 1]) || 0;
+      if (currentFee !== 3500) {
+        caseSheet.getRange(idx + 2, feeCol).setValue(3500);
+        updatedCount++;
+      }
+    }
+  });
+
+  const ui = SpreadsheetApp.getUi();
+  if (ui) {
+    ui.alert('OSS報酬復元完了', `${updatedCount}件のOSS車庫証明案件の報酬を一律3,500円に修正しました。\nダッシュボード側で「同期」を行ってください。`, ui.ButtonSet.OK);
   }
 }

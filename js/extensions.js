@@ -236,16 +236,30 @@ const GlobalSearch = {
     modal.style.display = 'flex';
     modal.innerHTML = `
       <div class="modal-overlay" onclick="document.getElementById('globalSearchModal').remove()"></div>
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>🔍 検索</h2>
-          <button class="modal-close" onclick="document.getElementById('globalSearchModal').remove()">✕</button>
+      <div class="modal-content" style="max-width: 720px; width: 95%; background: #0f172a; border: 1px solid #334155; border-radius: 16px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.85);">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #334155; padding-bottom: 12px;">
+          <h2 style="font-size: 1.25rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; margin: 0;">
+            <span style="font-size: 1.35rem;">🔍</span> 案件・顧客 リアルタイム検索
+          </h2>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 0.75rem; color: #94a3b8; background: #1e293b; padding: 2px 8px; border-radius: 4px; border: 1px solid #475569;">ESCで閉じる</span>
+            <button class="modal-close" onclick="document.getElementById('globalSearchModal').remove()" style="font-size: 1.4rem; color: #94a3b8; cursor: pointer; background: none; border: none; line-height: 1; padding: 0 4px;" title="閉じる">✕</button>
+          </div>
         </div>
-        <input type="text" id="globalSearchInput" class="search-input" placeholder="顧客名・案件名で検索..." autofocus
-          value="${this._lastQuery || ''}"
-          oninput="GlobalSearch.onSearch(this.value)" style="width:100%;margin-bottom:12px">
-        <div id="globalSearchResults" class="mini-case-list" style="max-height:400px;overflow-y:auto">
-          <p class="empty-message">キーワードを入力してください</p>
+        
+        <div style="position: relative; margin-bottom: 16px;">
+          <input type="text" id="globalSearchInput" class="search-input" 
+            placeholder="🔍 顧客名・申請者名・車台番号・ナンバー・注文書No等で検索..." autofocus
+            value="${this._lastQuery || ''}"
+            oninput="GlobalSearch.onSearch(this.value)" 
+            style="width: 100%; font-size: 1.05rem; padding: 13px 18px 13px 44px; background: #1e293b; color: #ffffff !important; border: 2px solid #3b82f6; border-radius: 10px; outline: none; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+          <span style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); font-size: 1.15rem; color: #60a5fa; pointer-events: none;">🔍</span>
+        </div>
+
+        <div id="globalSearchResults" style="max-height: 460px; overflow-y: auto; padding-right: 4px;">
+          <p style="padding: 36px 16px; text-align: center; color: #94a3b8; font-size: 0.95rem; line-height: 1.6;">
+            💡 顧客名、会社名、申請者名、車台番号、ナンバープレート、注文書Noなどを入力してください
+          </p>
         </div>
       </div>
     `;
@@ -266,7 +280,14 @@ const GlobalSearch = {
     this._lastQuery = q;
     q = q.trim().toLowerCase();
     const results = document.getElementById('globalSearchResults');
-    if (!q) { results.innerHTML = '<p class="empty-message">キーワードを入力してください</p>'; return; }
+    if (!q) { 
+      results.innerHTML = `
+        <p style="padding: 36px 16px; text-align: center; color: #94a3b8; font-size: 0.95rem; line-height: 1.6;">
+          💡 顧客名、会社名、申請者名、車台番号、ナンバープレート、注文書Noなどを入力してください
+        </p>
+      `; 
+      return; 
+    }
 
     let html = '';
     const clients = Store.getClients().filter(c =>
@@ -297,30 +318,103 @@ const GlobalSearch = {
     const curPage = (typeof App !== 'undefined' && App.currentPage) ? App.currentPage : 'dashboard';
 
     if (clients.length > 0) {
-      html += '<div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);padding:8px 0">👥 顧客</div>';
+      html += `
+        <div style="font-size: 0.88rem; font-weight: 700; color: #93c5fd; padding: 6px 4px 6px; letter-spacing: 0.5px; border-bottom: 1px solid rgba(147, 197, 253, 0.25); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+          👥 顧客・取引先 (${clients.length}件)
+        </div>
+      `;
       clients.forEach(c => {
-        html += `<div class="mini-case-item" onclick="document.getElementById('globalSearchModal').remove(); App.navigate('clients'); setTimeout(()=>Clients.showDetail('${c.id}'),100)" style="cursor:pointer">
-          <span class="mini-case-title">${c.name}</span>
-          <span style="color:var(--text-secondary);font-size:0.8rem">${c.phone || ''} ${c.email || ''}</span>
-        </div>`;
+        const company = c.companyName && c.companyName !== c.name ? `<span style="font-size: 0.85rem; color: #cbd5e1; margin-left: 6px;">(${c.companyName})</span>` : '';
+        const phone = c.phone ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: #e2e8f0; font-size: 0.88rem;">📞 ${c.phone}</span>` : '';
+        const email = c.email ? `<span style="display: inline-flex; align-items: center; gap: 4px; color: #93c5fd; font-size: 0.88rem;">✉️ ${c.email}</span>` : '';
+        const typeBadge = c.type ? `<span style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">${c.type}</span>` : '';
+        html += `
+          <div class="global-search-item" onclick="document.getElementById('globalSearchModal').remove(); App.navigate('clients'); setTimeout(()=>Clients.showDetail('${c.id}'),100)" 
+            style="cursor: pointer; padding: 12px 16px; margin-bottom: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <div style="font-size: 1.05rem; font-weight: 700; color: #f8fafc;">
+                ${c.name} ${company}
+              </div>
+              ${typeBadge}
+            </div>
+            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 4px;">
+              ${phone}
+              ${email}
+              ${c.address ? `<span style="color: #94a3b8; font-size: 0.82rem;">📍 ${c.address}</span>` : ''}
+            </div>
+          </div>
+        `;
       });
     }
+
     if (cases.length > 0) {
-      html += '<div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);padding:8px 0">📋 案件</div>';
+      html += `
+        <div style="font-size: 0.88rem; font-weight: 700; color: #93c5fd; padding: 12px 4px 6px; letter-spacing: 0.5px; border-bottom: 1px solid rgba(147, 197, 253, 0.25); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+          📋 案件・書類 (${cases.length}件)
+        </div>
+      `;
       cases.forEach(c => {
         const client = Store.getClient(c.clientId);
-        const applicantInfo = c.carName ? ` ｜ 👤 申請者: <strong>${c.carName}</strong>` : '';
-        const carInfo = (c.carNumber || c.oldCarNumber || c.vin) ? ` ｜ 🚗 ${c.carNumber || c.oldCarNumber || c.vin}` : '';
-        html += `<div class="mini-case-item" onclick="document.getElementById('globalSearchModal').remove(); Cases.showEditModal('${c.id}', '${curPage}')" style="cursor:pointer; display:flex; align-items:center;">
-          <div style="flex:1;">
-            <div class="mini-case-title" style="margin-bottom:2px;">${c.title} ${c.orderNo ? `<span style="font-weight:normal;font-size:0.8rem;color:#6b7280;margin-left:4px">(${c.orderNo})</span>` : ''}</div>
-            <div style="color:var(--text-secondary);font-size:0.8rem">${client ? client.name : '—'}${applicantInfo}${carInfo}</div>
+        const clientName = client ? (client.companyName || client.name) : (c.clientName || '—');
+        
+        const CATS = { 
+          garage_oss: { label: '🚗 車庫(OSS)', bg: '#2563eb', color: '#fff' }, 
+          garage_paper: { label: '📄 車庫(一般)', bg: '#0284c7', color: '#fff' }, 
+          seal: { label: '🔩 出張封印', bg: '#d97706', color: '#fff' }, 
+          car_reg_standard: { label: '🚘 普通登録', bg: '#059669', color: '#fff' }, 
+          car_reg_light: { label: '🚙 軽登録', bg: '#10b981', color: '#fff' } 
+        };
+        const catInfo = CATS[c.category] || { label: c.category || 'その他', bg: '#475569', color: '#fff' };
+        
+        const isDone = c.status === 'done';
+        const statusBg = isDone ? '#475569' : '#16a34a';
+        const statusText = isDone ? '完了' : (c.status || '進行中');
+
+        const applicant = c.carName || c.applicantName;
+        const carNo = c.carNumber || c.oldCarNumber || c.vin;
+        const feeStr = c.fee ? `¥${Number(c.fee).toLocaleString()}` : '';
+
+        html += `
+          <div class="global-search-item" onclick="document.getElementById('globalSearchModal').remove(); Cases.showEditModal('${c.id}', '${curPage}')" 
+            style="cursor: pointer; padding: 12px 16px; margin-bottom: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; ${isDone ? 'opacity: 0.85;' : ''}">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: ${catInfo.bg}; color: ${catInfo.color};">${catInfo.label}</span>
+                <span style="font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: ${statusBg}; color: #fff;">${statusText}</span>
+                ${c.orderNo ? `<span style="font-size: 0.78rem; font-weight: 600; font-family: monospace; background: rgba(59,130,246,0.18); color: #93c5fd; padding: 1px 6px; border-radius: 4px;">No: ${c.orderNo}</span>` : ''}
+              </div>
+              ${feeStr ? `<div style="font-size: 1.0rem; font-weight: 700; color: #fbbf24;">${feeStr}</div>` : ''}
+            </div>
+
+            <div style="font-size: 1.05rem; font-weight: 700; color: #ffffff; margin-bottom: 6px; line-height: 1.4;">
+              ${c.title}
+            </div>
+
+            <div style="display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.88rem; color: #cbd5e1; line-height: 1.5;">
+              <span>🏢 <strong style="color: #ffffff;">${clientName}</strong></span>
+              ${applicant ? `<span>👤 申請者: <strong style="color: #38bdf8;">${applicant}</strong> 様</span>` : ''}
+              ${carNo ? `<span style="background: rgba(245, 158, 11, 0.15); color: #fde047; padding: 1px 6px; border-radius: 4px; font-weight: 600;">🚗 ${carNo}</span>` : ''}
+              ${c.carPolice ? `<span>📍 <span style="color: #e2e8f0;">${c.carPolice}</span></span>` : ''}
+            </div>
+
+            ${c.driveFolderUrl ? `
+              <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+                <button class="btn btn-secondary btn-small" style="font-size: 0.78rem; padding: 3px 10px; font-weight: 600;" onclick="event.stopPropagation(); window.open('${c.driveFolderUrl}', '_blank')">📁 Google Drive</button>
+              </div>
+            ` : ''}
           </div>
-          ${c.driveFolderUrl ? `<button class="btn btn-secondary" style="font-size:0.75rem; padding:4px 8px; border-radius:4px;" onclick="event.stopPropagation(); window.open('${c.driveFolderUrl}', '_blank')">📁 Drive</button>` : ''}
-        </div>`;
+        `;
       });
     }
-    if (!html) html = '<p class="empty-message">見つかりません</p>';
+
+    if (!html) {
+      html = `
+        <div style="padding: 36px 16px; text-align: center; color: #f87171; font-size: 1rem; font-weight: 500;">
+          ⚠️ 「<strong>${q}</strong>」に一致する案件または顧客が見つかりませんでした
+        </div>
+      `;
+    }
     results.innerHTML = html;
   },
 };
@@ -343,8 +437,15 @@ const CaseTemplates = {
     const feeEl = document.getElementById('csf_fee');
     if (!feeEl) return;
 
-    // ★警察署が選択済みの場合は警察署の一般報酬を適用！
-    if (category === 'garage_paper' || category === 'garage_oss' || (category && category.includes('garage'))) {
+    // ★車庫証明（OSS）は警察署に出頭しないため所轄単価は適用せず、トヨタ関係含め一律3,500円
+    if (category === 'garage_oss') {
+      feeEl.value = 3500;
+      this._lastAppliedCategory = category;
+      return;
+    }
+
+    // ★所轄で単価が変わるのは「車庫証明（一般）」のみ！警察署が選択済みの場合は警察署単価を適用
+    if (category === 'garage_paper') {
       const polSel = document.getElementById('csf_policeLocationId');
       const polId = polSel ? polSel.value : '';
       if (polId && typeof Store !== 'undefined' && Store.getLocation) {
@@ -497,9 +598,32 @@ const CaseTemplates = {
 
       cases.forEach(c => {
         if (!c) return;
-        const isGarage = c.category === 'garage_paper' || c.category === 'garage_oss' ||
-                         (c.title && String(c.title).includes('車庫')) || (c.memo && String(c.memo).includes('車庫'));
-        if (!isGarage) return;
+        const cat = c.category || '';
+        const title = c.title || '';
+        const memo = c.memo || '';
+        const isOss = cat === 'garage_oss' || 
+                      title.toUpperCase().includes('OSS') || 
+                      memo.toUpperCase().includes('OSS');
+
+        // ★所轄で単価が変わるのはあくまで「車庫証明（一般）」のみ！
+        // 車庫証明（OSS）は警察署に行かないため所轄単価を適用しない
+        if (isOss) {
+          // トヨタ関係のOSS案件、あるいはgarage_oss案件で誤って所轄単価に更新されていた場合、一律3,500円に復元
+          const isToyota = (typeof Store.isToyotaCase === 'function') ? Store.isToyotaCase(c) : (title + memo).includes('トヨタ');
+          if (isToyota || cat === 'garage_oss') {
+            const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
+            if (currentFee !== 3500 && currentFee > 0) {
+              Store.updateCase(c.id, { fee: 3500 });
+              updatedCount++;
+              details.push(`${c.title || '案件'}: ¥${currentFee} → ¥3,500 (OSS一律単価維持)`);
+            }
+          }
+          return;
+        }
+
+        const isGaragePaper = cat === 'garage_paper' ||
+                              ((title.includes('車庫') || memo.includes('車庫')) && !isOss);
+        if (!isGaragePaper) return;
 
         const regDate = c.registeredAt || (c.createdAt ? String(c.createdAt).slice(0, 10) : '');
         // 9月請求対象（2026-08-26以降）または未完了案件、またはforceAll時

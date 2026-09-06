@@ -197,9 +197,9 @@ const Cases = {
         <div class="filter-bar" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
           <!-- 🔍 キーワード検索ボックス -->
           <div class="filter-group" style="position:relative; flex:1; min-width:220px; max-width:380px;">
-            <input type="text" id="caseSearchInput" class="filter-input" placeholder="🔍 申請者名・車台・ナンバー・注文書No等..."
+            <input type="text" id="caseSearchInput" class="filter-input" autocomplete="off" spellcheck="false" placeholder="🔍 申請者名・車台・ナンバー・注文書No等..."
               value="${this.searchQuery}" oninput="Cases.onSearchInput(this.value)"
-              style="width:100%; padding:6px 28px 6px 10px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-card,#fff); color:var(--text-color); font-size:0.85rem;">
+              style="width:100%; padding:9px 32px 9px 14px; border-radius:8px; border:2px solid #3b82f6; background:#1e293b; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; font-size:1.0rem; font-weight:600; caret-color:#38bdf8;">
             ${this.searchQuery ? `<button type="button" onclick="Cases.clearSearch()" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.85rem;" title="検索クリア">✕</button>` : ''}
           </div>
 
@@ -1843,14 +1843,20 @@ const Cases = {
       const policeLocationIdEl = document.getElementById('csf_policeLocationId');
       if (policeLocationIdEl) policeLocationIdEl.value = resolvedPolId;
 
-      // 報酬額の反映（未設定または旧デフォルト3,500円で警察署マスタ単価があれば最新単価を自動補完）
+      // 報酬額の反映（一般車庫のみ警察署マスタ単価を自動補完、OSSは警察署出頭なしのため所轄単価対象外・一律3,500円）
       let curFee = c.fee;
-      if (resolvedPolId && typeof Store !== 'undefined') {
+      const isGaragePaper = c.category === 'garage_paper';
+      const isGarageOss = c.category === 'garage_oss';
+      if (isGaragePaper && resolvedPolId && typeof Store !== 'undefined') {
         const loc = Store.getLocation(resolvedPolId);
         if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
           if (!curFee || Number(curFee) === 0 || Number(curFee) === 3500) {
             curFee = loc.syakoFee;
           }
+        }
+      } else if (isGarageOss) {
+        if (!curFee || Number(curFee) === 0) {
+          curFee = 3500;
         }
       }
       document.getElementById('csf_fee').value = curFee || '';
@@ -2385,13 +2391,12 @@ const Cases = {
     }
   },
 
-  // 申請先警察署の変更時ハンドラ（車庫証明全般で単価自動連動）
+  // 申請先警察署の変更時ハンドラ（所轄で単価が変わるのは「車庫証明（一般）」のみ）
   onPoliceLocationChange(locationId) {
     const catEl = document.getElementById('csf_category');
     const cat = catEl ? catEl.value : '';
-    const isGarage = cat === 'garage_paper' || cat === 'garage_oss' || (cat && cat.includes('garage'));
 
-    if (isGarage) {
+    if (cat === 'garage_paper') {
       if (!locationId) {
         this.updateFeeHint('');
         return;
@@ -2402,9 +2407,16 @@ const Cases = {
         if (feeEl) {
           feeEl.value = loc.syakoFee;
           if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast(`📍 ${loc.name}の車庫証明報酬（¥${Number(loc.syakoFee).toLocaleString()}）を反映しました`);
+            App.showToast(`📍 ${loc.name}の車庫証明（一般）報酬（¥${Number(loc.syakoFee).toLocaleString()}）を反映しました`);
           }
         }
+      }
+      this.updateFeeHint(locationId);
+    } else if (cat === 'garage_oss') {
+      // 車庫証明（OSS）は警察署に出頭しないため所轄単価を適用せず、一律3,500円
+      const feeEl = document.getElementById('csf_fee');
+      if (feeEl && (!feeEl.value || Number(feeEl.value) === 0)) {
+        feeEl.value = 3500;
       }
       this.updateFeeHint(locationId);
     }
@@ -2413,12 +2425,24 @@ const Cases = {
   updateFeeHint(locationId) {
     const hintEl = document.getElementById('csf_fee_hint');
     if (!hintEl) return;
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+
+    if (cat === 'garage_oss') {
+      hintEl.innerHTML = `
+        <span style="color:var(--text-secondary); font-size:0.75rem;">
+          🚗 OSS車庫証明: <strong style="color:var(--accent-primary, #4f46e5)">一律¥3,500</strong>（警察署出頭なし・所轄単価対象外）
+        </span>
+      `;
+      return;
+    }
+
     if (!locationId && typeof Store !== 'undefined') {
       const polEl = document.getElementById('csf_policeLocationId');
       if (polEl && polEl.value) locationId = polEl.value;
     }
     const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
-    if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+    if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && cat === 'garage_paper') {
       const currentFee = document.getElementById('csf_fee')?.value;
       const isDiff = Number(currentFee) !== Number(loc.syakoFee);
       hintEl.innerHTML = `
@@ -2433,6 +2457,14 @@ const Cases = {
   },
 
   applyPoliceFeeToForm(fee) {
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+    if (cat === 'garage_oss') {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('ℹ️ 車庫証明（OSS）は警察署出頭がないため、所轄単価ではなく一律3,500円が適用されます');
+      }
+      return;
+    }
     const feeEl = document.getElementById('csf_fee');
     if (feeEl && fee) {
       feeEl.value = fee;
@@ -2463,12 +2495,17 @@ const Cases = {
     const subCatGroup = document.getElementById('csf_subCategory_group');
     if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
 
-    // 車庫証明に切り替えた場合、もし警察署が選択済みならその警察署の単価を反映
-    if (category === 'garage_paper' || category === 'garage_oss' || (category && category.includes('garage'))) {
+    // 車庫証明（一般）に切り替えた場合、警察署が選択済みならその警察署の単価を反映
+    if (category === 'garage_paper') {
       const polEl = document.getElementById('csf_policeLocationId');
       if (polEl && polEl.value) {
         this.onPoliceLocationChange(polEl.value);
       }
+    } else if (category === 'garage_oss') {
+      // 車庫証明（OSS）に切り替えた場合、一律3,500円をセット
+      const feeEl = document.getElementById('csf_fee');
+      if (feeEl) feeEl.value = 3500;
+      this.updateFeeHint();
     }
 
     // マイルストーン表示の動的切り替え

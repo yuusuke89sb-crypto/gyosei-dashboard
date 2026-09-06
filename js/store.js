@@ -625,6 +625,10 @@ const Store = {
         };
         inbox.push(createdItem);
         this._set(this.KEYS.INBOX, inbox);
+        // スプレッドシートへ自動プッシュ
+        if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+          SpreadsheetSync.push('upsertInboxItem', createdItem);
+        }
         return createdItem;
       }
       return null;
@@ -902,5 +906,22 @@ const Store = {
     } else {
       return this.getBillingPeriod(y, m);
     }
+  },
+
+  // トヨタ関連顧客判定
+  isToyotaClient(clientId) {
+    if (!clientId) return false;
+    const client = this.getClient(clientId);
+    if (!client) return false;
+    const name = ((client.companyName || '') + ' ' + (client.name || '') + ' ' + (client.tradeName || '')).toUpperCase();
+    return name.includes('トヨタ') || name.includes('TOYOTA') || name.includes('WEST') || name.includes('キャラット');
+  },
+
+  // トヨタ関連案件判定
+  isToyotaCase(c) {
+    if (!c) return false;
+    if (c.clientId && this.isToyotaClient(c.clientId)) return true;
+    const text = ((c.clientName || '') + ' ' + (c.title || '') + ' ' + (c.memo || '')).toUpperCase();
+    return text.includes('トヨタ') || text.includes('TOYOTA') || text.includes('WEST') || text.includes('キャラット');
   },
 };

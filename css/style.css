@@ -18,10 +18,12 @@
   --bg-primary: #0b1120;
   --bg-secondary: #111827;
   --bg-card: #1e293b;
+  --card-bg: #1e293b;
   --bg-card-hover: #263347;
   --bg-input: #1e293b;
   --border-color: #2d3a4f;
   --text-primary: #f1f5f9;
+  --text-color: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --accent-gold: #f59e0b;
@@ -704,19 +706,37 @@ a {
 .search-input {
   width: 100%;
   padding: 12px 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: #1e293b;
+  border: 1.5px solid #3b82f6;
   border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: 0.92rem;
+  color: #ffffff !important;
+  font-size: 1rem;
+  font-weight: 500;
   font-family: inherit;
-  transition: border-color var(--transition);
+  transition: all var(--transition);
+}
+
+.search-input::placeholder {
+  color: #94a3b8;
 }
 
 .search-input:focus {
   outline: none;
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  background: #0f172a;
+}
+
+/* グローバル検索アイテム用 */
+.global-search-item {
+  transition: all 0.15s ease;
+}
+
+.global-search-item:hover {
+  background: #273549 !important;
+  border-color: #60a5fa !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
 /* ---- 顧客カード ---- */
@@ -2767,7 +2787,8 @@ form select:focus {
   font-style: italic;
   padding-top: 6px;
 }
-
+
+
 /* ==========================================
    TODO繝ｪ繧ｹ繝・(1譌･陦ｨ遉ｺ蜀・
    ========================================== */
@@ -3894,4 +3915,32 @@ form select:focus {
   .inh-check-grid {
     flex-direction: column;
   }
+}
+
+
+/* ---- 検索バー・入力フィールドの視認性強制強化 ---- */
+#caseSearchInput,
+.filter-input,
+.search-input {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1e293b !important;
+  caret-color: #38bdf8 !important;
+}
+
+#caseSearchInput::placeholder,
+.filter-input::placeholder,
+.search-input::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+/* Chrome/Edgeのオートコンプリート背景・文字色上書き */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #1e293b inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
