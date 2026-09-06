@@ -139,13 +139,13 @@ const OssDocuWorks = {
       try {
         const pngBytes = await fetch(sozaiPngSrc).then(r => r.arrayBuffer());
         const sozaiImg = await targetDoc.embedPng(pngBytes);
-        // 所在図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：余白や2重線を完全防止）
-        // 原紙枠内寸法: x: 71.0, y: 49.5 (原紙下端から), 幅: 700.0, 高さ: 422.5
+        // 所在図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
+        // 原紙枠内寸法: x: 61.0, y: 41.5 (原紙下端から), 幅: 720.0, 高さ: 434.5
         sozaiPage.drawImage(sozaiImg, {
-          x: 71.0,
-          y: 49.5,
-          width: 700.0,
-          height: 422.5
+          x: 61.0,
+          y: 41.5,
+          width: 720.0,
+          height: 434.5
         });
       } catch(e) {
         console.warn('Failed to embed sozai map image:', e);
@@ -156,13 +156,13 @@ const OssDocuWorks = {
       try {
         const pngBytes = await fetch(haichiPngSrc).then(r => r.arrayBuffer());
         const haichiImg = await targetDoc.embedPng(pngBytes);
-        // 配置図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：上部タイトルバーや下部備考欄との2重線を完全防止）
-        // 原紙枠内寸法: x: 71.0, y: 82.0 (原紙下端から), 幅: 699.5, 高さ: 393.5
+        // 配置図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
+        // 原紙枠内寸法: x: 61.0, y: 74.5 (原紙下端から), 幅: 720.0, 高さ: 405.5
         haichiPage.drawImage(haichiImg, {
-          x: 71.0,
-          y: 82.0,
-          width: 699.5,
-          height: 393.5
+          x: 61.0,
+          y: 74.5,
+          width: 720.0,
+          height: 405.5
         });
       } catch(e) {
         console.warn('Failed to embed haichi map image:', e);
@@ -171,40 +171,38 @@ const OssDocuWorks = {
 
     // Embed standard HelveticaBold for digits (exact coordinate matching)
     const font = await targetDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-    const cellW = 19.515;
+    const cellW = 20.07;
 
-    // 注文書№ 8桁の印字（所在図・配置図それぞれのセル中心に完全整合）
+    // 注文書№ 8桁の印字（所在図・配置図それぞれのセル中心に完全整合：7mm拡大版）
     for (let i = 0; i < 8; i++) {
       const ch = payload.orderNo8[i] || '0';
-      const cxSozai = 224.40 + i * cellW + 5.0;
-      const cxHaichi = 225.04 + i * cellW + 5.0;
-      sozaiPage.drawText(ch, { x: cxSozai, y: 523.5, size: 16.5, font, color: rgb(0, 0, 0) });
-      haichiPage.drawText(ch, { x: cxHaichi, y: 527.5, size: 16.5, font, color: rgb(0, 0, 0) });
+      const cxSozai = 220.50 + i * cellW + 5.5;
+      const cxHaichi = 220.30 + i * cellW + 5.5;
+      sozaiPage.drawText(ch, { x: cxSozai, y: 525.0, size: 17.0, font, color: rgb(0, 0, 0) });
+      haichiPage.drawText(ch, { x: cxHaichi, y: 531.0, size: 17.0, font, color: rgb(0, 0, 0) });
     }
 
-    // 注文書№ 8マスの縦線（グリッド線）の完全保証描画（PDF-Libによるベクター線描画で消去を100%防止）
-    // 所在図: x=224.40〜380.52, y=514.48〜544.72
+    // 注文書№ 8マスの縦線（グリッド線）の完全保証描画（PDF-Libによるベクター線描画で消去を100%防止：7mm拡大版）
     for (let i = 0; i <= 8; i++) {
-      const vx = 224.40 + i * cellW;
+      const vxS = 220.50 + i * cellW;
       sozaiPage.drawLine({
-        start: { x: vx, y: 595.32 - 80.84 },
-        end: { x: vx, y: 595.32 - 50.60 },
+        start: { x: vxS, y: 519.5 },
+        end: { x: vxS, y: 550.5 },
         thickness: 1.44,
         color: rgb(0, 0, 0)
       });
     }
-    // 配置図: x=225.04〜381.16, y=519.40〜548.92
     for (let i = 0; i <= 8; i++) {
-      const vx = 225.04 + i * cellW;
+      const vxH = 220.30 + i * cellW;
       haichiPage.drawLine({
-        start: { x: vx, y: 595.32 - 75.92 },
-        end: { x: vx, y: 595.32 - 46.40 },
+        start: { x: vxH, y: 524.5 },
+        end: { x: vxH, y: 556.0 },
         thickness: 1.44,
         color: rgb(0, 0, 0)
       });
     }
 
-    // Embed Dealer Info overlay (Dealer name + Phone) - 完全透過PNG
+    // Embed Dealer Info overlay (Dealer name + Phone) - 完全透過PNG (7mm拡大版)
     try {
       const dealerPng = this._renderDealerInfoPng(payload.dealerName, payload.dealerTel);
       if (dealerPng) {

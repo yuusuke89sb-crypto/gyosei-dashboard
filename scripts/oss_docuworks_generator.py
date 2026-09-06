@@ -52,43 +52,44 @@ def generate_haichi_pdf(data, output_pdf=None):
     page = doc[0]
 
     order_no_8 = format_order_no_8(data.get('orderNo', ''))
-    start_x_h = 225.04
+    cell_w = 20.07
+    start_x_h = 220.30
     for i, ch in enumerate(order_no_8):
-        cx = start_x_h + i * CELL_WIDTH
+        cx = start_x_h + i * cell_w
         page.insert_text(
-            (cx + 5.0, 68.0),
+            (cx + 5.5, 64.0),
             ch,
             fontname="msgothic",
             fontfile=FONT_PATH,
-            fontsize=16.5,
+            fontsize=17.0,
             color=(0, 0, 0)
         )
 
-    # 注文書№ 8マスの縦線（グリッド線）の完全保証描画
+    # 注文書№ 8マスの縦線（グリッド線）の完全保証描画（7mm拡大版）
     for i in range(9):
-        vx = start_x_h + i * CELL_WIDTH
-        page.draw_line(fitz.Point(vx, 46.4), fitz.Point(vx, 75.92), color=(0, 0, 0), width=1.44)
+        vx = start_x_h + i * cell_w
+        page.draw_line(fitz.Point(vx, 39.0), fitz.Point(vx, 70.4), color=(0, 0, 0), width=1.44)
 
     dealer_name = data.get('dealerName', '愛知トヨタ 西春店')
     dealer_tel = data.get('dealerTel', '0568-23-2811')
     dealer_text = f"{dealer_name}  ℡ {dealer_tel}".strip() if dealer_tel else dealer_name
     page.insert_text(
-        (575.0, 528.0),
+        (579.0, 539.0),
         dealer_text,
         fontname="msgothic",
         fontfile=FONT_PATH,
-        fontsize=9.5,
+        fontsize=9.8,
         color=(0, 0, 0)
     )
 
     reg_no = data.get('regNo', '').strip()
     if reg_no:
         page.insert_text(
-            (624.0, 546.0),
+            (627.0, 558.0),
             reg_no,
             fontname="msgothic",
             fontfile=FONT_PATH,
-            fontsize=11.0,
+            fontsize=11.2,
             color=(0, 0, 0)
         )
 
@@ -106,8 +107,8 @@ def generate_haichi_pdf(data, output_pdf=None):
         map_src = temp_img_path
 
     if map_src and os.path.exists(map_src):
-        # 配置図描画枠: 原紙枠線の内側に正確に収めて2重線を完全防止
-        target_rect = fitz.Rect(71.0, 119.5, 770.5, 513.0)
+        # 配置図描画枠: 7mm拡大版枠線の内側に正確に収める
+        target_rect = fitz.Rect(61.0, 115.0, 781.0, 520.5)
         page.insert_image(target_rect, filename=map_src, keep_proportion=True)
 
     if output_pdf:
@@ -129,22 +130,23 @@ def generate_sozai_pdf(data, output_pdf=None):
     page = doc[0]
 
     order_no_8 = format_order_no_8(data.get('orderNo', ''))
-    start_x_s = 224.40
+    cell_w = 20.07
+    start_x_s = 220.50
     for i, ch in enumerate(order_no_8):
-        cx = start_x_s + i * CELL_WIDTH
+        cx = start_x_s + i * cell_w
         page.insert_text(
-            (cx + 5.0, 72.0),
+            (cx + 5.5, 70.0),
             ch,
             fontname="msgothic",
             fontfile=FONT_PATH,
-            fontsize=16.5,
+            fontsize=17.0,
             color=(0, 0, 0)
         )
 
-    # 所在図 注文書№ 8マスの縦線（グリッド線）の完全保証描画
+    # 所在図 注文書№ 8マスの縦線（グリッド線）の完全保証描画（7mm拡大版）
     for i in range(9):
-        vx = start_x_s + i * CELL_WIDTH
-        page.draw_line(fitz.Point(vx, 50.6), fitz.Point(vx, 80.84), color=(0, 0, 0), width=1.44)
+        vx = start_x_s + i * cell_w
+        page.draw_line(fitz.Point(vx, 44.5), fitz.Point(vx, 75.5), color=(0, 0, 0), width=1.44)
 
     map_src = data.get('sozaiMapPath') or data.get('mapImagePath')
     map_b64 = data.get('sozaiMapBase64') or data.get('mapImageBase64')
@@ -160,8 +162,8 @@ def generate_sozai_pdf(data, output_pdf=None):
         map_src = temp_img_path
 
     if map_src and os.path.exists(map_src):
-        # 所在図描画枠: 原紙枠線の内側に正確に収めて2重線を完全防止（下部備考欄がないため配置図より縦長）
-        target_rect = fitz.Rect(71.0, 123.5, 771.0, 545.5)
+        # 所在図描画枠: 7mm拡大版枠線の内側に正確に収める
+        target_rect = fitz.Rect(61.0, 119.0, 781.0, 553.5)
         page.insert_image(target_rect, filename=map_src, keep_proportion=True)
 
     if output_pdf:
