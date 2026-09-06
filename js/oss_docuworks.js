@@ -28,8 +28,9 @@ const OssDocuWorks = {
 
     const orderNo = c.orderNo || c['注文書№'] || c['注文書No'] || '58280';
     const orderNo8 = this.formatOrderNo8(orderNo);
-    const dealerName = client ? (client.companyName || client.name) : '愛知トヨタ 西春店';
-    const dealerTel = client ? (client.phone || client.tel || '') : '';
+    const rawDealer = client ? (client.companyName || client.name) : '愛知トヨタ 西春店';
+    const dealerName = (rawDealer || '').replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').trim();
+    const dealerTel = ''; // 元の配置図の仕様に合わせ電話番号なし（店舗名のみ）
     const contactName = contact ? contact.name : (c.contactName || '');
     const regNo = c.carNumber || (c.regType === '増車' ? '増　　　車' : (c.regType || ''));
     const applicantName = c.carName || c.title || '申請者';
@@ -228,16 +229,16 @@ const OssDocuWorks = {
       });
     }
 
-    // Embed Dealer Info overlay (Dealer name + Phone) - 原本公式フォントサイズ（8pt）に完全適正化
+    // Embed Dealer Info overlay (Dealer name only, no phone) - 原本公式フォントサイズ（8pt）に完全適正化
     try {
       const dealerPng = this._renderDealerInfoPng(payload.dealerName, payload.dealerTel);
       if (dealerPng) {
         const dealerImg = await targetDoc.embedPng(this._dataUrlToUint8Array(dealerPng));
         haichiPage.drawImage(dealerImg, {
-          x: 574.0,
-          y: 64.5,
-          width: 194.0,
-          height: 11.5
+          x: 576.0,
+          y: 57.5,
+          width: 205.0,
+          height: 12.0
         });
       }
     } catch(e) {
@@ -293,11 +294,11 @@ const OssDocuWorks = {
     return bytes;
   },
 
-  // Helper: 店舗名・電話番号の鮮明画像生成（原本公式サイズ8pt準拠）
+  // Helper: 店舗名のみの鮮明画像生成（原本公式サイズ8pt準拠、電話番号なし）
   _renderDealerInfoPng(dealerName, dealerTel) {
     const scale = 3;
-    const w = 194 * scale;
-    const h = 13 * scale;
+    const w = 205 * scale;
+    const h = 12 * scale;
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
@@ -308,9 +309,13 @@ const OssDocuWorks = {
     ctx.fillStyle = '#000000';
     ctx.textBaseline = 'middle';
 
-    const dName = dealerName || '';
-    const dTel = dealerTel ? `  ${dealerTel}` : '';
-    ctx.fillText(dName + dTel, 2, 6.5);
+    // 元の配置図の仕様に合わせ、電話番号は完全除去して店舗名のみ描画
+    const cleanName = (dealerName || '')
+      .replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '')
+      .replace(/[\s\u3000]*御中\s*$/, '')
+      .trim();
+
+    ctx.fillText(cleanName, 2, 6.0);
 
     return canvas.toDataURL('image/png');
   },

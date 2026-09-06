@@ -786,8 +786,8 @@
 
       <!-- 店舗連絡先 & 登録番号 & 職印 -->
       <div class="form-group">
-        <label class="form-label">連絡先・店舗情報（配置図右下に印字）</label>
-        <input type="text" id="dealerInfoInput" class="form-input" placeholder="例: 愛知トヨタ 江南店 TEL 0587-55-6311" value="愛知トヨタ 江南店 TEL 0587-55-6311" oninput="updateFooterDealerInfo(); autoSaveDraft();">
+        <label class="form-label">連絡先・店舗情報（配置図右下に印字・店舗名のみ）</label>
+        <input type="text" id="dealerInfoInput" class="form-input" placeholder="例: 愛知トヨタ 江南店" value="愛知トヨタ 江南店" oninput="updateFooterDealerInfo(); autoSaveDraft();">
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -1128,10 +1128,10 @@
         </div>
 
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0;">
-          <!-- 連絡先（公式原本8pt基準） -->
+          <!-- 連絡先（公式原本8pt基準・電話番号なし） -->
           <div style="font-size:8pt; color:#000; font-weight:normal; letter-spacing:0.5px; margin-bottom:1px;">
             <span>連絡先</span>
-            <span id="dealerInfoDisplay" style="font-weight:bold; margin-left:4px;">愛知トヨタ 江南店 ℡ 0587-55-6311</span>
+            <span id="dealerInfoDisplay" style="font-weight:bold; margin-left:4px;">愛知トヨタ 江南店</span>
           </div>
 
           <!-- 登録番号 枠（公式原本9pt bold基準） -->
@@ -1413,7 +1413,10 @@ function updateFooterDealerInfo() {
   const input = document.getElementById('dealerInfoInput');
   const display = document.getElementById('dealerInfoDisplay');
   if (input && display) {
-    display.textContent = input.value.trim() || '—';
+    const val = input.value.trim();
+    // 元の配置図の仕様に合わせ、電話番号（TEL/℡/数字ハイフン）を完全除去して店舗名のみ表示
+    const clean = val.replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').trim();
+    display.textContent = clean || val || '—';
   }
 }
 
@@ -1491,7 +1494,8 @@ function checkUrlCaseParams() {
     }
 
     if (storeInfo) {
-      document.getElementById('dealerInfoInput').value = storeInfo;
+      const cleanStore = storeInfo.replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').trim();
+      document.getElementById('dealerInfoInput').value = cleanStore || storeInfo;
       updateFooterDealerInfo();
     }
     if (regNo) {
@@ -2704,7 +2708,7 @@ function applyHighContrastWhitewash(sourceCanvas, contrastVal = 160) {
     try {
       const imgData = ctx.getImageData(0, 0, outCanvas.width, outCanvas.height);
       const data = imgData.data;
-      const threshold = 215; // 住宅区画の薄いグレーの閾値
+      const threshold = 205; // 住宅区画の薄いグレーの閾値（205超は完全純白へ）
       for (let i = 0; i < data.length; i += 4) {
         const avg = (data[i] + data[i+1] + data[i+2]) / 3;
         if (avg > threshold) {
@@ -4630,7 +4634,7 @@ function loadKurodaSample() {
   document.getElementById('entranceWidth').value = '10.0m';
   document.getElementById('distanceVal').value = '同上 (0m)';
   document.getElementById('shutterVal').value = '無';
-  document.getElementById('dealerInfoInput').value = '愛知トヨタ 江南店 TEL 0587-55-6311';
+  document.getElementById('dealerInfoInput').value = '愛知トヨタ 江南店';
   document.getElementById('regNoInput').value = '';
   document.getElementById('officeInfoInput').value = '行政書士法人フェリス 0586-50-2896';
   document.getElementById('showSealCheckbox').checked = true;
@@ -5224,12 +5228,17 @@ async function captureCleanCanvasContainer(container) {
     });
 
     try {
-      const c = await html2canvas(container, {
+      let c = await html2canvas(container, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff'
       });
+      // 地図モード（特に所在図）の場合、住宅区画消去＋道路強調ホワイトウォッシュを確実に適用してPDFへ渡す
+      if (typeof applyHighContrastWhitewash === 'function') {
+        const contrastVal = parseInt(document.getElementById('contrastSlider')?.value, 10) || 160;
+        c = applyHighContrastWhitewash(c, contrastVal);
+      }
       return c.toDataURL('image/png');
     } catch (err) {
       console.warn('captureCleanCanvasContainer html2canvas error, fallback to direct canvas:', err);
@@ -5260,7 +5269,12 @@ async function captureCleanCanvasContainer(container) {
   fbItems.forEach(item => {
     drawElement(fbCtx, item);
   });
-  return fallbackCanvas.toDataURL('image/png');
+  let resCanvas = fallbackCanvas;
+  if (typeof applyHighContrastWhitewash === 'function') {
+    const contrastVal = parseInt(document.getElementById('contrastSlider')?.value, 10) || 160;
+    resCanvas = applyHighContrastWhitewash(fallbackCanvas, contrastVal);
+  }
+  return resCanvas.toDataURL('image/png');
 }
 
 // ─── DocuWorks手動貼付用：枠線なし・透過クリップボードコピー ───
@@ -5305,12 +5319,16 @@ async function copyMapToClipboard(targetType) {
       });
 
       try {
-        const c = await html2canvas(container, {
+        let c = await html2canvas(container, {
           scale: 2,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff'
         });
+        if (target === 'sozai' && typeof applyHighContrastWhitewash === 'function') {
+          const contrastVal = parseInt(document.getElementById('contrastSlider')?.value, 10) || 160;
+          c = applyHighContrastWhitewash(c, contrastVal);
+        }
         blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
       } finally {
         container.style.border = prevBorder;
@@ -5383,6 +5401,7 @@ async function openDocuWorksExportModal() {
     const ocrInputVal = document.getElementById('ocrCodeInput')?.value || '58280';
     const orderNo = ocrInputVal.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || '58280';
     const dealerInfo = document.getElementById('dealerInfoInput')?.value || '愛知トヨタ 西春店';
+    const cleanDealer = dealerInfo.replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').trim() || dealerInfo;
     const regNo = document.getElementById('regNoInput')?.value || '増　　　車';
     const homeAddr = document.getElementById('homeAddress')?.value || '';
     const parkAddr = document.getElementById('parkingAddress')?.value || '同上';
@@ -5392,8 +5411,8 @@ async function openDocuWorksExportModal() {
       caseTitle: linkedCaseTitle || '車庫証明案件',
       orderNo: orderNo,
       orderNo8: (typeof OssDocuWorks !== 'undefined') ? OssDocuWorks.formatOrderNo8(orderNo) : orderNo.padStart(8, '0'),
-      dealerName: dealerInfo.split('\n')[0] || dealerInfo,
-      dealerTel: (dealerInfo.match(/TEL\s*([0-9-]+)/i)?.[1]) || '0568-23-2811',
+      dealerName: cleanDealer,
+      dealerTel: '',
       contactName: linkedContactName || '',
       contactEmail: '',
       regNo: regNo,
@@ -5407,6 +5426,10 @@ async function openDocuWorksExportModal() {
       driveFolderUrl: linkedFolderUrl || ''
     };
   } else {
+    if (payload.dealerName) {
+      payload.dealerName = payload.dealerName.replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').trim();
+    }
+    payload.dealerTel = '';
     payload.sozaiMapPng = sozaiMapPng;
     payload.haichiMapPng = haichiMapPng;
   }

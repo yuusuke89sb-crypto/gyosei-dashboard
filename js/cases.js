@@ -2819,7 +2819,6 @@ const Cases = {
           const branch = client.branchName || client.tradeName || client.department || '';
           const phone = client.phone || client.tel || '';
           storeInfo = [company, branch].filter(Boolean).join(' ');
-          if (phone) storeInfo += (storeInfo ? '　' : '') + 'TEL ' + phone;
         }
       }
       if (storeInfo) params.set('storeInfo', storeInfo);
@@ -2850,9 +2849,7 @@ const Cases = {
         if (client) {
           const company = client.companyName || client.name || '';
           const branch = client.branchName || client.tradeName || client.department || '';
-          const phone = client.phone || client.tel || '';
           storeInfo = [company, branch].filter(Boolean).join(' ');
-          if (phone) storeInfo += (storeInfo ? '　' : '') + 'TEL ' + phone;
         }
       }
       if (storeInfo) params.set('storeInfo', storeInfo);
