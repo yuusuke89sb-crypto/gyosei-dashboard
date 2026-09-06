@@ -229,6 +229,9 @@ const InboxManager = {
           <button class="btn btn-secondary btn-small" style="color:#3b82f6; border-color:rgba(59,130,246,0.6); font-weight:600; background:rgba(59,130,246,0.06)" onclick="InboxManager.showAttachToCaseModal('${item.id}')" title="すでに登録済みの案件にこの書類・FAXを追加合流します">
             🔗 既存案件に書類追加
           </button>
+          <button class="btn btn-secondary btn-small" style="color:#0284c7; border-color:rgba(2,132,199,0.5); font-weight:600; background:rgba(2,132,199,0.06)" onclick="InboxManager.openCorrectionTape('${item.id}')" title="FAXの左端耳や不要箇所を白消しして修正済みPDFを作成">
+            🩹 修正テープ
+          </button>
           <button class="btn btn-secondary btn-small" style="color:var(--accent-gold,#f59e0b); border-color:rgba(245,158,11,0.6); font-weight:bold; background:rgba(245,158,11,0.08)" onclick="InboxManager.ocrAndRegisterCase('${item.id}')">
             ⚡ OCR解析して登録
           </button>
@@ -778,6 +781,41 @@ const InboxManager = {
     } catch (err) {
       console.error('registerCase error:', err);
       alert('⚠️ 案件登録の起動中にエラーが発生しました: ' + err.message);
+    }
+  },
+
+  openCorrectionTape(itemId) {
+    const inbox = Store.getInbox ? Store.getInbox() : [];
+    let item = inbox.find(i => String(i.id) === String(itemId));
+    if (!item) {
+      const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
+      const found = faxLogs.find(l => String(l.id) === String(itemId) || String(l.faxId) === String(itemId));
+      if (found) item = found;
+    }
+
+    let targetUrl = '';
+    let fileName = '受信FAX_白消し.pdf';
+
+    if (item && item.attachments) {
+      try {
+        const atts = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
+        if (atts && atts.length > 0 && atts[0].url) {
+          targetUrl = atts[0].url;
+          fileName = atts[0].name || fileName;
+        }
+      } catch (e) {}
+    } else if (item && item.pdfUrl) {
+      targetUrl = item.pdfUrl;
+      fileName = '受信FAX.pdf';
+    }
+
+    if (typeof DigitalCorrectionTape !== 'undefined') {
+      DigitalCorrectionTape.open({
+        url: targetUrl,
+        fileName: fileName
+      });
+    } else {
+      alert('デジタル修正テープ機能が利用できません');
     }
   },
 

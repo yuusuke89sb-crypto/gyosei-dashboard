@@ -858,6 +858,14 @@
           <span style="font-size:0.72rem; color:#38BDF8; width:48px;">✏️ 文字:</span>
           <input type="text" id="propertyTextInput" class="form-input" placeholder="テキストを入力" style="flex:1; padding:3px 6px; font-size:0.75rem;" oninput="onPropertyTextInputChange(this.value)">
         </div>
+        <div class="property-row" id="propertyLandmarkRow" style="display:none; align-items:center; gap:3px; margin-top:4px; flex-wrap:wrap;">
+          <span style="font-size:0.72rem; color:#F59E0B; width:52px; flex-shrink:0;">⚫ 目印●:</span>
+          <button class="property-btn" onclick="setTextLandmarkDot('none')" id="btnDotNone" title="目印なし">なし</button>
+          <button class="property-btn" onclick="setTextLandmarkDot('bottom')" id="btnDotBottom" title="文字の下に●（目印）を配置">下▼</button>
+          <button class="property-btn" onclick="setTextLandmarkDot('top')" id="btnDotTop" title="文字の上に●（目印）を配置">上▲</button>
+          <button class="property-btn" onclick="setTextLandmarkDot('left')" id="btnDotLeft" title="文字の左に●（目印）を配置">左◀</button>
+          <button class="property-btn" onclick="setTextLandmarkDot('right')" id="btnDotRight" title="文字の右に●（目印）を配置">右▶</button>
+        </div>
       </div>
 
       <div class="tool-grid">
@@ -902,6 +910,9 @@
         </button>
         <button class="tool-btn" id="tool-text" onclick="setTool('text')">
           <span class="tool-btn-icon">🔤</span>文字入力
+        </button>
+        <button class="tool-btn" id="tool-landmark-dot" onclick="setTool('landmark-dot')" title="地図上に施設や地点の目印（黒丸●）を配置">
+          <span class="tool-btn-icon">⚫</span>目印(黒丸)
         </button>
         <button class="tool-btn" id="tool-dist-line" onclick="setTool('dist-line')">
           <span class="tool-btn-icon">📍</span>直線距離線
@@ -1825,7 +1836,7 @@ async function saveToCaseDirectly() {
 }
 
 // ─── スタンプ管理（削除・追加・初期化） ───
-const DEFAULT_STAMPS = ['⬅ 申請地', '自　宅', '保管場所', '駐車場', '5m道路', '出入口', 'ガレージ', '🚆 JR東海道本線', '🚆 名鉄名古屋本線', '🚧 踏切', '🚉 〇〇駅', '来客用', '軽自動車用', '県道186号', '私道', 'ブロック塀', '木曽川環境クリーン', '卍 福昌寺', 'JA', '鉄工所'];
+const DEFAULT_STAMPS = ['⬅ 申請地', '申請地 ➡', '⚫ 申請地', '自　宅', '保管場所', '駐車場', '5m道路', '出入口', 'ガレージ', '⚫ 栄徳医院', '⚫ 柏森南公民館', '⚫ 和菓子処とう野', '⚫ コンビニ', '⚫ GS', '⚫ 施設・目印', '🚆 名鉄犬山線', '🚆 JR東海道本線', '🚆 名鉄名古屋本線', '🚧 踏切', '🚉 〇〇駅', '来客用', '軽自動車用', '県道186号', '私道', 'ブロック塀', '木曽川環境クリーン', '卍 福昌寺', 'JA', '鉄工所'];
 
 function loadStamps() {
   try {
@@ -1849,7 +1860,7 @@ function renderStamps() {
     const tag = document.createElement('div');
     tag.className = 'stamp-tag-item';
     tag.innerHTML = `
-      <span class="stamp-tag-text" onclick="addTextStamp('${stamp.replace(/'/g, "\'")}')" title="クリックして配置">${stamp}</span>
+      <span class="stamp-tag-text" onclick="addTextStamp('${stamp.replace(/'/g, "\\'")}')" title="クリックして配置">${stamp}</span>
       <span class="stamp-tag-del" onclick="deleteStamp(${idx})" title="このスタンプを削除">×</span>
     `;
     container.appendChild(tag);
@@ -1905,6 +1916,7 @@ function showPropertyPanel(targetKey, index) {
     'compass': '🧭 JIS方位記号',
     'car': '🚗 車両マーク',
     'text': `🔤 文字: 「${item.text || ''}」`,
+    'landmark-dot': '⚫ 目印(黒丸)',
     'line-dim': `📏 寸法線: 「${item.text || ''}」`,
     'arrow': `↔️ 出入口・幅員: 「${item.label || item.text || ''}」`,
     'line-road': '🛣️ 道路境界線',
@@ -1929,6 +1941,16 @@ function showPropertyPanel(targetKey, index) {
       textInput.placeholder = item.type === 'arrow' ? '幅員を入力（例: 幅員 4.0m, 出入口 5.0m）' : (item.type === 'rect-spot' || item.type === 'poly-spot' ? '文字を入力（空欄でラベル非表示）' : 'テキストを入力');
     } else {
       textRow.style.display = 'none';
+    }
+  }
+
+  const landmarkRow = document.getElementById('propertyLandmarkRow');
+  if (landmarkRow) {
+    if (item.type === 'text') {
+      landmarkRow.style.display = 'flex';
+      updateLandmarkDotButtons(item.landmarkDot || 'none');
+    } else {
+      landmarkRow.style.display = 'none';
     }
   }
 
@@ -1995,6 +2017,46 @@ function onPropertyTextInputChange(val) {
   redraw(targetKey);
   drawSelectionHighlight(targetKey, index);
   autoSaveDraft();
+}
+
+/**
+ * 選択中テキスト要素の目印（黒丸●）の配置位置を設定
+ * @param {'none'|'bottom'|'top'|'left'|'right'} pos 
+ */
+function setTextLandmarkDot(pos) {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item || item.type !== 'text') return;
+
+  pushHistory();
+  item.landmarkDot = pos;
+  pushHistory();
+  redraw(targetKey);
+  drawSelectionHighlight(targetKey, index);
+  updateLandmarkDotButtons(pos);
+  autoSaveDraft();
+  const labelMap = { 'none': '目印なし', 'bottom': '目印(下▼)', 'top': '目印(上▲)', 'left': '目印(左◀)', 'right': '目印(右▶)' };
+  showToast(`⚫ 目印位置を「${labelMap[pos] || pos}」に設定しました`);
+}
+
+function updateLandmarkDotButtons(activePos) {
+  const pos = activePos || 'none';
+  ['none', 'bottom', 'top', 'left', 'right'].forEach(p => {
+    const btnId = `btnDot${p.charAt(0).toUpperCase() + p.slice(1)}`;
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      if (p === pos) {
+        btn.style.background = '#0284c7';
+        btn.style.borderColor = '#38bdf8';
+        btn.style.color = '#ffffff';
+      } else {
+        btn.style.background = '#1e293b';
+        btn.style.borderColor = '#475569';
+        btn.style.color = '#e2e8f0';
+      }
+    }
+  });
 }
 
 function clearSelection() {
@@ -2066,6 +2128,11 @@ function scaleSelectedItem(factor) {
     item.size = Math.max(16, Math.min(80, Math.round((item.size || 28) * factor)));
   } else if (item.type === 'text') {
     item.fontSize = Math.max(10, Math.min(48, Math.round((item.fontSize || 14) * factor)));
+    if (item.landmarkDot && item.landmarkDot !== 'none') {
+      item.dotRadius = Math.max(2, Math.min(15, Math.round((item.dotRadius || 4.2) * factor * 10) / 10));
+    }
+  } else if (item.type === 'landmark-dot') {
+    item.radius = Math.max(2, Math.min(25, Math.round((item.radius || 4.5) * factor * 10) / 10));
   } else if (item.type.startsWith('line') || item.type === 'arrow' || item.type === 'dist-line') {
     const cx = (item.x1 + item.x2) / 2;
     const cy = (item.y1 + item.y2) / 2;
@@ -2419,6 +2486,7 @@ function setTool(tool) {
     'compass': 'JIS方位記号 配置（クリック）',
     'car': '車両マーク 配置（クリック）',
     'text': '文字入力（クリック）',
+    'landmark-dot': '⚫ 目印(黒丸) 配置（クリックした位置に黒丸●を配置）',
     'dist-line': '直線距離線（ドラッグまたはクリック / Shiftキーで水平垂直スナップ）',
     'eraser': '要素削除（クリックで削除）'
   };
@@ -2510,7 +2578,7 @@ function setupCanvasEvents(canvas, targetKey) {
         isDragging = true;
         const item = drawings[targetKey][hitResult];
         let ox = 0, oy = 0;
-        if (item.type.startsWith('rect') || item.type === 'compass' || item.type === 'car' || item.type === 'text') {
+        if (item.type.startsWith('rect') || item.type === 'compass' || item.type === 'car' || item.type === 'text' || item.type === 'landmark-dot') {
           ox = startX - item.x;
           oy = startY - item.y;
         } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
@@ -2637,7 +2705,7 @@ function setupCanvasEvents(canvas, targetKey) {
       dragTarget.lastX = curX;
       dragTarget.lastY = curY;
 
-      if (item.type.startsWith('rect') || item.type === 'compass' || item.type === 'car' || item.type === 'text') {
+      if (item.type.startsWith('rect') || item.type === 'compass' || item.type === 'car' || item.type === 'text' || item.type === 'landmark-dot') {
         item.x += deltaX;
         item.y += deltaY;
       } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
@@ -2907,24 +2975,37 @@ function setupCanvasEvents(canvas, targetKey) {
         angle: 0
       });
       showToast('📍 直線距離線を描画しました');
-      showToast('📍 直線距離線を描画しました');
-      showToast('📍 直線距離線を描画しました');
     } else if (currentTool === 'text') {
-      const txt = prompt('表示するテキストを入力してください（例: 申請地, 5m道路, 来客用, 自宅など）:', '申請地');
+      const txt = prompt('表示するテキストを入力してください（例: 栄徳医院, 柏森南公民館, 申請地, 5m道路など）:', '申請地');
       if (txt !== null && txt.trim() !== '') {
+        const hasDot = txt.startsWith('⚫') || txt.startsWith('●');
+        const cleanTxt = txt.replace(/^[⚫●]\s*/, '');
+        newIndex = drawings[targetKey].length;
         drawings[targetKey].push({
           type: 'text',
           x: startX,
           y: startY,
-          text: txt.trim(),
+          text: cleanTxt,
           fontSize: 14,
           color: '#000000',
-          angle: 0
+          angle: 0,
+          landmarkDot: hasDot ? 'bottom' : 'none'
         });
-        showToast(`🔤 「${txt.trim()}」を配置しました`);
+        showToast(`🔤 「${cleanTxt}」を配置しました（調整バーの「目印●」で位置変更可能）`);
       } else {
         return;
       }
+    } else if (currentTool === 'landmark-dot') {
+      newIndex = drawings[targetKey].length;
+      drawings[targetKey].push({
+        type: 'landmark-dot',
+        x: startX,
+        y: startY,
+        radius: 4.5,
+        color: '#000000',
+        angle: 0
+      });
+      showToast('⚫ 目印(黒丸)を配置しました');
     }
 
     pushHistory();
@@ -2998,7 +3079,13 @@ function hitTestElement(targetKey, x, y) {
         return i;
       }
     } else if (it.type === 'text') {
-      if (Math.hypot(it.x - testX, it.y - testY) < 45) {
+      let r = 45;
+      if (it.landmarkDot && it.landmarkDot !== 'none') r = 55;
+      if (Math.hypot(it.x - testX, it.y - testY) < r) {
+        return i;
+      }
+    } else if (it.type === 'landmark-dot') {
+      if (Math.hypot(it.x - testX, it.y - testY) <= (it.radius || 4.5) + 8) {
         return i;
       }
     } else if (it.type.startsWith('line') || it.type === 'arrow' || it.type === 'dist-line') {
@@ -3063,7 +3150,17 @@ function drawSelectionHighlight(targetKey, index) {
     ctx.arc(item.x, item.y, s + 4, 0, Math.PI * 2);
     ctx.stroke();
   } else if (item.type === 'text') {
-    ctx.strokeRect(item.x - 6, item.y - 18, 110, 24);
+    const tw = (ctx.measureText(item.text).width) || 80;
+    const fSize = item.fontSize || 14;
+    let extraH = 0;
+    let offsetY = 0;
+    if (item.landmarkDot === 'bottom') extraH = 16;
+    if (item.landmarkDot === 'top') { extraH = 16; offsetY = -16; }
+    ctx.strokeRect(item.x - 6, item.y - fSize - 4 + offsetY, tw + 12, fSize + 10 + extraH);
+  } else if (item.type === 'landmark-dot') {
+    ctx.beginPath();
+    ctx.arc(item.x, item.y, (item.radius || 4.5) + 5, 0, Math.PI * 2);
+    ctx.stroke();
   } else {
     const mx = (item.x1 + item.x2) / 2;
     const my = (item.y1 + item.y2) / 2;
@@ -3358,11 +3455,39 @@ function drawElement(ctx, item) {
     drawVectorCompass(ctx, item.x, item.y, item.size || 28);
   } else if (item.type === 'car') {
     drawCarSilhouette(ctx, item.x, item.y, item.w || 50, item.h || 90);
+  } else if (item.type === 'landmark-dot') {
+    const dotR = item.radius || 4.5;
+    ctx.fillStyle = item.color || '#000000';
+    ctx.beginPath();
+    ctx.arc(item.x, item.y, dotR, 0, Math.PI * 2);
+    ctx.fill();
   } else if (item.type === 'text') {
     ctx.fillStyle = item.color || '#000000';
-    ctx.font = `bold ${item.fontSize || 14}px sans-serif`;
+    const fSize = item.fontSize || 14;
+    ctx.font = `bold ${fSize}px sans-serif`;
     ctx.textAlign = 'left';
     ctx.fillText(item.text, item.x, item.y);
+
+    // 申請地以外の目印用 黒丸 (⚫) の描画（下▼、上▲、左◀、右▶）
+    if (item.landmarkDot && item.landmarkDot !== 'none') {
+      const dotR = item.dotRadius || 4.5;
+      const tw = ctx.measureText(item.text).width;
+      let dotX = item.x + tw / 2;
+      let dotY = item.y + 11;
+      if (item.landmarkDot === 'top') {
+        dotX = item.x + tw / 2;
+        dotY = item.y - fSize - 4;
+      } else if (item.landmarkDot === 'left') {
+        dotX = item.x - 10;
+        dotY = item.y - fSize * 0.35;
+      } else if (item.landmarkDot === 'right') {
+        dotX = item.x + tw + 10;
+        dotY = item.y - fSize * 0.35;
+      }
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -3635,19 +3760,28 @@ function addTextStamp(text) {
   const cx = targetCanvas.width / 2;
   const cy = targetCanvas.height / 2;
   
+  let cleanText = text;
+  let landmarkDot = 'none';
+  if (text.startsWith('⚫ ') || text.startsWith('● ')) {
+    cleanText = text.substring(2).trim();
+    landmarkDot = 'bottom';
+  }
+
   const newIndex = drawings[activeTarget].length;
   drawings[activeTarget].push({
     type: 'text',
     x: cx - 35,
     y: cy,
-    text: text,
+    text: cleanText,
+    landmarkDot: landmarkDot,
+    dotRadius: 4.5,
     fontSize: 14,
     color: '#000000',
     angle: 0
   });
   pushHistory();
   redraw(activeTarget);
-  showToast(`「${text}」を配置しました`);
+  showToast(`「${cleanText}」を配置しました`);
   showPropertyPanel(activeTarget, newIndex);
 }
 
@@ -3697,8 +3831,15 @@ function deleteNearElement(targetKey, x, y) {
         items.splice(i, 1);
         break;
       }
+    } else if (it.type === 'landmark-dot') {
+      if (Math.hypot(it.x - x, it.y - y) <= Math.max(16, (it.radius || 4.5) * 2.5)) {
+        items.splice(i, 1);
+        break;
+      }
     } else if (it.type === 'text') {
-      if (Math.hypot(it.x - x, it.y - y) < 40) {
+      let r = 40;
+      if (it.landmarkDot && it.landmarkDot !== 'none') r = 50;
+      if (Math.hypot(it.x - x, it.y - y) < r) {
         items.splice(i, 1);
         break;
       }

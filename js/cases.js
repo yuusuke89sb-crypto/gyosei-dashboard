@@ -581,6 +581,7 @@ const Cases = {
                 <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#475569;" onclick="Cases.rotateViewer()" title="90度回転（横向き・縦向き切り替え）">🔄 90°回転</button>
                   <button type="button" class="btn btn-secondary btn-small" id="btnSaveRotatedToDrive" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#38bdf8; color:#38bdf8;" onclick="Cases.saveCurrentRotatedImageToDrive()" title="現在の回転角度・表示状態の画像をそのままGoogle Driveに保存">💾 向きをDrive保存</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#f59e0b; color:#f59e0b;" onclick="Cases.openCorrectionTapeForCurrentViewer()" title="この書類の左端FAX耳や不要箇所をデジタル修正テープで白消し">🩹 修正テープ</button>
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem; background:#1e293b; border-color:#475569;" onclick="Cases.fitWidthViewer()" title="横幅に合わせて最大フィット">↕ 幅フィット</button>
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.zoomViewer(0.25)" title="拡大">🔍＋</button>
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.zoomViewer(-0.25)" title="縮小">🔍−</button>
@@ -1503,6 +1504,35 @@ const Cases = {
     } catch(err) {
       console.error('saveCurrentRotatedImageToDrive error:', err);
       App.showToast('❌ 保存エラー: ' + err.message);
+    }
+  },
+
+  openCorrectionTapeForCurrentViewer() {
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    const curAtt = (this.viewerState.attachments && this.viewerState.attachments.length > 0) 
+      ? this.viewerState.attachments[this.viewerState.currentIndex] 
+      : null;
+
+    let targetUrl = '';
+    let fileName = curAtt ? (curAtt.name || '書類_白消し.pdf') : '書類_白消し.pdf';
+
+    if (curAtt && curAtt.url) {
+      targetUrl = curAtt.url;
+    } else if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
+      targetUrl = imgEl.src;
+    } else if (iframeEl && iframeEl.src && iframeEl.style.display !== 'none') {
+      targetUrl = iframeEl.src;
+    }
+
+    if (typeof DigitalCorrectionTape !== 'undefined') {
+      DigitalCorrectionTape.open({
+        url: targetUrl,
+        fileName: fileName,
+        caseId: this.editingId || null
+      });
+    } else {
+      alert('デジタル修正テープ機能が利用できません');
     }
   },
 

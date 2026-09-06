@@ -60,6 +60,13 @@
   <script src="js/clients.js?v=20260906_2150"></script>
   <script src="js/utif.min.js?v=20260906_2150"></script>
   <script src="js/pdf-lib.min.js"></script>
+  <script src="js/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/pdf.worker.min.js';
+    }
+  </script>
+  <script src="js/correction_tape.js?v=20260906_2230"></script>
   <script src="js/xlsx.full.min.js"></script>
   <script src="js/oss_docuworks.js?v=20260906_2150"></script>
   <script src="js/dealer_parser.js?v=20260906_2150"></script>

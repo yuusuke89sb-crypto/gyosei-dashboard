@@ -248,6 +248,7 @@ const App = {
         <div style="font-size:0.68rem;font-weight:600;color:var(--text-muted);padding:2px 12px 4px;letter-spacing:0.5px">自動車・実務ツール</div>
         <button class="btn btn-ghost" onclick="SealReportManager.showLedgerModal()" style="text-decoration:none;display:block;text-align:left;color:#10b981;font-weight:bold;width:100%;">🔩 封印管理簿 (監査2年台帳)</button>
         <a class="btn btn-ghost" href="syako_map_maker.html" target="_blank" style="text-decoration:none;display:block;text-align:left;color:#38bdf8;font-weight:bold;">🚗 車庫証明 所在図・配置図</a>
+        <button class="btn btn-ghost" onclick="DigitalCorrectionTape.open()" style="text-decoration:none;display:block;text-align:left;color:#f59e0b;font-weight:bold;width:100%;">🩹 デジタル修正テープ (FAX耳消し)</button>
         <a class="btn btn-ghost" href="請求書サンプル一覧.html" target="_blank" style="text-decoration:none;display:block;text-align:left">📄 ディーラー請求書サンプル</a>
         <a class="btn btn-ghost" href="map-maker/index.html" target="_blank" style="text-decoration:none;display:block;text-align:left">🗺️ 地図メーカー</a>
         <a class="btn btn-ghost" href="bot/index.html" style="text-decoration:none;display:block;text-align:left">💬 AIチャット</a>
