@@ -10,6 +10,7 @@ const DigitalCorrectionTape = {
   activeFileName: '',
   activeFileType: 'pdf', // 'pdf' | 'image'
   activeCaseId: null,
+  onApplyCallback: null,
   
   pdfDoc: null,           // PDFLib document
   rawArrayBuffer: null,   // Original ArrayBuffer
@@ -35,7 +36,7 @@ const DigitalCorrectionTape = {
   /**
    * モーダル初期化＆オープン
    */
-  async open({ file = null, url = null, dataUrl = null, arrayBuffer = null, fileName = '', caseId = null } = {}) {
+  async open({ file = null, url = null, dataUrl = null, arrayBuffer = null, rawBase64 = null, fileName = '', caseId = null, onApply = null } = {}) {
     this.ensureModalDOM();
     const modal = document.getElementById('digitalCorrectionTapeModal');
     if (!modal) return;
@@ -44,19 +45,44 @@ const DigitalCorrectionTape = {
     document.body.style.overflow = 'hidden';
 
     this.activeCaseId = caseId;
+    this.onApplyCallback = onApply;
     this.activeFileName = fileName || '書類_修正テープ済.pdf';
     this.history = [];
     this.pdfPagesData = [];
     this.currentPageIdx = 0;
     this.zoom = 1.0;
 
-    // ファイルが渡されている場合は即座に読み込み
+    // 「✨ 案件に反映」ボタンの表示制御
+    const applyBtn = document.getElementById('dctApplyToCaseBtn');
+    if (applyBtn) {
+      applyBtn.style.display = typeof onApply === 'function' ? 'inline-flex' : 'none';
+    }
+
+    // ファイル・データが渡されている場合は読み込み
     if (file) {
       await this.loadFile(file);
+    } else if (rawBase64) {
+      const cleanB64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
+      const bin = atob(cleanB64.trim());
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      await this.loadArrayBuffer(bytes.buffer, fileName);
     } else if (arrayBuffer) {
       await this.loadArrayBuffer(arrayBuffer, fileName);
-    } else if (url || dataUrl) {
-      await this.loadUrl(url || dataUrl, fileName);
+    } else if (dataUrl) {
+      if (dataUrl.startsWith('data:image/tif') || fileName.match(/\.tiff?$/i)) {
+        const cleanB64 = dataUrl.split(',')[1];
+        const bin = atob(cleanB64.trim());
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        await this.loadArrayBuffer(bytes.buffer, fileName);
+      } else {
+        this.activeFileName = fileName || '書類_修正テープ済.jpg';
+        this.activeFileType = 'image';
+        await this.renderImageDataUrl(dataUrl);
+      }
+    } else if (url) {
+      await this.loadUrl(url, fileName);
     } else {
       // 未指定の場合はドロップ待機画面を表示
       this.showEmptyDropZone();
@@ -147,6 +173,10 @@ const DigitalCorrectionTape = {
               style="background:#334155; border-color:#475569; color:#f87171; font-size:0.78rem; padding:4px 8px;">
               🗑️ 全解除
             </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="DigitalCorrectionTape.rotateCurrentPage(90)" title="ページを90°右回転"
+              style="background:#1e293b; border-color:#38bdf8; color:#38bdf8; font-size:0.78rem; font-weight:bold; padding:4px 8px;">
+              🔄 90°回転
+            </button>
 
             <div style="width:1px; height:20px; background:#475569; margin:0 4px;"></div>
 
@@ -166,6 +196,10 @@ const DigitalCorrectionTape = {
 
           <!-- 保存 & 閉じる -->
           <div style="display:flex; align-items:center; gap:6px;">
+            <button type="button" id="dctApplyToCaseBtn" class="btn btn-primary" onclick="DigitalCorrectionTape.applyToCase()"
+              style="background:#f59e0b; border-color:#fbbf24; color:#0f172a; font-weight:800; font-size:0.85rem; padding:5px 14px; box-shadow:0 2px 6px rgba(245,158,11,0.4); display:none;">
+              ✨ 案件に反映
+            </button>
             <button type="button" class="btn btn-primary" onclick="DigitalCorrectionTape.exportCleanPDF()"
               style="background:#16a34a; border-color:#22c55e; color:#ffffff; font-weight:700; font-size:0.85rem; padding:5px 14px; box-shadow:0 2px 6px rgba(22,163,74,0.3);">
               📥 修正済みPDFを保存
@@ -300,25 +334,11 @@ const DigitalCorrectionTape = {
     this.activeFileName = file.name || '書類_白消し.pdf';
     document.getElementById('dctFileNameBadge').textContent = this.activeFileName;
 
-    const isPdf = file.name.match(/\.pdf$/i) || (file.type && file.type.includes('pdf'));
-    const isTiff = file.name.match(/\.tiff?$/i) || (file.type && file.type.includes('tif'));
-
     this.showLoading('ファイルを読み込み中...');
 
     try {
       const buffer = await file.arrayBuffer();
-      this.rawArrayBuffer = buffer;
-
-      if (isPdf) {
-        this.activeFileType = 'pdf';
-        await this.renderPdfBuffer(buffer);
-      } else if (isTiff) {
-        this.activeFileType = 'image';
-        await this.renderTiffBuffer(buffer);
-      } else {
-        this.activeFileType = 'image';
-        await this.renderImageBuffer(buffer, file.type);
-      }
+      await this.loadArrayBuffer(buffer, file.name, file.type);
     } catch (err) {
       console.error('File load error:', err);
       alert('ファイルの読み込みに失敗しました: ' + err.message);
@@ -326,32 +346,92 @@ const DigitalCorrectionTape = {
     }
   },
 
-  async loadArrayBuffer(buffer, fileName = '') {
+  async loadArrayBuffer(buffer, fileName = '', mimeType = '') {
     this.rawArrayBuffer = buffer;
     this.activeFileName = fileName || '書類_白消し.pdf';
-    document.getElementById('dctFileNameBadge').textContent = this.activeFileName;
-    this.activeFileType = 'pdf';
-    await this.renderPdfBuffer(buffer);
+    const badge = document.getElementById('dctFileNameBadge');
+    if (badge) badge.textContent = this.activeFileName;
+
+    // Magic Bytes によるフォーマット自動判定
+    const header = new Uint8Array(buffer.slice(0, 16));
+    const isPdf = (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46) // %PDF
+      || this.activeFileName.match(/\.pdf$/i)
+      || (mimeType && mimeType.includes('pdf'));
+
+    const isTiff = (
+      (header[0] === 0x49 && header[1] === 0x49 && header[2] === 0x2A && header[3] === 0x00) // II*\0 (Little Endian)
+      || (header[0] === 0x4D && header[1] === 0x4D && header[2] === 0x00 && header[3] === 0x2A) // MM\0* (Big Endian)
+      || this.activeFileName.match(/\.tiff?$/i)
+      || (mimeType && mimeType.includes('tif'))
+    );
+
+    if (isPdf) {
+      this.activeFileType = 'pdf';
+      await this.renderPdfBuffer(buffer);
+    } else if (isTiff) {
+      this.activeFileType = 'image';
+      await this.renderTiffBuffer(buffer);
+    } else {
+      this.activeFileType = 'image';
+      await this.renderImageBuffer(buffer, mimeType || 'image/jpeg');
+    }
   },
 
   async loadUrl(url, fileName = '') {
     this.showLoading('リモートファイルをダウンロード中...');
     this.activeFileName = fileName || url.split('/').pop().split('?')[0] || '書類_白消し.pdf';
-    document.getElementById('dctFileNameBadge').textContent = this.activeFileName;
+    const badge = document.getElementById('dctFileNameBadge');
+    if (badge) badge.textContent = this.activeFileName;
 
     try {
-      const resp = await fetch(url);
-      const buffer = await resp.arrayBuffer();
-      this.rawArrayBuffer = buffer;
+      let buffer = null;
+      let mimeType = '';
 
-      const isPdf = this.activeFileName.match(/\.pdf$/i) || resp.headers.get('content-type')?.includes('pdf');
-      if (isPdf) {
-        this.activeFileType = 'pdf';
-        await this.renderPdfBuffer(buffer);
-      } else {
-        this.activeFileType = 'image';
-        await this.renderImageBuffer(buffer, resp.headers.get('content-type') || 'image/jpeg');
+      // 1. Google Drive URL の場合：GAS の getFileBase64 を通して取得（CORSエラー回避 ＆ TIFFサムネイル活用）
+      const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
+      const isDrive = url.includes('drive.google.com') || url.includes('drive.google');
+      if (isDrive && gasUrl) {
+        const fileId = (url.match(/[-\w]{25,}/) || [])[0] || '';
+        if (fileId) {
+          this.showLoading('Google Driveからファイルデータを取得中...');
+          let data = null;
+          try {
+            const res = await fetch(gasUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify({
+                action: 'getFileBase64',
+                fileUrl: url,
+                fileId: fileId
+              })
+            });
+            data = await res.json();
+          } catch (e) {
+            console.warn('doPost getFileBase64 failed, trying doGet...', e);
+            const getRes = await fetch(`${gasUrl}?action=getFileBase64&fileId=${fileId}`);
+            data = await getRes.json();
+          }
+
+          if (data && data.success && data.base64) {
+            mimeType = data.mimeType || '';
+            const b64 = data.base64;
+            const cleanB64 = b64.includes(',') ? b64.split(',')[1] : b64;
+            const bin = atob(cleanB64.trim());
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            buffer = bytes.buffer;
+          }
+        }
       }
+
+      // 2. 通常のURLまたはBlob/DataURLの場合
+      if (!buffer) {
+        const resp = await fetch(url);
+        buffer = await resp.arrayBuffer();
+        mimeType = resp.headers.get('content-type') || '';
+      }
+
+      await this.loadArrayBuffer(buffer, this.activeFileName, mimeType);
     } catch (err) {
       console.error('URL load error:', err);
       alert('リモート書類の取得に失敗しました: ' + err.message);
@@ -404,7 +484,7 @@ const DigitalCorrectionTape = {
   },
 
   /**
-   * TIFF のレンダリング (UTIF.js)
+   * TIFF のレンダリング (UTIF.js & 正立自動回転)
    */
   async renderTiffBuffer(arrayBuffer) {
     if (typeof UTIF === 'undefined') {
@@ -412,6 +492,9 @@ const DigitalCorrectionTape = {
     }
     this.showLoading('TIFF画像を解析中...');
     const ifds = UTIF.decode(arrayBuffer);
+    if (!ifds || ifds.length === 0) {
+      throw new Error('TIFF画像のヘッダー解析に失敗しました');
+    }
     this.pdfPagesData = [];
 
     for (let i = 0; i < ifds.length; i++) {
@@ -419,24 +502,79 @@ const DigitalCorrectionTape = {
       UTIF.decodeImage(arrayBuffer, ifd);
       const rgba = UTIF.toRGBA8(ifd);
 
-      const offscreen = document.createElement('canvas');
-      offscreen.width = ifd.width;
-      offscreen.height = ifd.height;
-      const offCtx = offscreen.getContext('2d');
-      const imgData = offCtx.createImageData(ifd.width, ifd.height);
-      imgData.data.set(rgba);
-      offCtx.putImageData(imgData, 0, 0);
+      let pageCanvas;
+      // 日本のディーラーFAXは横向き（landscape: width > height）で受信されることが多いため、
+      // width > height の場合はデフォルト270°正立回転させる
+      const autoAngle = ifd.width > ifd.height ? 270 : 0;
+
+      if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser._renderRotatedPageCanvas) {
+        pageCanvas = DealerDocumentParser._renderRotatedPageCanvas(ifd, rgba, autoAngle);
+      } else {
+        const origCanvas = document.createElement('canvas');
+        origCanvas.width = ifd.width;
+        origCanvas.height = ifd.height;
+        const oCtx = origCanvas.getContext('2d');
+        const imgData = oCtx.createImageData(ifd.width, ifd.height);
+        imgData.data.set(rgba);
+        oCtx.putImageData(imgData, 0, 0);
+
+        if (autoAngle !== 0) {
+          pageCanvas = document.createElement('canvas');
+          pageCanvas.width = ifd.height;
+          pageCanvas.height = ifd.width;
+          const pCtx = pageCanvas.getContext('2d');
+          pCtx.translate(pageCanvas.width / 2, pageCanvas.height / 2);
+          pCtx.rotate((autoAngle * Math.PI) / 180);
+          pCtx.drawImage(origCanvas, -origCanvas.width / 2, -origCanvas.height / 2);
+        } else {
+          pageCanvas = origCanvas;
+        }
+      }
 
       this.pdfPagesData.push({
         pageNum: i + 1,
-        width: ifd.width,
-        height: ifd.height,
-        ptWidth: ifd.width * 0.75, // 目安pt
-        ptHeight: ifd.height * 0.75,
-        canvas: offscreen,
+        width: pageCanvas.width,
+        height: pageCanvas.height,
+        ptWidth: pageCanvas.width * 0.75, // 目安pt
+        ptHeight: pageCanvas.height * 0.75,
+        canvas: pageCanvas,
         whiteouts: []
       });
     }
+
+    this.currentPageIdx = 0;
+    this.displayCurrentPage();
+    this.setupEventListeners();
+    this.hideLoading();
+  },
+
+  /**
+   * 展開済み DataURL のダイレクトレンダリング（0秒即座表示）
+   */
+  async renderImageDataUrl(dataUrl) {
+    this.showLoading('高解像度レンダリング中...');
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width = img.naturalWidth;
+    offscreen.height = img.naturalHeight;
+    const offCtx = offscreen.getContext('2d');
+    offCtx.drawImage(img, 0, 0);
+
+    this.pdfPagesData = [{
+      pageNum: 1,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      ptWidth: img.naturalWidth * 0.75,
+      ptHeight: img.naturalHeight * 0.75,
+      canvas: offscreen,
+      whiteouts: []
+    }];
 
     this.currentPageIdx = 0;
     this.displayCurrentPage();
@@ -800,6 +938,111 @@ const DigitalCorrectionTape = {
 
     newCanvas.addEventListener('mouseup', finishDraw);
     newCanvas.addEventListener('mouseleave', finishDraw);
+  },
+
+  /**
+   * 🔄 ページを90度時計回りに回転（白消し矩形の座標も同期変換）
+   */
+  rotateCurrentPage(angle = 90) {
+    if (!this.pdfPagesData || this.pdfPagesData.length === 0) return;
+    this.pushHistory();
+
+    const pData = this.pdfPagesData[this.currentPageIdx];
+    const oldW = pData.width;
+    const oldH = pData.height;
+    const newW = oldH;
+    const newH = oldW;
+
+    const rotCanvas = document.createElement('canvas');
+    rotCanvas.width = newW;
+    rotCanvas.height = newH;
+    const rCtx = rotCanvas.getContext('2d');
+    rCtx.translate(newW / 2, newH / 2);
+    rCtx.rotate((angle * Math.PI) / 180);
+    rCtx.drawImage(pData.canvas, -oldW / 2, -oldH / 2);
+
+    // 既存の白消し矩形も90度時計回りに座標変換
+    pData.whiteouts = pData.whiteouts.map(w => ({
+      ...w,
+      x: Math.round(oldH - (w.y + w.h)),
+      y: Math.round(w.x),
+      w: Math.round(w.h),
+      h: Math.round(w.w)
+    }));
+
+    pData.canvas = rotCanvas;
+    pData.width = newW;
+    pData.height = newH;
+    pData.ptWidth = newW * 0.75;
+    pData.ptHeight = newH * 0.75;
+
+    this.displayCurrentPage();
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast('🔄 90°回転しました');
+    }
+  },
+
+  /**
+   * ✨ 修正内容を案件入力プレビュー・添付データに反映
+   */
+  applyToCase() {
+    if (!this.pdfPagesData || this.pdfPagesData.length === 0) return;
+    if (!this.onApplyCallback) {
+      alert('反映先の案件プレビューが見つかりません');
+      return;
+    }
+
+    this.showLoading('修正内容を案件に反映中...');
+
+    try {
+      const pageData = this.pdfPagesData[this.currentPageIdx];
+      const mergedCanvas = document.createElement('canvas');
+      mergedCanvas.width = pageData.width;
+      mergedCanvas.height = pageData.height;
+      const mCtx = mergedCanvas.getContext('2d');
+
+      // 原本描画
+      mCtx.drawImage(pageData.canvas, 0, 0);
+
+      // 白消し描画
+      mCtx.fillStyle = '#FFFFFF';
+      pageData.whiteouts.forEach(w => {
+        mCtx.fillRect(w.x, w.y, w.w, w.h);
+      });
+
+      const cleanDataUrl = mergedCanvas.toDataURL('image/jpeg', 0.95);
+
+      // 全ページの情報も作成
+      const allCleanPages = this.pdfPagesData.map(p => {
+        const c = document.createElement('canvas');
+        c.width = p.width;
+        c.height = p.height;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(p.canvas, 0, 0);
+        ctx.fillStyle = '#FFFFFF';
+        p.whiteouts.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
+        return {
+          pageNum: p.pageNum,
+          dataUrl: c.toDataURL('image/jpeg', 0.95),
+          width: p.width,
+          height: p.height
+        };
+      });
+
+      const callback = this.onApplyCallback;
+      this.close();
+
+      callback({
+        dataUrl: cleanDataUrl,
+        pageIndex: this.currentPageIdx,
+        fileName: this.activeFileName,
+        pages: allCleanPages
+      });
+    } catch (err) {
+      console.error('applyToCase error:', err);
+      alert('案件への反映中にエラーが発生しました: ' + err.message);
+      this.hideLoading();
+    }
   },
 
   /**

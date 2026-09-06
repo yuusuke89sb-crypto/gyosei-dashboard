@@ -1156,6 +1156,7 @@ const Cases = {
 
           // 次回以降の切り替えを瞬時にするためキャッシュ
           att.dataUrl = converted;
+          att.rawBase64 = data.base64;
 
           if (loading) loading.style.display = 'none';
           if (imgEl && wrapper) {
@@ -1514,22 +1515,48 @@ const Cases = {
       ? this.viewerState.attachments[this.viewerState.currentIndex] 
       : null;
 
-    let targetUrl = '';
     let fileName = curAtt ? (curAtt.name || '書類_白消し.pdf') : '書類_白消し.pdf';
-
-    if (curAtt && curAtt.url) {
-      targetUrl = curAtt.url;
-    } else if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
-      targetUrl = imgEl.src;
-    } else if (iframeEl && iframeEl.src && iframeEl.style.display !== 'none') {
-      targetUrl = iframeEl.src;
-    }
+    // 展開済み画像DataURL（正立270度回転済み）を最優先で渡すことで0秒表示＆CORS完全回避
+    let targetDataUrl = curAtt?.dataUrl || (imgEl && imgEl.src && imgEl.src.startsWith('data:') ? imgEl.src : null);
+    let targetUrl = curAtt?.url || '';
+    let targetFile = curAtt?.file || null;
+    let rawBase64 = curAtt?.rawBase64 || curAtt?.base64 || '';
 
     if (typeof DigitalCorrectionTape !== 'undefined') {
       DigitalCorrectionTape.open({
+        file: targetFile,
+        dataUrl: targetDataUrl,
         url: targetUrl,
+        rawBase64: rawBase64,
         fileName: fileName,
-        caseId: this.editingId || null
+        caseId: this.editingId || null,
+        onApply: ({ dataUrl, pages }) => {
+          if (curAtt) {
+            curAtt.dataUrl = dataUrl;
+            curAtt.isCleaned = true;
+            if (!curAtt.name.includes('白消し')) {
+              curAtt.name = curAtt.name.replace(/\.[^.]+$/, '') + '_白消し済.jpg';
+            }
+          }
+          if (imgEl) {
+            imgEl.src = dataUrl;
+            imgEl.style.display = 'block';
+            this.applyViewerTransform();
+          }
+          // もし単一添付のマルチページTIFFから複数ページが展開・白消しされた場合、タブに追加
+          if (pages && pages.length > 1 && (!this.viewerState.attachments || this.viewerState.attachments.length === 1)) {
+            this.viewerState.attachments = pages.map((p, i) => ({
+              name: `FAX原本_P${i + 1}_白消し済.jpg`,
+              dataUrl: p.dataUrl,
+              isCleaned: true
+            }));
+            this.viewerState.currentIndex = 0;
+            this.renderAttachmentTabs();
+          }
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast('✨ 白消し修正を案件プレビューに反映しました！');
+          }
+        }
       });
     } else {
       alert('デジタル修正テープ機能が利用できません');

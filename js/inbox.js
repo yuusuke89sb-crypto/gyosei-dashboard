@@ -795,13 +795,15 @@ const InboxManager = {
 
     let targetUrl = '';
     let fileName = '受信FAX_白消し.pdf';
+    let targetAtt = null;
 
     if (item && item.attachments) {
       try {
         const atts = typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments;
-        if (atts && atts.length > 0 && atts[0].url) {
-          targetUrl = atts[0].url;
-          fileName = atts[0].name || fileName;
+        if (atts && atts.length > 0) {
+          targetAtt = atts[0];
+          targetUrl = targetAtt.url || '';
+          fileName = targetAtt.name || fileName;
         }
       } catch (e) {}
     } else if (item && item.pdfUrl) {
@@ -812,7 +814,21 @@ const InboxManager = {
     if (typeof DigitalCorrectionTape !== 'undefined') {
       DigitalCorrectionTape.open({
         url: targetUrl,
-        fileName: fileName
+        dataUrl: targetAtt?.dataUrl || null,
+        rawBase64: targetAtt?.rawBase64 || targetAtt?.base64 || null,
+        fileName: fileName,
+        onApply: ({ dataUrl }) => {
+          if (targetAtt) {
+            targetAtt.dataUrl = dataUrl;
+            targetAtt.isCleaned = true;
+          }
+          if (confirm('✨ 白消しが完了しました！この修正済み書類で案件登録に進みますか？')) {
+            if (item) {
+              if (targetAtt) item.attachments = [targetAtt];
+              this.registerCase(item.id);
+            }
+          }
+        }
       });
     } else {
       alert('デジタル修正テープ機能が利用できません');
