@@ -32,7 +32,7 @@ const OssDocuWorks = {
     const dealerName = (rawDealer || '').replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').trim();
     const dealerTel = ''; // 元の配置図の仕様に合わせ電話番号なし（店舗名のみ）
     const contactName = contact ? contact.name : (c.contactName || '');
-    const regNo = c.carNumber || (c.regType === '増車' ? '増　　　車' : (c.regType || ''));
+    const regNo = c.carNumber || (c.regType === '増車' ? '増　　　車' : (c.regType || '増　　　車'));
     const applicantName = c.carName || c.title || '申請者';
     const carAddress = c.carAddress || '';
     const parkingAddress = c.parkingAddress || '同上';
@@ -330,7 +330,8 @@ const OssDocuWorks = {
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
 
-    ctx.font = '8pt "MS Gothic", "Meiryo", sans-serif';
+    // 原本マスターの「連絡先」や「備考」のフォント（明朝体）に完全一致させる
+    ctx.font = '8.5pt "MS Mincho", "ＭＳ 明朝", "Yu Mincho", "游明朝", "Hiragino Mincho ProN", serif';
     ctx.fillStyle = '#000000';
     ctx.textBaseline = 'middle';
 
@@ -345,7 +346,7 @@ const OssDocuWorks = {
     return canvas.toDataURL('image/png');
   },
 
-  // Helper: 登録番号（車番・増車）の鮮明画像生成（原本公式サイズ9pt bold準拠）
+  // Helper: 登録番号（車番・増車）の鮮明画像生成（原本公式サイズ9pt bold準拠・中央揃え）
   _renderRegNoPng(regNo) {
     const scale = 3;
     const w = 146 * scale;
@@ -356,10 +357,15 @@ const OssDocuWorks = {
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
 
-    ctx.font = 'bold 9pt "MS Gothic", "Meiryo", sans-serif';
+    ctx.font = 'bold 9.5pt "MS Gothic", "Meiryo", sans-serif';
     ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(regNo, 4, 7.0);
+
+    let disp = String(regNo || '増　　　車').trim();
+    if (disp === '増車') disp = '増　　　車';
+
+    ctx.fillText(disp, 146 / 2, 7.0);
 
     return canvas.toDataURL('image/png');
   },
