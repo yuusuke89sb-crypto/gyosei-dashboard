@@ -173,13 +173,13 @@ const OssDocuWorks = {
     const font = await targetDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
     const cellW = 20.07;
 
-    // 注文書№ 8桁の印字（所在図・配置図それぞれのセル中心に完全整合：7mm拡大版）
+    // 注文書№ 8桁の印字（所在図・配置図それぞれのセル中心・ベースラインに完全整合）
     for (let i = 0; i < 8; i++) {
       const ch = payload.orderNo8[i] || '0';
-      const cxSozai = 220.50 + i * cellW + 5.5;
-      const cxHaichi = 220.30 + i * cellW + 5.5;
-      sozaiPage.drawText(ch, { x: cxSozai, y: 525.0, size: 17.0, font, color: rgb(0, 0, 0) });
-      haichiPage.drawText(ch, { x: cxHaichi, y: 531.0, size: 17.0, font, color: rgb(0, 0, 0) });
+      const cxSozai = 220.50 + i * cellW + 4.8;
+      const cxHaichi = 220.30 + i * cellW + 4.8;
+      sozaiPage.drawText(ch, { x: cxSozai, y: 530.0, size: 16.0, font, color: rgb(0, 0, 0) });
+      haichiPage.drawText(ch, { x: cxHaichi, y: 535.0, size: 16.0, font, color: rgb(0, 0, 0) });
     }
 
     // 注文書№ 8マスの縦線（グリッド線）の完全保証描画（PDF-Libによるベクター線描画で消去を100%防止：7mm拡大版）
@@ -202,7 +202,7 @@ const OssDocuWorks = {
       });
     }
 
-    // Embed Dealer Info overlay (Dealer name + Phone) - 完全透過PNG (7mm拡大版)
+    // Embed Dealer Info overlay (Dealer name + Phone) - 完全透過PNG (7mm拡大版・連絡先ラベルとの衝突防止微調整)
     try {
       const dealerPng = this._renderDealerInfoPng(payload.dealerName, payload.dealerTel);
       if (dealerPng) {

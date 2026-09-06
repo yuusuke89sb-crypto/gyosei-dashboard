@@ -57,11 +57,11 @@ def generate_haichi_pdf(data, output_pdf=None):
     for i, ch in enumerate(order_no_8):
         cx = start_x_h + i * cell_w
         page.insert_text(
-            (cx + 5.5, 64.0),
+            (cx + 4.8, 60.5),
             ch,
             fontname="msgothic",
             fontfile=FONT_PATH,
-            fontsize=17.0,
+            fontsize=16.0,
             color=(0, 0, 0)
         )
 
@@ -74,22 +74,22 @@ def generate_haichi_pdf(data, output_pdf=None):
     dealer_tel = data.get('dealerTel', '0568-23-2811')
     dealer_text = f"{dealer_name}  ℡ {dealer_tel}".strip() if dealer_tel else dealer_name
     page.insert_text(
-        (579.0, 539.0),
+        (584.0, 535.5),
         dealer_text,
         fontname="msgothic",
         fontfile=FONT_PATH,
-        fontsize=9.8,
+        fontsize=9.5,
         color=(0, 0, 0)
     )
 
     reg_no = data.get('regNo', '').strip()
     if reg_no:
         page.insert_text(
-            (627.0, 558.0),
+            (630.0, 553.5),
             reg_no,
             fontname="msgothic",
             fontfile=FONT_PATH,
-            fontsize=11.2,
+            fontsize=11.0,
             color=(0, 0, 0)
         )
 
@@ -135,11 +135,11 @@ def generate_sozai_pdf(data, output_pdf=None):
     for i, ch in enumerate(order_no_8):
         cx = start_x_s + i * cell_w
         page.insert_text(
-            (cx + 5.5, 70.0),
+            (cx + 4.8, 65.5),
             ch,
             fontname="msgothic",
             fontfile=FONT_PATH,
-            fontsize=17.0,
+            fontsize=16.0,
             color=(0, 0, 0)
         )
 
