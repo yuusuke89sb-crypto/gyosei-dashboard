@@ -654,6 +654,7 @@
     <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ クリア</button>
     <button class="btn btn-primary" onclick="exportOSSImage()">🖼️ OSS画像(2枚)保存</button>
     <button class="btn btn-success" onclick="exportA4PDF()">🖨️ 印刷 / PDF保存</button>
+    <button class="btn" onclick="openDocuWorksExportModal()" style="background:linear-gradient(135deg, #2563eb, #7c3aed); color:#fff; font-weight:bold; box-shadow:0 2px 8px rgba(37,99,235,0.4);" title="DocuWorks完全一致PDF・xdw・確認書Excel・メール送信の一括出力">📑 OSS正式様式パック（DW準拠）</button>
   </div>
 </header>
 
@@ -4487,7 +4488,170 @@ async function exportOSSImage() {
     showToast('✅ OSS画像(2枚)を保存しました');
   }, 500);
 }
+
+// ─── OSS正式様式パック（DocuWorks完全一致）モーダル ───
+async function openDocuWorksExportModal() {
+  showToast('⏳ 地図描画をキャプチャ中...');
+  
+  // 1. 所在図と配置図のキャンバス部分をキャプチャ
+  let sozaiMapPng = '';
+  let haichiMapPng = '';
+  try {
+    const sContainer = document.getElementById('sozaiContainer');
+    const hContainer = document.getElementById('haichiContainer');
+    if (sContainer && typeof html2canvas !== 'undefined') {
+      const c1 = await html2canvas(sContainer, { scale: 2, useCORS: true, logging: false });
+      sozaiMapPng = c1.toDataURL('image/png');
+    }
+    if (hContainer && typeof html2canvas !== 'undefined') {
+      const c2 = await html2canvas(hContainer, { scale: 2, useCORS: true, logging: false });
+      haichiMapPng = c2.toDataURL('image/png');
+    }
+  } catch(e) {
+    console.warn('Canvas capture error:', e);
+  }
+
+  // 2. 案件ペイロードの取得・構築
+  let payload = (linkedCaseId && typeof OssDocuWorks !== 'undefined') ? OssDocuWorks.getCasePayload(linkedCaseId) : null;
+  if (!payload) {
+    const ocrInputVal = document.getElementById('ocrCodeInput')?.value || '58280';
+    const orderNo = ocrInputVal.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || '58280';
+    const dealerInfo = document.getElementById('dealerInfoInput')?.value || '愛知トヨタ 西春店';
+    const regNo = document.getElementById('regNoInput')?.value || '増　　　車';
+    const homeAddr = document.getElementById('homeAddress')?.value || '';
+    const parkAddr = document.getElementById('parkingAddress')?.value || '同上';
+
+    payload = {
+      caseId: linkedCaseId || ('temp_' + Date.now()),
+      caseTitle: linkedCaseTitle || '車庫証明案件',
+      orderNo: orderNo,
+      orderNo8: (typeof OssDocuWorks !== 'undefined') ? OssDocuWorks.formatOrderNo8(orderNo) : orderNo.padStart(8, '0'),
+      dealerName: dealerInfo.split('\n')[0] || dealerInfo,
+      dealerTel: (dealerInfo.match(/TEL\s*([0-9-]+)/i)?.[1]) || '0568-23-2811',
+      contactName: linkedContactName || '',
+      contactEmail: '',
+      regNo: regNo,
+      applicantName: linkedCaseTitle || '申請者',
+      carAddress: homeAddr,
+      parkingAddress: parkAddr,
+      zip: '',
+      staffName: '田中',
+      mapPng: haichiMapPng || sozaiMapPng,
+      sozaiMapPng: sozaiMapPng,
+      haichiMapPng: haichiMapPng,
+      driveFolderUrl: linkedFolderUrl || ''
+    };
+  } else {
+    if (sozaiMapPng) payload.sozaiMapPng = sozaiMapPng;
+    if (haichiMapPng) payload.haichiMapPng = haichiMapPng;
+    if (haichiMapPng) payload.mapPng = haichiMapPng;
+  }
+
+  window._activeOssPayload = payload;
+
+  // 3. モーダル表示
+  const existing = document.getElementById('dwExportModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'dwExportModal';
+  modal.className = 'modal';
+  modal.style.display = 'flex';
+  modal.style.position = 'fixed';
+  modal.style.inset = '0';
+  modal.style.zIndex = '999999';
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="document.getElementById('dwExportModal').remove()" style="position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(4px);"></div>
+    <div class="modal-content" style="position:relative; margin:auto; width:680px; max-width:95vw; background:#1e293b; border:1px solid #334155; border-radius:12px; padding:22px; color:#fff; box-shadow:0 12px 40px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:10px;">
+        <h2 style="margin:0; font-size:1.15rem; display:flex; align-items:center; gap:8px; color:#38bdf8;">
+          📑 OSS正式様式パック（DocuWorks完全一致）出力
+        </h2>
+        <button onclick="document.getElementById('dwExportModal').remove()" style="background:none; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer;">✕</button>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; background:#0f172a; padding:12px; border-radius:8px; border:1px solid #334155; font-size:0.82rem;">
+        <div><strong style="color:#94a3b8;">注文書番号:</strong> <span style="color:#38bdf8; font-weight:bold; font-family:monospace; font-size:0.95rem;">D1104701 ${payload.orderNo8}</span></div>
+        <div><strong style="color:#94a3b8;">店舗名:</strong> <span>${payload.dealerName}</span></div>
+        <div><strong style="color:#94a3b8;">申請者名:</strong> <span>${payload.applicantName} 様</span></div>
+        <div><strong style="color:#94a3b8;">登録番号:</strong> <span>${payload.regNo || '—'}</span></div>
+        <div style="grid-column:1/-1;"><strong style="color:#94a3b8;">保管場所:</strong> <span>${payload.parkingAddress || '同上'}</span></div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div style="font-size:0.78rem; font-weight:bold; color:#f59e0b;">📦 出力メニュー（DocuWorks側での切取・手打ちゼロ仕様）:</div>
+        
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <button type="button" class="btn" onclick="executeDocuWorksExport('pdf')" style="padding:10px; background:#0284c7; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+            📄 正式PDF出力 (DW完全一致)
+          </button>
+          <button type="button" class="btn" onclick="executeDocuWorksExport('xdw')" style="padding:10px; background:#7c3aed; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+            📑 DocuWorks形式 (.xdw) 出力
+          </button>
+          <button type="button" class="btn" onclick="executeDocuWorksExport('excel')" style="padding:10px; background:#059669; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+            📊 書類確認書 (Excel .xlsx)
+          </button>
+          <button type="button" class="btn" onclick="executeDocuWorksExport('drive')" style="padding:10px; background:#d97706; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+            ☁️ 案件Google Driveへ一括保存
+          </button>
+        </div>
+
+        <button type="button" class="btn" onclick="executeDocuWorksExport('email')" style="padding:10px; margin-top:4px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; border-radius:6px; font-weight:bold; font-size:0.85rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+          📧 ディーラー客先メール作成・送信 (メーラー & Gmail対応)
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function executeDocuWorksExport(action) {
+  const p = window._activeOssPayload;
+  if (!p) return;
+
+  try {
+    if (action === 'pdf') {
+      showToast('⏳ 正式PDF生成中...');
+      const blob = await OssDocuWorks.generatePdfBlob(p);
+      const cleanApplicant = p.applicantName.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 20);
+      const fileName = `【${p.orderNo}】${cleanApplicant}_所在図配置図.pdf`;
+      OssDocuWorks._downloadBlob(blob, fileName);
+      showToast(`✅ 「${fileName}」をダウンロードしました！`);
+    } else if (action === 'excel') {
+      showToast('⏳ 書類確認書Excel生成中...');
+      const blob = await OssDocuWorks.generateExcelBlob(p);
+      const fileName = `書類確認書（OSS）_${p.dealerName.replace(/\s+/g, '_')}_${p.orderNo}.xlsx`;
+      OssDocuWorks._downloadBlob(blob, fileName);
+      showToast(`✅ 「${fileName}」をダウンロードしました！`);
+    } else if (action === 'xdw') {
+      OssDocuWorks.generateXdwViaPython(p);
+    } else if (action === 'drive') {
+      if (linkedCaseId) {
+        await OssDocuWorks.saveAllToDrive(linkedCaseId);
+      } else {
+        alert('案件と連携されていないためDriveの保存先フォルダが特定できません。ダッシュボードから案件を開いて作図してください。');
+      }
+    } else if (action === 'email') {
+      document.getElementById('dwExportModal')?.remove();
+      if (linkedCaseId) {
+        OssDocuWorks.openEmailModal(linkedCaseId);
+      } else {
+        alert('案件と連携されていないため客先情報が未設定です。');
+      }
+    }
+  } catch(err) {
+    console.error('executeDocuWorksExport error:', err);
+    alert('エラーが発生しました: ' + err.message);
+  }
+}
 </script>
+
+<!-- OSS DocuWorks Pack & Master Store Scripts -->
+<script src="js/pdf-lib.min.js"></script>
+<script src="js/xlsx.full.min.js"></script>
+<script src="js/store.js?v=20260906_1930"></script>
+<script src="js/sync.js?v=20260906_1930"></script>
+<script src="js/oss_docuworks.js?v=20260906_1930"></script>
 
 </body>
 </html>

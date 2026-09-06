@@ -713,6 +713,7 @@ function doPost(e) {
       case 'updateCalendarEvent': result = updateCalendarEvent_(data); break;
       case 'deleteCalendarEvent': result = deleteCalendarEvent_(data); break;
       case 'sendFax': result = sendFax_(data); break;
+      case 'sendCaseEmail': result = sendCaseEmail_(data); break;
       case 'checkFax': result = checkIncomingFax_(); break;
       case 'checkInbox': result = checkIncomingInbox_(data); break;
       case 'upsertInboxItem': result = upsertInboxItem_(data, lineToken, lineUserId, lineNotifyInbox); break;
@@ -2184,6 +2185,29 @@ function sendFax_(data) {
     logFax_('送信', data.faxNumber, data.subject, data.clientName || '');
     return { success: true, message: 'FAXを送信しました', sentTo: faxEmail };
   } catch (err) { return { error: 'FAX送信エラー: ' + err.message }; }
+}
+
+/**
+ * 案件メールをGmail経由で直接送信（添付ファイル付き）
+ */
+function sendCaseEmail_(data) {
+  if (!data.to) return { error: '宛先メールアドレスは必須です' };
+  try {
+    const options = {};
+    if (data.attachments && Array.isArray(data.attachments)) {
+      options.attachments = data.attachments.map(att => {
+        return Utilities.newBlob(
+          Utilities.base64Decode(att.base64Data),
+          att.mimeType || 'application/octet-stream',
+          att.fileName
+        );
+      });
+    }
+    GmailApp.sendEmail(data.to, data.subject || '車庫証明 書類確認書', data.body || '', options);
+    return { success: true, message: 'メールを送信しました', sentTo: data.to };
+  } catch (err) {
+    return { error: 'メール送信エラー: ' + err.message };
+  }
 }
 
 function checkIncomingFax_() {

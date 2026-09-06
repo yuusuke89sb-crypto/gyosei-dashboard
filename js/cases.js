@@ -2771,6 +2771,29 @@ const Cases = {
           ${hasMapData ? '<span style="font-size:0.72rem;background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;font-weight:bold;">作図済</span>' : ''}
         </h4>
         ${mapPreviewHtml}
+        <div style="margin-top:12px; padding-top:10px; border-top:1px dashed var(--border-color);">
+          <div style="font-size:0.78rem; font-weight:bold; color:var(--text-color); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
+            <span>📑 OSS正式様式パック（DocuWorks完全一致）</span>
+            <span style="font-size:0.68rem; color:#f59e0b; background:rgba(245,158,11,0.1); padding:1px 6px; border-radius:4px; border:1px solid rgba(245,158,11,0.3);">DW 1ドット狂いなし</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'pdf')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#38bdf8; border-color:#38bdf8; font-weight:bold;" title="1ドットの狂いもないDocuWorks完全一致のPDF（所在図+配置図）を出力">
+              📄 正式PDF出力
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'xdw')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#a855f7; border-color:#a855f7; font-weight:bold;" title="DocuWorksネイティブ形式（.xdw）を出力">
+              📑 DocuWorks (xdw)
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'excel')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#10b981; border-color:#10b981; font-weight:bold;" title="注文書№・申請者・事務所情報が自動転記された書類確認書（Excel）を出力">
+              📊 確認書 (Excel)
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.saveAllToDrive('${caseId}')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#f59e0b; border-color:#f59e0b; font-weight:bold;" title="案件のGoogle DriveフォルダへPDFとExcelを一括自動保存">
+              ☁️ Drive一括保存
+            </button>
+          </div>
+          <button type="button" class="btn btn-primary btn-small" onclick="OssDocuWorks.openEmailModal('${caseId}')" style="width:100%; font-size:0.78rem; padding:6px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:6px;">
+            📧 ディーラー客先メール作成・送信 (メーラー & Gmail対応)
+          </button>
+        </div>
       </div>
     `;
   },
