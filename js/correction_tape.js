@@ -30,8 +30,8 @@ const DigitalCorrectionTape = {
   drawStartY: 0,
   activeWhiteoutId: null,
   
-  // 耳消しの設定 (デフォルト 7.2% = A4横幅210mm中約15mm)
-  marginErasePercent: 0.075,
+  // 耳消しの設定 (デフォルト約1/4サイズ: 2.0% = A4横幅210mm中約4.2mm、枠線に被らず耳だけ消去)
+  marginErasePercent: 0.02,
 
   /**
    * モーダル初期化＆オープン
@@ -51,6 +51,9 @@ const DigitalCorrectionTape = {
     this.pdfPagesData = [];
     this.currentPageIdx = 0;
     this.zoom = 1.0;
+    this.marginErasePercent = 0.02;
+    const marginSel = document.getElementById('dctMarginSelect');
+    if (marginSel) marginSel.value = '0.02';
 
     // 「✨ 案件に反映」ボタンの表示制御
     const applyBtn = document.getElementById('dctApplyToCaseBtn');
@@ -156,10 +159,11 @@ const DigitalCorrectionTape = {
             <!-- 耳消し幅プリセット選択 -->
             <select id="dctMarginSelect" onchange="DigitalCorrectionTape.onMarginPercentChange(this.value)"
               style="background:#0f172a; color:#cbd5e1; border:1px solid #475569; border-radius:4px; font-size:0.75rem; padding:3px 6px;">
-              <option value="0.05">耳幅: 細め (5%)</option>
-              <option value="0.075" selected>耳幅: 標準 (7.5%)</option>
-              <option value="0.10">耳幅: 広め (10%)</option>
-              <option value="0.14">耳幅: 特大 (14%)</option>
+              <option value="0.012">耳幅: 極細 (1.2%)</option>
+              <option value="0.02" selected>耳幅: 標準・1/4 (2.0%)</option>
+              <option value="0.035">耳幅: やや広め (3.5%)</option>
+              <option value="0.05">耳幅: 広め (5.0%)</option>
+              <option value="0.075">耳幅: 特大 (7.5%)</option>
             </select>
           </div>
 
@@ -690,11 +694,17 @@ const DigitalCorrectionTape = {
 
       // 白消しラベル（耳消し等の場合）
       if (rect.label) {
+        const badgeW = Math.min(74, Math.max(18, rect.w - 2));
         ctx.fillStyle = 'rgba(2, 132, 199, 0.9)';
-        ctx.fillRect(rect.x + 2, rect.y + 2, 74, 18);
+        ctx.fillRect(rect.x + 1, rect.y + 2, badgeW, 18);
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 11px sans-serif';
-        ctx.fillText(rect.label, rect.x + 6, rect.y + 15);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(rect.x + 1, rect.y + 2, badgeW, 18);
+        ctx.clip();
+        ctx.fillText(rect.label, rect.x + 3, rect.y + 15);
+        ctx.restore();
       }
       ctx.restore();
     });
