@@ -866,6 +866,27 @@
           <button class="property-btn" onclick="setTextLandmarkDot('left')" id="btnDotLeft" title="文字の左に●（目印）を配置">左◀</button>
           <button class="property-btn" onclick="setTextLandmarkDot('right')" id="btnDotRight" title="文字の右に●（目印）を配置">右▶</button>
         </div>
+        <!-- 🔤 フォントサイズ調整（arrow, line-dim, text, dist-line用） -->
+        <div class="property-row" id="propertyFontSizeRow" style="display:none; align-items:center; gap:4px; margin-top:4px;">
+          <span style="font-size:0.72rem; color:#38BDF8; width:52px; flex-shrink:0;">🔤 文字大:</span>
+          <button class="property-btn" onclick="changeSelectedItemFontSize(-1)" title="文字を小さく">➖</button>
+          <span id="propertyFontSizeDisplay" style="font-size:0.75rem; font-weight:bold; color:#38BDF8; min-width:32px; text-align:center;">13px</span>
+          <button class="property-btn" onclick="changeSelectedItemFontSize(1)" title="文字を大きく">➕</button>
+          <span style="border-left:1px solid #334155; height:14px; margin:0 2px;"></span>
+          <button class="property-btn" onclick="setSelectedItemFontSize(11)">11</button>
+          <button class="property-btn" onclick="setSelectedItemFontSize(13)">13</button>
+          <button class="property-btn" onclick="setSelectedItemFontSize(15)">15</button>
+          <button class="property-btn" onclick="setSelectedItemFontSize(18)">18</button>
+          <button class="property-btn" onclick="setSelectedItemFontSize(22)">22</button>
+        </div>
+        <!-- 📐 矢印・幅員の表記レイアウト（自動 / 上部 / 中央 / 両脇） -->
+        <div class="property-row" id="propertyArrowLayoutRow" style="display:none; align-items:center; gap:3px; margin-top:4px; flex-wrap:wrap;">
+          <span style="font-size:0.72rem; color:#10B981; width:52px; flex-shrink:0;">📐 配置:</span>
+          <button class="property-btn" onclick="setSelectedItemTextPos('auto')" id="btnPosAuto" title="自動判定（水平は上、道路は両脇など）">自動</button>
+          <button class="property-btn" onclick="setSelectedItemTextPos('above')" id="btnPosAbove" title="矢印の上に文字を配置">矢印の上</button>
+          <button class="property-btn" onclick="setSelectedItemTextPos('split')" id="btnPosSplit" title="矢印の両脇に分割配置（例: 5m ↕ 道路）">両脇(5m ↕ 道路)</button>
+          <button class="property-btn" onclick="setSelectedItemTextPos('center')" id="btnPosCenter" title="矢印の中央（白抜き）">中央</button>
+        </div>
       </div>
 
       <div class="tool-grid">
@@ -920,11 +941,18 @@
         <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')">
           <span class="tool-btn-icon">🧹</span>要素削除
         </button>
+        <button class="tool-btn" id="tool-ortho-toggle" onclick="toggleOrthoLock()" title="水平・垂直の直交ロック（Shiftキーでも可）" style="background:#1e293b; border-color:#38bdf8;">
+          <span class="tool-btn-icon">📐</span>直交ロック <span id="orthoLockBadge" style="font-size:0.65rem; padding:1px 3px; border-radius:3px; background:#475569; color:#fff;">OFF</span>
+        </button>
+        <button class="tool-btn" id="tool-clean-roads" onclick="autoCleanRoadIntersections()" title="道路のT字路・交差点を自動判定して綺麗に開口・成形" style="background:#1e293b; border-color:#10b981;">
+          <span class="tool-btn-icon">✂️</span>T字路・交差点成形
+        </button>
       </div>
 
       <div style="font-size:0.70rem; color:#38BDF8; background:#0F172A; border:1px solid #1E293B; border-radius:4px; padding:4px 6px; margin-top:6px;">
-        💡 <b>直線の引き方:</b> 「直線ペン」や「道路境界線」はドラッグで引けます。<br>
-        <b>Shiftキーを押しながらドラッグ</b>すると、真横・真縦・45度にピシッと吸着します！
+        💡 <b>直線の引き方:</b> 「直線ペン」「道路境界線」はドラッグで引けます。<br>
+        <b>「直交ロック」ボタンまたはShiftキー</b>で、100%水平・垂直にまっすぐ引けます！<br>
+        T字路や交差した箇所は<b>「✂️ T字路・交差点成形」</b>を押すと自動で余分な線を開口・接続します！
       </div>
 
       <!-- スタンプ管理（削除×ボタン付き・自由編集） -->
@@ -1088,21 +1116,21 @@
         </div>
 
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0;">
-          <!-- 連絡先 -->
-          <div style="font-size:8.5pt; color:#000; font-weight:normal; letter-spacing:0.5px; margin-bottom:1px;">
+          <!-- 連絡先（公式原本8pt基準） -->
+          <div style="font-size:8pt; color:#000; font-weight:normal; letter-spacing:0.5px; margin-bottom:1px;">
             <span>連絡先</span>
             <span id="dealerInfoDisplay" style="font-weight:bold; margin-left:4px;">愛知トヨタ 江南店 ℡ 0587-55-6311</span>
           </div>
 
-          <!-- 登録番号 枠 -->
-          <div style="display:flex; border:1.4px solid #000; font-size:8pt; height:24px; align-items:stretch; background:#fff; width:260px;">
-            <div style="padding:2px 10px; font-weight:normal; border-right:1.2px solid #000; display:flex; align-items:center; justify-content:center; white-space:nowrap; font-size:7.5pt;">登録番号</div>
-            <div id="regNoDisplay" style="flex:1; padding:2px 8px; display:flex; align-items:center; font-family:monospace; font-weight:bold; font-size:8.5pt;"></div>
+          <!-- 登録番号 枠（公式原本9pt bold基準） -->
+          <div style="display:flex; border:1.4px solid #000; font-size:8pt; height:22px; align-items:stretch; background:#fff; width:250px;">
+            <div style="padding:1px 8px; font-weight:normal; border-right:1.2px solid #000; display:flex; align-items:center; justify-content:center; white-space:nowrap; font-size:7.5pt;">登録番号</div>
+            <div id="regNoDisplay" style="flex:1; padding:1px 6px; display:flex; align-items:center; font-family:monospace; font-weight:bold; font-size:8.5pt;"></div>
           </div>
 
-          <!-- 作成者 ＆ 職印 -->
+          <!-- 作成者 ＆ 職印（公式原本8pt基準） -->
           <div style="display:flex; align-items:center; gap:8px; margin-top:2px;">
-            <div id="officeInfoDisplay" style="font-size:8.5pt; font-weight:bold; color:#000;">
+            <div id="officeInfoDisplay" style="font-size:8pt; font-weight:bold; color:#000;">
               行政書士法人フェリス 0586-50-2896
             </div>
             <div id="sealWrapper" style="width:34px; height:34px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
@@ -1197,13 +1225,45 @@ function distToSegment(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
 }
 
-function snapToAngle(x1, y1, x2, y2) {
+window.orthoLock = false;
+function toggleOrthoLock() {
+  window.orthoLock = !window.orthoLock;
+  const badge = document.getElementById('orthoLockBadge');
+  const btn = document.getElementById('tool-ortho-toggle');
+  if (window.orthoLock) {
+    if (badge) { badge.textContent = 'ON'; badge.style.background = '#10B981'; }
+    if (btn) { btn.style.background = '#064e3b'; btn.style.borderColor = '#10B981'; }
+    showToast('📐 直交ロック: ON（真横・真縦にまっすぐ描画）');
+  } else {
+    if (badge) { badge.textContent = 'OFF'; badge.style.background = '#475569'; }
+    if (btn) { btn.style.background = '#1e293b'; btn.style.borderColor = '#38bdf8'; }
+    showToast('📐 直交ロック: OFF（自由角度）');
+  }
+}
+
+function snapToAngle(x1, y1, x2, y2, allow45 = false) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   const dist = Math.hypot(dx, dy);
   if (dist < 4) return { x: x2, y: y2 };
+
+  // 直交ロックまたは水平・垂直付近の場合は完全な真横・真縦に吸着
+  if (window.orthoLock || !allow45) {
+    if (Math.abs(dy) <= Math.abs(dx) * 0.35 || Math.abs(dy) < 14) {
+      return { x: x2, y: y1 }; // 完全な水平線
+    }
+    if (Math.abs(dx) <= Math.abs(dy) * 0.35 || Math.abs(dx) < 14) {
+      return { x: x1, y: y2 }; // 完全な垂直線
+    }
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      return { x: x2, y: y1 };
+    } else {
+      return { x: x1, y: y2 };
+    }
+  }
+
+  // 45度刻み吸着
   const angle = Math.atan2(dy, dx);
-  // 45度刻み（0°, 45°, 90°, 135°, 180°, -135°, -90°, -45°）に吸着
   const snapAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
   return {
     x: Math.round(x1 + dist * Math.cos(snapAngle)),
@@ -1426,6 +1486,17 @@ function checkUrlCaseParams() {
       document.getElementById('regNoInput').value = regNo;
       updateFooterRegNo();
     }
+    if (orderNo) {
+      const cleanNo = String(orderNo).replace(/[^a-zA-Z0-9]/g, '');
+      const orderNo8 = cleanNo.length <= 8 ? cleanNo.padStart(8, '0') : cleanNo.slice(-8);
+      const fullOcr = (cleanNo.startsWith('D') && cleanNo.length >= 16) ? cleanNo : ('D1104701' + orderNo8);
+      const ocrInput = document.getElementById('ocrCodeInput');
+      if (ocrInput) {
+        ocrInput.value = fullOcr;
+      }
+      updateOCRDisplay();
+      updateQRCodes();
+    }
 
     // 1. 保存済みの案件作図データ（syako_case_map_ID）があるか確認
     let restored = false;
@@ -1442,6 +1513,14 @@ function checkUrlCaseParams() {
           // 案件情報に最新の住所がある場合は反映
           if (home) document.getElementById('homeAddress').value = home;
           if (parking) document.getElementById('parkingAddress').value = parking;
+          if (orderNo) {
+            const cleanNo = String(orderNo).replace(/[^a-zA-Z0-9]/g, '');
+            const orderNo8 = cleanNo.length <= 8 ? cleanNo.padStart(8, '0') : cleanNo.slice(-8);
+            const fullOcr = (cleanNo.startsWith('D') && cleanNo.length >= 16) ? cleanNo : ('D1104701' + orderNo8);
+            if (document.getElementById('ocrCodeInput')) document.getElementById('ocrCodeInput').value = fullOcr;
+            updateOCRDisplay();
+            updateQRCodes();
+          }
           showToast(`📂 案件「${linkedCaseTitle}」の保存済み図面を復元しました`);
           restored = true;
         }
@@ -1897,6 +1976,150 @@ function resetDefaultStamps() {
 }
 
 // ─── 選択中要素のプロパティパネル操作（回転・サイズ変更・テキスト編集） ───
+
+// ─── 🛣️ 道路のT字路・交差点自動成形（貫通線の開口＆接続） ───
+function autoCleanRoadIntersections(targetKey) {
+  const tKey = targetKey || activeTarget || 'haichi';
+  const list = drawings[tKey];
+  if (!list || list.length === 0) {
+    showToast('💡 描画された道路線がありません');
+    return;
+  }
+
+  // 道路線要素（line-road、または太線line-straight）を抽出
+  const roadIndices = [];
+  list.forEach((item, idx) => {
+    if (item.type === 'line-road' || (item.type === 'line-straight' && (item.lineWidth >= 3 || item.isRoad))) {
+      roadIndices.push(idx);
+    }
+  });
+
+  if (roadIndices.length < 2) {
+    showToast('💡 交差またはT字路を成形するには2本以上の道路線が必要です');
+    return;
+  }
+
+  pushHistory();
+  let modified = false;
+
+  function intersectSegs(x1, y1, x2, y2, x3, y3, x4, y4, tol = 16) {
+    const dx1 = x2 - x1, dy1 = y2 - y1;
+    const dx2 = x4 - x3, dy2 = y4 - y3;
+    const denom = dy2 * dx1 - dx2 * dy1;
+    if (Math.abs(denom) < 1e-6) return null;
+    const ua = (dx2 * (y1 - y3) - dy2 * (x1 - x3)) / denom;
+    const ub = (dx1 * (y1 - y3) - dy1 * (x1 - x3)) / denom;
+    const len1 = Math.hypot(dx1, dy1);
+    const len2 = Math.hypot(dx2, dy2);
+    const tolA = tol / Math.max(1, len1);
+    const tolB = tol / Math.max(1, len2);
+    if (ua >= -tolA && ua <= 1 + tolA && ub >= -tolB && ub <= 1 + tolB) {
+      return {
+        ua: Math.max(0, Math.min(1, ua)),
+        ub: Math.max(0, Math.min(1, ub)),
+        x: x1 + ua * dx1,
+        y: y1 + ua * dy1
+      };
+    }
+    return null;
+  }
+
+  const newDrawings = [];
+  const handledOriginalIndices = new Set();
+
+  for (let rIdx of roadIndices) {
+    if (handledOriginalIndices.has(rIdx)) continue;
+    const mainLine = list[rIdx];
+    const intersections = [];
+
+    for (let oIdx of roadIndices) {
+      if (rIdx === oIdx) continue;
+      const otherLine = list[oIdx];
+      const inter = intersectSegs(
+        mainLine.x1, mainLine.y1, mainLine.x2, mainLine.y2,
+        otherLine.x1, otherLine.y1, otherLine.x2, otherLine.y2,
+        20
+      );
+      if (inter) {
+        const isTouchingEnd = inter.ub <= 0.18 || inter.ub >= 0.82;
+        intersections.push({
+          otherIdx: oIdx,
+          ua: inter.ua,
+          ub: inter.ub,
+          x: inter.x,
+          y: inter.y,
+          isTouchingEnd: isTouchingEnd
+        });
+      }
+    }
+
+    intersections.sort((a, b) => a.ua - b.ua);
+
+    let cutIntervals = [];
+    for (let k = 0; k < intersections.length - 1; k++) {
+      const p1 = intersections[k];
+      const p2 = intersections[k + 1];
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      if (dist >= 15 && dist <= 280) {
+        cutIntervals.push({ startUa: p1.ua, endUa: p2.ua, startPt: p1, endPt: p2 });
+
+        const line1 = list[p1.otherIdx];
+        if (p1.ub <= 0.18) { line1.x1 = Math.round(p1.x); line1.y1 = Math.round(p1.y); }
+        else if (p1.ub >= 0.82) { line1.x2 = Math.round(p1.x); line1.y2 = Math.round(p1.y); }
+
+        const line2 = list[p2.otherIdx];
+        if (p2.ub <= 0.18) { line2.x1 = Math.round(p2.x); line2.y1 = Math.round(p2.y); }
+        else if (p2.ub >= 0.82) { line2.x2 = Math.round(p2.x); line2.y2 = Math.round(p2.y); }
+
+        k++;
+      }
+    }
+
+    if (cutIntervals.length > 0) {
+      modified = true;
+      handledOriginalIndices.add(rIdx);
+      let curUa = 0;
+      let curX = mainLine.x1;
+      let curY = mainLine.y1;
+
+      cutIntervals.forEach(interval => {
+        if (interval.startUa > curUa + 0.02) {
+          newDrawings.push({
+            ...mainLine,
+            x1: Math.round(curX),
+            y1: Math.round(curY),
+            x2: Math.round(interval.startPt.x),
+            y2: Math.round(interval.startPt.y)
+          });
+        }
+        curUa = interval.endUa;
+        curX = interval.endPt.x;
+        curY = interval.endPt.y;
+      });
+
+      if (curUa < 0.98) {
+        newDrawings.push({
+          ...mainLine,
+          x1: Math.round(curX),
+          y1: Math.round(curY),
+          x2: Math.round(mainLine.x2),
+          y2: Math.round(mainLine.y2)
+        });
+      }
+    }
+  }
+
+  if (modified) {
+    drawings[tKey] = drawings[tKey].filter((_, idx) => !handledOriginalIndices.has(idx)).concat(newDrawings);
+    redraw(tKey);
+    autoSaveDraft();
+    showToast('🛣️ T字路・交差点を自動成形しました！（接続口を綺麗に開口）');
+  } else {
+    showToast('💡 突き当たるT字路や交差が見つかりませんでした。直交線を描いてから再度実行してください。');
+  }
+}
+window.autoCleanRoadIntersections = autoCleanRoadIntersections;
+
 function showPropertyPanel(targetKey, index) {
   selectedItemRef = { targetKey, index };
   const panel = document.getElementById('propertyPanel');
@@ -1951,6 +2174,28 @@ function showPropertyPanel(targetKey, index) {
       updateLandmarkDotButtons(item.landmarkDot || 'none');
     } else {
       landmarkRow.style.display = 'none';
+    }
+  }
+
+  const fontRow = document.getElementById('propertyFontSizeRow');
+  const fontDisp = document.getElementById('propertyFontSizeDisplay');
+  if (fontRow && fontDisp) {
+    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'arrow' || item.type === 'dist-line') {
+      fontRow.style.display = 'flex';
+      const curFSize = item.fontSize || (item.type === 'text' ? 14 : (item.type === 'line-dim' ? 13 : 12));
+      fontDisp.textContent = `${curFSize}px`;
+    } else {
+      fontRow.style.display = 'none';
+    }
+  }
+
+  const arrowLayoutRow = document.getElementById('propertyArrowLayoutRow');
+  if (arrowLayoutRow) {
+    if (item.type === 'arrow' || item.type === 'line-dim') {
+      arrowLayoutRow.style.display = 'flex';
+      updateArrowLayoutButtons(item.textPos || 'auto');
+    } else {
+      arrowLayoutRow.style.display = 'none';
     }
   }
 
@@ -2017,6 +2262,69 @@ function onPropertyTextInputChange(val) {
   redraw(targetKey);
   drawSelectionHighlight(targetKey, index);
   autoSaveDraft();
+}
+
+function changeSelectedItemFontSize(delta) {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+
+  const cur = item.fontSize || (item.type === 'text' ? 14 : (item.type === 'line-dim' ? 13 : 12));
+  const newSize = Math.max(9, Math.min(36, cur + delta));
+  item.fontSize = newSize;
+  const fontDisp = document.getElementById('propertyFontSizeDisplay');
+  if (fontDisp) fontDisp.textContent = `${newSize}px`;
+
+  redraw(targetKey);
+  drawSelectionHighlight(targetKey, index);
+  autoSaveDraft();
+}
+
+function setSelectedItemFontSize(size) {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+
+  item.fontSize = size;
+  const fontDisp = document.getElementById('propertyFontSizeDisplay');
+  if (fontDisp) fontDisp.textContent = `${size}px`;
+
+  redraw(targetKey);
+  drawSelectionHighlight(targetKey, index);
+  autoSaveDraft();
+}
+
+function setSelectedItemTextPos(pos) {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+
+  item.textPos = pos;
+  updateArrowLayoutButtons(pos);
+  redraw(targetKey);
+  drawSelectionHighlight(targetKey, index);
+  autoSaveDraft();
+}
+
+function updateArrowLayoutButtons(pos) {
+  const p = (pos || 'auto').toLowerCase();
+  ['Auto', 'Above', 'Split', 'Center'].forEach(suffix => {
+    const btn = document.getElementById(`btnPos${suffix}`);
+    if (btn) {
+      if (suffix.toLowerCase() === p) {
+        btn.classList.add('active');
+        btn.style.borderColor = '#10B981';
+        btn.style.color = '#34D399';
+      } else {
+        btn.classList.remove('active');
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }
+    }
+  });
 }
 
 /**
@@ -2811,8 +3119,9 @@ function setupCanvasEvents(canvas, targetKey) {
 
     let targetEndX = curX;
     let targetEndY = curY;
-    if (e.shiftKey && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
-      const snapped = snapToAngle(startX, startY, curX, curY);
+    const shouldSnap = window.orthoLock || e.shiftKey;
+    if (shouldSnap && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+      const snapped = snapToAngle(startX, startY, curX, curY, !window.orthoLock && e.shiftKey);
       targetEndX = snapped.x;
       targetEndY = snapped.y;
     }
@@ -2865,8 +3174,9 @@ function setupCanvasEvents(canvas, targetKey) {
     let endX = e.clientX - rect.left;
     let endY = e.clientY - rect.top;
 
-    if (e.shiftKey && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
-      const snapped = snapToAngle(startX, startY, endX, endY);
+    const shouldSnap = window.orthoLock || e.shiftKey;
+    if (shouldSnap && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+      const snapped = snapToAngle(startX, startY, endX, endY, !window.orthoLock && e.shiftKey);
       endX = snapped.x;
       endY = snapped.y;
     }
@@ -3406,9 +3716,9 @@ function drawElement(ctx, item) {
     }
     ctx.stroke();
   } else if (item.type === 'line-dim') {
-    drawDimensionLine(ctx, item.x1, item.y1, item.x2, item.y2, item.text);
+    drawDimensionLine(ctx, item.x1, item.y1, item.x2, item.y2, item.text, item.fontSize || 13, item.textPos || 'auto');
   } else if (item.type === 'arrow') {
-    drawArrow(ctx, item.x1, item.y1, item.x2, item.y2, '#000000', 2.0, true, item.label || item.text || '');
+    drawArrow(ctx, item.x1, item.y1, item.x2, item.y2, '#000000', 2.0, true, item.label || item.text || '', item.fontSize || 12, item.textPos || 'auto');
   } else if (item.type === 'line-straight') {
     ctx.strokeStyle = item.color || '#000000';
     ctx.lineWidth = item.lineWidth || 2.0;
@@ -3439,17 +3749,18 @@ function drawElement(ctx, item) {
     ctx.setLineDash([]);
 
     if (item.text) {
+      const fSize = item.fontSize || 12;
       const midX = (item.x1 + item.x2) / 2;
       const midY = (item.y1 + item.y2) / 2;
+      ctx.font = `bold ${fSize}px sans-serif`;
+      const tw = ctx.measureText(item.text).width;
       ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(midX - 45, midY - 10, 90, 20);
-      ctx.strokeStyle = '#000000';
-      ctx.strokeRect(midX - 45, midY - 10, 90, 20);
+      ctx.fillRect(midX - tw / 2 - 4, midY - fSize * 0.6, tw + 8, fSize * 1.2);
 
       ctx.fillStyle = '#000000';
-      ctx.font = 'bold 12px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(item.text, midX, midY + 4);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.text, midX, midY);
     }
   } else if (item.type === 'compass') {
     drawVectorCompass(ctx, item.x, item.y, item.size || 28);
@@ -3594,15 +3905,39 @@ function drawCarSilhouette(ctx, x, y, w = 50, h = 90) {
   ctx.restore();
 }
 
-function drawArrow(ctx, fromX, fromY, toX, toY, color = '#000', width = 2, isDouble = true, label = '') {
-  const headLen = 10;
-  const angle = Math.atan2(toY - fromY, toX - fromX);
+function drawArrow(ctx, fromX, fromY, toX, toY, color = '#000', width = 2, isDouble = true, label = '', fontSize = 12, textPos = 'auto') {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const len = Math.hypot(dx, dy);
+  const headLen = Math.min(10, Math.max(6, len * 0.2));
+  const angle = Math.atan2(dy, dx);
+  const midX = (fromX + toX) / 2;
+  const midY = (fromY + toY) / 2;
+
   ctx.save();
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.lineWidth = width;
 
-  // 線本体
+  const isHoriz = Math.abs(dx) >= Math.abs(dy) * 1.5;
+  const isVert = Math.abs(dy) >= Math.abs(dx) * 1.5;
+
+  let posMode = textPos;
+  if (!posMode || posMode === 'auto') {
+    if (isVert && (label.includes('道路') || label.includes('幅員') || /^\d+(\.\d+)?\s*m/i.test(label))) {
+      posMode = 'split'; // 例: 5m ↕ 道路 のように両脇に配置
+    } else if (isHoriz) {
+      if (label.includes('出入口')) {
+        posMode = 'above'; // 矢印の上に浮かす
+      } else {
+        posMode = 'center'; // ← 2.0m → のように矢印中央白抜き
+      }
+    } else {
+      posMode = 'center';
+    }
+  }
+
+  // 矢印線本体
   ctx.beginPath();
   ctx.moveTo(fromX, fromY);
   ctx.lineTo(toX, toY);
@@ -3626,41 +3961,72 @@ function drawArrow(ctx, fromX, fromY, toX, toY, color = '#000', width = 2, isDou
     ctx.fill();
   }
 
-  // 幅員・ラベルテキストがある場合は中央に白地付きで描画
+  // 幅員・ラベルテキストの描画（黒枠線 strokeRect は完全排除！）
   if (label && label.trim() !== '') {
-    const midX = (fromX + toX) / 2;
-    const midY = (fromY + toY) / 2;
-    ctx.font = 'bold 12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const textWidth = ctx.measureText(label).width;
+    ctx.font = `bold ${fontSize}px sans-serif`;
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(midX - textWidth / 2 - 5, midY - 10, textWidth + 10, 20);
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(midX - textWidth / 2 - 5, midY - 10, textWidth + 10, 20);
+    if (posMode === 'above') {
+      // 矢印の上部に配置（例: 出入口 4.0m）
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = color;
+      ctx.fillText(label, midX, midY - 4);
+    } else if (posMode === 'split') {
+      // 縦向き矢印の両脇に分割配置（例: 5 m ↕ 道路）
+      let leftText = '';
+      let rightText = '';
+      const mRoad = label.match(/^(.*?)(?:道路|幅員)(.*)$/);
+      if (mRoad) {
+        const numPart = (mRoad[1] + ' ' + mRoad[2]).trim();
+        leftText = numPart || '';
+        rightText = label.includes('幅員') ? '幅員' : '道路';
+      } else {
+        leftText = label;
+      }
 
-    ctx.fillStyle = '#000000';
-    ctx.fillText(label, midX, midY);
+      ctx.textBaseline = 'middle';
+      if (leftText) {
+        ctx.textAlign = 'right';
+        ctx.fillStyle = color;
+        ctx.fillText(leftText, midX - 8, midY);
+      }
+      if (rightText) {
+        ctx.textAlign = 'left';
+        ctx.fillStyle = color;
+        ctx.fillText(rightText, midX + 8, midY);
+      }
+    } else {
+      // 中央配置（枠線なし、白塗りfillRectで矢印線と重ならないように透過クリア）
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const textWidth = ctx.measureText(label).width;
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(midX - textWidth / 2 - 3, midY - fontSize * 0.6, textWidth + 6, fontSize * 1.2);
+
+      ctx.fillStyle = color;
+      ctx.fillText(label, midX, midY);
+    }
   }
 
   ctx.restore();
 }
 
-function drawDimensionLine(ctx, x1, y1, x2, y2, text) {
+function drawDimensionLine(ctx, x1, y1, x2, y2, text, fontSize = 13, textPos = 'auto') {
   ctx.save();
   ctx.strokeStyle = '#000000';
   ctx.fillStyle = '#000000';
   ctx.lineWidth = 1.8;
 
+  const headLen = 8;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
   ctx.stroke();
-
-  const headLen = 8;
-  const angle = Math.atan2(y2 - y1, x2 - x1);
 
   ctx.beginPath();
   ctx.moveTo(x1, y1);
@@ -3677,17 +4043,43 @@ function drawDimensionLine(ctx, x1, y1, x2, y2, text) {
   ctx.fill();
 
   if (text) {
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    const isVert = Math.abs(y2 - y1) >= Math.abs(x2 - x1) * 1.5;
+
+    // 縦向き寸法線で数値＋単位（例: 5.0m）の場合は縦積み（5.0 と m）またはすっきり配置
+    if (isVert && (textPos === 'stacked' || (textPos === 'auto' && /^\d+(\.\d+)?\s*m$/i.test(text.trim())))) {
+      const match = text.trim().match(/^(\d+(?:\.\d+)?)\s*(m?)$/i);
+      if (match) {
+        const num = match[1];
+        const unit = match[2] || '';
+        const lineH = fontSize * 1.05;
+        const totalH = unit ? lineH * 2 : lineH;
+        
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(midX - 14, midY - totalH / 2 - 2, 28, totalH + 4);
+
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (unit) {
+          ctx.fillText(num, midX, midY - lineH * 0.45);
+          ctx.fillText(unit, midX, midY + lineH * 0.55);
+        } else {
+          ctx.fillText(num, midX, midY);
+        }
+        ctx.restore();
+        return;
+      }
+    }
+
     ctx.textAlign = 'center';
-    
+    ctx.textBaseline = 'middle';
     const textWidth = ctx.measureText(text).width;
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(midX - textWidth / 2 - 3, midY - 9, textWidth + 6, 18);
+    ctx.fillRect(midX - textWidth / 2 - 3, midY - fontSize * 0.6, textWidth + 6, fontSize * 1.2);
 
     ctx.fillStyle = '#000000';
-    ctx.fillText(text, midX, midY + 5);
+    ctx.fillText(text, midX, midY);
   }
   ctx.restore();
 }
@@ -4677,44 +5069,71 @@ async function exportOSSImage() {
 
 // ─── キャンバス・コンテナの境界線なしクリーンキャプチャ ───
 async function captureCleanCanvasContainer(container) {
-  if (!container || typeof html2canvas === 'undefined') return '';
+  if (!container) return '';
+  const isSozai = container.id === 'sozaiContainer';
+  const mode = isSozai ? sozaiMode : haichiMode;
+  const canvas = isSozai ? sozaiCanvas : haichiCanvas;
 
-  const prevBorder = container.style.border;
-  const prevOutline = container.style.outline;
-  const prevShadow = container.style.boxShadow;
-  const hadGrid = container.classList.contains('grid-bg');
-  if (hadGrid) container.classList.remove('grid-bg');
-  container.style.border = 'none';
-  container.style.outline = 'none';
-  container.style.boxShadow = 'none';
-
-  const controls = container.querySelectorAll('.print-hide, .map-zoom-bar, .canvas-mode-toggle');
-  const prevDisplays = [];
-  controls.forEach(ctrl => {
-    prevDisplays.push({ el: ctrl, display: ctrl.style.display });
-    ctrl.style.display = 'none';
-  });
-
-  try {
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff'
-    });
-    return canvas.toDataURL('image/png');
-  } catch (err) {
-    console.warn('captureCleanCanvasContainer error:', err);
-    return '';
-  } finally {
-    container.style.border = prevBorder;
-    container.style.outline = prevOutline;
-    container.style.boxShadow = prevShadow;
-    if (hadGrid) container.classList.add('grid-bg');
-    controls.forEach(({ el, display }) => {
-      el.style.display = display;
-    });
+  if (mode === 'blank') {
+    // 白紙モード：HTML5 Canvasの作図を直接ホワイト背景に合成して高解像度PNG出力（html2canvas不要・100%確実・白紙化防止）
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = canvas.width;
+    outCanvas.height = canvas.height;
+    const outCtx = outCanvas.getContext('2d');
+    outCtx.fillStyle = '#FFFFFF';
+    outCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+    outCtx.drawImage(canvas, 0, 0);
+    return outCanvas.toDataURL('image/png');
   }
+
+  // 地図モード：html2canvasでキャプチャ
+  if (typeof html2canvas !== 'undefined') {
+    const prevBorder = container.style.border;
+    const prevOutline = container.style.outline;
+    const prevShadow = container.style.boxShadow;
+    const hadGrid = container.classList.contains('grid-bg');
+    if (hadGrid) container.classList.remove('grid-bg');
+    container.style.border = 'none';
+    container.style.outline = 'none';
+    container.style.boxShadow = 'none';
+
+    const controls = container.querySelectorAll('.print-hide, .map-zoom-bar, .canvas-mode-toggle');
+    const prevDisplays = [];
+    controls.forEach(ctrl => {
+      prevDisplays.push({ el: ctrl, display: ctrl.style.display });
+      ctrl.style.display = 'none';
+    });
+
+    try {
+      const c = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      return c.toDataURL('image/png');
+    } catch (err) {
+      console.warn('captureCleanCanvasContainer html2canvas error, fallback to direct canvas:', err);
+    } finally {
+      container.style.border = prevBorder;
+      container.style.outline = prevOutline;
+      container.style.boxShadow = prevShadow;
+      if (hadGrid) container.classList.add('grid-bg');
+      controls.forEach(({ el, display }) => {
+        el.style.display = display;
+      });
+    }
+  }
+
+  // フォールバック：直接canvas合成
+  const fallbackCanvas = document.createElement('canvas');
+  fallbackCanvas.width = canvas.width;
+  fallbackCanvas.height = canvas.height;
+  const fbCtx = fallbackCanvas.getContext('2d');
+  fbCtx.fillStyle = '#FFFFFF';
+  fbCtx.fillRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+  fbCtx.drawImage(canvas, 0, 0);
+  return fallbackCanvas.toDataURL('image/png');
 }
 
 // ─── DocuWorks手動貼付用：枠線なし・透過クリップボードコピー ───

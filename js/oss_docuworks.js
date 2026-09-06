@@ -137,16 +137,18 @@ const OssDocuWorks = {
 
     if (sozaiPngSrc) {
       try {
-        const pngBytes = await fetch(sozaiPngSrc).then(r => r.arrayBuffer());
-        const sozaiImg = await targetDoc.embedPng(pngBytes);
-        // 所在図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
-        // 原紙枠内寸法: x: 61.0, y: 41.5 (原紙下端から), 幅: 720.0, 高さ: 434.5
-        sozaiPage.drawImage(sozaiImg, {
-          x: 61.0,
-          y: 41.5,
-          width: 720.0,
-          height: 434.5
-        });
+        const pngBytes = await this._srcToUint8Array(sozaiPngSrc);
+        if (pngBytes) {
+          const sozaiImg = await targetDoc.embedPng(pngBytes);
+          // 所在図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
+          // 原紙枠内寸法: x: 61.0, y: 41.5 (原紙下端から), 幅: 720.0, 高さ: 434.5
+          sozaiPage.drawImage(sozaiImg, {
+            x: 61.0,
+            y: 41.5,
+            width: 720.0,
+            height: 434.5
+          });
+        }
       } catch(e) {
         console.warn('Failed to embed sozai map image:', e);
       }
@@ -154,16 +156,18 @@ const OssDocuWorks = {
 
     if (haichiPngSrc) {
       try {
-        const pngBytes = await fetch(haichiPngSrc).then(r => r.arrayBuffer());
-        const haichiImg = await targetDoc.embedPng(pngBytes);
-        // 配置図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
-        // 原紙枠内寸法: x: 61.0, y: 74.5 (原紙下端から), 幅: 720.0, 高さ: 405.5
-        haichiPage.drawImage(haichiImg, {
-          x: 61.0,
-          y: 74.5,
-          width: 720.0,
-          height: 405.5
-        });
+        const pngBytes = await this._srcToUint8Array(haichiPngSrc);
+        if (pngBytes) {
+          const haichiImg = await targetDoc.embedPng(pngBytes);
+          // 配置図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
+          // 原紙枠内寸法: x: 61.0, y: 74.5 (原紙下端から), 幅: 720.0, 高さ: 405.5
+          haichiPage.drawImage(haichiImg, {
+            x: 61.0,
+            y: 74.5,
+            width: 720.0,
+            height: 405.5
+          });
+        }
       } catch(e) {
         console.warn('Failed to embed haichi map image:', e);
       }
@@ -202,33 +206,33 @@ const OssDocuWorks = {
       });
     }
 
-    // Embed Dealer Info overlay (Dealer name + Phone) - 完全透過PNG (7mm拡大版・連絡先ラベルとの衝突防止微調整)
+    // Embed Dealer Info overlay (Dealer name + Phone) - 原本公式フォントサイズ（8pt）に完全適正化
     try {
       const dealerPng = this._renderDealerInfoPng(payload.dealerName, payload.dealerTel);
       if (dealerPng) {
-        const dealerImg = await targetDoc.embedPng(dealerPng);
+        const dealerImg = await targetDoc.embedPng(this._dataUrlToUint8Array(dealerPng));
         haichiPage.drawImage(dealerImg, {
-          x: 572.0,
-          y: 63.5,
-          width: 196.0,
-          height: 14.0
+          x: 574.0,
+          y: 64.5,
+          width: 194.0,
+          height: 11.5
         });
       }
     } catch(e) {
       console.warn('Failed to embed dealer info:', e);
     }
 
-    // Embed Registration Number overlay (RegNo / 増車) - 完全透過PNG
+    // Embed Registration Number overlay (RegNo / 増車) - 原本公式フォントサイズ（9pt bold）に完全適正化
     if (payload.regNo) {
       try {
         const regPng = this._renderRegNoPng(payload.regNo);
         if (regPng) {
-          const regImg = await targetDoc.embedPng(regPng);
+          const regImg = await targetDoc.embedPng(this._dataUrlToUint8Array(regPng));
           haichiPage.drawImage(regImg, {
-            x: 618.0,
-            y: 45.0,
-            width: 150.0,
-            height: 15.0
+            x: 620.0,
+            y: 46.5,
+            width: 146.0,
+            height: 12.0
           });
         }
       } catch(e) {
@@ -240,43 +244,70 @@ const OssDocuWorks = {
     return new Blob([pdfBytes], { type: 'application/pdf' });
   },
 
-  // Helper: 店舗名・電話番号の鮮明画像生成（300DPI）
+  // Helper: DataURLまたはURLから確実にUint8Arrayを取得（fetch失敗を完全防止）
+  async _srcToUint8Array(src) {
+    if (!src) return null;
+    if (src.startsWith('data:')) {
+      return this._dataUrlToUint8Array(src);
+    }
+    try {
+      const r = await fetch(src);
+      const ab = await r.arrayBuffer();
+      return new Uint8Array(ab);
+    } catch(err) {
+      console.warn('_srcToUint8Array fetch error:', err);
+      return null;
+    }
+  },
+
+  _dataUrlToUint8Array(dataUrl) {
+    const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+    const binaryStr = atob(b64);
+    const len = binaryStr.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    return bytes;
+  },
+
+  // Helper: 店舗名・電話番号の鮮明画像生成（原本公式サイズ8pt準拠）
   _renderDealerInfoPng(dealerName, dealerTel) {
     const scale = 3;
-    const w = 198 * scale;
-    const h = 16 * scale;
+    const w = 194 * scale;
+    const h = 13 * scale;
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
 
-    ctx.font = '10pt "MS Gothic", "Meiryo", sans-serif';
+    ctx.font = '8pt "MS Gothic", "Meiryo", sans-serif';
     ctx.fillStyle = '#000000';
     ctx.textBaseline = 'middle';
 
     const dName = dealerName || '';
     const dTel = dealerTel ? `  ${dealerTel}` : '';
-    ctx.fillText(dName + dTel, 2, 8);
+    ctx.fillText(dName + dTel, 2, 6.5);
 
     return canvas.toDataURL('image/png');
   },
 
-  // Helper: 登録番号（車番・増車）の鮮明画像生成（300DPI）
+  // Helper: 登録番号（車番・増車）の鮮明画像生成（原本公式サイズ9pt bold準拠）
   _renderRegNoPng(regNo) {
     const scale = 3;
-    const w = 150 * scale;
-    const h = 16 * scale;
+    const w = 146 * scale;
+    const h = 14 * scale;
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
 
-    ctx.font = 'bold 11pt "MS Gothic", "Meiryo", sans-serif';
+    ctx.font = 'bold 9pt "MS Gothic", "Meiryo", sans-serif';
     ctx.fillStyle = '#000000';
     ctx.textBaseline = 'middle';
-    ctx.fillText(regNo, 4, 8);
+    ctx.fillText(regNo, 4, 7.0);
 
     return canvas.toDataURL('image/png');
   },
