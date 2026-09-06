@@ -568,16 +568,17 @@ const Cases = {
             <button class="modal-close" onclick="Cases.closeModal()">✕</button>
           </div>
 
-          <div id="caseModalSplitBody" style="display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; padding: 4px 0;">
+          <div id="caseModalSplitBody" style="display:flex; flex-direction:row !important; flex-wrap:nowrap !important; gap:16px; flex:1; min-height:0; overflow:hidden; padding: 4px 0;">
             
             <!-- ─── 👈 左側: 添付ファイルプレビューワー（FAX・依頼書・車検証） ─── -->
-            <div id="caseAttachmentPane" style="display:none; flex:1.3; min-width:340px; background:var(--bg-secondary, #0f172a); border:1px solid var(--border-color, #334155); border-radius:8px; overflow:hidden; flex-direction:column; max-height:78vh; transition: flex 0.2s ease;">
+            <div id="caseAttachmentPane" style="display:none; flex:1.2; min-width:340px; background:var(--bg-secondary, #0f172a); border:1px solid var(--border-color, #334155); border-radius:8px; overflow:hidden; flex-direction:column !important; max-height:78vh; transition: flex 0.2s ease;">
               <!-- ツールバー / ページタブ -->
               <div style="background:rgba(0,0,0,0.3); border-bottom:1px solid var(--border-color, #334155); padding:6px 10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; flex-shrink:0;">
                 <div id="caseAttTabs" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
                   <span style="font-size:0.75rem; font-weight:bold; color:var(--accent-gold, #f59e0b);">📄 表示:</span>
                   <div id="caseAttTabList" style="display:flex; gap:4px; flex-wrap:wrap;"></div>
                 </div>
+                <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#475569;" onclick="Cases.rotateViewer()" title="90度回転（横向き・縦向き切り替え）">🔄 90°回転</button>
                   <button type="button" class="btn btn-secondary btn-small" id="btnSaveRotatedToDrive" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#38bdf8; color:#38bdf8;" onclick="Cases.saveCurrentRotatedImageToDrive()" title="現在の回転角度・表示状態の画像をそのままGoogle Driveに保存">💾 向きをDrive保存</button>
                   <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem; background:#1e293b; border-color:#475569;" onclick="Cases.fitWidthViewer()" title="横幅に合わせて最大フィット">↕ 幅フィット</button>
@@ -626,7 +627,7 @@ const Cases = {
             </div>
 
             <!-- ─── 👉 右側: 案件登録フォーム ─── -->
-            <div id="caseFormPane" style="flex:1; width:100%; max-height:78vh; overflow-y:auto; padding-right:8px;">
+            <div id="caseFormPane" style="flex:1; min-width:0; max-height:78vh; overflow-y:auto; padding-right:8px;">
               <form id="caseForm" onsubmit="Cases.onSubmit(event)" onkeydown="if(event.key==='Enter' && event.target.tagName==='INPUT'){event.preventDefault();}">
                 <div class="form-row">
                   <div class="form-group" style="flex:2">
@@ -1086,10 +1087,90 @@ const Cases = {
     if (loading) loading.style.display = 'block';
 
     try {
-      const isPdf = (att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf'));
+      // 0. クライアント側で生成・展開された画像データ（270°正立回転済みdataUrl）がある場合：最優先で表示！
+      if (att.dataUrl) {
+        if (loading) loading.style.display = 'none';
+        if (imgEl && wrapper) {
+          imgEl.src = att.dataUrl;
+          wrapper.style.display = 'flex';
+          imgEl.style.display = 'block';
+          imgEl.onload = () => {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          };
+          if (imgEl.complete) {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          }
+        }
+        return;
+      }
+
+      const isTiff = !!(att.name && att.name.match(/\.tiff?$/i)) || !!(att.url && att.url.match(/\.tiff?/i));
+      const isPdf = !isTiff && ((att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf')));
       const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
 
-      // 1. Google Driveのファイル
+      // 1. TIFFファイルの場合：Google Driveのサムネイル直接参照ではなく、Base64経由で確実に270度正立回転させて表示
+      if (isTiff && gasUrl && att.url) {
+        let data = null;
+        try {
+          const res = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+              action: 'getFileBase64',
+              fileUrl: att.url,
+              fileId: (att.url.match(/[-\w]{25,}/) || [])[0] || ''
+            })
+          });
+          data = await res.json();
+        } catch (e) {
+          console.warn('doPost getFileBase64 failed, trying doGet fallback...', e);
+          const fileId = (att.url.match(/[-\w]{25,}/) || [])[0] || '';
+          if (fileId) {
+            const getRes = await fetch(`${gasUrl}?action=getFileBase64&fileId=${fileId}`);
+            data = await getRes.json();
+          }
+        }
+
+        if (data && data.success && data.base64) {
+          let converted = null;
+          // ① UTIFによるバイナリデコード ＆ 270度回転
+          if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+            converted = DealerDocumentParser.convertTiffToJpeg(data.base64, 270);
+          }
+          // ② もしUTIFが未対応/GASがDriveサムネイルJPEGで返してきた場合：Canvasで270度正立回転
+          if (!converted) {
+            const mime = data.mimeType || 'image/jpeg';
+            const imgSrc = data.base64.startsWith('data:') ? data.base64 : `data:${mime};base64,${data.base64}`;
+            converted = await this.rotateImageSource(imgSrc, 270);
+          }
+          if (!converted) {
+            converted = data.base64.startsWith('data:') ? data.base64 : `data:${data.mimeType || 'image/jpeg'};base64,${data.base64}`;
+          }
+
+          // 次回以降の切り替えを瞬時にするためキャッシュ
+          att.dataUrl = converted;
+
+          if (loading) loading.style.display = 'none';
+          if (imgEl && wrapper) {
+            imgEl.src = converted;
+            wrapper.style.display = 'flex';
+            imgEl.style.display = 'block';
+            imgEl.onload = () => {
+              this.applyViewerTransform();
+              this.setupViewerInteractions();
+            };
+            if (imgEl.complete) {
+              this.applyViewerTransform();
+              this.setupViewerInteractions();
+            }
+          }
+          return;
+        }
+      }
+
+      // 2. Google DriveのPDFまたは通常画像ファイル
       if (att.url && att.url.includes('drive.google.com')) {
         const match = att.url.match(/[-\w]{25,}/);
         if (match) {
@@ -1104,11 +1185,10 @@ const Cases = {
             }
             return;
           } else {
-            // 画像（JPG/PNG/TIF等）の場合はネイティブ<img>で直接ロード（90度回転・ズーム・パンに完全対応）
+            // 通常画像（JPG/PNG等）の場合はネイティブ<img>で直接ロード
             if (loading) loading.style.display = 'none';
             if (imgEl && wrapper) {
               imgEl.onerror = () => {
-                // サムネイル高画質URLにフォールバック
                 imgEl.onerror = () => {
                   if (iframeEl) {
                     wrapper.style.display = 'none';
@@ -1136,7 +1216,7 @@ const Cases = {
         }
       }
 
-      // 2. ローカルまたはBlobのPDFファイルの場合
+      // 3. ローカルまたはBlobのPDFファイルの場合
       if (isPdf && att.url) {
         if (loading) loading.style.display = 'none';
         if (iframeEl) {
@@ -1144,59 +1224,6 @@ const Cases = {
           iframeEl.style.display = 'block';
         }
         return;
-      }
-
-      // 2. Google Drive上の画像（TIFF, JPEG, PNG等）
-      if (att.url && gasUrl) {
-        let data = null;
-        try {
-          const res = await fetch(gasUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-              action: 'getFileBase64',
-              fileUrl: att.url,
-              fileId: (att.url.match(/[-\w]{25,}/) || [])[0] || ''
-            })
-          });
-          data = await res.json();
-        } catch (e) {
-          console.warn('doPost getFileBase64 failed, trying doGet fallback...', e);
-          const fileId = (att.url.match(/[-\w]{25,}/) || [])[0] || '';
-          if (fileId) {
-            const getRes = await fetch(`${gasUrl}?action=getFileBase64&fileId=${fileId}`);
-            data = await getRes.json();
-          }
-        }
-
-        if (data && data.success && data.base64) {
-          let converted = data.base64;
-          const mime = data.mimeType || '';
-          const isTiffData = mime.includes('tif') || (att.name && att.name.match(/\.tiff?$/i)) || data.base64.startsWith('SUkq') || data.base64.startsWith('TU0A');
-          
-          if (isTiffData && typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
-            const cJpg = DealerDocumentParser.convertTiffToJpeg(data.base64);
-            if (cJpg) converted = cJpg;
-          }
-
-          if (loading) loading.style.display = 'none';
-          if (imgEl && wrapper) {
-            imgEl.src = converted.startsWith('data:') ? converted : `data:${mime || 'image/jpeg'};base64,${converted}`;
-            wrapper.style.display = 'block';
-            imgEl.style.display = 'block';
-            imgEl.onload = () => {
-              this.applyViewerTransform();
-              this.setupViewerInteractions();
-            };
-            if (imgEl.complete) {
-              this.applyViewerTransform();
-              this.setupViewerInteractions();
-            }
-          }
-          return;
-        } else {
-          console.warn('GAS getFileBase64 failed:', data ? data.error : 'No response');
-        }
       }
 
       // 3. 一般Web画像URL（Base64またはhttp画像直リンク）
@@ -1381,6 +1408,9 @@ const Cases = {
       const rotatedSrc = await this.rotateImageSource(imgEl.src, 90);
       if (rotatedSrc) {
         imgEl.src = rotatedSrc;
+        if (this.viewerState.attachments && this.viewerState.attachments[this.viewerState.currentIndex]) {
+          this.viewerState.attachments[this.viewerState.currentIndex].dataUrl = rotatedSrc;
+        }
         this.viewerState.rotation = 0; // 物理回転したのでCSS回転は0に戻す
         this.applyViewerTransform();
         App.showToast('🔄 90°回転しました（紙面の向きを変更）');
