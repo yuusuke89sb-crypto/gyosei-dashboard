@@ -1,4 +1,4 @@
-﻿/**
+/**
  * スプレッドシート同期モジュール
  * Google Apps Script の Web API 経由でスプレッドシートとデータを同期
  */
@@ -182,6 +182,22 @@ const SpreadsheetSync = {
 
             // 帳簿データをマージ（ローカル専用データを保持）
             if (data.journals) {
+                // 異常金額（タイムスタンプ等の誤混入）を事前サニタイズ
+                data.journals.forEach(function(j){
+                    if (typeof j.amount === 'string') {
+                        var parsed = Number(j.amount.replace(/[^0-9.]/g, ''));
+                        j.amount = isNaN(parsed) ? 0 : parsed;
+                    }
+                    if (j.amount > 10000000) {
+                        var fixed = 4000;
+                        if (j.description) {
+                            if (j.description.includes('車庫証明(OSS)')) fixed = 3500;
+                            else if (j.description.includes('出張封印')) fixed = 5000;
+                            else if (j.description.includes('軽自動車登録')) fixed = 3500;
+                        }
+                        j.amount = fixed;
+                    }
+                });
                 var local = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
                 var remoteKeys = {};
                 data.journals.forEach(function(j){

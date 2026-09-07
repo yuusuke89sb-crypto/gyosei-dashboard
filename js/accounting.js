@@ -49,7 +49,39 @@ const Accounting = {
   },
 
   getJournals() {
-    return JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    const list = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    let needsSave = false;
+    list.forEach(j => {
+      // 1. 金額が文字列の場合は安全に数値化
+      if (typeof j.amount === 'string') {
+        const parsed = Number(j.amount.replace(/[^0-9.]/g, ''));
+        j.amount = isNaN(parsed) ? 0 : parsed;
+        needsSave = true;
+      }
+      // 2. タイムスタンプ誤混入等（1,000万円以上）の異常金額仕訳を自動検知・修復
+      if (j.amount > 10000000) {
+        console.warn('[Accounting] 異常金額仕訳を自動検知・修復しました:', j.id, j.amount, j.description);
+        let correctedFee = 0;
+        if (j.caseId && typeof Store !== 'undefined') {
+          const c = Store.getCase(j.caseId);
+          if (c && Number(c.fee) > 0) correctedFee = Number(c.fee);
+        }
+        if (!correctedFee && j.description) {
+          if (j.description.includes('普通車登録')) correctedFee = 4000;
+          else if (j.description.includes('車庫証明(一般)')) correctedFee = 4000;
+          else if (j.description.includes('車庫証明(OSS)')) correctedFee = 3500;
+          else if (j.description.includes('出張封印')) correctedFee = 5000;
+          else if (j.description.includes('軽自動車登録')) correctedFee = 3500;
+          else correctedFee = 4000;
+        }
+        j.amount = correctedFee || 4000;
+        needsSave = true;
+      }
+    });
+    if (needsSave) {
+      localStorage.setItem('gyosei_journals', JSON.stringify(list));
+    }
+    return list;
   },
 
   saveJournals(data) {
@@ -85,6 +117,16 @@ const Accounting = {
         }
       }
       if (jIdx === -1) {
+        // 注文書番号がない場合でも、摘要または案件名が一致する未紐付け仕訳を探索
+        jIdx = modifiedJournals.findIndex(j => !j.caseId && (
+          (j.description && j.description === desc) ||
+          (j.description && j.description.includes(c.title) && (!c.orderNo || j.description.includes(c.orderNo)))
+        ));
+        if (jIdx !== -1) {
+          modifiedJournals[jIdx].caseId = c.id;
+        }
+      }
+      if (jIdx === -1) {
         const newJ = {
           id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + restoredCount,
           date: doneDate,
@@ -103,7 +145,7 @@ const Accounting = {
       } else {
         const j = modifiedJournals[jIdx];
         let changed = false;
-        if (j.amount !== expectedAmount) { j.amount = expectedAmount; changed = true; }
+        if (j.amount !== expectedAmount || j.amount > 10000000) { j.amount = expectedAmount; changed = true; }
         if (j.date !== doneDate) { j.date = doneDate; changed = true; }
         if (j.description !== desc) { j.description = desc; changed = true; }
         if (j.orderNo !== (c.orderNo || '')) { j.orderNo = c.orderNo || ''; changed = true; }
@@ -209,8 +251,9 @@ const Accounting = {
     // 月間集計
     let totalIncome = 0, totalExpense = 0;
     filtered.forEach(j => {
-      if (this.ACCOUNTS.income.includes(j.credit)) totalIncome += j.amount;
-      if (this.ACCOUNTS.expense.includes(j.debit)) totalExpense += j.amount;
+      const amt = Number(j.amount) || 0;
+      if (this.ACCOUNTS.income.includes(j.credit)) totalIncome += amt;
+      if (this.ACCOUNTS.expense.includes(j.debit)) totalExpense += amt;
     });
 
     // 年ナビを動的に生成（仕訳内の年度を走査）
@@ -921,11 +964,12 @@ const Accounting = {
     });
 
     filtered.forEach(j => {
+      const amt = Number(j.amount) || 0;
       if (totals[j.debit]) {
-        totals[j.debit].debit += j.amount;
+        totals[j.debit].debit += amt;
       }
       if (totals[j.credit]) {
-        totals[j.credit].credit += j.amount;
+        totals[j.credit].credit += amt;
       }
     });
 
@@ -1064,8 +1108,9 @@ const Accounting = {
     });
 
     filtered.forEach(j => {
-      if (totals[j.debit]) totals[j.debit].debit += j.amount;
-      if (totals[j.credit]) totals[j.credit].credit += j.amount;
+      const amt = Number(j.amount) || 0;
+      if (totals[j.debit]) totals[j.debit].debit += amt;
+      if (totals[j.credit]) totals[j.credit].credit += amt;
     });
 
     accounts.forEach(a => {
@@ -1158,8 +1203,9 @@ const Accounting = {
     });
 
     filtered.forEach(j => {
-      if (totals[j.debit]) totals[j.debit].debit += j.amount;
-      if (totals[j.credit]) totals[j.credit].credit += j.amount;
+      const amt = Number(j.amount) || 0;
+      if (totals[j.debit]) totals[j.debit].debit += amt;
+      if (totals[j.credit]) totals[j.credit].credit += amt;
     });
 
     accounts.forEach(a => {

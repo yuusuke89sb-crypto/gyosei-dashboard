@@ -338,12 +338,12 @@ const Advances = {
   // 選択・アクション
   selectClient(id) {
     this.selectedClientId = id;
-    App.refresh();
+    App.refreshView();
   },
 
   onSearchClient(query) {
     this.searchQuery = query;
-    App.refresh();
+    App.refreshView();
   },
 
   toggleAdvancePaid(caseId) {
@@ -358,7 +358,7 @@ const Advances = {
     }
     Store.updateCase(caseId, updates);
     App.showToast(newVal ? '💰 立替金を消し込みました' : '🔄 立替金を未回収に戻しました');
-    App.refresh();
+    App.refreshView();
   },
 
   toggleFeePaid(caseId) {
@@ -373,7 +373,7 @@ const Advances = {
     }
     Store.updateCase(caseId, updates);
     App.showToast(newVal ? '📋 報酬を消し込みました' : '🔄 報酬を未回収に戻しました');
-    App.refresh();
+    App.refreshView();
   },
 
   toggleFullPaid(caseId) {
@@ -386,7 +386,7 @@ const Advances = {
       completedAt: new Date().toISOString(),
     });
     App.showToast('✅ 報酬＋立替金を全額消し込みました');
-    App.refresh();
+    App.refreshView();
   },
 
   resetPayment(caseId) {
@@ -399,7 +399,7 @@ const Advances = {
       completedAt: null,
     });
     App.showToast('🔄 未回収ステータスに戻しました');
-    App.refresh();
+    App.refreshView();
   },
 
   // モーダル・一括消し込み
@@ -602,7 +602,7 @@ const Advances = {
     const label = payType === 'advance_only' ? '立替金' : payType === 'fee_only' ? '報酬' : '全額';
     document.getElementById('bulkPaymentModal').remove();
     App.showToast(`🎉 ${count}件の案件の${label}を一括消し込みしました！`);
-    App.refresh();
+    App.refreshView();
   },
 
   exportSummaryCSV() {

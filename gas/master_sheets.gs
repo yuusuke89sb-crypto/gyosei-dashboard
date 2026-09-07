@@ -1145,11 +1145,16 @@ function getJournalsSheetData_() {
     if (!debit) debit = '未分類';
     if (!credit) credit = '未分類';
 
-    let amtDebit = colDebitAmt !== -1 ? Number(String(row[colDebitAmt]).replace(/[^0-9.]/g, '')) || 0 : 0;
-    let amtCredit = colCreditAmt !== -1 ? Number(String(row[colCreditAmt]).replace(/[^0-9.]/g, '')) || 0 : 0;
+    let rawDebitAmt = colDebitAmt !== -1 ? row[colDebitAmt] : '';
+    let rawCreditAmt = colCreditAmt !== -1 ? row[colCreditAmt] : '';
+    if (rawDebitAmt instanceof Date) rawDebitAmt = '';
+    if (rawCreditAmt instanceof Date) rawCreditAmt = '';
+
+    let amtDebit = rawDebitAmt ? Number(String(rawDebitAmt).replace(/[^0-9.]/g, '')) || 0 : 0;
+    let amtCredit = rawCreditAmt ? Number(String(rawCreditAmt).replace(/[^0-9.]/g, '')) || 0 : 0;
     let amount = amtDebit > 0 ? amtDebit : amtCredit;
 
-    if (amount <= 0) return;
+    if (amount <= 0 || amount > 10000000) return;
 
     let desc = colDesc !== -1 ? String(row[colDesc]).trim() : '';
     let memo = colMemo !== -1 ? String(row[colMemo]).trim() : '';

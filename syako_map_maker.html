@@ -5470,23 +5470,62 @@ async function openDocuWorksExportModal() {
         <div style="grid-column:1/-1;"><strong style="color:#94a3b8;">保管場所:</strong> <span>${payload.parkingAddress || '同上'}</span></div>
       </div>
 
+      <!-- 📠 FAX添付書類オプション（耳削除対応） -->
+      <div style="background:#0f172a; padding:10px 12px; border-radius:8px; border:1px solid #334155; display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.8rem; font-weight:bold; color:#38bdf8; display:flex; align-items:center; gap:5px;">
+            📠 フルパックPDFのFAX添付ページ選択:
+          </span>
+          <button type="button" onclick="document.getElementById('dwFaxFileInput').click()" style="background:#1e293b; border:1px solid #475569; color:#94a3b8; font-size:0.72rem; padding:2px 8px; border-radius:4px; cursor:pointer;">
+            📁 別のFAXファイルを選択
+          </button>
+          <input type="file" id="dwFaxFileInput" accept=".pdf,.tif,.tiff,image/*" style="display:none;" onchange="handleDwFaxFileSelect(event)">
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <select id="dwExportFaxPage" style="flex:1; min-width:180px; background:#1e293b; color:#fff; border:1px solid #475569; border-radius:6px; font-size:0.8rem; padding:6px 8px;">
+            ${generateFaxPageOptions(payload)}
+          </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem; cursor:pointer; color:#f8fafc;">
+            <input type="checkbox" id="dwExportEraseEar" checked style="accent-color:#38bdf8;">
+            <span>🧹 左端FAX耳を自動白消し (耳削除)</span>
+          </label>
+          <select id="dwExportEarWidth" style="background:#1e293b; color:#fff; border:1px solid #475569; border-radius:4px; font-size:0.75rem; padding:3px 6px;" title="耳消しの幅">
+            <option value="0.02" selected>耳幅: 標準・1/4 (2.0%)</option>
+            <option value="0.035">耳幅: やや広め (3.5%)</option>
+            <option value="0.05">耳幅: 広め (5.0%)</option>
+          </select>
+        </div>
+        <div id="dwFaxFileStatus" style="font-size:0.72rem; color:#94a3b8; display:${payload.attachments && payload.attachments.length > 0 ? 'block' : 'none'};">
+          ※ 案件添付ファイル（全 ${payload.attachments ? payload.attachments.length : 0} ページ）から選択中
+        </div>
+      </div>
+
       <div style="display:flex; flex-direction:column; gap:8px;">
         <div style="font-size:0.78rem; font-weight:bold; color:#f59e0b;">📦 出力メニュー（DocuWorks側での切取・手打ちゼロ仕様）:</div>
         
+        <!-- 1. 最重要: 完全フルパックPDF -->
+        <button type="button" class="btn" onclick="executeDocuWorksExport('fullpack')" style="padding:12px; background:linear-gradient(135deg, #0284c7, #2563eb); color:#fff; border-radius:8px; font-weight:bold; font-size:0.92rem; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; box-shadow:0 4px 14px rgba(2,132,199,0.4);">
+          📦 完全フルパックPDF出力 (1P:確認書 + 2P:所在図 + 3P:配置図 + 4P:FAX耳消し)
+        </button>
+
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-          <button type="button" class="btn" onclick="executeDocuWorksExport('pdf')" style="padding:10px; background:#0284c7; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
-            📄 正式PDF出力 (DW完全一致)
+          <button type="button" class="btn" onclick="executeDocuWorksExport('kakunin_pdf')" style="padding:9px; background:#1e293b; border:1px solid #38bdf8; color:#38bdf8; border-radius:6px; font-weight:bold; font-size:0.8rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;" title="原本サンプル完全再現のA4横 書類確認書（単体PDF）を出力">
+            📄 書類確認書 (PDF)
           </button>
-          <button type="button" class="btn" onclick="executeDocuWorksExport('xdw')" style="padding:10px; background:#7c3aed; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;" title="DocuWorks Deskへドラッグ＆ドロップで一瞬で.xdwに自動変換できるDW完全一致ファイルをダウンロード">
-            📑 DocuWorks (.xdw) 取込用出力
+          <button type="button" class="btn" onclick="executeDocuWorksExport('pdf')" style="padding:9px; background:#1e293b; border:1px solid #0284c7; color:#38bdf8; border-radius:6px; font-weight:bold; font-size:0.8rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;" title="所在図+配置図の2ページPDFを出力">
+            🗺️ 所在図・配置図 (PDF)
           </button>
-          <button type="button" class="btn" onclick="executeDocuWorksExport('excel')" style="padding:10px; background:#059669; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
-            📊 書類確認書 (Excel .xlsx)
+          <button type="button" class="btn" onclick="executeDocuWorksExport('excel')" style="padding:9px; background:#1e293b; border:1px solid #10b981; color:#34d399; border-radius:6px; font-weight:bold; font-size:0.8rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;" title="従来の書類確認書Excelを出力">
+            📊 書類確認書 (Excel)
           </button>
-          <button type="button" class="btn" onclick="executeDocuWorksExport('drive')" style="padding:10px; background:#d97706; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
-            ☁️ 案件Google Driveへ一括保存
+          <button type="button" class="btn" onclick="executeDocuWorksExport('xdw')" style="padding:9px; background:#1e293b; border:1px solid #7c3aed; color:#c084fc; border-radius:6px; font-weight:bold; font-size:0.8rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;" title="DocuWorks Desk取込用出力">
+            📑 DocuWorks (.xdw)
           </button>
         </div>
+
+        <button type="button" class="btn" onclick="executeDocuWorksExport('drive')" style="padding:10px; background:#d97706; color:#fff; border-radius:6px; font-weight:bold; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;">
+          ☁️ 案件Google Driveへ一括保存 (フルパックPDF・確認書・地図)
+        </button>
 
         <div style="border-top:1px dashed #334155; padding-top:10px; display:flex; flex-direction:column; gap:6px;">
           <div style="font-size:0.75rem; color:#94a3b8; display:flex; align-items:center; gap:4px;">
@@ -5512,12 +5551,49 @@ async function openDocuWorksExportModal() {
   document.body.appendChild(modal);
 }
 
+function generateFaxPageOptions(payload) {
+  const atts = payload.attachments || [];
+  let html = '';
+  if (atts.length > 0) {
+    atts.forEach((att, idx) => {
+      const isFirst = idx === 0;
+      html += `<option value="${idx}" ${isFirst ? 'selected' : ''}>📄 ${idx + 1}ページ目: ${att.name || 'FAX原本'} ${isFirst ? '(推奨)' : ''}</option>`;
+    });
+  } else {
+    html += `<option value="0" selected>📄 1ページ目 (推奨)</option>`;
+    html += `<option value="1">📄 2ページ目</option>`;
+    html += `<option value="2">📄 3ページ目</option>`;
+  }
+  html += `<option value="none">❌ 添付しない (確認書+地図のみ)</option>`;
+  return html;
+}
+
+window.handleDwFaxFileSelect = function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  window._selectedCustomFaxFile = file;
+  const statusEl = document.getElementById('dwFaxFileStatus');
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = `✅ 選択中: <strong style="color:#38bdf8;">${file.name}</strong> (${(file.size / 1024).toFixed(1)} KB)`;
+  }
+  const sel = document.getElementById('dwExportFaxPage');
+  if (sel) {
+    const opt = document.createElement('option');
+    opt.value = 'custom';
+    opt.textContent = `📁 選択ファイル: ${file.name}`;
+    opt.selected = true;
+    sel.insertBefore(opt, sel.firstChild);
+  }
+  showToast('📁 FAXファイルを取り込みました');
+};
+
 async function executeDocuWorksExport(action) {
   const p = window._activeOssPayload;
   if (!p) return;
 
   try {
-    if (action === 'pdf' || action === 'xdw') {
+    if (action === 'pdf' || action === 'fullpack' || action === 'xdw') {
       showToast('⏳ 地図作図を確実に取得中...');
       const hContainer = document.getElementById('haichiContainer');
       const sContainer = document.getElementById('sozaiContainer');
@@ -5534,7 +5610,35 @@ async function executeDocuWorksExport(action) {
       if (p.regNo === '増車') p.regNo = '増　　　車';
     }
 
-    if (action === 'pdf') {
+    if (action === 'fullpack') {
+      showToast('⏳ 完全フルパックPDF生成中（確認書＋地図＋FAX耳消し）...');
+      const faxPageVal = document.getElementById('dwExportFaxPage')?.value;
+      const eraseEar = document.getElementById('dwExportEraseEar')?.checked ?? true;
+      const earWidth = parseFloat(document.getElementById('dwExportEarWidth')?.value) || 0.02;
+
+      let customFax = window._selectedCustomFaxFile ? { file: window._selectedCustomFaxFile, name: window._selectedCustomFaxFile.name } : null;
+
+      const opts = {
+        includeFax: faxPageVal !== 'none',
+        faxPageIndex: faxPageVal === 'custom' ? 0 : (parseInt(faxPageVal, 10) || 0),
+        eraseEar: eraseEar,
+        earWidthPercent: earWidth,
+        customFaxSource: customFax
+      };
+
+      const blob = await OssDocuWorks.generateFullPackPdfBlob(p, opts);
+      const cleanApplicant = p.applicantName.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 20);
+      const fileName = `【${p.orderNo}】${cleanApplicant}_完全フルパック.pdf`;
+      OssDocuWorks._downloadBlob(blob, fileName);
+      showToast(`✅ 「${fileName}」をダウンロードしました！`);
+    } else if (action === 'kakunin_pdf') {
+      showToast('⏳ 書類確認書PDF生成中...');
+      const blob = await OssDocuWorks.generateConfirmationPdfBlob(p);
+      const cleanApplicant = p.applicantName.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 20);
+      const fileName = `書類確認書（OSS）_${p.dealerName.replace(/\s+/g, '_')}_${p.orderNo}_${cleanApplicant}.pdf`;
+      OssDocuWorks._downloadBlob(blob, fileName);
+      showToast(`✅ 「${fileName}」をダウンロードしました！`);
+    } else if (action === 'pdf') {
       showToast('⏳ 正式PDF生成中...');
       const blob = await OssDocuWorks.generatePdfBlob(p);
       const cleanApplicant = p.applicantName.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 20);
@@ -5551,7 +5655,19 @@ async function executeDocuWorksExport(action) {
       await OssDocuWorks.generateXdwViaPython(p);
     } else if (action === 'drive') {
       if (linkedCaseId) {
-        await OssDocuWorks.saveAllToDrive(linkedCaseId);
+        const faxPageVal = document.getElementById('dwExportFaxPage')?.value;
+        const eraseEar = document.getElementById('dwExportEraseEar')?.checked ?? true;
+        const earWidth = parseFloat(document.getElementById('dwExportEarWidth')?.value) || 0.02;
+        let customFax = window._selectedCustomFaxFile ? { file: window._selectedCustomFaxFile, name: window._selectedCustomFaxFile.name } : null;
+
+        const opts = {
+          includeFax: faxPageVal !== 'none',
+          faxPageIndex: faxPageVal === 'custom' ? 0 : (parseInt(faxPageVal, 10) || 0),
+          eraseEar: eraseEar,
+          earWidthPercent: earWidth,
+          customFaxSource: customFax
+        };
+        await OssDocuWorks.saveAllToDrive(linkedCaseId, opts);
       } else {
         alert('案件と連携されていないためDriveの保存先フォルダが特定できません。ダッシュボードから案件を開いて作図してください。');
       }

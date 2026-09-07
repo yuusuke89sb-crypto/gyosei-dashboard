@@ -57,11 +57,421 @@ const OssDocuWorks = {
       zip,
       staffName,
       mapPng,
+      attachments: (c.attachments && c.attachments.length > 0) ? c.attachments : [],
       driveFolderUrl: c.driveFolderUrl || ''
     };
   },
 
-  // 3. Excel 書類確認書の生成（Blob） - 原本Excelの書式・罫線・フォント・行高・印刷設定を100%完全保持
+  // 3-A. 書類確認書（原本Excel完全再現）のCanvas描画（300DPI超高精細）
+  renderConfirmationCanvas(payload) {
+    const W = 3508;
+    const H = 2480;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // 背景（純白）
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, W, H);
+
+    const ml = 240;
+    const mt = 130;
+    const tableW = 3040;
+
+    const colUnits = [5.625, 15.625, 3.625, 13.0, 5.625, 20.625, 3.625, 5.625, 17.625, 9.625, 13.0, 30.625];
+    const sumUnits = colUnits.reduce((a, b) => a + b, 0);
+    const colW = colUnits.map(u => (u / sumUnits) * tableW);
+    const colX = [ml];
+    for (let i = 0; i < colW.length; i++) {
+      colX.push(colX[i] + colW[i]);
+    }
+
+    const rowH = [
+      110, // 1: Title
+      40,  // 2: Spacer / K2 Msg header
+      90,  // 3: Dealer
+      35,  // 4: Gap
+      75,  // 5: Notice 1
+      75,  // 6: Notice 2
+      80,  // 7: Date
+      45,  // 8: Gap
+      98,  // 9: 注文書番号
+      98,  // 10: 使用の本拠
+      98,  // 11: 保管場所
+      98,  // 12: 申請者 〒
+      98,  // 13: 申請者 住所
+      98,  // 14: 申請者 氏名
+      98,  // 15: 配置図 / 標章交付注記
+      50,  // 16: 所在図上 / 作成担当見出
+      50,  // 17: 所在図下 / 田中
+      98,  // 18: 承諾書
+      30,  // 19: Gap
+      55,  // 20: 行政書士法人 フェリス
+      55,  // 21: TEL
+      55   // 22: FAX
+    ];
+
+    const rowY = [mt];
+    for (let i = 0; i < rowH.length; i++) {
+      rowY.push(rowY[i] + rowH[i]);
+    }
+
+    const fFamily = '"MS PGothic", "ＭＳ Ｐゴシック", "Yu Gothic", sans-serif';
+
+    // 1. タイトル
+    ctx.fillStyle = '#000000';
+    ctx.font = '66px ' + fFamily;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('OSS申請　書類確認書（車庫証明）', ml + tableW * 0.42, rowY[0] + rowH[0] / 2);
+
+    // 2. 店舗名 + 御中
+    ctx.textAlign = 'left';
+    ctx.font = '60px ' + fFamily;
+    const cleanDealer = (payload.dealerName || '').replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').replace(/[\s\u3000]*御中\s*$/, '').trim() || '愛知トヨタ 西春店';
+    ctx.fillText(cleanDealer, colX[0], rowY[2] + rowH[2] * 0.65);
+    ctx.font = '54px ' + fFamily;
+    ctx.fillText('御中', colX[5] + 20, rowY[2] + rowH[2] * 0.65);
+
+    // 3. ご案内文
+    ctx.font = '38px ' + fFamily;
+    ctx.fillText('ご依頼のありました車庫証明関係書類を下記の通り確認させて頂きましたのでご査収下さい。', colX[0], rowY[4] + rowH[4] * 0.6);
+    ctx.fillText('なお、不備のある書類につきましては、担当者と連絡を取り補正等の対応を致しました。', colX[0], rowY[5] + rowH[5] * 0.6);
+
+    // 4. 日付（令和）
+    const now = new Date();
+    const reiwaYear = now.getFullYear() - 2018;
+    const dateStr = payload.dateStr || `令　和　${reiwaYear}　年　${now.getMonth() + 1}　月　${now.getDate()}　日`;
+    ctx.font = '36px ' + fFamily;
+    ctx.fillText(dateStr, colX[0], rowY[6] + rowH[6] * 0.6);
+
+    // 5. 連絡事項・メッセージ枠（K列〜L列、行2〜行14）
+    const mbLeft = colX[10];
+    const mbRight = colX[12];
+    const mbTop = rowY[1];
+    const mbBottom = rowY[14];
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#000000';
+    ctx.strokeRect(mbLeft, mbTop, mbRight - mbLeft, mbBottom - mbTop);
+
+    const mbHLineY = rowY[1] + 50;
+    ctx.beginPath();
+    ctx.moveTo(mbLeft, mbHLineY);
+    ctx.lineTo(mbRight, mbHLineY);
+    ctx.stroke();
+
+    ctx.font = '34px ' + fFamily;
+    ctx.textAlign = 'center';
+    ctx.fillText('連絡事項・メッセージ', (mbLeft + mbRight) / 2, (mbTop + mbHLineY) / 2 + 3);
+
+    // 6. メイン確認表（行9〜行18、A列〜J列）
+    const tLeft = colX[0];
+    const tRight = colX[10];
+    const tTop = rowY[8];
+    const tBottom = rowY[18];
+
+    const line = (x1, y1, x2, y2, width = 2, dashed = false) => {
+      ctx.save();
+      ctx.lineWidth = width;
+      ctx.strokeStyle = '#000000';
+      if (dashed) ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const drawCellText = (text, x, y, w, h, align = 'center', font = '35px ' + fFamily, bold = false) => {
+      if (!text && text !== 0) return;
+      ctx.save();
+      ctx.font = (bold ? 'bold ' : '') + font;
+      ctx.fillStyle = '#000000';
+      ctx.textBaseline = 'middle';
+      if (align === 'center') {
+        ctx.textAlign = 'center';
+        ctx.fillText(String(text), x + w / 2, y + h / 2);
+      } else if (align === 'left') {
+        ctx.textAlign = 'left';
+        ctx.fillText(String(text), x + 16, y + h / 2);
+      } else if (align === 'right') {
+        ctx.textAlign = 'right';
+        ctx.fillText(String(text), x + w - 16, y + h / 2);
+      }
+      ctx.restore();
+    };
+
+    // 外枠（太線）
+    ctx.lineWidth = 4;
+    ctx.strokeRect(tLeft, tTop, tRight - tLeft, tBottom - tTop);
+
+    // 横罫線
+    line(tLeft, rowY[9], tRight, rowY[9], 4);
+    line(tLeft, rowY[10], tRight, rowY[10], 4);
+    line(tLeft, rowY[11], tRight, rowY[11], 4);
+    line(colX[2], rowY[12], colX[10], rowY[12], 2, true); // 〒の下（破線）
+    line(colX[1], rowY[13], colX[10], rowY[13], 2);       // 住所と氏名の間（細線）
+    line(tLeft, rowY[14], tRight, rowY[14], 4);
+    line(tLeft, rowY[15], tRight, rowY[15], 2);
+    line(tLeft, rowY[17], tRight, rowY[17], 2);
+
+    // 縦罫線
+    line(colX[2], rowY[8], colX[2], rowY[11], 4);
+    line(colX[1], rowY[11], colX[1], rowY[14], 2);
+    line(colX[2], rowY[11], colX[2], rowY[14], 4);
+    line(colX[2], rowY[14], colX[2], rowY[18], 4);
+
+    line(colX[6], rowY[8], colX[6], rowY[9], 2);
+    line(colX[8], rowY[8], colX[8], rowY[9], 2);
+    line(colX[9], rowY[8], colX[9], rowY[9], 2);
+
+    line(colX[4], rowY[14], colX[4], rowY[18], 4);
+    line(colX[5], rowY[14], colX[5], rowY[18], 2);
+    line(colX[7], rowY[14], colX[7], rowY[18], 4);
+    line(colX[8], rowY[14], colX[8], rowY[18], 2);
+
+    line(colX[3], rowY[11], colX[3], rowY[12], 2, true);
+    line(colX[5], rowY[11], colX[5], rowY[12], 2, true);
+
+    // セル文字列描画
+    drawCellText('注文書番号', colX[0], rowY[8], colX[2] - colX[0], rowH[8]);
+    drawCellText(payload.orderNo || '58280', colX[2], rowY[8], colX[6] - colX[2], rowH[8], 'center', '38px ' + fFamily);
+    drawCellText('担当者', colX[6], rowY[8], colX[8] - colX[6], rowH[8]);
+    drawCellText(payload.contactName ? payload.contactName.replace(/様$/, '') : '', colX[8], rowY[8], colX[9] - colX[8], rowH[8], 'center', '38px ' + fFamily);
+    drawCellText('様', colX[9], rowY[8], colX[10] - colX[9], rowH[8]);
+
+    drawCellText('使用の本拠の位置', colX[0], rowY[9], colX[2] - colX[0], rowH[9]);
+    drawCellText('申請者に同じ', colX[2], rowY[9], colX[10] - colX[2], rowH[9], 'left');
+
+    drawCellText('保管場所の位置', colX[0], rowY[10], colX[2] - colX[0], rowH[10]);
+    drawCellText(payload.parkingAddress || '同上', colX[2], rowY[10], colX[10] - colX[2], rowH[10], 'left');
+
+    drawCellText('申請者', colX[0], rowY[11], colX[1] - colX[0], rowH[11] + rowH[12] + rowH[13]);
+    drawCellText('住　　所', colX[1], rowY[11], colX[2] - colX[1], rowH[11] + rowH[12]);
+    drawCellText('〒 （', colX[2], rowY[11], colX[3] - colX[2], rowH[11], 'center', '32px ' + fFamily);
+    drawCellText(payload.zip || '', colX[3], rowY[11], colX[5] - colX[3], rowH[11], 'center', '36px ' + fFamily);
+    drawCellText('）', colX[5], rowY[11], 50, rowH[11], 'left', '32px ' + fFamily);
+    drawCellText(payload.carAddress || '', colX[2], rowY[12], colX[10] - colX[2], rowH[12], 'left');
+
+    drawCellText('氏　　名', colX[1], rowY[13], colX[2] - colX[1], rowH[13]);
+    drawCellText(payload.applicantName || '', colX[2], rowY[13], colX[10] - colX[2], rowH[13], 'left');
+
+    drawCellText('配　置　図', colX[0], rowY[14], colX[2] - colX[0], rowH[14]);
+    drawCellText('有', colX[2], rowY[14], colX[4] - colX[2], rowH[14]);
+    drawCellText('配置図作成', colX[5], rowY[14], colX[7] - colX[5], rowH[14]);
+    drawCellText('現地調査', colX[8], rowY[14], colX[10] - colX[8], rowH[14]);
+
+    drawCellText('所　在　図', colX[0], rowY[15], colX[2] - colX[0], rowH[15] + rowH[16]);
+    drawCellText('有', colX[2], rowY[15], colX[4] - colX[2], rowH[15] + rowH[16]);
+    drawCellText('所在図作成', colX[5], rowY[15], colX[7] - colX[5], rowH[15] + rowH[16]);
+    drawCellText('現地調査', colX[8], rowY[15], colX[10] - colX[8], rowH[15] + rowH[16]);
+
+    drawCellText('承諾書（自認書）', colX[0], rowY[17], colX[2] - colX[0], rowH[17]);
+    drawCellText('有', colX[2], rowY[17], colX[4] - colX[2], rowH[17]);
+    drawCellText('不備あるものは承諾書に追記いただきました', colX[5], rowY[17], colX[7] - colX[5], rowH[17], 'center', '26px ' + fFamily);
+    drawCellText('承諾書取得', colX[8], rowY[17], colX[10] - colX[8], rowH[17]);
+
+    // 7. 右下注記・担当枠（行15〜行18、K列〜L列）
+    line(colX[10], rowY[14], colX[12], rowY[14], 4);
+    line(colX[10], rowY[15], colX[12], rowY[15], 4);
+    line(colX[10], rowY[14], colX[10], rowY[18], 4);
+    line(colX[12], rowY[14], colX[12], rowY[18], 4);
+    line(colX[10], rowY[18], colX[12], rowY[18], 4);
+    drawCellText('※標章交付の際には下記へ記入の上ご依頼下さい。', colX[10], rowY[14], colX[12] - colX[10], rowH[14], 'left', '30px ' + fFamily);
+
+    line(colX[11], rowY[15], colX[11], rowY[18], 4);
+    line(colX[10], rowY[16], colX[12], rowY[16], 4);
+    drawCellText('作成担当', colX[10], rowY[15], colX[11] - colX[10], rowH[15], 'center', '32px ' + fFamily);
+    drawCellText('標章交付番号（警察内管理番号）', colX[11], rowY[15], colX[12] - colX[11], rowH[15], 'center', '32px ' + fFamily);
+    drawCellText(payload.staffName || '田中', colX[10], rowY[16], colX[11] - colX[10], rowH[16] + rowH[17], 'center', '36px ' + fFamily);
+
+    // 8. 事務所情報
+    ctx.textAlign = 'right';
+    ctx.font = '36px ' + fFamily;
+    ctx.fillText('行政書士法人　フェリス', colX[12], rowY[19] + rowH[19] * 0.7);
+    ctx.fillText('TEL　０５８６－５０－２８９６', colX[12], rowY[20] + rowH[20] * 0.7);
+    ctx.fillText('FAX　０５８６－８７－６６８７', colX[12], rowY[21] + rowH[21] * 0.7);
+
+    return canvas;
+  },
+
+  // 3-B. 書類確認書（原本Excel完全再現）のPDF Blob生成
+  async generateConfirmationPdfBlob(payload) {
+    if (typeof PDFLib === 'undefined') {
+      throw new Error('PDFLibライブラリが読み込まれていません');
+    }
+    const { PDFDocument } = PDFLib;
+    const canvas = this.renderConfirmationCanvas(payload);
+    const dataUrl = canvas.toDataURL('image/png');
+    const pngBytes = this._dataUrlToUint8Array(dataUrl);
+
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([841.89, 595.28]); // A4 Landscape
+    const embeddedImg = await doc.embedPng(pngBytes);
+    page.drawImage(embeddedImg, {
+      x: 0,
+      y: 0,
+      width: 841.89,
+      height: 595.28
+    });
+
+    const pdfBytes = await doc.save();
+    return new Blob([pdfBytes], { type: 'application/pdf' });
+  },
+
+  // 3-C. 完全フルパックPDF（1P:確認書 + 2P:所在図 + 3P:配置図 + 4P:FAX添付耳削除）の生成
+  async generateFullPackPdfBlob(payload, options = {}) {
+    if (typeof PDFLib === 'undefined') {
+      throw new Error('PDFLibライブラリが読み込まれていません');
+    }
+    const { PDFDocument } = PDFLib;
+    const targetDoc = await PDFDocument.create();
+
+    // ─── 1ページ目: 書類確認書（表紙） ───
+    const kakuninCanvas = this.renderConfirmationCanvas(payload);
+    const kakuninBytes = this._dataUrlToUint8Array(kakuninCanvas.toDataURL('image/png'));
+    const kakuninImg = await targetDoc.embedPng(kakuninBytes);
+    const p1 = targetDoc.addPage([841.89, 595.28]);
+    p1.drawImage(kakuninImg, { x: 0, y: 0, width: 841.89, height: 595.28 });
+
+    // ─── 2ページ目: 所在図 ＆ 3ページ目: 配置図 ───
+    const mapPdfBlob = await this.generatePdfBlob(payload);
+    const mapPdfBytes = await mapPdfBlob.arrayBuffer();
+    const mapDoc = await PDFDocument.load(mapPdfBytes);
+    const mapPageCount = mapDoc.getPageCount();
+    for (let i = 0; i < mapPageCount; i++) {
+      const [cp] = await targetDoc.copyPages(mapDoc, [i]);
+      targetDoc.addPage(cp);
+    }
+
+    // ─── 4ページ目: FAX添付書類（指定ページ・耳削除済み） ───
+    if (options.includeFax !== false) {
+      const faxSource = options.customFaxSource || this._getCaseFaxSource(payload, options.faxPageIndex || 0);
+      if (faxSource) {
+        await this._embedFaxPage(targetDoc, faxSource, options);
+      }
+    }
+
+    const fullBytes = await targetDoc.save();
+    return new Blob([fullBytes], { type: 'application/pdf' });
+  },
+
+  _getCaseFaxSource(payload, pageIndex = 0) {
+    if (payload.attachments && payload.attachments.length > 0) {
+      return payload.attachments[pageIndex] || payload.attachments[0];
+    }
+    if (!payload.caseId) return null;
+    const c = typeof Store !== 'undefined' ? Store.getCase(payload.caseId) : null;
+    if (!c || !c.attachments || c.attachments.length === 0) return null;
+    return c.attachments[pageIndex] || c.attachments[0];
+  },
+
+  async _embedFaxPage(targetDoc, faxSource, options = {}) {
+    const { rgb } = PDFLib;
+    const eraseEar = options.eraseEar !== false;
+    const earPercent = parseFloat(options.earWidthPercent) || 0.02; // デフォルト2.0%
+
+    // 1. PDFの場合
+    const isPdf = (faxSource.file && faxSource.file.type === 'application/pdf') ||
+                  (faxSource.name && faxSource.name.match(/\.pdf$/i)) ||
+                  (faxSource.url && faxSource.url.match(/\.pdf(\?|$)/i)) ||
+                  (faxSource.dataUrl && faxSource.dataUrl.startsWith('data:application/pdf'));
+
+    if (isPdf) {
+      try {
+        let pdfBytes = null;
+        if (faxSource.file) {
+          pdfBytes = await faxSource.file.arrayBuffer();
+        } else if (faxSource.dataUrl) {
+          pdfBytes = this._dataUrlToUint8Array(faxSource.dataUrl);
+        } else if (faxSource.url) {
+          pdfBytes = await fetch(faxSource.url).then(r => r.arrayBuffer());
+        }
+        if (pdfBytes) {
+          const srcDoc = await PDFLib.PDFDocument.load(pdfBytes);
+          const total = srcDoc.getPageCount();
+          const pIdx = Math.min(Math.max(0, options.faxPageIndex || 0), total - 1);
+          const [copiedPage] = await targetDoc.copyPages(srcDoc, [pIdx]);
+          targetDoc.addPage(copiedPage);
+
+          if (eraseEar) {
+            const { width, height } = copiedPage.getSize();
+            copiedPage.drawRectangle({
+              x: 0,
+              y: 0,
+              width: width * earPercent,
+              height: height,
+              color: rgb(1, 1, 1)
+            });
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('_embedFaxPage PDF embedding error:', err);
+      }
+    }
+
+    // 2. 画像（DataURL / TIFF / JPEG / PNG）の場合
+    let dataUrl = faxSource.dataUrl || (typeof faxSource === 'string' && faxSource.startsWith('data:') ? faxSource : null);
+    if (!dataUrl && faxSource.url) {
+      dataUrl = faxSource.url;
+    } else if (!dataUrl && faxSource.file) {
+      dataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.readAsDataURL(faxSource.file);
+      });
+    }
+
+    if (dataUrl) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = dataUrl;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+
+        if (img.width && img.height) {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+
+          // 左端FAX耳白消し
+          if (eraseEar) {
+            ctx.fillStyle = '#FFFFFF';
+            const earW = Math.round(canvas.width * earPercent);
+            ctx.fillRect(0, 0, earW, canvas.height);
+          }
+
+          const cleanDataUrl = canvas.toDataURL('image/jpeg', 0.94);
+          const imgBytes = this._dataUrlToUint8Array(cleanDataUrl);
+          const embeddedImg = await targetDoc.embedJpg(imgBytes);
+
+          // 縦横判定（A4 縦 or 横）
+          const isLandscape = img.width > img.height;
+          const pageW = isLandscape ? 841.89 : 595.28;
+          const pageH = isLandscape ? 595.28 : 841.89;
+
+          const newPage = targetDoc.addPage([pageW, pageH]);
+          newPage.drawImage(embeddedImg, {
+            x: 0,
+            y: 0,
+            width: pageW,
+            height: pageH
+          });
+        }
+      } catch (err) {
+        console.warn('_embedFaxPage image embedding error:', err);
+      }
+    }
+  },
+
+  // 3-D. Excel 書類確認書の生成（Blob） - 原本Excelの書式・罫線・フォント・行高・印刷設定を100%完全保持
   async generateExcelBlob(payload) {
     if (typeof ExcelJS !== 'undefined') {
       const resp = await fetch(this.TPL_EXCEL);
@@ -371,7 +781,7 @@ const OssDocuWorks = {
   },
 
   // 5. ダウンロード実行
-  async generateAndDownload(caseId, type) {
+  async generateAndDownload(caseId, type, options = {}) {
     const payload = this.getCasePayload(caseId);
     if (!payload) return;
 
@@ -379,7 +789,17 @@ const OssDocuWorks = {
       App.showToast('⏳ 書類を生成中...');
       const cleanApplicant = payload.applicantName.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 20);
 
-      if (type === 'excel') {
+      if (type === 'fullpack') {
+        const blob = await this.generateFullPackPdfBlob(payload, options);
+        const fileName = `【${payload.orderNo}】${cleanApplicant}_完全フルパック.pdf`;
+        this._downloadBlob(blob, fileName);
+        App.showToast(`✅ 「${fileName}」をダウンロードしました（確認書＋地図＋FAX耳消し）`);
+      } else if (type === 'kakunin_pdf') {
+        const blob = await this.generateConfirmationPdfBlob(payload);
+        const fileName = `書類確認書（OSS）_${payload.dealerName.replace(/\s+/g, '_')}_${payload.orderNo}_${cleanApplicant}.pdf`;
+        this._downloadBlob(blob, fileName);
+        App.showToast(`✅ 「${fileName}」をダウンロードしました`);
+      } else if (type === 'excel') {
         const blob = await this.generateExcelBlob(payload);
         const fileName = `書類確認書（OSS）_${payload.dealerName.replace(/\s+/g, '_')}_${payload.orderNo}_${cleanApplicant}.xlsx`;
         this._downloadBlob(blob, fileName);
@@ -400,7 +820,7 @@ const OssDocuWorks = {
   },
 
   // 6. Driveへ一括保存
-  async saveAllToDrive(caseId) {
+  async saveAllToDrive(caseId, options = {}) {
     const payload = this.getCasePayload(caseId);
     if (!payload) return;
 
@@ -413,7 +833,27 @@ const OssDocuWorks = {
     const cleanApplicant = payload.applicantName.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 20);
 
     try {
-      // 1. PDF
+      // 1. 完全フルパックPDF
+      const fullpackBlob = await this.generateFullPackPdfBlob(payload, options);
+      const fullpackB64 = await this._blobToBase64(fullpackBlob);
+      await SpreadsheetSync.push('saveCaseDocument', {
+        caseId: payload.caseId,
+        fileName: `【${payload.orderNo}】${cleanApplicant}_完全フルパック.pdf`,
+        mimeType: 'application/pdf',
+        base64Data: fullpackB64
+      });
+
+      // 2. 単体 書類確認書PDF
+      const kakuninBlob = await this.generateConfirmationPdfBlob(payload);
+      const kakuninB64 = await this._blobToBase64(kakuninBlob);
+      await SpreadsheetSync.push('saveCaseDocument', {
+        caseId: payload.caseId,
+        fileName: `書類確認書（OSS）_${payload.dealerName.replace(/\s+/g, '_')}_${payload.orderNo}.pdf`,
+        mimeType: 'application/pdf',
+        base64Data: kakuninB64
+      });
+
+      // 3. 所在図配置図PDF
       const pdfBlob = await this.generatePdfBlob(payload);
       const pdfB64 = await this._blobToBase64(pdfBlob);
       await SpreadsheetSync.push('saveCaseDocument', {
@@ -423,17 +863,7 @@ const OssDocuWorks = {
         base64Data: pdfB64
       });
 
-      // 2. Excel
-      const xlsxBlob = await this.generateExcelBlob(payload);
-      const xlsxB64 = await this._blobToBase64(xlsxBlob);
-      await SpreadsheetSync.push('saveCaseDocument', {
-        caseId: payload.caseId,
-        fileName: `書類確認書（OSS）_${payload.dealerName.replace(/\s+/g, '_')}_${payload.orderNo}.xlsx`,
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        base64Data: xlsxB64
-      });
-
-      App.showToast('✅ Google Driveへ所在図配置図PDFと確認書Excelを保存しました！');
+      App.showToast('✅ Google DriveへフルパックPDFおよび各書類を保存しました！');
     } catch (err) {
       console.error('saveAllToDrive error:', err);
       alert('⚠️ Drive保存中にエラーが発生しました: ' + err.message);

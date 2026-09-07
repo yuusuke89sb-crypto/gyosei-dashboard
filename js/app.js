@@ -166,6 +166,10 @@ const App = {
     this.renderSidebar();
   },
 
+  refresh() {
+    this.refreshView();
+  },
+
   renderSidebar() {
     const sidebar = document.getElementById('sidebar');
     const isAdmin = typeof Auth !== 'undefined' && typeof Auth.isAdminMode === 'function' ? Auth.isAdminMode() : false;
