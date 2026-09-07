@@ -1771,15 +1771,27 @@ async function saveToCaseDirectly() {
     }
   } catch(e) {}
 
-  // 3. サムネイル画像（配置図）を生成して保存
+  // 3. 高解像度画像（所在図・配置図）を生成してlocalStorageに保存（完全フルパックPDF用）
   try {
+    const page1 = document.getElementById('page1Sozai');
     const page2 = document.getElementById('page2Haichi');
-    if (page2 && typeof html2canvas !== 'undefined') {
-      const canvas = await html2canvas(page2, { scale: 1, useCORS: true, logging: false });
-      const thumbUrl = canvas.toDataURL('image/png');
-      localStorage.setItem('gyosei_case_map_png_' + linkedCaseId, thumbUrl);
+    if (page1 && typeof html2canvas !== 'undefined') {
+      const rawC1 = await html2canvas(page1, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+      const c1 = typeof applyHighContrastWhitewash === 'function'
+        ? applyHighContrastWhitewash(rawC1, parseInt(document.getElementById('contrastSlider')?.value, 10) || 160)
+        : rawC1;
+      const sozaiUrl = c1.toDataURL('image/png');
+      localStorage.setItem('gyosei_case_sozai_png_' + linkedCaseId, sozaiUrl);
     }
-  } catch(e) {}
+    if (page2 && typeof html2canvas !== 'undefined') {
+      const c2 = await html2canvas(page2, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+      const haichiUrl = c2.toDataURL('image/png');
+      localStorage.setItem('gyosei_case_haichi_png_' + linkedCaseId, haichiUrl);
+      localStorage.setItem('gyosei_case_map_png_' + linkedCaseId, haichiUrl);
+    }
+  } catch(e) {
+    console.warn('saveCaseMap canvas capture error:', e);
+  }
 
   // 4. Google Driveの案件フォルダへ高画質PNG（所在図・配置図）を自動アップロード
   try {
@@ -5554,15 +5566,12 @@ async function openDocuWorksExportModal() {
 function generateFaxPageOptions(payload) {
   const atts = payload.attachments || [];
   let html = '';
-  if (atts.length > 0) {
-    atts.forEach((att, idx) => {
-      const isFirst = idx === 0;
-      html += `<option value="${idx}" ${isFirst ? 'selected' : ''}>📄 ${idx + 1}ページ目: ${att.name || 'FAX原本'} ${isFirst ? '(推奨)' : ''}</option>`;
-    });
-  } else {
-    html += `<option value="0" selected>📄 1ページ目 (推奨)</option>`;
-    html += `<option value="1">📄 2ページ目</option>`;
-    html += `<option value="2">📄 3ページ目</option>`;
+  const maxPages = Math.max(5, atts.length);
+  for (let idx = 0; idx < maxPages; idx++) {
+    const isFirst = idx === 0;
+    const att = atts[idx];
+    const attName = att ? ` (${att.name || 'FAX原本'})` : '';
+    html += `<option value="${idx}" ${isFirst ? 'selected' : ''}>📄 ${idx + 1}ページ目${attName} ${isFirst ? '(推奨)' : ''}</option>`;
   }
   html += `<option value="none">❌ 添付しない (確認書+地図のみ)</option>`;
   return html;

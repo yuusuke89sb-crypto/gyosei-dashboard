@@ -2975,7 +2975,7 @@ const Cases = {
             <span style="font-size:0.68rem; color:#f59e0b; background:rgba(245,158,11,0.1); padding:1px 6px; border-radius:4px; border:1px solid rgba(245,158,11,0.3);">DW 1ドット狂いなし</span>
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
-            <button type="button" class="btn btn-primary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'fullpack')" style="grid-column:1/-1; font-size:0.78rem; padding:8px; background:linear-gradient(135deg, #0284c7, #2563eb); color:#fff; font-weight:bold; border:none; display:flex; align-items:center; justify-content:center; gap:6px;" title="書類確認書・所在図・配置図・FAX原本(耳消し済)が1冊にまとまった完全フルパックPDF">
+            <button type="button" class="btn btn-primary btn-small" onclick="OssDocuWorks.openExportModal('${caseId}')" style="grid-column:1/-1; font-size:0.78rem; padding:8px; background:linear-gradient(135deg, #0284c7, #2563eb); color:#fff; font-weight:bold; border:none; display:flex; align-items:center; justify-content:center; gap:6px;" title="書類確認書・所在図・配置図・FAX原本(耳消し済)が1冊にまとまった完全フルパックPDF">
               📦 完全フルパックPDF (確認書+地図+FAX耳消し)
             </button>
             <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'kakunin_pdf')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#38bdf8; border-color:#38bdf8; font-weight:bold;" title="原本サンプル完全再現のA4横 書類確認書（単体PDF）を出力">

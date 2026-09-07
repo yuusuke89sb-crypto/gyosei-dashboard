@@ -39,7 +39,9 @@ const OssDocuWorks = {
     const zip = client ? (client.zip || '') : '';
 
     // 地図画像（PNGデータURL）
-    const mapPng = localStorage.getItem('gyosei_case_map_png_' + caseId) || '';
+    const sozaiMapPng = localStorage.getItem('gyosei_case_sozai_png_' + caseId) || '';
+    const haichiMapPng = localStorage.getItem('gyosei_case_haichi_png_' + caseId) || localStorage.getItem('gyosei_case_map_png_' + caseId) || '';
+    const mapPng = haichiMapPng;
 
     return {
       caseId: c.id,
@@ -57,12 +59,14 @@ const OssDocuWorks = {
       zip,
       staffName,
       mapPng,
+      sozaiMapPng,
+      haichiMapPng,
       attachments: (c.attachments && c.attachments.length > 0) ? c.attachments : [],
       driveFolderUrl: c.driveFolderUrl || ''
     };
   },
 
-  // 3-A. 書類確認書（原本Excel完全再現）のCanvas描画（300DPI超高精細）
+  // 3-A. 書類確認書（原本Excel完全再現）のCanvas描画（300DPI超高精細・大判レイアウト＆チェックボックス完全一致）
   renderConfirmationCanvas(payload) {
     const W = 3508;
     const H = 2480;
@@ -75,9 +79,9 @@ const OssDocuWorks = {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, W, H);
 
-    const ml = 240;
-    const mt = 130;
-    const tableW = 3040;
+    const ml = 160;
+    const mt = 65;
+    const tableW = 3188;
 
     const colUnits = [5.625, 15.625, 3.625, 13.0, 5.625, 20.625, 3.625, 5.625, 17.625, 9.625, 13.0, 30.625];
     const sumUnits = colUnits.reduce((a, b) => a + b, 0);
@@ -88,28 +92,28 @@ const OssDocuWorks = {
     }
 
     const rowH = [
-      110, // 1: Title
-      40,  // 2: Spacer / K2 Msg header
-      90,  // 3: Dealer
-      35,  // 4: Gap
-      75,  // 5: Notice 1
-      75,  // 6: Notice 2
-      80,  // 7: Date
-      45,  // 8: Gap
-      98,  // 9: 注文書番号
-      98,  // 10: 使用の本拠
-      98,  // 11: 保管場所
-      98,  // 12: 申請者 〒
-      98,  // 13: 申請者 住所
-      98,  // 14: 申請者 氏名
-      98,  // 15: 配置図 / 標章交付注記
-      50,  // 16: 所在図上 / 作成担当見出
-      50,  // 17: 所在図下 / 田中
-      98,  // 18: 承諾書
-      30,  // 19: Gap
-      55,  // 20: 行政書士法人 フェリス
-      55,  // 21: TEL
-      55   // 22: FAX
+      125, // 0: Title
+      30,  // 1: Spacer / K2 Msg header
+      110, // 2: Dealer
+      25,  // 3: Gap
+      85,  // 4: Notice 1
+      85,  // 5: Notice 2
+      90,  // 6: Date
+      35,  // 7: Gap
+      125, // 8: 注文書番号
+      125, // 9: 使用の本拠の位置
+      125, // 10: 保管場所の位置
+      105, // 11: 申請者 〒
+      120, // 12: 申請者 住所
+      125, // 13: 申請者 氏名
+      125, // 14: 配置図 / 標章交付注記
+      62,  // 15: 所在図上 / 作成担当見出
+      63,  // 16: 所在図下 / 田中
+      125, // 17: 承諾書
+      30,  // 18: Gap
+      70,  // 19: 行政書士法人 フェリス
+      70,  // 20: TEL
+      70   // 21: FAX
     ];
 
     const rowY = [mt];
@@ -117,25 +121,25 @@ const OssDocuWorks = {
       rowY.push(rowY[i] + rowH[i]);
     }
 
-    const fFamily = '"MS PGothic", "ＭＳ Ｐゴシック", "Yu Gothic", sans-serif';
+    const fFamily = '"MS PGothic", "ＭＳ Ｐゴシック", "Yu Gothic", "Meiryo", sans-serif';
 
     // 1. タイトル
     ctx.fillStyle = '#000000';
-    ctx.font = '66px ' + fFamily;
+    ctx.font = 'bold 74px ' + fFamily;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('OSS申請　書類確認書（車庫証明）', ml + tableW * 0.42, rowY[0] + rowH[0] / 2);
 
     // 2. 店舗名 + 御中
     ctx.textAlign = 'left';
-    ctx.font = '60px ' + fFamily;
+    ctx.font = 'bold 70px ' + fFamily;
     const cleanDealer = (payload.dealerName || '').replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').replace(/[\s\u3000]*御中\s*$/, '').trim() || '愛知トヨタ 西春店';
     ctx.fillText(cleanDealer, colX[0], rowY[2] + rowH[2] * 0.65);
-    ctx.font = '54px ' + fFamily;
+    ctx.font = '60px ' + fFamily;
     ctx.fillText('御中', colX[5] + 20, rowY[2] + rowH[2] * 0.65);
 
     // 3. ご案内文
-    ctx.font = '38px ' + fFamily;
+    ctx.font = '44px ' + fFamily;
     ctx.fillText('ご依頼のありました車庫証明関係書類を下記の通り確認させて頂きましたのでご査収下さい。', colX[0], rowY[4] + rowH[4] * 0.6);
     ctx.fillText('なお、不備のある書類につきましては、担当者と連絡を取り補正等の対応を致しました。', colX[0], rowY[5] + rowH[5] * 0.6);
 
@@ -143,10 +147,10 @@ const OssDocuWorks = {
     const now = new Date();
     const reiwaYear = now.getFullYear() - 2018;
     const dateStr = payload.dateStr || `令　和　${reiwaYear}　年　${now.getMonth() + 1}　月　${now.getDate()}　日`;
-    ctx.font = '36px ' + fFamily;
+    ctx.font = '42px ' + fFamily;
     ctx.fillText(dateStr, colX[0], rowY[6] + rowH[6] * 0.6);
 
-    // 5. 連絡事項・メッセージ枠（K列〜L列、行2〜行14）
+    // 5. 連絡事項・メッセージ枠（K列〜L列、行1〜行14）
     const mbLeft = colX[10];
     const mbRight = colX[12];
     const mbTop = rowY[1];
@@ -155,17 +159,17 @@ const OssDocuWorks = {
     ctx.strokeStyle = '#000000';
     ctx.strokeRect(mbLeft, mbTop, mbRight - mbLeft, mbBottom - mbTop);
 
-    const mbHLineY = rowY[1] + 50;
+    const mbHLineY = rowY[1] + 58;
     ctx.beginPath();
     ctx.moveTo(mbLeft, mbHLineY);
     ctx.lineTo(mbRight, mbHLineY);
     ctx.stroke();
 
-    ctx.font = '34px ' + fFamily;
+    ctx.font = 'bold 40px ' + fFamily;
     ctx.textAlign = 'center';
     ctx.fillText('連絡事項・メッセージ', (mbLeft + mbRight) / 2, (mbTop + mbHLineY) / 2 + 3);
 
-    // 6. メイン確認表（行9〜行18、A列〜J列）
+    // 6. メイン確認表（行8〜行17、A列〜J列）
     const tLeft = colX[0];
     const tRight = colX[10];
     const tTop = rowY[8];
@@ -183,7 +187,7 @@ const OssDocuWorks = {
       ctx.restore();
     };
 
-    const drawCellText = (text, x, y, w, h, align = 'center', font = '35px ' + fFamily, bold = false) => {
+    const drawCellText = (text, x, y, w, h, align = 'center', font = '40px ' + fFamily, bold = false) => {
       if (!text && text !== 0) return;
       ctx.save();
       ctx.font = (bold ? 'bold ' : '') + font;
@@ -194,11 +198,84 @@ const OssDocuWorks = {
         ctx.fillText(String(text), x + w / 2, y + h / 2);
       } else if (align === 'left') {
         ctx.textAlign = 'left';
-        ctx.fillText(String(text), x + 16, y + h / 2);
+        ctx.fillText(String(text), x + 20, y + h / 2);
       } else if (align === 'right') {
         ctx.textAlign = 'right';
-        ctx.fillText(String(text), x + w - 16, y + h / 2);
+        ctx.fillText(String(text), x + w - 20, y + h / 2);
       }
+      ctx.restore();
+    };
+
+    // チェックボックス描画（正方形枠＆チェックマーク✓）
+    const drawCheckbox = (bx, by, size = 38, checked = false) => {
+      ctx.save();
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = '#000000';
+      ctx.strokeRect(bx, by, size, size);
+      if (checked) {
+        ctx.beginPath();
+        ctx.moveTo(bx + size * 0.20, by + size * 0.50);
+        ctx.lineTo(bx + size * 0.44, by + size * 0.78);
+        ctx.lineTo(bx + size * 0.82, by + size * 0.22);
+        ctx.lineWidth = 4.5;
+        ctx.strokeStyle = '#000000';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+      ctx.restore();
+    };
+
+    // テキストの右側にチェックボックスを配置（配置図・所在図・承諾書用）
+    const drawTextWithRightCheckbox = (text, x, y, w, h, checked = false, font = '38px ' + fFamily, bold = false) => {
+      ctx.save();
+      ctx.font = (bold ? 'bold ' : '') + font;
+      ctx.fillStyle = '#000000';
+      ctx.textBaseline = 'middle';
+      const boxSize = 38;
+      const gap = 16;
+      
+      if (text.includes('\n')) {
+        const lines = text.split('\n');
+        const maxTextW = Math.max(...lines.map(l => ctx.measureText(l).width));
+        const totalW = maxTextW + gap + boxSize;
+        const startX = x + Math.max(12, (w - totalW) / 2);
+        const lineH = 34;
+        const startY = y + (h - lineH * lines.length) / 2 + lineH / 2;
+        ctx.textAlign = 'left';
+        lines.forEach((l, i) => {
+          ctx.fillText(l, startX, startY + i * lineH);
+        });
+        const boxX = startX + maxTextW + gap;
+        const boxY = y + (h - boxSize) / 2;
+        drawCheckbox(boxX, boxY, boxSize, checked);
+      } else {
+        const textW = ctx.measureText(text).width;
+        const totalW = textW + gap + boxSize;
+        const startX = x + Math.max(12, (w - totalW) / 2);
+        ctx.textAlign = 'left';
+        ctx.fillText(text, startX, y + h / 2);
+        const boxX = startX + textW + gap;
+        const boxY = y + (h - boxSize) / 2;
+        drawCheckbox(boxX, boxY, boxSize, checked);
+      }
+      ctx.restore();
+    };
+
+    // テキストの左側にチェックボックスを配置（使用の本拠・保管場所用）
+    const drawTextWithLeftCheckbox = (text, x, y, w, h, checked = false, font = '42px ' + fFamily, bold = false) => {
+      ctx.save();
+      const boxSize = 38;
+      const gap = 18;
+      const boxX = x + 24;
+      const boxY = y + (h - boxSize) / 2;
+      drawCheckbox(boxX, boxY, boxSize, checked);
+
+      ctx.font = (bold ? 'bold ' : '') + font;
+      ctx.fillStyle = '#000000';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillText(text, boxX + boxSize + gap, y + h / 2);
       ctx.restore();
     };
 
@@ -222,74 +299,83 @@ const OssDocuWorks = {
     line(colX[2], rowY[11], colX[2], rowY[14], 4);
     line(colX[2], rowY[14], colX[2], rowY[18], 4);
 
+    // 注文書番号 行の区切り線
     line(colX[6], rowY[8], colX[6], rowY[9], 2);
     line(colX[8], rowY[8], colX[8], rowY[9], 2);
     line(colX[9], rowY[8], colX[9], rowY[9], 2);
 
-    line(colX[4], rowY[14], colX[4], rowY[18], 4);
+    // 配置図・所在図・承諾書の3列（有 / 作成 / 現地調査）の縦罫線（原本画像完全一致：余計な中間線なし）
     line(colX[5], rowY[14], colX[5], rowY[18], 2);
-    line(colX[7], rowY[14], colX[7], rowY[18], 4);
     line(colX[8], rowY[14], colX[8], rowY[18], 2);
 
+    // 〒枠の破線
     line(colX[3], rowY[11], colX[3], rowY[12], 2, true);
     line(colX[5], rowY[11], colX[5], rowY[12], 2, true);
 
     // セル文字列描画
-    drawCellText('注文書番号', colX[0], rowY[8], colX[2] - colX[0], rowH[8]);
-    drawCellText(payload.orderNo || '58280', colX[2], rowY[8], colX[6] - colX[2], rowH[8], 'center', '38px ' + fFamily);
-    drawCellText('担当者', colX[6], rowY[8], colX[8] - colX[6], rowH[8]);
-    drawCellText(payload.contactName ? payload.contactName.replace(/様$/, '') : '', colX[8], rowY[8], colX[9] - colX[8], rowH[8], 'center', '38px ' + fFamily);
-    drawCellText('様', colX[9], rowY[8], colX[10] - colX[9], rowH[8]);
+    // 注文書番号 行
+    drawCellText('注文書番号', colX[0], rowY[8], colX[2] - colX[0], rowH[8], 'center', '40px ' + fFamily, true);
+    drawCellText(payload.orderNo || '58280', colX[2], rowY[8], colX[6] - colX[2], rowH[8], 'center', '48px ' + fFamily, true);
+    drawCellText('担当者', colX[6], rowY[8], colX[8] - colX[6], rowH[8], 'center', '40px ' + fFamily, true);
+    drawCellText(payload.contactName ? payload.contactName.replace(/様$/, '') : '', colX[8], rowY[8], colX[9] - colX[8], rowH[8], 'center', '44px ' + fFamily, true);
+    drawCellText('様', colX[9], rowY[8], colX[10] - colX[9], rowH[8], 'center', '40px ' + fFamily, true);
 
-    drawCellText('使用の本拠の位置', colX[0], rowY[9], colX[2] - colX[0], rowH[9]);
-    drawCellText('申請者に同じ', colX[2], rowY[9], colX[10] - colX[2], rowH[9], 'left');
+    // 使用の本拠の位置 行（[✓] 申請者に同じ）
+    drawCellText('使用の本拠の位置', colX[0], rowY[9], colX[2] - colX[0], rowH[9], 'center', '38px ' + fFamily, true);
+    drawTextWithLeftCheckbox('申請者に同じ', colX[2], rowY[9], colX[10] - colX[2], rowH[9], true, '42px ' + fFamily);
 
-    drawCellText('保管場所の位置', colX[0], rowY[10], colX[2] - colX[0], rowH[10]);
-    drawCellText(payload.parkingAddress || '同上', colX[2], rowY[10], colX[10] - colX[2], rowH[10], 'left');
+    // 保管場所の位置 行（[✓] 同上）
+    drawCellText('保管場所の位置', colX[0], rowY[10], colX[2] - colX[0], rowH[10], 'center', '38px ' + fFamily, true);
+    drawTextWithLeftCheckbox(payload.parkingAddress || '同上', colX[2], rowY[10], colX[10] - colX[2], rowH[10], true, '42px ' + fFamily);
 
-    drawCellText('申請者', colX[0], rowY[11], colX[1] - colX[0], rowH[11] + rowH[12] + rowH[13]);
-    drawCellText('住　　所', colX[1], rowY[11], colX[2] - colX[1], rowH[11] + rowH[12]);
-    drawCellText('〒 （', colX[2], rowY[11], colX[3] - colX[2], rowH[11], 'center', '32px ' + fFamily);
-    drawCellText(payload.zip || '', colX[3], rowY[11], colX[5] - colX[3], rowH[11], 'center', '36px ' + fFamily);
-    drawCellText('）', colX[5], rowY[11], 50, rowH[11], 'left', '32px ' + fFamily);
-    drawCellText(payload.carAddress || '', colX[2], rowY[12], colX[10] - colX[2], rowH[12], 'left');
+    // 申請者（住所・氏名）
+    drawCellText('申請者', colX[0], rowY[11], colX[1] - colX[0], rowH[11] + rowH[12] + rowH[13], 'center', '40px ' + fFamily, true);
+    drawCellText('住　　所', colX[1], rowY[11], colX[2] - colX[1], rowH[11] + rowH[12], 'center', '38px ' + fFamily, true);
+    drawCellText('〒 （', colX[2], rowY[11], colX[3] - colX[2], rowH[11], 'center', '38px ' + fFamily);
+    drawCellText(payload.zip || '', colX[3], rowY[11], colX[5] - colX[3], rowH[11], 'center', '42px ' + fFamily, true);
+    drawCellText('）', colX[5], rowY[11], 60, rowH[11], 'left', '38px ' + fFamily);
+    drawCellText(payload.carAddress || '', colX[2], rowY[12], colX[10] - colX[2], rowH[12], 'left', '40px ' + fFamily);
 
-    drawCellText('氏　　名', colX[1], rowY[13], colX[2] - colX[1], rowH[13]);
-    drawCellText(payload.applicantName || '', colX[2], rowY[13], colX[10] - colX[2], rowH[13], 'left');
+    drawCellText('氏　　名', colX[1], rowY[13], colX[2] - colX[1], rowH[13], 'center', '38px ' + fFamily, true);
+    drawCellText(payload.applicantName || '', colX[2], rowY[13], colX[10] - colX[2], rowH[13], 'left', '44px ' + fFamily, true);
 
-    drawCellText('配　置　図', colX[0], rowY[14], colX[2] - colX[0], rowH[14]);
-    drawCellText('有', colX[2], rowY[14], colX[4] - colX[2], rowH[14]);
-    drawCellText('配置図作成', colX[5], rowY[14], colX[7] - colX[5], rowH[14]);
-    drawCellText('現地調査', colX[8], rowY[14], colX[10] - colX[8], rowH[14]);
+    // 配置図 行（有 [✓] | 配置図作成 [ ] | 現地調査 [ ]）
+    drawCellText('配　置　図', colX[0], rowY[14], colX[2] - colX[0], rowH[14], 'center', '40px ' + fFamily, true);
+    drawTextWithRightCheckbox('有', colX[2], rowY[14], colX[5] - colX[2], rowH[14], true, '42px ' + fFamily, true);
+    drawTextWithRightCheckbox('配置図作成', colX[5], rowY[14], colX[8] - colX[5], rowH[14], false, '38px ' + fFamily);
+    drawTextWithRightCheckbox('現地調査', colX[8], rowY[14], colX[10] - colX[8], rowH[14], false, '38px ' + fFamily);
 
-    drawCellText('所　在　図', colX[0], rowY[15], colX[2] - colX[0], rowH[15] + rowH[16]);
-    drawCellText('有', colX[2], rowY[15], colX[4] - colX[2], rowH[15] + rowH[16]);
-    drawCellText('所在図作成', colX[5], rowY[15], colX[7] - colX[5], rowH[15] + rowH[16]);
-    drawCellText('現地調査', colX[8], rowY[15], colX[10] - colX[8], rowH[15] + rowH[16]);
+    // 所在図 行（有 [✓] | 所在図作成 [ ] | 現地調査 [ ]）
+    drawCellText('所　在　図', colX[0], rowY[15], colX[2] - colX[0], rowH[15] + rowH[16], 'center', '40px ' + fFamily, true);
+    drawTextWithRightCheckbox('有', colX[2], rowY[15], colX[5] - colX[2], rowH[15] + rowH[16], true, '42px ' + fFamily, true);
+    drawTextWithRightCheckbox('所在図作成', colX[5], rowY[15], colX[8] - colX[5], rowH[15] + rowH[16], false, '38px ' + fFamily);
+    drawTextWithRightCheckbox('現地調査', colX[8], rowY[15], colX[10] - colX[8], rowH[15] + rowH[16], false, '38px ' + fFamily);
 
-    drawCellText('承諾書（自認書）', colX[0], rowY[17], colX[2] - colX[0], rowH[17]);
-    drawCellText('有', colX[2], rowY[17], colX[4] - colX[2], rowH[17]);
-    drawCellText('不備あるものは承諾書に追記いただきました', colX[5], rowY[17], colX[7] - colX[5], rowH[17], 'center', '26px ' + fFamily);
-    drawCellText('承諾書取得', colX[8], rowY[17], colX[10] - colX[8], rowH[17]);
+    // 承諾書 行（有 [ ] | 不備あるものは承諾書に追記いただきました [ ] | 承諾書取得 [ ]）
+    drawCellText('承諾書（自認書）', colX[0], rowY[17], colX[2] - colX[0], rowH[17], 'center', '36px ' + fFamily, true);
+    drawTextWithRightCheckbox('有', colX[2], rowY[17], colX[5] - colX[2], rowH[17], false, '42px ' + fFamily);
+    drawTextWithRightCheckbox('不備あるものは\n承諾書に追記いただきました', colX[5], rowY[17], colX[8] - colX[5], rowH[17], false, '28px ' + fFamily);
+    drawTextWithRightCheckbox('承諾書取得', colX[8], rowY[17], colX[10] - colX[8], rowH[17], false, '38px ' + fFamily);
 
-    // 7. 右下注記・担当枠（行15〜行18、K列〜L列）
+    // 7. 右下注記・担当枠（行14〜行17、K列〜L列）
     line(colX[10], rowY[14], colX[12], rowY[14], 4);
     line(colX[10], rowY[15], colX[12], rowY[15], 4);
     line(colX[10], rowY[14], colX[10], rowY[18], 4);
     line(colX[12], rowY[14], colX[12], rowY[18], 4);
     line(colX[10], rowY[18], colX[12], rowY[18], 4);
-    drawCellText('※標章交付の際には下記へ記入の上ご依頼下さい。', colX[10], rowY[14], colX[12] - colX[10], rowH[14], 'left', '30px ' + fFamily);
+    drawCellText('※標章交付の際には下記へ記入の上ご依頼下さい。', colX[10], rowY[14], colX[12] - colX[10], rowH[14], 'left', '32px ' + fFamily);
 
     line(colX[11], rowY[15], colX[11], rowY[18], 4);
     line(colX[10], rowY[16], colX[12], rowY[16], 4);
-    drawCellText('作成担当', colX[10], rowY[15], colX[11] - colX[10], rowH[15], 'center', '32px ' + fFamily);
-    drawCellText('標章交付番号（警察内管理番号）', colX[11], rowY[15], colX[12] - colX[11], rowH[15], 'center', '32px ' + fFamily);
-    drawCellText(payload.staffName || '田中', colX[10], rowY[16], colX[11] - colX[10], rowH[16] + rowH[17], 'center', '36px ' + fFamily);
+    drawCellText('作成担当', colX[10], rowY[15], colX[11] - colX[10], rowH[15], 'center', '34px ' + fFamily, true);
+    drawCellText('標章交付番号（警察内管理番号）', colX[11], rowY[15], colX[12] - colX[11], rowH[15], 'center', '34px ' + fFamily, true);
+    drawCellText(payload.staffName || '田中', colX[10], rowY[16], colX[11] - colX[10], rowH[16] + rowH[17], 'center', '40px ' + fFamily, true);
 
     // 8. 事務所情報
     ctx.textAlign = 'right';
-    ctx.font = '36px ' + fFamily;
+    ctx.font = 'bold 42px ' + fFamily;
     ctx.fillText('行政書士法人　フェリス', colX[12], rowY[19] + rowH[19] * 0.7);
+    ctx.font = '40px ' + fFamily;
     ctx.fillText('TEL　０５８６－５０－２８９６', colX[12], rowY[20] + rowH[20] * 0.7);
     ctx.fillText('FAX　０５８６－８７－６６８７', colX[12], rowY[21] + rowH[21] * 0.7);
 
@@ -589,23 +675,56 @@ const OssDocuWorks = {
     const [haichiPage] = await targetDoc.copyPages(haichiDoc, [0]);
     targetDoc.addPage(haichiPage);
 
-    // Map image embedding if available (supports separate sozai and haichi maps)
-    const sozaiPngSrc = payload.sozaiMapPng;
-    const haichiPngSrc = payload.haichiMapPng || payload.mapPng;
+    // Helper to embed either PNG or JPEG safely
+    const embedImageSafely = async (doc, bytes) => {
+      if (!bytes || bytes.length < 4) return null;
+      if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+        return await doc.embedPng(bytes);
+      }
+      if (bytes[0] === 0xFF && bytes[1] === 0xD8) {
+        return await doc.embedJpg(bytes);
+      }
+      try {
+        return await doc.embedPng(bytes);
+      } catch(e) {
+        try {
+          return await doc.embedJpg(bytes);
+        } catch(e2) {
+          console.warn('Failed to embed image:', e2);
+          return null;
+        }
+      }
+    };
+
+    // Map image embedding if available (supports separate sozai and haichi maps, or full A4 page captures)
+    const sozaiPngSrc = payload.sozaiMapPng || (payload.caseId ? localStorage.getItem('gyosei_case_sozai_png_' + payload.caseId) : '') || '';
+    const haichiPngSrc = payload.haichiMapPng || payload.mapPng || (payload.caseId ? (localStorage.getItem('gyosei_case_haichi_png_' + payload.caseId) || localStorage.getItem('gyosei_case_map_png_' + payload.caseId)) : '') || '';
 
     if (sozaiPngSrc) {
       try {
         const pngBytes = await this._srcToUint8Array(sozaiPngSrc);
         if (pngBytes) {
-          const sozaiImg = await targetDoc.embedPng(pngBytes);
-          // 所在図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
-          // 原紙枠内寸法: x: 61.0, y: 41.5 (原紙下端から), 幅: 720.0, 高さ: 434.5
-          sozaiPage.drawImage(sozaiImg, {
-            x: 61.0,
-            y: 41.5,
-            width: 720.0,
-            height: 434.5
-          });
+          const sozaiImg = await embedImageSafely(targetDoc, pngBytes);
+          if (sozaiImg) {
+            const ratio = sozaiImg.width / sozaiImg.height;
+            if (ratio > 1.30 && ratio < 1.55) {
+              // A4フルページキャプチャの場合（A4全面に美しく描画）
+              sozaiPage.drawImage(sozaiImg, {
+                x: 0,
+                y: 0,
+                width: 841.89,
+                height: 595.28
+              });
+            } else {
+              // 所在図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
+              sozaiPage.drawImage(sozaiImg, {
+                x: 61.0,
+                y: 41.5,
+                width: 720.0,
+                height: 434.5
+              });
+            }
+          }
         }
       } catch(e) {
         console.warn('Failed to embed sozai map image:', e);
@@ -616,15 +735,27 @@ const OssDocuWorks = {
       try {
         const pngBytes = await this._srcToUint8Array(haichiPngSrc);
         if (pngBytes) {
-          const haichiImg = await targetDoc.embedPng(pngBytes);
-          // 配置図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
-          // 原紙枠内寸法: x: 61.0, y: 74.5 (原紙下端から), 幅: 720.0, 高さ: 405.5
-          haichiPage.drawImage(haichiImg, {
-            x: 61.0,
-            y: 74.5,
-            width: 720.0,
-            height: 405.5
-          });
+          const haichiImg = await embedImageSafely(targetDoc, pngBytes);
+          if (haichiImg) {
+            const ratio = haichiImg.width / haichiImg.height;
+            if (ratio > 1.30 && ratio < 1.55) {
+              // A4フルページキャプチャの場合（A4全面に美しく描画）
+              haichiPage.drawImage(haichiImg, {
+                x: 0,
+                y: 0,
+                width: 841.89,
+                height: 595.28
+              });
+            } else {
+              // 配置図描画エリア（マスター原紙の枠線内にぴったり収まるよう微調整：7mm拡大版）
+              haichiPage.drawImage(haichiImg, {
+                x: 61.0,
+                y: 74.5,
+                width: 720.0,
+                height: 405.5
+              });
+            }
+          }
         }
       } catch(e) {
         console.warn('Failed to embed haichi map image:', e);
@@ -778,6 +909,160 @@ const OssDocuWorks = {
     ctx.fillText(disp, 146 / 2, 7.0);
 
     return canvas.toDataURL('image/png');
+  },
+
+  // 4-B. 完全フルパックPDF & OSS一括出力モーダル（FAXページ選択・耳消し・出力）
+  openExportModal(caseId, defaultAction = 'fullpack') {
+    const payload = this.getCasePayload(caseId);
+    if (!payload) return;
+
+    const existing = document.getElementById('ossExportModal');
+    if (existing) existing.remove();
+
+    window._selectedCustomFaxFile = null;
+
+    // FAXページ選択用オプションの生成（常に1〜5ページ目を選択可能＋添付ファイルがある場合はその名も表示）
+    const atts = payload.attachments || [];
+    let faxOptionsHtml = '';
+    const maxPages = Math.max(5, atts.length);
+    for (let i = 0; i < maxPages; i++) {
+      const isFirst = i === 0;
+      const attName = atts[i] ? ` (${atts[i].name || '添付原本'})` : '';
+      faxOptionsHtml += `<option value="${i}" ${isFirst ? 'selected' : ''}>📄 ${i + 1}ページ目${attName} ${isFirst ? '(推奨・通常原本)' : ''}</option>`;
+    }
+    faxOptionsHtml += `<option value="none">❌ FAX原本は添付しない（確認書＋地図のみ）</option>`;
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'ossExportModal';
+    modal.style.display = 'flex';
+    modal.style.zIndex = '100001';
+
+    modal.innerHTML = `
+      <div class="modal-overlay" onclick="document.getElementById('ossExportModal').remove()" style="background:rgba(0,0,0,0.8); position:fixed; inset:0;"></div>
+      <div class="modal-content" style="max-width:620px; width:94%; background:var(--card-bg, #1e293b); border:1px solid var(--border-color, #334155); border-radius:12px; padding:20px; z-index:100002; display:flex; flex-direction:column; gap:14px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+        <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color, #334155); padding-bottom:10px;">
+          <h2 style="margin:0; font-size:1.15rem; color:var(--text-color, #fff); display:flex; align-items:center; gap:8px;">
+            📦 完全フルパックPDF出力（確認書＋所在図＋配置図＋FAX原本）
+          </h2>
+          <button class="modal-close" onclick="document.getElementById('ossExportModal').remove()" style="background:none; border:none; color:#94a3b8; font-size:1.3rem; cursor:pointer;">✕</button>
+        </div>
+
+        <div style="background:rgba(15,23,42,0.6); border:1px solid var(--border-color, #334155); border-radius:8px; padding:10px 14px; font-size:0.82rem; display:grid; grid-template-columns:auto 1fr; gap:6px 12px;">
+          <span style="color:var(--text-muted, #94a3b8);">注文書番号:</span>
+          <strong style="color:#38bdf8;">${payload.orderNo}</strong>
+          <span style="color:var(--text-muted, #94a3b8);">申請者名:</span>
+          <strong style="color:#fff;">${payload.applicantName} 様</strong>
+          <span style="color:var(--text-muted, #94a3b8);">ディーラー店舗:</span>
+          <span style="color:#fff;">${payload.dealerName}（担当: ${payload.contactName || '—'} 様）</span>
+        </div>
+
+        <!-- 📠 FAX原本の追加設定 -->
+        <div style="background:rgba(255,255,255,0.03); border:1px solid #0284c7; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:10px;">
+          <div style="font-weight:bold; font-size:0.88rem; color:#38bdf8; display:flex; align-items:center; justify-content:space-between;">
+            <span>📠 FAX原本の追加ページ選択</span>
+            <span style="font-size:0.72rem; color:#94a3b8;">4ページ目に結合</span>
+          </div>
+
+          <div>
+            <label style="font-size:0.76rem; color:#94a3b8; margin-bottom:4px; display:block;">追加するFAX原本のページ:</label>
+            <select id="ossExportFaxPageSelect" class="form-input" style="width:100%; padding:8px 10px; font-size:0.86rem; background:#0f172a; border:1px solid #334155; color:#fff; border-radius:6px; cursor:pointer;">
+              ${faxOptionsHtml}
+            </select>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <label style="font-size:0.80rem; color:#e2e8f0; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="ossExportEraseEarCheck" checked style="width:16px; height:16px; accent-color:#2563eb;">
+              🧹 左端FAX耳を自動消去（幅2.0%白消し）
+            </label>
+
+            <div>
+              <button type="button" class="btn btn-secondary btn-small" onclick="document.getElementById('ossExportCustomFileInput').click()" style="font-size:0.75rem; padding:4px 10px; background:#1e293b; border-color:#38bdf8; color:#38bdf8;">
+                📁 手元ファイルを選択...
+              </button>
+              <input type="file" id="ossExportCustomFileInput" accept=".pdf,.tif,.tiff,.jpg,.jpeg,.png" style="display:none;" onchange="OssDocuWorks.handleCustomFaxFile(event)">
+            </div>
+          </div>
+          <div id="ossExportCustomFileStatus" style="display:none; font-size:0.78rem; color:#34d399; font-weight:bold; background:#064e3b; padding:4px 8px; border-radius:4px;"></div>
+        </div>
+
+        <!-- 🚀 メイン出力ボタン -->
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+          <button type="button" class="btn btn-primary" onclick="OssDocuWorks.executeExportFromModal('${caseId}', 'fullpack')" style="padding:12px; font-size:0.95rem; font-weight:bold; background:linear-gradient(135deg, #0284c7, #2563eb); color:#fff; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; box-shadow:0 4px 12px rgba(2,132,199,0.3);">
+            📦 完全フルパックPDFを出力（確認書＋地図＋FAX耳消し）
+          </button>
+        </div>
+
+        <!-- サブ出力アコーディオン・個別ボタン -->
+        <div style="border-top:1px dashed var(--border-color, #334155); padding-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.executeExportFromModal('${caseId}', 'kakunin_pdf')" style="font-size:0.78rem; padding:8px; justify-content:center;">
+            📑 書類確認書 (PDF) のみ
+          </button>
+          <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.executeExportFromModal('${caseId}', 'excel')" style="font-size:0.78rem; padding:8px; justify-content:center;">
+            📊 書類確認書 (Excel) のみ
+          </button>
+          <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.executeExportFromModal('${caseId}', 'pdf')" style="font-size:0.78rem; padding:8px; justify-content:center;">
+            📄 所在図・配置図 (PDF) のみ
+          </button>
+          <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.executeExportFromModal('${caseId}', 'drive')" style="font-size:0.78rem; padding:8px; justify-content:center; color:#f59e0b; border-color:#f59e0b;">
+            ☁️ Driveへ一括保存
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  },
+
+  handleCustomFaxFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    window._selectedCustomFaxFile = file;
+    const statusEl = document.getElementById('ossExportCustomFileStatus');
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.innerHTML = `✅ 手元ファイル選択中: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+    }
+    const sel = document.getElementById('ossExportFaxPageSelect');
+    if (sel) {
+      const opt = document.createElement('option');
+      opt.value = 'custom';
+      opt.textContent = `📁 選択ファイル: ${file.name}`;
+      opt.selected = true;
+      sel.insertBefore(opt, sel.firstChild);
+    }
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast('📁 手元のFAX原本ファイルを取り込みました');
+    }
+  },
+
+  async executeExportFromModal(caseId, action) {
+    const faxVal = document.getElementById('ossExportFaxPageSelect')?.value || '0';
+    const eraseEar = document.getElementById('ossExportEraseEarCheck')?.checked ?? true;
+    const customFax = window._selectedCustomFaxFile ? { file: window._selectedCustomFaxFile, name: window._selectedCustomFaxFile.name } : null;
+
+    const opts = {
+      includeFax: faxVal !== 'none',
+      faxPageIndex: faxVal === 'custom' ? 0 : (parseInt(faxVal, 10) || 0),
+      eraseEar: eraseEar,
+      earWidthPercent: 0.02,
+      customFaxSource: customFax
+    };
+
+    const modal = document.getElementById('ossExportModal');
+    if (modal) modal.remove();
+
+    if (action === 'fullpack') {
+      await this.generateAndDownload(caseId, 'fullpack', opts);
+    } else if (action === 'kakunin_pdf') {
+      await this.generateAndDownload(caseId, 'kakunin_pdf');
+    } else if (action === 'excel') {
+      await this.generateAndDownload(caseId, 'excel');
+    } else if (action === 'pdf') {
+      await this.generateAndDownload(caseId, 'pdf');
+    } else if (action === 'drive') {
+      await this.saveAllToDrive(caseId, opts);
+    }
   },
 
   // 5. ダウンロード実行
