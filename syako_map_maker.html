@@ -1479,6 +1479,8 @@ function checkUrlCaseParams() {
   if (folderUrl) linkedFolderUrl = folderUrl;
   if (contact) linkedContactName = contact;
 
+  if (orderNo) linkedOrderNo = orderNo;
+
   if (caseId) {
     linkedCaseId = caseId;
     linkedCaseTitle = title || name || `案件 #${caseId}`;
@@ -1754,13 +1756,16 @@ async function saveToCaseDirectly() {
 
   // 1. ベクターJSONをlocalStorageに保存
   localStorage.setItem('syako_case_map_' + linkedCaseId, JSON.stringify(data));
+  if (typeof linkedOrderNo !== 'undefined' && linkedOrderNo) {
+    localStorage.setItem('syako_case_map_' + linkedOrderNo, JSON.stringify(data));
+  }
 
   // 2. ダッシュボード一覧のCaseオブジェクトを更新（parkingAddress等）
   try {
     const rawCases = localStorage.getItem('gyosei_cases');
     if (rawCases) {
       const cases = JSON.parse(rawCases);
-      const idx = cases.findIndex(c => c.id == linkedCaseId);
+      const idx = cases.findIndex(c => c.id == linkedCaseId || (linkedOrderNo && c.orderNo == linkedOrderNo));
       if (idx !== -1) {
         cases[idx].parkingAddress = parkAddr;
         if (regNo) cases[idx].carNumber = regNo;
@@ -1782,12 +1787,19 @@ async function saveToCaseDirectly() {
         : rawC1;
       const sozaiUrl = c1.toDataURL('image/png');
       localStorage.setItem('gyosei_case_sozai_png_' + linkedCaseId, sozaiUrl);
+      if (typeof linkedOrderNo !== 'undefined' && linkedOrderNo) {
+        localStorage.setItem('gyosei_case_sozai_png_' + linkedOrderNo, sozaiUrl);
+      }
     }
     if (page2 && typeof html2canvas !== 'undefined') {
       const c2 = await html2canvas(page2, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
       const haichiUrl = c2.toDataURL('image/png');
       localStorage.setItem('gyosei_case_haichi_png_' + linkedCaseId, haichiUrl);
       localStorage.setItem('gyosei_case_map_png_' + linkedCaseId, haichiUrl);
+      if (typeof linkedOrderNo !== 'undefined' && linkedOrderNo) {
+        localStorage.setItem('gyosei_case_haichi_png_' + linkedOrderNo, haichiUrl);
+        localStorage.setItem('gyosei_case_map_png_' + linkedOrderNo, haichiUrl);
+      }
     }
   } catch(e) {
     console.warn('saveCaseMap canvas capture error:', e);

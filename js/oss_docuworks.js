@@ -38,10 +38,38 @@ const OssDocuWorks = {
     const parkingAddress = c.parkingAddress || '同上';
     const zip = client ? (client.zip || '') : '';
 
-    // 地図画像（PNGデータURL）
-    const sozaiMapPng = localStorage.getItem('gyosei_case_sozai_png_' + caseId) || '';
-    const haichiMapPng = localStorage.getItem('gyosei_case_haichi_png_' + caseId) || localStorage.getItem('gyosei_case_map_png_' + caseId) || '';
+    // 地図画像（PNGデータURL：案件ID・注文書番号の双方から確実に検索）
+    let sozaiMapPng = localStorage.getItem('gyosei_case_sozai_png_' + caseId) || '';
+    if (!sozaiMapPng && orderNo) sozaiMapPng = localStorage.getItem('gyosei_case_sozai_png_' + orderNo) || '';
+    if (!sozaiMapPng && c.id && c.id !== caseId) sozaiMapPng = localStorage.getItem('gyosei_case_sozai_png_' + c.id) || '';
+
+    let haichiMapPng = localStorage.getItem('gyosei_case_haichi_png_' + caseId) || localStorage.getItem('gyosei_case_map_png_' + caseId) || '';
+    if (!haichiMapPng && orderNo) haichiMapPng = localStorage.getItem('gyosei_case_haichi_png_' + orderNo) || localStorage.getItem('gyosei_case_map_png_' + orderNo) || '';
+    if (!haichiMapPng && c.id && c.id !== caseId) haichiMapPng = localStorage.getItem('gyosei_case_haichi_png_' + c.id) || localStorage.getItem('gyosei_case_map_png_' + c.id) || '';
+
+    const hasMapData = !!(sozaiMapPng || haichiMapPng || localStorage.getItem('syako_case_map_' + caseId) || (orderNo && localStorage.getItem('syako_case_map_' + orderNo)));
     const mapPng = haichiMapPng;
+
+    // 添付ファイル（案件・インボックス・FAXログを横断して原本を確実に抽出）
+    let attachments = (c.attachments && c.attachments.length > 0) ? [...c.attachments] : [];
+    if (attachments.length === 0 && typeof Store !== 'undefined') {
+      const inboxList = typeof Store.getInbox === 'function' ? Store.getInbox() : [];
+      const matchedInbox = inboxList.find(i => String(i.caseId) === String(caseId) || (c.inboxId && String(i.id) === String(c.inboxId)));
+      if (matchedInbox && matchedInbox.attachments && matchedInbox.attachments.length > 0) {
+        attachments = [...matchedInbox.attachments];
+      } else if (matchedInbox && (matchedInbox.pdfUrl || matchedInbox.fileUrl)) {
+        attachments.push({ name: '受信原本.pdf', url: matchedInbox.pdfUrl || matchedInbox.fileUrl });
+      }
+      if (attachments.length === 0 && typeof Store.getFaxLogs === 'function') {
+        const faxLogs = Store.getFaxLogs();
+        const matchedFax = faxLogs.find(f => (c.faxId && (f.id === c.faxId || f.faxId === c.faxId)) || String(f.caseId) === String(caseId));
+        if (matchedFax && matchedFax.attachments && matchedFax.attachments.length > 0) {
+          attachments = [...matchedFax.attachments];
+        } else if (matchedFax && (matchedFax.pdfUrl || matchedFax.fileUrl)) {
+          attachments.push({ name: 'FAX受信原本.pdf', url: matchedFax.pdfUrl || matchedFax.fileUrl });
+        }
+      }
+    }
 
     return {
       caseId: c.id,
@@ -61,7 +89,8 @@ const OssDocuWorks = {
       mapPng,
       sozaiMapPng,
       haichiMapPng,
-      attachments: (c.attachments && c.attachments.length > 0) ? c.attachments : [],
+      hasMapData,
+      attachments,
       driveFolderUrl: c.driveFolderUrl || ''
     };
   },
@@ -458,63 +487,39 @@ const OssDocuWorks = {
     const eraseEar = options.eraseEar !== false;
     const earPercent = parseFloat(options.earWidthPercent) || 0.02; // デフォルト2.0%
 
-    // 1. PDFの場合
-    const isPdf = (faxSource.file && faxSource.file.type === 'application/pdf') ||
-                  (faxSource.name && faxSource.name.match(/\.pdf$/i)) ||
-                  (faxSource.url && faxSource.url.match(/\.pdf(\?|$)/i)) ||
-                  (faxSource.dataUrl && faxSource.dataUrl.startsWith('data:application/pdf'));
-
-    if (isPdf) {
-      try {
-        let pdfBytes = null;
-        if (faxSource.file) {
-          pdfBytes = await faxSource.file.arrayBuffer();
-        } else if (faxSource.dataUrl) {
-          pdfBytes = this._dataUrlToUint8Array(faxSource.dataUrl);
-        } else if (faxSource.url) {
-          pdfBytes = await fetch(faxSource.url).then(r => r.arrayBuffer());
-        }
-        if (pdfBytes) {
-          const srcDoc = await PDFLib.PDFDocument.load(pdfBytes);
-          const total = srcDoc.getPageCount();
-          const pIdx = Math.min(Math.max(0, options.faxPageIndex || 0), total - 1);
-          const [copiedPage] = await targetDoc.copyPages(srcDoc, [pIdx]);
-          targetDoc.addPage(copiedPage);
-
-          if (eraseEar) {
-            const { width, height } = copiedPage.getSize();
-            copiedPage.drawRectangle({
-              x: 0,
-              y: 0,
-              width: width * earPercent,
-              height: height,
-              color: rgb(1, 1, 1)
-            });
-          }
-          return;
-        }
-      } catch (err) {
-        console.warn('_embedFaxPage PDF embedding error:', err);
+    try {
+      const resolved = await this._resolveFaxSourceData(faxSource, options.faxPageIndex || 0);
+      if (!resolved) {
+        console.warn('Could not resolve faxSource data:', faxSource);
+        return;
       }
-    }
 
-    // 2. 画像（DataURL / TIFF / JPEG / PNG）の場合
-    let dataUrl = faxSource.dataUrl || (typeof faxSource === 'string' && faxSource.startsWith('data:') ? faxSource : null);
-    if (!dataUrl && faxSource.url) {
-      dataUrl = faxSource.url;
-    } else if (!dataUrl && faxSource.file) {
-      dataUrl = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target.result);
-        reader.readAsDataURL(faxSource.file);
-      });
-    }
+      // 1. PDFの場合
+      if (resolved.type === 'pdf') {
+        const srcDoc = await PDFLib.PDFDocument.load(resolved.bytes);
+        const total = srcDoc.getPageCount();
+        const pIdx = Math.min(Math.max(0, options.faxPageIndex || 0), total - 1);
+        const [copiedPage] = await targetDoc.copyPages(srcDoc, [pIdx]);
+        targetDoc.addPage(copiedPage);
 
-    if (dataUrl) {
-      try {
+        if (eraseEar) {
+          const { width, height } = copiedPage.getSize();
+          copiedPage.drawRectangle({
+            x: 0,
+            y: 0,
+            width: width * earPercent,
+            height: height,
+            color: rgb(1, 1, 1)
+          });
+        }
+        return;
+      }
+
+      // 2. 画像（JPEG / PNG / TIFF / DataURL）の場合
+      if (resolved.type === 'dataUrl' && resolved.dataUrl) {
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        img.src = dataUrl;
+        img.src = resolved.dataUrl;
         await new Promise((resolve, reject) => {
           img.onload = resolve;
           img.onerror = reject;
@@ -551,9 +556,156 @@ const OssDocuWorks = {
             height: pageH
           });
         }
-      } catch (err) {
-        console.warn('_embedFaxPage image embedding error:', err);
       }
+    } catch (err) {
+      console.warn('_embedFaxPage error:', err);
+    }
+  },
+
+  // Helper: 添付ファイルのバイナリまたはDataURLを確実に取得（Google Drive / TIFF / PDF / 画像に対応）
+  async _resolveFaxSourceData(faxSource, pageIndex = 0) {
+    if (!faxSource) return null;
+
+    // 1. すでに dataUrl がある場合
+    if (faxSource.dataUrl) return { type: 'dataUrl', dataUrl: faxSource.dataUrl };
+    if (typeof faxSource === 'string' && faxSource.startsWith('data:')) {
+      return { type: 'dataUrl', dataUrl: faxSource };
+    }
+
+    // 2. ブラウザの File オブジェクトの場合
+    if (faxSource.file instanceof Blob) {
+      const isPdf = faxSource.file.type === 'application/pdf' || (faxSource.name && faxSource.name.toLowerCase().endsWith('.pdf'));
+      const isTiff = faxSource.file.type.includes('tiff') || (faxSource.name && faxSource.name.match(/\.tiff?$/i));
+      if (isPdf) {
+        const bytes = await faxSource.file.arrayBuffer();
+        return { type: 'pdf', bytes: new Uint8Array(bytes) };
+      }
+      if (isTiff) {
+        const bytes = await faxSource.file.arrayBuffer();
+        const dataUrl = await this._convertTiffBytesToDataUrl(bytes);
+        return { type: 'dataUrl', dataUrl };
+      }
+      const dataUrl = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.readAsDataURL(faxSource.file);
+      });
+      return { type: 'dataUrl', dataUrl };
+    }
+
+    // 3. URL（Google Drive または 通常URL）の場合
+    const url = faxSource.url || (typeof faxSource === 'string' ? faxSource : '');
+    const fileName = faxSource.name || url;
+    const isPdf = fileName.toLowerCase().includes('.pdf');
+    const isTiff = fileName.toLowerCase().match(/\.tiff?(\?|$)/i);
+
+    // Google Drive URLの場合、GAS経由でBase64取得
+    const driveMatch = url.match(/[-\w]{25,}/);
+    let gasUrl = '';
+    try {
+      const syncConf = JSON.parse(localStorage.getItem('gyosei_sync_config') || '{}');
+      gasUrl = syncConf.gasUrl || localStorage.getItem('gyosei_gas_url') || (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '');
+    } catch(e) {}
+
+    if (driveMatch && gasUrl) {
+      try {
+        const fileId = driveMatch[0];
+        let postRes = await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'getFileBase64', fileId: fileId, fileUrl: url })
+        });
+        let data = await postRes.json();
+        if ((!data || !data.base64) && gasUrl) {
+          const getRes = await fetch(`${gasUrl}?action=getFileBase64&fileId=${fileId}`);
+          data = await getRes.json();
+        }
+        if (data && data.base64) {
+          const mime = data.mimeType || (isPdf ? 'application/pdf' : isTiff ? 'image/tiff' : 'image/jpeg');
+          if (mime.includes('pdf') || isPdf) {
+            const binStr = atob(data.base64);
+            const bytes = new Uint8Array(binStr.length);
+            for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+            return { type: 'pdf', bytes };
+          }
+          if (mime.includes('tiff') || isTiff) {
+            const binStr = atob(data.base64);
+            const bytes = new Uint8Array(binStr.length);
+            for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+            const dataUrl = await this._convertTiffBytesToDataUrl(bytes);
+            return { type: 'dataUrl', dataUrl };
+          }
+          const dataUrl = data.base64.startsWith('data:') ? data.base64 : `data:${mime};base64,${data.base64}`;
+          return { type: 'dataUrl', dataUrl };
+        }
+      } catch(err) {
+        console.warn('Drive getFileBase64 failed in _resolveFaxSourceData:', err);
+      }
+    }
+
+    // 通常 fetch
+    if (url && !url.includes('drive.google.com')) {
+      try {
+        const res = await fetch(url);
+        const ab = await res.arrayBuffer();
+        if (isPdf) return { type: 'pdf', bytes: new Uint8Array(ab) };
+        if (isTiff) {
+          const dataUrl = await this._convertTiffBytesToDataUrl(new Uint8Array(ab));
+          return { type: 'dataUrl', dataUrl };
+        }
+        const blob = new Blob([ab]);
+        const dataUrl = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target.result);
+          reader.readAsDataURL(blob);
+        });
+        return { type: 'dataUrl', dataUrl };
+      } catch(e) {
+        console.warn('Direct fetch failed in _resolveFaxSourceData:', e);
+      }
+    }
+
+    return null;
+  },
+
+  // Helper: TIFFバイト列を正立回転済みのJPEG DataURLに変換
+  async _convertTiffBytesToDataUrl(bytes) {
+    if (typeof UTIF === 'undefined') {
+      console.warn('UTIF is not defined');
+      return null;
+    }
+    try {
+      const buffer = bytes.buffer || bytes;
+      const ifds = UTIF.decode(buffer);
+      if (!ifds || ifds.length === 0) return null;
+      const ifd = ifds[0];
+      UTIF.decodeImage(buffer, ifd);
+      const rgba = UTIF.toRGBA8(ifd);
+
+      // 日本のディーラーFAXは横向き（width > height）で届くため270度正立回転
+      const autoAngle = ifd.width > ifd.height ? 270 : 0;
+      const origCanvas = document.createElement('canvas');
+      origCanvas.width = ifd.width;
+      origCanvas.height = ifd.height;
+      const oCtx = origCanvas.getContext('2d');
+      const imgData = oCtx.createImageData(ifd.width, ifd.height);
+      imgData.data.set(rgba);
+      oCtx.putImageData(imgData, 0, 0);
+
+      if (autoAngle !== 0) {
+        const rotCanvas = document.createElement('canvas');
+        rotCanvas.width = ifd.height;
+        rotCanvas.height = ifd.width;
+        const rCtx = rotCanvas.getContext('2d');
+        rCtx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+        rCtx.rotate((autoAngle * Math.PI) / 180);
+        rCtx.drawImage(origCanvas, -origCanvas.width / 2, -origCanvas.height / 2);
+        return rotCanvas.toDataURL('image/jpeg', 0.94);
+      }
+      return origCanvas.toDataURL('image/jpeg', 0.94);
+    } catch(err) {
+      console.warn('_convertTiffBytesToDataUrl failed:', err);
+      return null;
     }
   },
 
@@ -818,10 +970,10 @@ const OssDocuWorks = {
         if (regPng) {
           const regImg = await targetDoc.embedPng(this._dataUrlToUint8Array(regPng));
           haichiPage.drawImage(regImg, {
-            x: 620.0,
-            y: 46.5,
-            width: 146.0,
-            height: 12.0
+            x: 622.0,
+            y: 38.5,
+            width: 156.0,
+            height: 13.0
           });
         }
       } catch(e) {
@@ -921,16 +1073,48 @@ const OssDocuWorks = {
 
     window._selectedCustomFaxFile = null;
 
-    // FAXページ選択用オプションの生成（常に1〜5ページ目を選択可能＋添付ファイルがある場合はその名も表示）
+    // FAXページ選択用オプションの生成
     const atts = payload.attachments || [];
     let faxOptionsHtml = '';
-    const maxPages = Math.max(5, atts.length);
-    for (let i = 0; i < maxPages; i++) {
-      const isFirst = i === 0;
-      const attName = atts[i] ? ` (${atts[i].name || '添付原本'})` : '';
-      faxOptionsHtml += `<option value="${i}" ${isFirst ? 'selected' : ''}>📄 ${i + 1}ページ目${attName} ${isFirst ? '(推奨・通常原本)' : ''}</option>`;
+    if (atts.length > 0) {
+      atts.forEach((a, i) => {
+        const isFirst = i === 0;
+        const attName = a.name ? ` (${a.name})` : '';
+        faxOptionsHtml += `<option value="${i}" ${isFirst ? 'selected' : ''}>📄 ${i + 1}枚目${attName} ${isFirst ? '(推奨原本)' : ''}</option>`;
+      });
+    } else {
+      for (let i = 0; i < 3; i++) {
+        faxOptionsHtml += `<option value="${i}">📄 ${i + 1}ページ目 (手元ファイル選択時に適用)</option>`;
+      }
     }
     faxOptionsHtml += `<option value="none">❌ FAX原本は添付しない（確認書＋地図のみ）</option>`;
+
+    // 地図データの有無判定
+    const mapWarningHtml = !payload.hasMapData ? `
+      <div style="background:rgba(239,68,68,0.12); border:1px solid #ef4444; border-radius:8px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <div style="color:#fca5a5; font-size:0.80rem; line-height:1.4;">
+          ⚠️ <strong>所在図・配置図が未作成（保存前）です</strong><br>
+          このまま出力すると地図枠が白紙になります。
+        </div>
+        <button type="button" class="btn btn-small" onclick="if(typeof Cases !== 'undefined' && Cases.openMapMaker) { Cases.openMapMaker('${caseId}'); } else { window.open('syako_map_maker.html?caseId=${caseId}&orderNo=${payload.orderNo}', '_blank'); }" style="white-space:nowrap; font-weight:bold; background:#eab308; color:#000; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.78rem;">
+          🚗 作図ツールを開く
+        </button>
+      </div>
+    ` : `
+      <div style="background:rgba(16,185,129,0.1); border:1px solid #10b981; border-radius:8px; padding:6px 12px; font-size:0.78rem; color:#34d399; display:flex; align-items:center; gap:6px;">
+        <span>🗺️ 所在図・配置図: 作図データ保存済み ✅（PDFに美しく合成されます）</span>
+      </div>
+    `;
+
+    const faxNoticeHtml = atts.length === 0 ? `
+      <div style="background:rgba(245,158,11,0.12); border:1px solid #f59e0b; border-radius:6px; padding:8px 10px; font-size:0.76rem; color:#fde68a;">
+        ⚠️ 案件にFAX原本が未添付です。4ページ目を含める場合は、下の「📁 手元ファイルを選択」から原本PDF/画像/TIFFを指定してください。
+      </div>
+    ` : `
+      <div style="font-size:0.75rem; color:#94a3b8;">
+        📎 案件に ${atts.length} 件の原本ファイルが紐付いています
+      </div>
+    `;
 
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -940,7 +1124,7 @@ const OssDocuWorks = {
 
     modal.innerHTML = `
       <div class="modal-overlay" onclick="document.getElementById('ossExportModal').remove()" style="background:rgba(0,0,0,0.8); position:fixed; inset:0;"></div>
-      <div class="modal-content" style="max-width:620px; width:94%; background:var(--card-bg, #1e293b); border:1px solid var(--border-color, #334155); border-radius:12px; padding:20px; z-index:100002; display:flex; flex-direction:column; gap:14px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+      <div class="modal-content" style="max-width:640px; width:94%; background:var(--card-bg, #1e293b); border:1px solid var(--border-color, #334155); border-radius:12px; padding:20px; z-index:100002; display:flex; flex-direction:column; gap:14px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
         <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color, #334155); padding-bottom:10px;">
           <h2 style="margin:0; font-size:1.15rem; color:var(--text-color, #fff); display:flex; align-items:center; gap:8px;">
             📦 完全フルパックPDF出力（確認書＋所在図＋配置図＋FAX原本）
@@ -957,12 +1141,16 @@ const OssDocuWorks = {
           <span style="color:#fff;">${payload.dealerName}（担当: ${payload.contactName || '—'} 様）</span>
         </div>
 
+        ${mapWarningHtml}
+
         <!-- 📠 FAX原本の追加設定 -->
         <div style="background:rgba(255,255,255,0.03); border:1px solid #0284c7; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:10px;">
           <div style="font-weight:bold; font-size:0.88rem; color:#38bdf8; display:flex; align-items:center; justify-content:space-between;">
             <span>📠 FAX原本の追加ページ選択</span>
-            <span style="font-size:0.72rem; color:#94a3b8;">4ページ目に結合</span>
+            <span style="font-size:0.72rem; color:#94a3b8;">4ページ目に自動結合</span>
           </div>
+
+          ${faxNoticeHtml}
 
           <div>
             <label style="font-size:0.76rem; color:#94a3b8; margin-bottom:4px; display:block;">追加するFAX原本のページ:</label>

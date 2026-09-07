@@ -557,12 +557,13 @@ const CaseTemplates = {
         const cleanName = name.replace(/\s+/g, '');
         const existing = locations.find(l => l && l.name && typeof l.name === 'string' && l.name.replace(/\s+/g, '') === cleanName);
         if (existing) {
-          if (existing.syakoFee !== info.fee) {
+          // スプレッドシートやユーザー手動修正の単価を最優先として保持（未設定の場合のみ初期値を補完）
+          if (existing.syakoFee === undefined || existing.syakoFee === null || existing.syakoFee === '') {
             existing.syakoFee = info.fee;
-            if (!existing.address && info.address) existing.address = info.address;
-            if (!existing.memo && info.memo) existing.memo = info.memo;
             updated++;
           }
+          if (!existing.address && info.address) { existing.address = info.address; updated++; }
+          if (!existing.memo && info.memo) { existing.memo = info.memo; updated++; }
         } else {
           // 新規登録
           locations.push({
