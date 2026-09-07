@@ -503,11 +503,16 @@ const OssDocuWorks = {
       // 2. 画像（JPEG / PNG / TIFF / DataURL）の場合
       if (resolved.type === 'dataUrl' && resolved.dataUrl) {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (!resolved.dataUrl.startsWith('data:')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.src = resolved.dataUrl;
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve) => {
           img.onload = resolve;
-          img.onerror = reject;
+          img.onerror = (e) => {
+            console.warn('Image failed to load in _embedFaxPage:', e);
+            resolve();
+          };
         });
 
         if (img.width && img.height) {
@@ -571,15 +576,18 @@ const OssDocuWorks = {
       if (isTiff) {
         const bytes = await faxSource.file.arrayBuffer();
         const dataUrl = await this._convertTiffBytesToDataUrl(bytes);
-        return { type: 'dataUrl', dataUrl };
+        if (dataUrl) return { type: 'dataUrl', dataUrl };
       }
       let dataUrl = await new Promise(resolve => {
         const reader = new FileReader();
         reader.onload = e => resolve(e.target.result);
+        reader.onerror = () => resolve(null);
         reader.readAsDataURL(faxSource.file);
       });
-      dataUrl = await this._ensureRotatedUprightImage(dataUrl);
-      return { type: 'dataUrl', dataUrl };
+      if (dataUrl) {
+        dataUrl = await this._ensureRotatedUprightImage(dataUrl);
+        return { type: 'dataUrl', dataUrl };
+      }
     }
 
     // 3. URL（Google Drive または 通常URL）の場合
@@ -665,42 +673,78 @@ const OssDocuWorks = {
   // Helper: TIFFバイト列を正立回転済みのJPEG DataURLに変換
   async _convertTiffBytesToDataUrl(bytes) {
     if (typeof UTIF === 'undefined') {
-      console.warn('UTIF is not defined');
-      return null;
-    }
-    try {
-      const buffer = bytes.buffer || bytes;
-      const ifds = UTIF.decode(buffer);
-      if (!ifds || ifds.length === 0) return null;
-      const ifd = ifds[0];
-      UTIF.decodeImage(buffer, ifd);
-      const rgba = UTIF.toRGBA8(ifd);
-
-      // 日本のディーラーFAXは横向き（width > height）で届くため270度正立回転
-      const autoAngle = ifd.width > ifd.height ? 270 : 0;
-      const origCanvas = document.createElement('canvas');
-      origCanvas.width = ifd.width;
-      origCanvas.height = ifd.height;
-      const oCtx = origCanvas.getContext('2d');
-      const imgData = oCtx.createImageData(ifd.width, ifd.height);
-      imgData.data.set(rgba);
-      oCtx.putImageData(imgData, 0, 0);
-
-      if (autoAngle !== 0) {
-        const rotCanvas = document.createElement('canvas');
-        rotCanvas.width = ifd.height;
-        rotCanvas.height = ifd.width;
-        const rCtx = rotCanvas.getContext('2d');
-        rCtx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
-        rCtx.rotate((autoAngle * Math.PI) / 180);
-        rCtx.drawImage(origCanvas, -origCanvas.width / 2, -origCanvas.height / 2);
-        return rotCanvas.toDataURL('image/jpeg', 0.94);
+      try {
+        await new Promise((resolve) => {
+          const s = document.createElement('script');
+          s.src = 'js/utif.min.js';
+          s.onload = resolve;
+          s.onerror = resolve;
+          document.head.appendChild(s);
+        });
+      } catch(e) {
+        console.warn('Failed to dynamically load UTIF:', e);
       }
-      return origCanvas.toDataURL('image/jpeg', 0.94);
-    } catch(err) {
-      console.warn('_convertTiffBytesToDataUrl failed:', err);
-      return null;
     }
+
+    let dataUrl = null;
+    const buffer = bytes.buffer || bytes;
+
+    // 1. UTIF.decode を試行
+    if (typeof UTIF !== 'undefined') {
+      try {
+        const ifds = UTIF.decode(buffer);
+        if (ifds && ifds.length > 0) {
+          const ifd = ifds[0];
+          UTIF.decodeImage(buffer, ifd);
+          const rgba = UTIF.toRGBA8(ifd);
+
+          // 日本のディーラーFAXは横向き（width > height）で届くため270度正立回転
+          const autoAngle = ifd.width > ifd.height ? 270 : 0;
+          const origCanvas = document.createElement('canvas');
+          origCanvas.width = ifd.width;
+          origCanvas.height = ifd.height;
+          const oCtx = origCanvas.getContext('2d');
+          const imgData = oCtx.createImageData(ifd.width, ifd.height);
+          imgData.data.set(rgba);
+          oCtx.putImageData(imgData, 0, 0);
+
+          if (autoAngle !== 0) {
+            const rotCanvas = document.createElement('canvas');
+            rotCanvas.width = ifd.height;
+            rotCanvas.height = ifd.width;
+            const rCtx = rotCanvas.getContext('2d');
+            rCtx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+            rCtx.rotate((autoAngle * Math.PI) / 180);
+            rCtx.drawImage(origCanvas, -origCanvas.width / 2, -origCanvas.height / 2);
+            dataUrl = rotCanvas.toDataURL('image/jpeg', 0.94);
+          } else {
+            dataUrl = origCanvas.toDataURL('image/jpeg', 0.94);
+          }
+        }
+      } catch(decodeErr) {
+        console.warn('UTIF.decode error, trying fallback:', decodeErr);
+      }
+    }
+
+    // 2. フォールバック（UTIF未対応形式やJPEG偽装TIFFなどの場合）: Blob -> DataURL -> 270度正立回転
+    if (!dataUrl) {
+      try {
+        const blob = new Blob([bytes]);
+        const rawUrl = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+        if (rawUrl) {
+          dataUrl = await this._ensureRotatedUprightImage(rawUrl);
+        }
+      } catch(fbErr) {
+        console.warn('Fallback DataURL conversion failed:', fbErr);
+      }
+    }
+
+    return dataUrl;
   },
 
   // Helper: 画像が横向き（FAXスキャン特有の横長、naturalWidth > naturalHeight）の場合に270度正立回転させる
@@ -942,8 +986,9 @@ const OssDocuWorks = {
     const cellW = 20.07;
 
     // 注文書№ 8桁の印字（所在図・配置図それぞれのセル中心・ベースラインに完全整合）
+    const oNo8 = payload.orderNo8 || (payload.orderNo ? String(payload.orderNo).replace(/\D/g, '').padStart(8, '0').slice(-8) : '00000000');
     for (let i = 0; i < 8; i++) {
-      const ch = payload.orderNo8[i] || '0';
+      const ch = oNo8[i] || '0';
       const cxSozai = 220.50 + i * cellW + 4.8;
       const cxHaichi = 220.30 + i * cellW + 4.8;
       sozaiPage.drawText(ch, { x: cxSozai, y: 530.0, size: 16.0, font, color: rgb(0, 0, 0) });
