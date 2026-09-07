@@ -107,7 +107,7 @@ const OssDocuWorks = {
     };
   },
 
-  // 3-A. 書類確認書（原本Excel完全再現）のCanvas描画（300DPI超高精細・大判レイアウト＆チェックボックス完全一致）
+  // 3-A. 書類確認書（原本Excel完全再現）のCanvas描画（300DPI超高精細・大判レイアウト＆チェックボックス・アンダーバー完全一致）
   renderConfirmationCanvas(payload) {
     const W = 3508;
     const H = 2480;
@@ -120,107 +120,58 @@ const OssDocuWorks = {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, W, H);
 
-    const ml = 160;
-    const mt = 65;
-    const tableW = 3188;
-
-    const colUnits = [5.625, 15.625, 3.625, 13.0, 5.625, 20.625, 3.625, 5.625, 17.625, 9.625, 13.0, 30.625];
-    const sumUnits = colUnits.reduce((a, b) => a + b, 0);
-    const colW = colUnits.map(u => (u / sumUnits) * tableW);
-    const colX = [ml];
-    for (let i = 0; i < colW.length; i++) {
-      colX.push(colX[i] + colW[i]);
-    }
-
-    const rowH = [
-      125, // 0: Title
-      30,  // 1: Spacer / K2 Msg header
-      110, // 2: Dealer
-      25,  // 3: Gap
-      85,  // 4: Notice 1
-      85,  // 5: Notice 2
-      90,  // 6: Date
-      35,  // 7: Gap
-      125, // 8: 注文書番号
-      125, // 9: 使用の本拠の位置
-      125, // 10: 保管場所の位置
-      105, // 11: 申請者 〒
-      120, // 12: 申請者 住所
-      125, // 13: 申請者 氏名
-      125, // 14: 配置図 / 標章交付注記
-      62,  // 15: 所在図上 / 作成担当見出
-      63,  // 16: 所在図下 / 田中
-      125, // 17: 承諾書
-      30,  // 18: Gap
-      70,  // 19: 行政書士法人 フェリス
-      70,  // 20: TEL
-      70   // 21: FAX
-    ];
-
-    const rowY = [mt];
-    for (let i = 0; i < rowH.length; i++) {
-      rowY.push(rowY[i] + rowH[i]);
-    }
+    const scaleX = W / 1024;
+    const scaleY = H / 721;
 
     const fFamily = '"MS PGothic", "ＭＳ Ｐゴシック", "Yu Gothic", "Meiryo", sans-serif';
 
-    // 1. タイトル
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 74px ' + fFamily;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('OSS申請　書類確認書（車庫証明）', ml + tableW * 0.42, rowY[0] + rowH[0] / 2);
+    // 座標（サンプル原本と完全一致）
+    const x0 = Math.round(85 * scaleX);
+    const x1 = Math.round(122 * scaleX);
+    const x2 = Math.round(227 * scaleX);
+    const x3 = Math.round(276 * scaleX);
+    const x4 = Math.round(314 * scaleX);
+    const x5 = Math.round(477 * scaleX);
+    const x6 = Math.round(515 * scaleX);
+    const x7 = Math.round(697 * scaleX);
+    const x8 = Math.round(758 * scaleX);
+    const x9 = Math.round(963 * scaleX);
 
-    // 2. 店舗名 + 御中
-    ctx.textAlign = 'left';
-    ctx.font = 'bold 70px ' + fFamily;
-    const cleanDealer = (payload.dealerName || '').replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').replace(/[\s\u3000]*御中\s*$/, '').trim() || '愛知トヨタ 西春店';
-    ctx.fillText(cleanDealer, colX[0], rowY[2] + rowH[2] * 0.65);
-    ctx.font = '60px ' + fFamily;
-    ctx.fillText('御中', colX[5] + 20, rowY[2] + rowH[2] * 0.65);
+    const x_order_start = x2;
+    const x_order_end = Math.round(450 * scaleX);
+    const x_staff_label_end = Math.round(512 * scaleX);
+    const x_staff_name_end = Math.round(631 * scaleX);
+    const x_sama_end = x7;
 
-    // 3. ご案内文
-    ctx.font = '44px ' + fFamily;
-    ctx.fillText('ご依頼のありました車庫証明関係書類を下記の通り確認させて頂きましたのでご査収下さい。', colX[0], rowY[4] + rowH[4] * 0.6);
-    ctx.fillText('なお、不備のある書類につきましては、担当者と連絡を取り補正等の対応を致しました。', colX[0], rowY[5] + rowH[5] * 0.6);
+    const y_title = Math.round(60 * scaleY);
+    const y_msg_top = Math.round(78 * scaleY);
+    const y_dealer = Math.round(135 * scaleY);
+    const y_greeting1 = Math.round(180 * scaleY);
+    const y_greeting2 = Math.round(210 * scaleY);
+    const y_date = Math.round(245 * scaleY);
 
-    // 4. 日付（令和）
-    const now = new Date();
-    const reiwaYear = now.getFullYear() - 2018;
-    const dateStr = payload.dateStr || `令　和　${reiwaYear}　年　${now.getMonth() + 1}　月　${now.getDate()}　日`;
-    ctx.font = '42px ' + fFamily;
-    ctx.fillText(dateStr, colX[0], rowY[6] + rowH[6] * 0.6);
+    const y_r9 = Math.round(284 * scaleY);
+    const y_r10 = Math.round(319 * scaleY);
+    const y_r11 = Math.round(354 * scaleY);
+    const y_r12 = Math.round(389 * scaleY);
+    const y_r13 = Math.round(425 * scaleY);
+    const y_r14 = Math.round(461 * scaleY);
+    const y_r15 = Math.round(496 * scaleY);
+    const y_r16 = Math.round(531 * scaleY);
+    const y_r16_sub = Math.round(548 * scaleY);
+    const y_r17 = Math.round(566 * scaleY);
+    const y_r18 = Math.round(601 * scaleY);
 
-    // 5. 連絡事項・メッセージ枠（K列〜L列、行1〜行14）
-    const mbLeft = colX[10];
-    const mbRight = colX[12];
-    const mbTop = rowY[1];
-    const mbBottom = rowY[14];
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#000000';
-    ctx.strokeRect(mbLeft, mbTop, mbRight - mbLeft, mbBottom - mbTop);
+    const y_office1 = Math.round(635 * scaleY);
+    const y_office2 = Math.round(658 * scaleY);
+    const y_office3 = Math.round(680 * scaleY);
 
-    const mbHLineY = rowY[1] + 58;
-    ctx.beginPath();
-    ctx.moveTo(mbLeft, mbHLineY);
-    ctx.lineTo(mbRight, mbHLineY);
-    ctx.stroke();
-
-    ctx.font = 'bold 40px ' + fFamily;
-    ctx.textAlign = 'center';
-    ctx.fillText('連絡事項・メッセージ', (mbLeft + mbRight) / 2, (mbTop + mbHLineY) / 2 + 3);
-
-    // 6. メイン確認表（行8〜行17、A列〜J列）
-    const tLeft = colX[0];
-    const tRight = colX[10];
-    const tTop = rowY[8];
-    const tBottom = rowY[18];
-
-    const line = (x1, y1, x2, y2, width = 2, dashed = false) => {
+    // 罫線描画ヘルパー
+    const line = (x1, y1, x2, y2, width = 4, dashed = false) => {
       ctx.save();
       ctx.lineWidth = width;
       ctx.strokeStyle = '#000000';
-      if (dashed) ctx.setLineDash([8, 6]);
+      if (dashed) ctx.setLineDash([16, 12]);
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
@@ -228,7 +179,8 @@ const OssDocuWorks = {
       ctx.restore();
     };
 
-    const drawCellText = (text, x, y, w, h, align = 'center', font = '40px ' + fFamily, bold = false) => {
+    // セル文字列描画ヘルパー
+    const drawCellText = (text, x, y, w, h, align = 'center', font = '38px ' + fFamily, bold = false) => {
       if (!text && text !== 0) return;
       ctx.save();
       ctx.font = (bold ? 'bold ' : '') + font;
@@ -239,25 +191,25 @@ const OssDocuWorks = {
         ctx.fillText(String(text), x + w / 2, y + h / 2);
       } else if (align === 'left') {
         ctx.textAlign = 'left';
-        ctx.fillText(String(text), x + 20, y + h / 2);
+        ctx.fillText(String(text), x + 24, y + h / 2);
       } else if (align === 'right') {
         ctx.textAlign = 'right';
-        ctx.fillText(String(text), x + w - 20, y + h / 2);
+        ctx.fillText(String(text), x + w - 24, y + h / 2);
       }
       ctx.restore();
     };
 
-    // チェックボックス描画（正方形枠＆チェックマーク✓）
-    const drawCheckbox = (bx, by, size = 38, checked = false) => {
+    // チェックボックス描画ヘルパー
+    const drawCheckbox = (cx, cy, size = 44, checked = false) => {
       ctx.save();
       ctx.lineWidth = 3.5;
       ctx.strokeStyle = '#000000';
-      ctx.strokeRect(bx, by, size, size);
+      ctx.strokeRect(cx - size / 2, cy - size / 2, size, size);
       if (checked) {
         ctx.beginPath();
-        ctx.moveTo(bx + size * 0.20, by + size * 0.50);
-        ctx.lineTo(bx + size * 0.44, by + size * 0.78);
-        ctx.lineTo(bx + size * 0.82, by + size * 0.22);
+        ctx.moveTo(cx - size * 0.30, cy);
+        ctx.lineTo(cx - size * 0.05, cy + size * 0.32);
+        ctx.lineTo(cx + size * 0.35, cy - size * 0.30);
         ctx.lineWidth = 4.5;
         ctx.strokeStyle = '#000000';
         ctx.lineCap = 'round';
@@ -267,158 +219,179 @@ const OssDocuWorks = {
       ctx.restore();
     };
 
-    // テキストの右側にチェックボックスを配置（配置図・所在図・承諾書用）
-    const drawTextWithRightCheckbox = (text, x, y, w, h, checked = false, font = '38px ' + fFamily, bold = false) => {
-      ctx.save();
-      ctx.font = (bold ? 'bold ' : '') + font;
-      ctx.fillStyle = '#000000';
-      ctx.textBaseline = 'middle';
-      const boxSize = 38;
-      const gap = 16;
-      
-      if (text.includes('\n')) {
-        const lines = text.split('\n');
-        const maxTextW = Math.max(...lines.map(l => ctx.measureText(l).width));
-        const totalW = maxTextW + gap + boxSize;
-        const startX = x + Math.max(12, (w - totalW) / 2);
-        const lineH = 34;
-        const startY = y + (h - lineH * lines.length) / 2 + lineH / 2;
-        ctx.textAlign = 'left';
-        lines.forEach((l, i) => {
-          ctx.fillText(l, startX, startY + i * lineH);
-        });
-        const boxX = startX + maxTextW + gap;
-        const boxY = y + (h - boxSize) / 2;
-        drawCheckbox(boxX, boxY, boxSize, checked);
-      } else {
-        const textW = ctx.measureText(text).width;
-        const totalW = textW + gap + boxSize;
-        const startX = x + Math.max(12, (w - totalW) / 2);
-        ctx.textAlign = 'left';
-        ctx.fillText(text, startX, y + h / 2);
-        const boxX = startX + textW + gap;
-        const boxY = y + (h - boxSize) / 2;
-        drawCheckbox(boxX, boxY, boxSize, checked);
-      }
-      ctx.restore();
-    };
+    // 1. タイトル
+    ctx.fillStyle = '#000000';
+    ctx.font = '68px ' + fFamily;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('OSS申請　書類確認書（車庫証明）', Math.round(480 * scaleX), y_title);
 
-    // テキストの左側にチェックボックスを配置（使用の本拠・保管場所用）
-    const drawTextWithLeftCheckbox = (text, x, y, w, h, checked = false, font = '42px ' + fFamily, bold = false) => {
-      ctx.save();
-      const boxSize = 38;
-      const gap = 18;
-      const boxX = x + 24;
-      const boxY = y + (h - boxSize) / 2;
-      drawCheckbox(boxX, boxY, boxSize, checked);
+    // 2. 店舗名（アンダーバー付き） + 御中
+    let cleanDealer = (payload.dealerName || '').replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').replace(/[\s\u3000]*御中\s*$/, '').trim() || '愛知トヨタ小牧南インター店';
+    cleanDealer = cleanDealer.replace(/\s+/g, '');
 
-      ctx.font = (bold ? 'bold ' : '') + font;
-      ctx.fillStyle = '#000000';
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      ctx.fillText(text, boxX + boxSize + gap, y + h / 2);
-      ctx.restore();
-    };
+    ctx.font = 'bold 54px ' + fFamily;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cleanDealer, x0, y_dealer);
 
-    // 外枠（太線）
-    ctx.lineWidth = 4;
-    ctx.strokeRect(tLeft, tTop, tRight - tLeft, tBottom - tTop);
+    const dealerW = ctx.measureText(cleanDealer).width;
+    // 顧客（店舗名）の下にアンダーバー
+    line(x0, y_dealer + 34, x0 + dealerW, y_dealer + 34, 4);
+
+    // 御中
+    ctx.font = '50px ' + fFamily;
+    ctx.fillText('御中', x0 + dealerW + Math.round(28 * scaleX), y_dealer);
+
+    // 3. ご案内文
+    ctx.font = '38px ' + fFamily;
+    ctx.fillText('ご依頼のありました車庫証明関係書類を下記の通り確認させて頂きましたのでご査収下さい。', x0, y_greeting1);
+    ctx.fillText('なお、不備のある書類につきましては、担当者と連絡を取り補正等の対応を致しました。', x0, y_greeting2);
+
+    // 4. 日付（令　　和　　X　　年　　X　　月　　X　　日）
+    const now = new Date();
+    const reiwaYear = now.getFullYear() - 2018;
+    const dateStr = payload.dateStr || `令　　和　　${reiwaYear}　　年　　${now.getMonth() + 1}　　月　　${now.getDate()}　　日`;
+    ctx.font = '38px ' + fFamily;
+    ctx.fillText(dateStr, x0, y_date);
+
+    // 5. 連絡事項・メッセージ枠（右上〜中央右）
+    line(x7, y_msg_top, x9, y_msg_top, 7);
+    line(x7, y_r15, x9, y_r15, 7);
+    line(x7, y_msg_top, x7, y_r15, 7);
+    line(x9, y_msg_top, x9, y_r15, 7);
+    drawCellText('連絡事項・メッセージ', x7, y_msg_top + 10, x9 - x7, 50, 'center', '38px ' + fFamily, false);
+
+    // 6. メイン確認表（外枠）
+    line(x0, y_r9, x7, y_r9, 7);
+    line(x0, y_r18, x7, y_r18, 7);
+    line(x0, y_r9, x0, y_r18, 7);
+    line(x7, y_r9, x7, y_r18, 7);
 
     // 横罫線
-    line(tLeft, rowY[9], tRight, rowY[9], 4);
-    line(tLeft, rowY[10], tRight, rowY[10], 4);
-    line(tLeft, rowY[11], tRight, rowY[11], 4);
-    line(colX[2], rowY[12], colX[10], rowY[12], 2, true); // 〒の下（破線）
-    line(colX[1], rowY[13], colX[10], rowY[13], 2);       // 住所と氏名の間（細線）
-    line(tLeft, rowY[14], tRight, rowY[14], 4);
-    line(tLeft, rowY[15], tRight, rowY[15], 2);
-    line(tLeft, rowY[17], tRight, rowY[17], 2);
+    line(x0, y_r10, x7, y_r10, 7);
+    line(x0, y_r11, x7, y_r11, 7);
+    line(x0, y_r12, x7, y_r12, 7);
+    line(x2, y_r13, x7, y_r13, 3, true); // 〒の下（破線）
+    line(x1, y_r14, x7, y_r14, 4);       // 住所と氏名の間（実線）
+    line(x0, y_r15, x7, y_r15, 7);       // 配置図の上
+    line(x0, y_r16, x7, y_r16, 4);       // 所在図の上
+    line(x0, y_r17, x7, y_r17, 4);       // 承諾書の上
 
     // 縦罫線
-    line(colX[2], rowY[8], colX[2], rowY[11], 4);
-    line(colX[1], rowY[11], colX[1], rowY[14], 2);
-    line(colX[2], rowY[11], colX[2], rowY[14], 4);
-    line(colX[2], rowY[14], colX[2], rowY[18], 4);
+    line(x2, y_r9, x2, y_r12, 7);        // 注文書〜保管場所の項目境界
+    line(x1, y_r12, x1, y_r15, 4);       // 申請者 と 住所/氏名の間
+    line(x2, y_r12, x2, y_r15, 7);       // 住所/氏名 と 内容の間
+    line(x2, y_r15, x2, y_r18, 7);       // 図面名称 と 有の間
 
     // 注文書番号 行の区切り線
-    line(colX[6], rowY[8], colX[6], rowY[9], 2);
-    line(colX[8], rowY[8], colX[8], rowY[9], 2);
-    line(colX[9], rowY[8], colX[9], rowY[9], 2);
+    line(x_order_end, y_r9, x_order_end, y_r10, 4);
+    line(x_staff_label_end, y_r9, x_staff_label_end, y_r10, 4);
+    line(x_staff_name_end, y_r9, x_staff_name_end, y_r10, 4);
 
-    // 配置図・所在図・承諾書の3列（有 / 作成 / 現地調査）の縦罫線（原本画像完全一致：余計な中間線なし）
-    line(colX[5], rowY[14], colX[5], rowY[18], 2);
-    line(colX[8], rowY[14], colX[8], rowY[18], 2);
+    // 配置図・所在図・承諾書の各列の区切り線（有 | [✓] | 作成 | [ ] | 調査）
+    line(x3, y_r15, x3, y_r18, 4);
+    line(x4, y_r15, x4, y_r18, 4);
+    line(x5, y_r15, x5, y_r18, 4);
+    line(x6, y_r15, x6, y_r18, 4);
 
-    // 〒枠の破線
-    line(colX[3], rowY[11], colX[3], rowY[12], 2, true);
-    line(colX[5], rowY[11], colX[5], rowY[12], 2, true);
+    // 7. 右下注記・担当枠（行15〜行18、K列〜L列）
+    line(x7, y_r15, x9, y_r15, 7);
+    line(x7, y_r16, x9, y_r16, 7);
+    line(x7, y_r16_sub, x9, y_r16_sub, 7);
+    line(x7, y_r18, x9, y_r18, 7);
+    line(x7, y_r15, x7, y_r18, 7);
+    line(x9, y_r15, x9, y_r18, 7);
+    line(x8, y_r16, x8, y_r18, 7);
 
-    // セル文字列描画
-    // 注文書番号 行
-    drawCellText('注文書番号', colX[0], rowY[8], colX[2] - colX[0], rowH[8], 'center', '40px ' + fFamily, true);
-    drawCellText(payload.orderNo || '58280', colX[2], rowY[8], colX[6] - colX[2], rowH[8], 'center', '48px ' + fFamily, true);
-    drawCellText('担当者', colX[6], rowY[8], colX[8] - colX[6], rowH[8], 'center', '40px ' + fFamily, true);
-    drawCellText(payload.contactName ? payload.contactName.replace(/様$/, '') : '', colX[8], rowY[8], colX[9] - colX[8], rowH[8], 'center', '44px ' + fFamily, true);
-    drawCellText('様', colX[9], rowY[8], colX[10] - colX[9], rowH[8], 'center', '40px ' + fFamily, true);
+    // セル内容描画
+    // 注文書番号
+    drawCellText('注文書番号', x0, y_r9, x2 - x0, y_r10 - y_r9, 'center', '38px ' + fFamily, false);
+    const spacedOrderNo = String(payload.orderNo || '58280').replace(/\s+/g, '').split('').join('  ');
+    drawCellText(spacedOrderNo, x_order_start, y_r9, x_order_end - x_order_start, y_r10 - y_r9, 'center', '40px ' + fFamily, false);
+    drawCellText('担当者', x_order_end, y_r9, x_staff_label_end - x_order_end, y_r10 - y_r9, 'center', '38px ' + fFamily, false);
+    const contactName = (payload.contactName || '藤原').replace(/様$/, '').trim();
+    drawCellText(contactName, x_staff_label_end, y_r9, x_staff_name_end - x_staff_label_end, y_r10 - y_r9, 'center', '40px ' + fFamily, false);
+    drawCellText('様', x_staff_name_end, y_r9, x_sama_end - x_staff_name_end, y_r10 - y_r9, 'center', '38px ' + fFamily, false);
 
-    // 使用の本拠の位置 行（[✓] 申請者に同じ）
-    drawCellText('使用の本拠の位置', colX[0], rowY[9], colX[2] - colX[0], rowH[9], 'center', '38px ' + fFamily, true);
-    drawTextWithLeftCheckbox('申請者に同じ', colX[2], rowY[9], colX[10] - colX[2], rowH[9], true, '42px ' + fFamily);
+    // 使用の本拠の位置（[✓] 申請者に同じ）
+    drawCellText('使用の本拠の位置', x0, y_r10, x2 - x0, y_r11 - y_r10, 'center', '38px ' + fFamily, false);
+    drawCheckbox(x2 + 50, (y_r10 + y_r11) / 2, 44, true);
+    ctx.font = '40px ' + fFamily;
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'left';
+    ctx.fillText('申請者に同じ', x2 + 85, (y_r10 + y_r11) / 2);
 
-    // 保管場所の位置 行（[✓] 同上）
-    drawCellText('保管場所の位置', colX[0], rowY[10], colX[2] - colX[0], rowH[10], 'center', '38px ' + fFamily, true);
-    drawTextWithLeftCheckbox(payload.parkingAddress || '同上', colX[2], rowY[10], colX[10] - colX[2], rowH[10], true, '42px ' + fFamily);
+    // 保管場所の位置（[✓] 同上）
+    drawCellText('保管場所の位置', x0, y_r11, x2 - x0, y_r12 - y_r11, 'center', '38px ' + fFamily, false);
+    drawCheckbox(x2 + 50, (y_r11 + y_r12) / 2, 44, true);
+    ctx.font = '40px ' + fFamily;
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'left';
+    ctx.fillText(payload.parkingAddress || '同上', x2 + 85, (y_r11 + y_r12) / 2);
 
-    // 申請者（住所・氏名）
-    drawCellText('申請者', colX[0], rowY[11], colX[1] - colX[0], rowH[11] + rowH[12] + rowH[13], 'center', '40px ' + fFamily, true);
-    drawCellText('住　　所', colX[1], rowY[11], colX[2] - colX[1], rowH[11] + rowH[12], 'center', '38px ' + fFamily, true);
-    drawCellText('〒 （', colX[2], rowY[11], colX[3] - colX[2], rowH[11], 'center', '38px ' + fFamily);
-    drawCellText(payload.zip || '', colX[3], rowY[11], colX[5] - colX[3], rowH[11], 'center', '42px ' + fFamily, true);
-    drawCellText('）', colX[5], rowY[11], 60, rowH[11], 'left', '38px ' + fFamily);
-    drawCellText(payload.carAddress || '', colX[2], rowY[12], colX[10] - colX[2], rowH[12], 'left', '40px ' + fFamily);
+    // 申請者（縦書き 申 請 者）
+    const y_app_mid = (y_r12 + y_r15) / 2;
+    ctx.font = '38px ' + fFamily;
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
+    ctx.fillText('申', (x0 + x1) / 2, y_app_mid - 80);
+    ctx.fillText('請', (x0 + x1) / 2, y_app_mid);
+    ctx.fillText('者', (x0 + x1) / 2, y_app_mid + 80);
 
-    drawCellText('氏　　名', colX[1], rowY[13], colX[2] - colX[1], rowH[13], 'center', '38px ' + fFamily, true);
-    drawCellText(payload.applicantName || '', colX[2], rowY[13], colX[10] - colX[2], rowH[13], 'left', '44px ' + fFamily, true);
+    // 住所
+    drawCellText('住　　所', x1, y_r12, x2 - x1, y_r14 - y_r12, 'center', '38px ' + fFamily, false);
+    const cleanZip = (payload.zip || '480-0103').replace(/[^0-9-]/g, '');
+    ctx.font = '38px ' + fFamily;
+    ctx.textAlign = 'left';
+    ctx.fillText(`〒 (  ${cleanZip}  )`, x2 + 30, (y_r12 + y_r13) / 2);
+    ctx.fillText(payload.carAddress || '', x2 + 80, (y_r13 + y_r14) / 2);
 
-    // 配置図 行（有 [✓] | 配置図作成 [ ] | 現地調査 [ ]）
-    drawCellText('配　置　図', colX[0], rowY[14], colX[2] - colX[0], rowH[14], 'center', '40px ' + fFamily, true);
-    drawTextWithRightCheckbox('有', colX[2], rowY[14], colX[5] - colX[2], rowH[14], true, '42px ' + fFamily, true);
-    drawTextWithRightCheckbox('配置図作成', colX[5], rowY[14], colX[8] - colX[5], rowH[14], false, '38px ' + fFamily);
-    drawTextWithRightCheckbox('現地調査', colX[8], rowY[14], colX[10] - colX[8], rowH[14], false, '38px ' + fFamily);
+    // 氏名
+    drawCellText('氏　　名', x1, y_r14, x2 - x1, y_r15 - y_r14, 'center', '38px ' + fFamily, false);
+    ctx.font = '40px ' + fFamily;
+    ctx.fillText(payload.applicantName || '', x2 + 80, (y_r14 + y_r15) / 2);
 
-    // 所在図 行（有 [✓] | 所在図作成 [ ] | 現地調査 [ ]）
-    drawCellText('所　在　図', colX[0], rowY[15], colX[2] - colX[0], rowH[15] + rowH[16], 'center', '40px ' + fFamily, true);
-    drawTextWithRightCheckbox('有', colX[2], rowY[15], colX[5] - colX[2], rowH[15] + rowH[16], true, '42px ' + fFamily, true);
-    drawTextWithRightCheckbox('所在図作成', colX[5], rowY[15], colX[8] - colX[5], rowH[15] + rowH[16], false, '38px ' + fFamily);
-    drawTextWithRightCheckbox('現地調査', colX[8], rowY[15], colX[10] - colX[8], rowH[15] + rowH[16], false, '38px ' + fFamily);
+    // 配置図 行
+    drawCellText('配　置　図', x0, y_r15, x2 - x0, y_r16 - y_r15, 'center', '38px ' + fFamily, false);
+    drawCellText('有', x2, y_r15, x3 - x2, y_r16 - y_r15, 'center', '38px ' + fFamily, false);
+    drawCheckbox((x3 + x4) / 2, (y_r15 + y_r16) / 2, 44, true);
+    drawCellText('配置図作成', x4, y_r15, x5 - x4, y_r16 - y_r15, 'center', '38px ' + fFamily, false);
+    drawCheckbox((x5 + x6) / 2, (y_r15 + y_r16) / 2, 44, false);
+    drawCellText('現地調査', x6, y_r15, x7 - x6, y_r16 - y_r15, 'center', '38px ' + fFamily, false);
 
-    // 承諾書 行（有 [ ] | 不備あるものは承諾書に追記いただきました [ ] | 承諾書取得 [ ]）
-    drawCellText('承諾書（自認書）', colX[0], rowY[17], colX[2] - colX[0], rowH[17], 'center', '36px ' + fFamily, true);
-    drawTextWithRightCheckbox('有', colX[2], rowY[17], colX[5] - colX[2], rowH[17], false, '42px ' + fFamily);
-    drawTextWithRightCheckbox('不備あるものは\n承諾書に追記いただきました', colX[5], rowY[17], colX[8] - colX[5], rowH[17], false, '28px ' + fFamily);
-    drawTextWithRightCheckbox('承諾書取得', colX[8], rowY[17], colX[10] - colX[8], rowH[17], false, '38px ' + fFamily);
+    // 所在図 行
+    drawCellText('所　在　図', x0, y_r16, x2 - x0, y_r17 - y_r16, 'center', '38px ' + fFamily, false);
+    drawCellText('有', x2, y_r16, x3 - x2, y_r17 - y_r16, 'center', '38px ' + fFamily, false);
+    drawCheckbox((x3 + x4) / 2, (y_r16 + y_r17) / 2, 44, true);
+    drawCellText('所在図作成', x4, y_r16, x5 - x4, y_r17 - y_r16, 'center', '38px ' + fFamily, false);
+    drawCheckbox((x5 + x6) / 2, (y_r16 + y_r17) / 2, 44, false);
+    drawCellText('現地調査', x6, y_r16, x7 - x6, y_r17 - y_r16, 'center', '38px ' + fFamily, false);
 
-    // 7. 右下注記・担当枠（行14〜行17、K列〜L列）
-    line(colX[10], rowY[14], colX[12], rowY[14], 4);
-    line(colX[10], rowY[15], colX[12], rowY[15], 4);
-    line(colX[10], rowY[14], colX[10], rowY[18], 4);
-    line(colX[12], rowY[14], colX[12], rowY[18], 4);
-    line(colX[10], rowY[18], colX[12], rowY[18], 4);
-    drawCellText('※標章交付の際には下記へ記入の上ご依頼下さい。', colX[10], rowY[14], colX[12] - colX[10], rowH[14], 'left', '32px ' + fFamily);
+    // 承諾書 行
+    drawCellText('承諾書（自認書）', x0, y_r17, x2 - x0, y_r18 - y_r17, 'center', '36px ' + fFamily, false);
+    drawCellText('有', x2, y_r17, x3 - x2, y_r18 - y_r17, 'center', '38px ' + fFamily, false);
+    drawCheckbox((x3 + x4) / 2, (y_r17 + y_r18) / 2, 44, false);
+    ctx.font = '28px ' + fFamily;
+    ctx.textAlign = 'center';
+    ctx.fillText('不備あるものは', (x4 + x5) / 2, (y_r17 + y_r18) / 2 - 18);
+    ctx.fillText('承諾書に追記いただきました', (x4 + x5) / 2, (y_r17 + y_r18) / 2 + 18);
+    drawCheckbox((x5 + x6) / 2, (y_r17 + y_r18) / 2, 44, false);
+    drawCellText('承諾書取得', x6, y_r17, x7 - x6, y_r18 - y_r17, 'center', '38px ' + fFamily, false);
 
-    line(colX[11], rowY[15], colX[11], rowY[18], 4);
-    line(colX[10], rowY[16], colX[12], rowY[16], 4);
-    drawCellText('作成担当', colX[10], rowY[15], colX[11] - colX[10], rowH[15], 'center', '34px ' + fFamily, true);
-    drawCellText('標章交付番号（警察内管理番号）', colX[11], rowY[15], colX[12] - colX[11], rowH[15], 'center', '34px ' + fFamily, true);
-    drawCellText(payload.staffName || '田中', colX[10], rowY[16], colX[11] - colX[10], rowH[16] + rowH[17], 'center', '40px ' + fFamily, true);
+    // 右下注記・担当枠
+    drawCellText('※標章交付の際には下記へ記入の上ご依頼下さい。', x7 + 5, y_r15, x9 - x7, y_r16 - y_r15, 'left', '32px ' + fFamily, false);
+    drawCellText('作成担当', x7, y_r16, x8 - x7, y_r16_sub - y_r16, 'center', '32px ' + fFamily, false);
+    drawCellText('標章交付番号（警察内管理番号）', x8, y_r16, x9 - x8, y_r16_sub - y_r16, 'center', '32px ' + fFamily, false);
+    drawCellText(payload.staffName || '田中', x7, y_r16_sub, x8 - x7, y_r18 - y_r16_sub, 'center', '40px ' + fFamily, false);
 
     // 8. 事務所情報
     ctx.textAlign = 'right';
     ctx.font = 'bold 42px ' + fFamily;
-    ctx.fillText('行政書士法人　フェリス', colX[12], rowY[19] + rowH[19] * 0.7);
-    ctx.font = '40px ' + fFamily;
-    ctx.fillText('TEL　０５８６－５０－２８９６', colX[12], rowY[20] + rowH[20] * 0.7);
-    ctx.fillText('FAX　０５８６－８７－６６８７', colX[12], rowY[21] + rowH[21] * 0.7);
+    ctx.fillText('行政書士法人　フェリス', x9, y_office1);
+    ctx.font = '38px ' + fFamily;
+    ctx.fillText('TEL  0586-50-2896', x9, y_office2);
+    ctx.fillText('FAX  0586-87-6687', x9, y_office3);
 
     return canvas;
   },
@@ -567,10 +540,13 @@ const OssDocuWorks = {
             width: pageW,
             height: pageH
           });
+          return true;
         }
       }
+      return false;
     } catch (err) {
       console.warn('_embedFaxPage error:', err);
+      return false;
     }
   },
 
