@@ -597,11 +597,12 @@ const OssDocuWorks = {
         const dataUrl = await this._convertTiffBytesToDataUrl(bytes);
         return { type: 'dataUrl', dataUrl };
       }
-      const dataUrl = await new Promise(resolve => {
+      let dataUrl = await new Promise(resolve => {
         const reader = new FileReader();
         reader.onload = e => resolve(e.target.result);
         reader.readAsDataURL(faxSource.file);
       });
+      dataUrl = await this._ensureRotatedUprightImage(dataUrl);
       return { type: 'dataUrl', dataUrl };
     }
 
@@ -633,22 +634,27 @@ const OssDocuWorks = {
           data = await getRes.json();
         }
         if (data && data.base64) {
-          const mime = data.mimeType || (isPdf ? 'application/pdf' : isTiff ? 'image/tiff' : 'image/jpeg');
-          if (mime.includes('pdf') || isPdf) {
-            const binStr = atob(data.base64);
-            const bytes = new Uint8Array(binStr.length);
-            for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+          const binStr = atob(data.base64);
+          const bytes = new Uint8Array(binStr.length);
+          for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+
+          // 1. PDF判定 (%PDF)
+          if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
             return { type: 'pdf', bytes };
           }
-          if (mime.includes('tiff') || isTiff) {
-            const binStr = atob(data.base64);
-            const bytes = new Uint8Array(binStr.length);
-            for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+
+          // 2. TIFF判定 (II* または MM*)
+          if ((bytes[0] === 0x49 && bytes[1] === 0x49 && bytes[2] === 0x2A) ||
+              (bytes[0] === 0x4D && bytes[1] === 0x4D && bytes[3] === 0x2A)) {
             const dataUrl = await this._convertTiffBytesToDataUrl(bytes);
-            return { type: 'dataUrl', dataUrl };
+            if (dataUrl) return { type: 'dataUrl', dataUrl };
           }
-          const dataUrl = data.base64.startsWith('data:') ? data.base64 : `data:${mime};base64,${data.base64}`;
-          return { type: 'dataUrl', dataUrl };
+
+          // 3. JPEG または 一般画像（GASによる自動JPEG変換済みのケースなど）
+          const mime = data.mimeType || 'image/jpeg';
+          let imgSrc = data.base64.startsWith('data:') ? data.base64 : `data:${mime};base64,${data.base64}`;
+          imgSrc = await this._ensureRotatedUprightImage(imgSrc);
+          return { type: 'dataUrl', dataUrl: imgSrc };
         }
       } catch(err) {
         console.warn('Drive getFileBase64 failed in _resolveFaxSourceData:', err);
@@ -719,6 +725,35 @@ const OssDocuWorks = {
       console.warn('_convertTiffBytesToDataUrl failed:', err);
       return null;
     }
+  },
+
+  // Helper: 画像が横向き（FAXスキャン特有の横長、naturalWidth > naturalHeight）の場合に270度正立回転させる
+  async _ensureRotatedUprightImage(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return dataUrl;
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          if (img.naturalWidth > img.naturalHeight) {
+            const rotCanvas = document.createElement('canvas');
+            rotCanvas.width = img.naturalHeight;
+            rotCanvas.height = img.naturalWidth;
+            const ctx = rotCanvas.getContext('2d');
+            ctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+            ctx.rotate((270 * Math.PI) / 180);
+            ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+            resolve(rotCanvas.toDataURL('image/jpeg', 0.94));
+          } else {
+            resolve(dataUrl);
+          }
+        } catch(e) {
+          console.warn('_ensureRotatedUprightImage error:', e);
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
   },
 
   // 3-D. Excel 書類確認書の生成（Blob） - 原本Excelの書式・罫線・フォント・行高・印刷設定を100%完全保持

@@ -5500,9 +5500,14 @@ async function openDocuWorksExportModal() {
           <span style="font-size:0.8rem; font-weight:bold; color:#38bdf8; display:flex; align-items:center; gap:5px;">
             📠 フルパックPDFのFAX添付ページ選択:
           </span>
-          <button type="button" onclick="document.getElementById('dwFaxFileInput').click()" style="background:#1e293b; border:1px solid #475569; color:#94a3b8; font-size:0.72rem; padding:2px 8px; border-radius:4px; cursor:pointer;">
-            📁 別のFAXファイルを選択
-          </button>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button type="button" onclick="window.open('${payload.driveFolderUrl || ('https://drive.google.com/drive/search?q=' + encodeURIComponent(payload.orderNo || payload.applicantName || ''))}', '_blank')" style="background:#0f766e; border:1px solid #14b8a6; color:#ccfbf1; font-size:0.72rem; padding:3px 8px; border-radius:4px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px;" title="案件のGoogle Driveフォルダまたは検索画面を新しいタブで開く">
+              📁 案件Driveフォルダを開く ↗
+            </button>
+            <button type="button" onclick="document.getElementById('dwFaxFileInput').click()" style="background:#1e293b; border:1px solid #475569; color:#94a3b8; font-size:0.72rem; padding:3px 8px; border-radius:4px; cursor:pointer;" title="PC内のファイルを選択">
+              📂 別のFAXファイルを選択
+            </button>
+          </div>
           <input type="file" id="dwFaxFileInput" accept=".pdf,.tif,.tiff,image/*" style="display:none;" onchange="handleDwFaxFileSelect(event)">
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
