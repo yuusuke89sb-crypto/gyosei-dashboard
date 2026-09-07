@@ -4,9 +4,15 @@
 const Accounting = {
   filterYear: new Date().getFullYear(),
   filterMonth: new Date().getMonth() + 1,
+  periodMode: 'billing', // 'billing' (20日締め・9月度は8/26〜9/20) または 'calendar' (1日〜末日)
   editingId: null,
   activeTab: 'journals',
   trialBalancePeriod: 'cumulative',
+
+  setPeriodMode(mode) {
+    this.periodMode = mode;
+    if (typeof App !== 'undefined') App.refreshView();
+  },
 
   // 行政書士事務所でよく使う勘定科目
   ACCOUNTS: {
@@ -242,10 +248,60 @@ const Accounting = {
     return removedCount;
   },
 
+  // 注文書№のない売上仕訳（ゴミ仕訳候補）を抽出・一括整理
+  cleanSalesWithoutOrderNo() {
+    const journals = this.getJournals();
+    if (!journals || journals.length === 0) {
+      if (typeof App !== 'undefined') App.showToast('仕訳データがありません');
+      return;
+    }
+
+    // 貸方が「売上高」かつ「注文書№」がない仕訳を検出
+    const targetJournals = journals.filter(j => {
+      if (j.credit !== '売上高') return false;
+      const orderNo = j.orderNo || (j.description && j.description.match(/\[注:([^\]]+)\]/)?.[1]) || '';
+      return !orderNo;
+    });
+
+    if (targetJournals.length === 0) {
+      if (typeof App !== 'undefined') App.showToast('✅ 注文書№のない売上仕訳はありません（すべて正常に注文書№が付与されています）');
+      return;
+    }
+
+    const totalAmt = targetJournals.reduce((sum, j) => sum + (Number(j.amount) || 0), 0);
+    const msg = `【注文書№なし売上仕訳の整理】\n\n注文書№が入っていない売上仕訳が ${targetJournals.length} 件（合計 ¥${totalAmt.toLocaleString()}）見つかりました。\n\nこれらは過去の手動登録や重複・テスト等の不要な売上データの可能性があります。\n削除して整理しますか？\n\n※経費（支出）や入金仕訳、注文書№のある正常な売上はそのまま安全に保護されます。`;
+
+    if (!confirm(msg)) return;
+
+    const targetIds = new Set(targetJournals.map(j => j.id));
+    const kept = journals.filter(j => !targetIds.has(j.id));
+    this.saveJournals(kept);
+
+    // スプレッドシート同期が設定されていれば全仕訳を反映
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('bulkUpsertJournals', kept).catch(e => console.warn('仕訳Push失敗:', e));
+    }
+
+    if (typeof App !== 'undefined') {
+      App.refreshView();
+      App.showToast(`✨ 注文書№のない売上仕訳 ${targetJournals.length} 件（¥${totalAmt.toLocaleString()}）を削除・整理しました`);
+    }
+    return targetJournals.length;
+  },
+
   render() {
     const journals = this.getJournals();
     const ym = `${this.filterYear}-${String(this.filterMonth).padStart(2, '0')}`;
-    const filtered = journals.filter(j => j.date && j.date.startsWith(ym));
+    const bp = typeof Store !== 'undefined' && Store.getBillingPeriod ? Store.getBillingPeriod(this.filterYear, this.filterMonth) : null;
+
+    // 期間モードに応じたフィルタリング（billing: 20日締め・9月度は8/26〜9/20、calendar: 1日〜末日）
+    let filtered = journals.filter(j => {
+      if (!j.date) return false;
+      if (this.periodMode === 'billing' && bp && bp.startDate && bp.endDate) {
+        return j.date >= bp.startDate && j.date <= bp.endDate;
+      }
+      return j.date.startsWith(ym);
+    });
     filtered.sort((a, b) => a.date.localeCompare(b.date));
 
     // 月間集計
@@ -254,6 +310,13 @@ const Accounting = {
       const amt = Number(j.amount) || 0;
       if (this.ACCOUNTS.income.includes(j.credit)) totalIncome += amt;
       if (this.ACCOUNTS.expense.includes(j.debit)) totalExpense += amt;
+    });
+
+    // 注文書№なし売上仕訳の件数をカウント
+    const noOrderSales = filtered.filter(j => {
+      if (j.credit !== '売上高') return false;
+      const oNo = j.orderNo || (j.description && j.description.match(/\[注:([^\]]+)\]/)?.[1]) || '';
+      return !oNo;
     });
 
     // 年ナビを動的に生成（仕訳内の年度を走査）
@@ -270,7 +333,9 @@ const Accounting = {
     // 月ナビ
     const months = [];
     for (let m = 1; m <= 12; m++) {
-      months.push(`<option value="${m}" ${this.filterMonth === m ? 'selected' : ''}>${m}月</option>`);
+      const p = typeof Store !== 'undefined' && Store.getBillingPeriod ? Store.getBillingPeriod(this.filterYear, m) : null;
+      const label = (this.periodMode === 'billing' && p && p.shortLabel) ? p.shortLabel : `${m}月`;
+      months.push(`<option value="${m}" ${this.filterMonth === m ? 'selected' : ''}>${label}</option>`);
     }
 
     const debitOptions = this.getAllAccounts().map(a => `<option value="${a}">${a}</option>`).join('');
@@ -282,6 +347,7 @@ const Accounting = {
           <h1>💹 帳簿</h1>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn btn-secondary" onclick="Accounting.restoreMissingCaseJournals()" style="background:rgba(59,130,246,0.1); border-color:#3b82f6; color:#2563eb; font-weight:600;" title="完了案件の単価・完了日・注文書№変更を帳簿に即時同期し、不足仕訳を復元します">🔄 完了案件と仕訳を同期</button>
+            <button class="btn btn-secondary" onclick="Accounting.cleanSalesWithoutOrderNo()" style="background:rgba(245,158,11,0.1); border-color:#f59e0b; color:#f59e0b; font-weight:600;" title="ディーラー案件なのに注文書№が未設定の不要な売上仕訳（テストや手動ゴミデータ）を一括整理します">🏷️ 注文書№なし売上を整理${noOrderSales.length > 0 ? ` (${noOrderSales.length}件)` : ''}</button>
             <button class="btn btn-secondary" onclick="Accounting.cleanDuplicates()" style="border-color:rgba(239,68,68,0.5); color:#f87171; font-weight:600;" title="同一日付・金額・摘要の重複仕訳を整理（案件・注文書№別の仕訳は保護されます）">🧹 重複仕訳を整理</button>
             <button class="btn btn-secondary" onclick="ReceiptOCR.showModal('accounting')" style="background:rgba(245,158,11,0.15); border:1px solid var(--accent-gold); color:var(--accent-gold); font-weight:700;">🤖 AIレシートOCR</button>
             <button class="btn btn-primary" onclick="Accounting.showAddModal()">＋ 仕訳追加</button>
@@ -295,7 +361,7 @@ const Accounting = {
         </div>
 
         <div class="acc-controls" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <div class="acc-period">
+          <div class="acc-period" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <select class="filter-select" onchange="Accounting.filterYear=Number(this.value); App.refreshView()">
               ${sortedYears.map(y =>
       `<option value="${y}" ${y === this.filterYear ? 'selected' : ''}>${y}年</option>`
@@ -304,6 +370,10 @@ const Accounting = {
             <select class="filter-select" onchange="Accounting.filterMonth=Number(this.value); App.refreshView()">
               ${months.join('')}
             </select>
+            <div class="period-mode-toggle" style="display:inline-flex; border-radius:6px; overflow:hidden; border:1px solid var(--border-color); background:rgba(0,0,0,0.25);">
+              <button type="button" class="btn btn-small" style="font-size:0.78rem; padding:4px 10px; border:none; border-radius:0; ${this.periodMode === 'billing' ? 'background:#2563eb; color:#fff; font-weight:700;' : 'background:transparent; color:var(--text-muted); cursor:pointer;'}" onclick="Accounting.setPeriodMode('billing')" title="ディーラー請求締め期間で集計（9月度は8/26〜9/20）">🏢 請求締め基準 ${bp ? `(${bp.startDate.slice(5).replace('-','/')}〜${bp.endDate.slice(5).replace('-','/')})` : ''}</button>
+              <button type="button" class="btn btn-small" style="font-size:0.78rem; padding:4px 10px; border:none; border-radius:0; ${this.periodMode === 'calendar' ? 'background:#2563eb; color:#fff; font-weight:700;' : 'background:transparent; color:var(--text-muted); cursor:pointer;'}" onclick="Accounting.setPeriodMode('calendar')" title="カレンダー月（1日〜末日）で集計">📅 暦月基準 (1日〜末日)</button>
+            </div>
           </div>
           ${this.activeTab === 'journals' ? `
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
@@ -318,11 +388,11 @@ const Accounting = {
         ${this.activeTab === 'journals' ? `
           <div class="acc-summary">
             <div class="acc-summary-card acc-income">
-              <div class="acc-summary-label">収入</div>
+              <div class="acc-summary-label">収入 <span style="font-size:0.75rem; font-weight:normal; opacity:0.85">${this.periodMode === 'billing' && bp ? `(${bp.startDate.slice(5).replace('-','/')}〜${bp.endDate.slice(5).replace('-','/')})` : '(1日〜末日)'}</span></div>
               <div class="acc-summary-amount">¥${totalIncome.toLocaleString()}</div>
             </div>
             <div class="acc-summary-card acc-expense">
-              <div class="acc-summary-label">支出</div>
+              <div class="acc-summary-label">支出 <span style="font-size:0.75rem; font-weight:normal; opacity:0.85">${this.periodMode === 'billing' && bp ? `(${bp.startDate.slice(5).replace('-','/')}〜${bp.endDate.slice(5).replace('-','/')})` : '(1日〜末日)'}</span></div>
               <div class="acc-summary-amount">¥${totalExpense.toLocaleString()}</div>
             </div>
             <div class="acc-summary-card acc-profit ${totalIncome - totalExpense >= 0 ? 'positive' : 'negative'}">
