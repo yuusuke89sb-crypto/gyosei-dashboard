@@ -471,9 +471,10 @@ const OssDocuWorks = {
     const { rgb } = PDFLib;
     const eraseEar = options.eraseEar !== false;
     const earPercent = parseFloat(options.earWidthPercent) || 0.02; // デフォルト2.0%
+    const faxOrientation = options.faxOrientation || 'landscape'; // 'landscape' (A4横統一・デフォルト) または 'portrait' (縦・正立270°)
 
     try {
-      const resolved = await this._resolveFaxSourceData(faxSource, options.faxPageIndex || 0);
+      const resolved = await this._resolveFaxSourceData(faxSource, options.faxPageIndex || 0, options);
       if (!resolved) {
         console.warn('Could not resolve faxSource data:', faxSource);
         return;
@@ -485,17 +486,36 @@ const OssDocuWorks = {
         const total = srcDoc.getPageCount();
         const pIdx = Math.min(Math.max(0, options.faxPageIndex || 0), total - 1);
         const [copiedPage] = await targetDoc.copyPages(srcDoc, [pIdx]);
+
+        // 縦横判定と回転制御
+        const origSize = copiedPage.getSize();
+        if (faxOrientation === 'landscape' && origSize.width < origSize.height) {
+          // 縦型PDFをA4横にする場合は90度回転
+          copiedPage.setRotation(PDFLib.degrees(copiedPage.getRotation().angle + 90));
+        }
         targetDoc.addPage(copiedPage);
 
         if (eraseEar) {
           const { width, height } = copiedPage.getSize();
-          copiedPage.drawRectangle({
-            x: 0,
-            y: 0,
-            width: width * earPercent,
-            height: height,
-            color: rgb(1, 1, 1)
-          });
+          // 横向きなら上端、縦向きなら左端を白消し
+          if (faxOrientation === 'landscape') {
+            // PDF座標系は左下が原点(0,0)。上端は y: height * (1 - earPercent)
+            copiedPage.drawRectangle({
+              x: 0,
+              y: height * (1 - earPercent),
+              width: width,
+              height: height * earPercent,
+              color: rgb(1, 1, 1)
+            });
+          } else {
+            copiedPage.drawRectangle({
+              x: 0,
+              y: 0,
+              width: width * earPercent,
+              height: height,
+              color: rgb(1, 1, 1)
+            });
+          }
         }
         return;
       }
@@ -522,11 +542,16 @@ const OssDocuWorks = {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
 
-          // 左端FAX耳白消し
+          // FAX耳白消し（横向きの場合は上端、縦向きの場合は左端）
           if (eraseEar) {
             ctx.fillStyle = '#FFFFFF';
-            const earW = Math.round(canvas.width * earPercent);
-            ctx.fillRect(0, 0, earW, canvas.height);
+            if (faxOrientation === 'landscape') {
+              const earH = Math.round(canvas.height * earPercent);
+              ctx.fillRect(0, 0, canvas.width, earH);
+            } else {
+              const earW = Math.round(canvas.width * earPercent);
+              ctx.fillRect(0, 0, earW, canvas.height);
+            }
           }
 
           const cleanDataUrl = canvas.toDataURL('image/jpeg', 0.94);
@@ -534,7 +559,7 @@ const OssDocuWorks = {
           const embeddedImg = await targetDoc.embedJpg(imgBytes);
 
           // 縦横判定（A4 縦 or 横）
-          const isLandscape = img.width > img.height;
+          const isLandscape = faxOrientation === 'landscape' || (faxOrientation !== 'portrait' && canvas.width > canvas.height);
           const pageW = isLandscape ? 841.89 : 595.28;
           const pageH = isLandscape ? 595.28 : 841.89;
 
@@ -556,13 +581,21 @@ const OssDocuWorks = {
   },
 
   // Helper: 添付ファイルのバイナリまたはDataURLを確実に取得（Google Drive / TIFF / PDF / 画像に対応）
-  async _resolveFaxSourceData(faxSource, pageIndex = 0) {
+  async _resolveFaxSourceData(faxSource, pageIndex = 0, options = {}) {
     if (!faxSource) return null;
+    const faxOrientation = options.faxOrientation || 'landscape';
+    const rotateUpright = faxOrientation === 'portrait';
 
     // 1. すでに dataUrl がある場合
-    if (faxSource.dataUrl) return { type: 'dataUrl', dataUrl: faxSource.dataUrl };
+    if (faxSource.dataUrl) {
+      let dUrl = faxSource.dataUrl;
+      if (rotateUpright) dUrl = await this._ensureRotatedUprightImage(dUrl);
+      return { type: 'dataUrl', dataUrl: dUrl };
+    }
     if (typeof faxSource === 'string' && faxSource.startsWith('data:')) {
-      return { type: 'dataUrl', dataUrl: faxSource };
+      let dUrl = faxSource;
+      if (rotateUpright) dUrl = await this._ensureRotatedUprightImage(dUrl);
+      return { type: 'dataUrl', dataUrl: dUrl };
     }
 
     // 2. ブラウザの File オブジェクトの場合
@@ -575,7 +608,7 @@ const OssDocuWorks = {
       }
       if (isTiff) {
         const bytes = await faxSource.file.arrayBuffer();
-        const dataUrl = await this._convertTiffBytesToDataUrl(bytes);
+        const dataUrl = await this._convertTiffBytesToDataUrl(bytes, rotateUpright);
         if (dataUrl) return { type: 'dataUrl', dataUrl };
       }
       let dataUrl = await new Promise(resolve => {
@@ -585,7 +618,9 @@ const OssDocuWorks = {
         reader.readAsDataURL(faxSource.file);
       });
       if (dataUrl) {
-        dataUrl = await this._ensureRotatedUprightImage(dataUrl);
+        if (rotateUpright) {
+          dataUrl = await this._ensureRotatedUprightImage(dataUrl);
+        }
         return { type: 'dataUrl', dataUrl };
       }
     }
@@ -630,14 +665,16 @@ const OssDocuWorks = {
           // 2. TIFF判定 (II* または MM*)
           if ((bytes[0] === 0x49 && bytes[1] === 0x49 && bytes[2] === 0x2A) ||
               (bytes[0] === 0x4D && bytes[1] === 0x4D && bytes[3] === 0x2A)) {
-            const dataUrl = await this._convertTiffBytesToDataUrl(bytes);
+            const dataUrl = await this._convertTiffBytesToDataUrl(bytes, rotateUpright);
             if (dataUrl) return { type: 'dataUrl', dataUrl };
           }
 
-          // 3. JPEG または 一般画像（GASによる自動JPEG変換済みのケースなど）
+          // 3. JPEG または 一般画像
           const mime = data.mimeType || 'image/jpeg';
           let imgSrc = data.base64.startsWith('data:') ? data.base64 : `data:${mime};base64,${data.base64}`;
-          imgSrc = await this._ensureRotatedUprightImage(imgSrc);
+          if (rotateUpright) {
+            imgSrc = await this._ensureRotatedUprightImage(imgSrc);
+          }
           return { type: 'dataUrl', dataUrl: imgSrc };
         }
       } catch(err) {
@@ -652,15 +689,18 @@ const OssDocuWorks = {
         const ab = await res.arrayBuffer();
         if (isPdf) return { type: 'pdf', bytes: new Uint8Array(ab) };
         if (isTiff) {
-          const dataUrl = await this._convertTiffBytesToDataUrl(new Uint8Array(ab));
+          const dataUrl = await this._convertTiffBytesToDataUrl(new Uint8Array(ab), rotateUpright);
           return { type: 'dataUrl', dataUrl };
         }
         const blob = new Blob([ab]);
-        const dataUrl = await new Promise(resolve => {
+        let dataUrl = await new Promise(resolve => {
           const reader = new FileReader();
           reader.onload = e => resolve(e.target.result);
           reader.readAsDataURL(blob);
         });
+        if (dataUrl && rotateUpright) {
+          dataUrl = await this._ensureRotatedUprightImage(dataUrl);
+        }
         return { type: 'dataUrl', dataUrl };
       } catch(e) {
         console.warn('Direct fetch failed in _resolveFaxSourceData:', e);
@@ -670,8 +710,8 @@ const OssDocuWorks = {
     return null;
   },
 
-  // Helper: TIFFバイト列を正立回転済みのJPEG DataURLに変換
-  async _convertTiffBytesToDataUrl(bytes) {
+  // Helper: TIFFバイト列をJPEG DataURLに変換（rotateUprightがtrueの時のみ270度正立回転、デフォルトは元向き維持）
+  async _convertTiffBytesToDataUrl(bytes, rotateUpright = false) {
     if (typeof UTIF === 'undefined') {
       try {
         await new Promise((resolve) => {
@@ -698,8 +738,8 @@ const OssDocuWorks = {
           UTIF.decodeImage(buffer, ifd);
           const rgba = UTIF.toRGBA8(ifd);
 
-          // 日本のディーラーFAXは横向き（width > height）で届くため270度正立回転
-          const autoAngle = ifd.width > ifd.height ? 270 : 0;
+          // 正立（縦向き）指定時のみ270度回転。横向き（そのまま）指定時は0度で元向き維持
+          const autoAngle = (rotateUpright && ifd.width > ifd.height) ? 270 : 0;
           const origCanvas = document.createElement('canvas');
           origCanvas.width = ifd.width;
           origCanvas.height = ifd.height;
@@ -726,7 +766,7 @@ const OssDocuWorks = {
       }
     }
 
-    // 2. フォールバック（UTIF未対応形式やJPEG偽装TIFFなどの場合）: Blob -> DataURL -> 270度正立回転
+    // 2. フォールバック（UTIF未対応形式やJPEG偽装TIFFなどの場合）
     if (!dataUrl) {
       try {
         const blob = new Blob([bytes]);
@@ -737,7 +777,7 @@ const OssDocuWorks = {
           reader.readAsDataURL(blob);
         });
         if (rawUrl) {
-          dataUrl = await this._ensureRotatedUprightImage(rawUrl);
+          dataUrl = rotateUpright ? await this._ensureRotatedUprightImage(rawUrl) : rawUrl;
         }
       } catch(fbErr) {
         console.warn('Fallback DataURL conversion failed:', fbErr);
@@ -1228,9 +1268,13 @@ const OssDocuWorks = {
           </div>
 
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <select id="ossExportFaxOrientation" class="form-input" style="padding:5px 8px; font-size:0.80rem; background:#0f172a; border:1px solid #334155; color:#fff; border-radius:6px; cursor:pointer;" title="4P（FAX原本）の出力向き">
+              <option value="landscape" selected>📐 向き: 横（A4横統一・推奨）</option>
+              <option value="portrait">📏 向き: 縦（270°正立）</option>
+            </select>
             <label style="font-size:0.80rem; color:#e2e8f0; display:flex; align-items:center; gap:6px; cursor:pointer;">
               <input type="checkbox" id="ossExportEraseEarCheck" checked style="width:16px; height:16px; accent-color:#2563eb;">
-              🧹 左端FAX耳を自動消去（幅2.0%白消し）
+              🧹 FAX耳を自動消去
             </label>
 
             <div>
@@ -1294,12 +1338,14 @@ const OssDocuWorks = {
 
   async executeExportFromModal(caseId, action) {
     const faxVal = document.getElementById('ossExportFaxPageSelect')?.value || '0';
+    const faxOrientation = document.getElementById('ossExportFaxOrientation')?.value || 'landscape';
     const eraseEar = document.getElementById('ossExportEraseEarCheck')?.checked ?? true;
     const customFax = window._selectedCustomFaxFile ? { file: window._selectedCustomFaxFile, name: window._selectedCustomFaxFile.name } : null;
 
     const opts = {
       includeFax: faxVal !== 'none',
       faxPageIndex: faxVal === 'custom' ? 0 : (parseInt(faxVal, 10) || 0),
+      faxOrientation: faxOrientation,
       eraseEar: eraseEar,
       earWidthPercent: 0.02,
       customFaxSource: customFax

@@ -738,20 +738,20 @@
         <div class="form-group">
           <label class="form-label">駐車枠寸法（幅 × 奥行）</label>
           <div style="display:flex; gap:4px; align-items:center;">
-            <input type="text" id="spotWidth" class="form-input" value="2.0m" style="text-align:center;" oninput="autoSaveDraft()">
+            <input type="text" id="spotWidth" class="form-input" value="2.0m" style="text-align:center;" oninput="updateQuickDimLabels(); autoSaveDraft();">
             <span>×</span>
-            <input type="text" id="spotLength" class="form-input" value="5.0m" style="text-align:center;" oninput="autoSaveDraft()">
+            <input type="text" id="spotLength" class="form-input" value="5.0m" style="text-align:center;" oninput="updateQuickDimLabels(); autoSaveDraft();">
           </div>
         </div>
         <div class="form-group">
           <label class="form-label">前面道路 幅員</label>
-          <input type="text" id="roadWidth" class="form-input" value="5.0 m" oninput="autoSaveDraft()">
+          <input type="text" id="roadWidth" class="form-input" value="5.0 m" oninput="updateQuickDimLabels(); autoSaveDraft();">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">出入口 幅</label>
-          <input type="text" id="entranceWidth" class="form-input" value="10.0 m" oninput="autoSaveDraft()">
+          <input type="text" id="entranceWidth" class="form-input" value="5.0m" oninput="updateQuickDimLabels(); autoSaveDraft();">
         </div>
         <div class="form-group">
           <label class="form-label">シャッター</label>
@@ -762,26 +762,83 @@
         </div>
       </div>
 
-      <!-- ⚡ ワンクリック配置図自動生成（上記数値を反映） -->
-      <div style="margin-top:6px; margin-bottom:8px; padding:7px 8px; background:#0F172A; border:1px solid #334155; border-radius:6px;">
-        <div style="font-size:0.72rem; color:#94A3B8; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-weight:bold; color:#E2E8F0;">⚡ 配置図テンプレート（自動生成）</span>
-          <span style="font-size:0.68rem; color:#38BDF8;">※上記数値を即時反映</span>
+      <!-- 📏 入力連動 寸法矢印クイック配置パネル -->
+      <div style="margin-top:7px; margin-bottom:9px; padding:9px 10px; background:linear-gradient(145deg, #0F172A, #1E293B); border:1px solid #38BDF8; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,0.35);">
+        <div style="font-size:0.75rem; display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; border-bottom:1px solid #334155; padding-bottom:5px;">
+          <span style="font-weight:bold; color:#38BDF8; display:flex; align-items:center; gap:5px;">
+            <span>📏</span> 寸法矢印スタンプ（ワンクリック配置）
+          </span>
+          <span style="font-size:0.67rem; color:#94A3B8;">配置後ドラッグ移動可</span>
         </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:4px;">
-          <button type="button" class="btn btn-secondary" style="font-size:0.72rem; padding:4px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('house')" title="戸建て・自宅敷地内の配置図を一発自動生成">
-            <span style="font-size:0.95rem;">🏠</span>
-            <span style="font-weight:600;">一軒家 (戸建)</span>
-          </button>
-          <button type="button" class="btn btn-secondary" style="font-size:0.72rem; padding:4px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('mansion')" title="マンション・月極駐車場の配置図を一発自動生成">
-            <span style="font-size:0.95rem;">🏢</span>
-            <span style="font-weight:600;">マンション/月極</span>
-          </button>
-          <button type="button" class="btn btn-secondary" style="font-size:0.72rem; padding:4px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('office')" title="事業所・自社敷地の配置図を一発自動生成">
-            <span style="font-size:0.95rem;">🏭</span>
-            <span style="font-weight:600;">事業所 / 自社</span>
-          </button>
+
+        <div style="display:flex; flex-direction:column; gap:5px;">
+          <!-- 1. 駐車枠 (幅 / 奥行) -->
+          <div style="display:flex; align-items:center; gap:4px;">
+            <span style="font-size:0.72rem; color:#94A3B8; width:44px; flex-shrink:0;">🅿️ 枠:</span>
+            <button type="button" class="btn btn-sm" onclick="addQuickDimArrow('spotWidth', 'h')" style="flex:1; background:#1E293B; border:1px solid #38BDF8; color:#F8FAFC; padding:5px 3px; font-size:0.74rem; border-radius:4px; font-weight:600; cursor:pointer;" title="駐車枠の幅（横矢印）を配置">
+              <span style="color:#38BDF8;">↔</span> 幅 <span id="quickLabelSpotW">2.0m</span>
+            </button>
+            <button type="button" class="btn btn-sm" onclick="addQuickDimArrow('spotLength', 'v')" style="flex:1; background:#1E293B; border:1px solid #38BDF8; color:#F8FAFC; padding:5px 3px; font-size:0.74rem; border-radius:4px; font-weight:600; cursor:pointer;" title="駐車枠の奥行（縦矢印）を配置">
+              <span style="color:#38BDF8;">↕</span> 奥行 <span id="quickLabelSpotL">5.0m</span>
+            </button>
+            <button type="button" class="btn btn-sm" onclick="addQuickDimArrow('spotWidth', 'v')" style="background:#0F172A; border:1px solid #475569; color:#94A3B8; padding:5px 5px; font-size:0.68rem; border-radius:4px; cursor:pointer;" title="幅を縦向きで配置">↕幅</button>
+            <button type="button" class="btn btn-sm" onclick="addQuickDimArrow('spotLength', 'h')" style="background:#0F172A; border:1px solid #475569; color:#94A3B8; padding:5px 5px; font-size:0.68rem; border-radius:4px; cursor:pointer;" title="奥行を横向きで配置">↔奥行</button>
+          </div>
+
+          <!-- 2. 出入口 (横 / 縦) -->
+          <div style="display:flex; align-items:center; gap:4px;">
+            <span style="font-size:0.72rem; color:#94A3B8; width:44px; flex-shrink:0;">🚪 出入口:</span>
+            <button type="button" class="btn btn-sm" onclick="addQuickDimArrow('entrance', 'h')" style="flex:1; background:#1E293B; border:1px solid #10B981; color:#F8FAFC; padding:5px 3px; font-size:0.74rem; border-radius:4px; font-weight:600; cursor:pointer;" title="出入口の横矢印（出入口 〇〇m）を配置">
+              <span style="color:#10B981;">↔</span> 横矢印 (<span id="quickLabelEntranceH">5.0m</span>)
+            </button>
+            <button type="button" class="btn btn-sm" onclick="addQuickDimArrow('entrance', 'v')" style="flex:1; background:#1E293B; border:1px solid #10B981; color:#F8FAFC; padding:5px 3px; font-size:0.74rem; border-radius:4px; font-weight:600; cursor:pointer;" title="出入口の縦矢印（出入口 〇〇m）を配置">
+              <span style="color:#10B981;">↕</span> 縦矢印 (<span id="quickLabelEntranceV">5.0m</span>)
+            </button>
+          </div>
+
+          <!-- 3. 前面道路 (横 / 縦) -->
+          <div style="display:flex; align-items:center; gap:4px;">
+            <span style="font-size:0.72rem; color:#94A3B8; width:44px; flex-shrink:0;">🛣️ 道路:</span>
+            <button type="button" class="btn btn-sm" onclick="addQuickDimArrow('road', 'h')" style="flex:1; background:#1E293B; border:1px solid #F59E0B; color:#F8FAFC; padding:5px 3px; font-size:0.74rem; border-radius:4px; font-weight:600; cursor:pointer;" title="道路の横矢印（〇〇m 道路）を配置">
+              <span style="color:#F59E0B;">↔</span> 横矢印 (<span id="quickLabelRoadH">5.0m</span>)
+            </button>
+            <button type="button" class="btn btn-sm" onclick="addQuickDimArrow('road', 'v')" style="flex:1; background:#1E293B; border:1px solid #F59E0B; color:#F8FAFC; padding:5px 3px; font-size:0.74rem; border-radius:4px; font-weight:600; cursor:pointer;" title="道路の縦矢印（〇〇m 道路）を配置">
+              <span style="color:#F59E0B;">↕</span> 縦矢印 (<span id="quickLabelRoadV">5.0m</span>)
+            </button>
+          </div>
+
+          <!-- 4. 枠スタンプ & 4矢印一括配置 -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1.2fr; gap:4px; margin-top:2px;">
+            <button type="button" class="btn btn-sm" onclick="addQuickSpotRect()" style="background:#1E293B; border:1px solid #64748B; color:#E2E8F0; padding:5px 2px; font-size:0.71rem; border-radius:4px; font-weight:600; cursor:pointer;" title="駐車枠四角（斜線＋枠番）を配置">
+              🅿️ 駐車枠四角
+            </button>
+            <button type="button" class="btn btn-sm" onclick="addQuickHouseStamp()" style="background:#1E293B; border:1px solid #64748B; color:#E2E8F0; padding:5px 2px; font-size:0.71rem; border-radius:4px; font-weight:600; cursor:pointer;" title="申請者宅（四角枠＋文字）を配置">
+              🏠 申請者宅
+            </button>
+            <button type="button" class="btn btn-sm" onclick="addAllQuickDimArrows()" style="background:linear-gradient(135deg, #0284C7, #2563EB); border:none; color:#FFFFFF; padding:5px 2px; font-size:0.71rem; border-radius:4px; font-weight:bold; cursor:pointer;" title="幅・奥行・出入口・道路の4本の矢印をまとめて配置">
+              ⚡ 4矢印一括
+            </button>
+          </div>
         </div>
+
+        <!-- 従来の配置図まるごとテンプレート（折りたたみ） -->
+        <details style="margin-top:6px; border-top:1px dashed #334155; padding-top:5px; font-size:0.7rem;">
+          <summary style="cursor:pointer; color:#94A3B8; outline:none; user-select:none;">📋 従来のまるごと自動生成テンプレート（開く）</summary>
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:4px; margin-top:5px;">
+            <button type="button" class="btn btn-secondary" style="font-size:0.68rem; padding:3px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('house')" title="戸建て・自宅敷地内の配置図を一発自動生成">
+              <span style="font-size:0.85rem;">🏠</span>
+              <span>一軒家(戸建)</span>
+            </button>
+            <button type="button" class="btn btn-secondary" style="font-size:0.68rem; padding:3px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('mansion')" title="マンション・月極駐車場の配置図を一発自動生成">
+              <span style="font-size:0.85rem;">🏢</span>
+              <span>月極/集合</span>
+            </button>
+            <button type="button" class="btn btn-secondary" style="font-size:0.68rem; padding:3px 2px; display:flex; flex-direction:column; align-items:center; gap:2px; background:#1E293B; border-color:#475569;" onclick="applyHaichiTemplate('office')" title="事業所・自社敷地の配置図を一発自動生成">
+              <span style="font-size:0.85rem;">🏭</span>
+              <span>事業所</span>
+            </button>
+          </div>
+        </details>
       </div>
 
       <!-- 店舗連絡先 & 登録番号 & 職印 -->
@@ -1363,6 +1420,7 @@ window.addEventListener('DOMContentLoaded', () => {
   updateFooterRegNo();
   updateFooterOfficeInfo();
   toggleSeal();
+  updateQuickDimLabels();
   
   // 1. URL経由での案件連携チェック
   const loadedFromCase = checkUrlCaseParams();
@@ -4056,8 +4114,8 @@ function drawArrow(ctx, fromX, fromY, toX, toY, color = '#000', width = 2, isDou
 
   let posMode = textPos;
   if (!posMode || posMode === 'auto') {
-    if (isVert && (label.includes('道路') || label.includes('幅員') || /^\d+(\.\d+)?\s*m/i.test(label))) {
-      posMode = 'split'; // 例: 5m ↕ 道路 のように両脇に配置
+    if (isVert && (label.includes('道路') || label.includes('幅員') || label.includes('出入口') || /^\d+(\.\d+)?\s*m/i.test(label))) {
+      posMode = 'split'; // 例: 5m ↕ 道路、5.0m ↕ 出入口 のように両脇に配置
     } else if (isHoriz) {
       if (label.includes('出入口')) {
         posMode = 'above'; // 矢印の上に浮かす
@@ -4104,14 +4162,16 @@ function drawArrow(ctx, fromX, fromY, toX, toY, color = '#000', width = 2, isDou
       ctx.fillStyle = color;
       ctx.fillText(label, midX, midY - 4);
     } else if (posMode === 'split') {
-      // 縦向き矢印の両脇に分割配置（例: 5 m ↕ 道路）
+      // 縦向き矢印の両脇に分割配置（例: 5 m ↕ 道路、5.0m ↕ 出入口）
       let leftText = '';
       let rightText = '';
-      const mRoad = label.match(/^(.*?)(?:道路|幅員)(.*)$/);
+      const mRoad = label.match(/^(.*?)(?:道路|幅員|出入口)(.*)$/);
       if (mRoad) {
         const numPart = (mRoad[1] + ' ' + mRoad[2]).trim();
         leftText = numPart || '';
-        rightText = label.includes('幅員') ? '幅員' : '道路';
+        if (label.includes('幅員')) rightText = '幅員';
+        else if (label.includes('出入口')) rightText = '出入口';
+        else rightText = '道路';
       } else {
         leftText = label;
       }
@@ -4861,6 +4921,333 @@ function applyHaichiTemplate(templateType) {
   autoSaveDraft();
 }
 
+// ─── 📏 入力連動 寸法矢印クイック配置機能 ───
+
+function formatMeterVal(val, defaultVal = '5.0m') {
+  let s = (val || defaultVal).trim();
+  if (!s) s = defaultVal;
+  s = s.replace(/[\s　]+/g, '');
+  if (!/[a-zA-Z]$/.test(s)) {
+    s += 'm';
+  }
+  return s;
+}
+
+function updateQuickDimLabels() {
+  const sW = formatMeterVal(document.getElementById('spotWidth')?.value, '2.0m');
+  const sL = formatMeterVal(document.getElementById('spotLength')?.value, '5.0m');
+  const rW = formatMeterVal(document.getElementById('roadWidth')?.value?.replace(/道路|幅員/g, ''), '5.0m');
+  const eW = formatMeterVal(document.getElementById('entranceWidth')?.value?.replace(/出入口|幅/g, ''), '5.0m');
+
+  const elSW = document.getElementById('quickLabelSpotW');
+  const elSL = document.getElementById('quickLabelSpotL');
+  const elEH = document.getElementById('quickLabelEntranceH');
+  const elEV = document.getElementById('quickLabelEntranceV');
+  const elRH = document.getElementById('quickLabelRoadH');
+  const elRV = document.getElementById('quickLabelRoadV');
+
+  if (elSW) elSW.textContent = sW;
+  if (elSL) elSL.textContent = sL;
+  if (elEH) elEH.textContent = eW;
+  if (elEV) elEV.textContent = eW;
+  if (elRH) elRH.textContent = rW;
+  if (elRV) elRV.textContent = rW;
+}
+window.updateQuickDimLabels = updateQuickDimLabels;
+
+function addQuickDimArrow(kind, dir) {
+  setActiveTarget('haichi');
+  setTool('select');
+
+  const canvas = haichiCanvas;
+  const cw = canvas.width || 800;
+  const ch = canvas.height || 500;
+  const cx = Math.round(cw / 2);
+  const cy = Math.round(ch / 2);
+
+  // 複数配置時に重なりを避ける微小オフセット
+  const jitter = ((drawings.haichi.length % 5) - 2) * 12;
+
+  const rawSW = document.getElementById('spotWidth')?.value;
+  const rawSL = document.getElementById('spotLength')?.value;
+  const rawRW = document.getElementById('roadWidth')?.value;
+  const rawEW = document.getElementById('entranceWidth')?.value;
+
+  const sW = formatMeterVal(rawSW, '2.0m');
+  const sL = formatMeterVal(rawSL, '5.0m');
+  const rW = formatMeterVal(rawRW?.replace(/道路|幅員/g, ''), '5.0m');
+  const eW = formatMeterVal(rawEW?.replace(/出入口|幅/g, ''), '5.0m');
+
+  pushHistory();
+
+  let newItem = null;
+  let toastMsg = '';
+
+  if (kind === 'spotWidth') {
+    const isH = dir === 'h';
+    const len = 90;
+    if (isH) {
+      newItem = {
+        type: 'line-dim',
+        x1: cx - Math.round(len / 2) + jitter,
+        y1: cy + jitter,
+        x2: cx + Math.round(len / 2) + jitter,
+        y2: cy + jitter,
+        text: sW,
+        angle: 0
+      };
+      toastMsg = `↔ 駐車枠 幅「${sW}」を配置しました（ドラッグで移動可能）`;
+    } else {
+      newItem = {
+        type: 'line-dim',
+        x1: cx + jitter,
+        y1: cy - Math.round(len / 2) + jitter,
+        x2: cx + jitter,
+        y2: cy + Math.round(len / 2) + jitter,
+        text: sW,
+        textPos: 'stacked',
+        angle: 0
+      };
+      toastMsg = `↕ 駐車枠 幅「${sW}」(縦) を配置しました（ドラッグで移動可能）`;
+    }
+  } else if (kind === 'spotLength') {
+    const isV = dir === 'v';
+    const len = 140;
+    if (isV) {
+      newItem = {
+        type: 'line-dim',
+        x1: cx + jitter,
+        y1: cy - Math.round(len / 2) + jitter,
+        x2: cx + jitter,
+        y2: cy + Math.round(len / 2) + jitter,
+        text: sL,
+        textPos: 'stacked',
+        angle: 0
+      };
+      toastMsg = `↕ 駐車枠 奥行「${sL}」を配置しました（ドラッグで移動可能）`;
+    } else {
+      newItem = {
+        type: 'line-dim',
+        x1: cx - Math.round(len / 2) + jitter,
+        y1: cy + jitter,
+        x2: cx + Math.round(len / 2) + jitter,
+        y2: cy + jitter,
+        text: sL,
+        angle: 0
+      };
+      toastMsg = `↔ 駐車枠 奥行「${sL}」(横) を配置しました（ドラッグで移動可能）`;
+    }
+  } else if (kind === 'entrance') {
+    const label = `出入口 ${eW}`;
+    const len = 120;
+    if (dir === 'h') {
+      newItem = {
+        type: 'arrow',
+        x1: cx - Math.round(len / 2) + jitter,
+        y1: cy + jitter,
+        x2: cx + Math.round(len / 2) + jitter,
+        y2: cy + jitter,
+        label: label,
+        textPos: 'above',
+        angle: 0
+      };
+      toastMsg = `↔「${label}」(横) を配置しました（ドラッグで移動可能）`;
+    } else {
+      newItem = {
+        type: 'arrow',
+        x1: cx + jitter,
+        y1: cy - Math.round(len / 2) + jitter,
+        x2: cx + jitter,
+        y2: cy + Math.round(len / 2) + jitter,
+        label: label,
+        textPos: 'split',
+        angle: 0
+      };
+      toastMsg = `↕「${label}」(縦) を配置しました（ドラッグで移動可能）`;
+    }
+  } else if (kind === 'road') {
+    const label = `${rW} 道路`;
+    const len = 140;
+    if (dir === 'h') {
+      newItem = {
+        type: 'arrow',
+        x1: cx - Math.round(len / 2) + jitter,
+        y1: cy + jitter,
+        x2: cx + Math.round(len / 2) + jitter,
+        y2: cy + jitter,
+        label: label,
+        textPos: 'center',
+        angle: 0
+      };
+      toastMsg = `↔「${label}」(横) を配置しました（ドラッグで移動可能）`;
+    } else {
+      newItem = {
+        type: 'arrow',
+        x1: cx + jitter,
+        y1: cy - Math.round(len / 2) + jitter,
+        x2: cx + jitter,
+        y2: cy + Math.round(len / 2) + jitter,
+        label: label,
+        textPos: 'split',
+        angle: 0
+      };
+      toastMsg = `↕「${label}」(縦) を配置しました（ドラッグで移動可能）`;
+    }
+  }
+
+  if (!newItem) return;
+
+  const newIdx = drawings.haichi.length;
+  drawings.haichi.push(newItem);
+  pushHistory();
+  redraw('haichi');
+
+  // 配置した要素を即時選択
+  selectedItemRef = { targetKey: 'haichi', index: newIdx };
+  drawSelectionHighlight('haichi', newIdx);
+  showPropertyPanel('haichi', newIdx);
+  autoSaveDraft();
+  if (toastMsg) showToast(toastMsg);
+}
+window.addQuickDimArrow = addQuickDimArrow;
+
+function addAllQuickDimArrows() {
+  setActiveTarget('haichi');
+  setTool('select');
+
+  const canvas = haichiCanvas;
+  const cw = canvas.width || 800;
+  const ch = canvas.height || 500;
+  const cx = Math.round(cw / 2);
+  const cy = Math.round(ch / 2);
+
+  const rawSW = document.getElementById('spotWidth')?.value;
+  const rawSL = document.getElementById('spotLength')?.value;
+  const rawRW = document.getElementById('roadWidth')?.value;
+  const rawEW = document.getElementById('entranceWidth')?.value;
+
+  const sW = formatMeterVal(rawSW, '2.0m');
+  const sL = formatMeterVal(rawSL, '5.0m');
+  const rW = formatMeterVal(rawRW?.replace(/道路|幅員/g, ''), '5.0m');
+  const eW = formatMeterVal(rawEW?.replace(/出入口|幅/g, ''), '5.0m');
+
+  pushHistory();
+
+  // 1. 駐車枠 幅 (横) - 上部に配置
+  drawings.haichi.push({
+    type: 'line-dim',
+    x1: cx - 45,
+    y1: cy - 80,
+    x2: cx + 45,
+    y2: cy - 80,
+    text: sW,
+    angle: 0
+  });
+
+  // 2. 駐車枠 奥行 (縦) - 右側に配置
+  drawings.haichi.push({
+    type: 'line-dim',
+    x1: cx + 70,
+    y1: cy - 70,
+    x2: cx + 70,
+    y2: cy + 70,
+    text: sL,
+    textPos: 'stacked',
+    angle: 0
+  });
+
+  // 3. 出入口 (横) - 下部に配置
+  drawings.haichi.push({
+    type: 'arrow',
+    x1: cx - 60,
+    y1: cy + 90,
+    x2: cx + 60,
+    y2: cy + 90,
+    label: `出入口 ${eW}`,
+    textPos: 'above',
+    angle: 0
+  });
+
+  // 4. 前面道路 (縦) - 左側に配置
+  drawings.haichi.push({
+    type: 'arrow',
+    x1: cx - 120,
+    y1: cy - 70,
+    x2: cx - 120,
+    y2: cy + 70,
+    label: `${rW} 道路`,
+    textPos: 'split',
+    angle: 0
+  });
+
+  pushHistory();
+  redraw('haichi');
+  autoSaveDraft();
+  showToast('⚡ 幅・奥行・出入口・道路の4本の矢印を一括配置しました（ドラッグで各位置へ移動してください）');
+}
+window.addAllQuickDimArrows = addAllQuickDimArrows;
+
+function addQuickSpotRect() {
+  setActiveTarget('haichi');
+  setTool('select');
+  const cx = Math.round((haichiCanvas.width || 800) / 2);
+  const cy = Math.round((haichiCanvas.height || 500) / 2);
+  const sNo = (document.getElementById('spotNo')?.value || '').trim();
+  pushHistory();
+  const newIdx = drawings.haichi.length;
+  drawings.haichi.push({
+    type: 'rect-spot',
+    x: cx - 45,
+    y: cy - 65,
+    w: 90,
+    h: 130,
+    label: sNo,
+    angle: 0
+  });
+  pushHistory();
+  redraw('haichi');
+  selectedItemRef = { targetKey: 'haichi', index: newIdx };
+  drawSelectionHighlight('haichi', newIdx);
+  showPropertyPanel('haichi', newIdx);
+  autoSaveDraft();
+  showToast('🅿️ 駐車枠四角を配置しました（ドラッグ移動可能）');
+}
+window.addQuickSpotRect = addQuickSpotRect;
+
+function addQuickHouseStamp() {
+  setActiveTarget('haichi');
+  setTool('select');
+  const cx = Math.round((haichiCanvas.width || 800) / 2);
+  const cy = Math.round((haichiCanvas.height || 500) / 2);
+  pushHistory();
+  const newIdx = drawings.haichi.length;
+  drawings.haichi.push({
+    type: 'rect-other',
+    x: cx - 70,
+    y: cy - 60,
+    w: 140,
+    h: 120,
+    angle: 0
+  });
+  drawings.haichi.push({
+    type: 'text',
+    x: cx - 32,
+    y: cy + 6,
+    text: '申請者宅',
+    fontSize: 16,
+    color: '#000000',
+    angle: 0
+  });
+  pushHistory();
+  redraw('haichi');
+  selectedItemRef = { targetKey: 'haichi', index: newIdx };
+  drawSelectionHighlight('haichi', newIdx);
+  showPropertyPanel('haichi', newIdx);
+  autoSaveDraft();
+  showToast('🏠 申請者宅（建物枠＋文字）を配置しました');
+}
+window.addQuickHouseStamp = addQuickHouseStamp;
+
 function clearCanvas() {
   if (confirm('作図内容をすべてクリアしますか？')) {
     pushHistory();
@@ -4993,6 +5380,7 @@ function restoreProjectData(data) {
       updateFooterDealerInfo();
       updateFooterRegNo();
       updateFooterOfficeInfo();
+      updateQuickDimLabels();
     } catch(err) {
       console.warn('FormData restore warning:', err);
     }
@@ -5514,9 +5902,13 @@ async function openDocuWorksExportModal() {
           <select id="dwExportFaxPage" style="flex:1; min-width:180px; background:#1e293b; color:#fff; border:1px solid #475569; border-radius:6px; font-size:0.8rem; padding:6px 8px;">
             ${generateFaxPageOptions(payload)}
           </select>
+          <select id="dwExportFaxOrientation" style="background:#1e293b; color:#fff; border:1px solid #475569; border-radius:6px; font-size:0.78rem; padding:5px 8px;" title="4ページ目（FAX原本）の出力向き">
+            <option value="landscape" selected>📐 向き: 横（A4横統一・推奨）</option>
+            <option value="portrait">📏 向き: 縦（270°正立）</option>
+          </select>
           <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem; cursor:pointer; color:#f8fafc;">
             <input type="checkbox" id="dwExportEraseEar" checked style="accent-color:#38bdf8;">
-            <span>🧹 左端FAX耳を自動白消し (耳削除)</span>
+            <span>🧹 FAX耳を自動白消し (耳削除)</span>
           </label>
           <select id="dwExportEarWidth" style="background:#1e293b; color:#fff; border:1px solid #475569; border-radius:4px; font-size:0.75rem; padding:3px 6px;" title="耳消しの幅">
             <option value="0.02" selected>耳幅: 標準・1/4 (2.0%)</option>
@@ -5639,6 +6031,7 @@ async function executeDocuWorksExport(action) {
     if (action === 'fullpack') {
       showToast('⏳ 完全フルパックPDF生成中（確認書＋地図＋FAX耳消し）...');
       const faxPageVal = document.getElementById('dwExportFaxPage')?.value;
+      const faxOrientation = document.getElementById('dwExportFaxOrientation')?.value || 'landscape';
       const eraseEar = document.getElementById('dwExportEraseEar')?.checked ?? true;
       const earWidth = parseFloat(document.getElementById('dwExportEarWidth')?.value) || 0.02;
 
@@ -5647,6 +6040,7 @@ async function executeDocuWorksExport(action) {
       const opts = {
         includeFax: faxPageVal !== 'none',
         faxPageIndex: faxPageVal === 'custom' ? 0 : (parseInt(faxPageVal, 10) || 0),
+        faxOrientation: faxOrientation,
         eraseEar: eraseEar,
         earWidthPercent: earWidth,
         customFaxSource: customFax
@@ -5682,6 +6076,7 @@ async function executeDocuWorksExport(action) {
     } else if (action === 'drive') {
       if (linkedCaseId) {
         const faxPageVal = document.getElementById('dwExportFaxPage')?.value;
+        const faxOrientation = document.getElementById('dwExportFaxOrientation')?.value || 'landscape';
         const eraseEar = document.getElementById('dwExportEraseEar')?.checked ?? true;
         const earWidth = parseFloat(document.getElementById('dwExportEarWidth')?.value) || 0.02;
         let customFax = window._selectedCustomFaxFile ? { file: window._selectedCustomFaxFile, name: window._selectedCustomFaxFile.name } : null;
@@ -5689,6 +6084,7 @@ async function executeDocuWorksExport(action) {
         const opts = {
           includeFax: faxPageVal !== 'none',
           faxPageIndex: faxPageVal === 'custom' ? 0 : (parseInt(faxPageVal, 10) || 0),
+          faxOrientation: faxOrientation,
           eraseEar: eraseEar,
           earWidthPercent: earWidth,
           customFaxSource: customFax
@@ -5713,13 +6109,13 @@ async function executeDocuWorksExport(action) {
 </script>
 
 <!-- OSS DocuWorks Pack & Master Store Scripts -->
-<script src="js/utif.min.js?v=20260907_2350"></script>
+<script src="js/utif.min.js?v=20260908_0835"></script>
 <script src="js/pdf-lib.min.js"></script>
 <script src="js/xlsx.full.min.js"></script>
 <script src="js/exceljs.min.js"></script>
-<script src="js/store.js?v=20260907_2350"></script>
-<script src="js/sync.js?v=20260907_2350"></script>
-<script src="js/oss_docuworks.js?v=20260907_2350"></script>
+<script src="js/store.js?v=20260908_0835"></script>
+<script src="js/sync.js?v=20260908_0835"></script>
+<script src="js/oss_docuworks.js?v=20260908_0900"></script>
 
 </body>
 </html>
