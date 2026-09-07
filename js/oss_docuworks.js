@@ -50,25 +50,37 @@ const OssDocuWorks = {
     const hasMapData = !!(sozaiMapPng || haichiMapPng || localStorage.getItem('syako_case_map_' + caseId) || (orderNo && localStorage.getItem('syako_case_map_' + orderNo)));
     const mapPng = haichiMapPng;
 
-    // 添付ファイル（案件・インボックス・FAXログを横断して原本を確実に抽出）
-    let attachments = (c.attachments && c.attachments.length > 0) ? [...c.attachments] : [];
-    if (attachments.length === 0 && typeof Store !== 'undefined') {
-      const inboxList = typeof Store.getInbox === 'function' ? Store.getInbox() : [];
-      const matchedInbox = inboxList.find(i => String(i.caseId) === String(caseId) || (c.inboxId && String(i.id) === String(c.inboxId)));
-      if (matchedInbox && matchedInbox.attachments && matchedInbox.attachments.length > 0) {
-        attachments = [...matchedInbox.attachments];
-      } else if (matchedInbox && (matchedInbox.pdfUrl || matchedInbox.fileUrl)) {
-        attachments.push({ name: '受信原本.pdf', url: matchedInbox.pdfUrl || matchedInbox.fileUrl });
+    // 添付原本ファイル（案件の c.docs および c.inboxId から正規に抽出）
+    let attachments = [];
+    if (Array.isArray(c.docs) && c.docs.length > 0) {
+      attachments = c.docs.map(d => ({
+        name: d.name || '添付書類',
+        url: d.driveUrl || d.url || '',
+        dataUrl: d.dataUrl || '',
+        mimeType: d.mimeType || ''
+      }));
+    }
+
+    if (attachments.length === 0 && c.inboxId && typeof Store !== 'undefined' && typeof Store.getInbox === 'function') {
+      const inb = Store.getInbox().find(i => String(i.id) === String(c.inboxId));
+      if (inb && Array.isArray(inb.attachments)) {
+        attachments = inb.attachments.map(a => ({
+          name: a.name || '受信原本',
+          url: a.url || a.driveUrl || '',
+          dataUrl: a.dataUrl || '',
+          mimeType: a.mimeType || ''
+        }));
       }
-      if (attachments.length === 0 && typeof Store.getFaxLogs === 'function') {
-        const faxLogs = Store.getFaxLogs();
-        const matchedFax = faxLogs.find(f => (c.faxId && (f.id === c.faxId || f.faxId === c.faxId)) || String(f.caseId) === String(caseId));
-        if (matchedFax && matchedFax.attachments && matchedFax.attachments.length > 0) {
-          attachments = [...matchedFax.attachments];
-        } else if (matchedFax && (matchedFax.pdfUrl || matchedFax.fileUrl)) {
-          attachments.push({ name: 'FAX受信原本.pdf', url: matchedFax.pdfUrl || matchedFax.fileUrl });
-        }
-      }
+    }
+
+    // フォールバック（安全上限10件で不要な全インボックス混入を完全防止）
+    if (attachments.length === 0 && Array.isArray(c.attachments) && c.attachments.length > 0) {
+      attachments = c.attachments.slice(0, 10).map(a => ({
+        name: a.name || '添付原本',
+        url: a.url || a.driveUrl || '',
+        dataUrl: a.dataUrl || '',
+        mimeType: a.mimeType || ''
+      }));
     }
 
     return {
@@ -1073,8 +1085,8 @@ const OssDocuWorks = {
 
     window._selectedCustomFaxFile = null;
 
-    // FAXページ選択用オプションの生成
-    const atts = payload.attachments || [];
+    // FAXページ選択用オプションの生成（安全上限: 最大10枚）
+    const atts = (payload.attachments || []).slice(0, 10);
     let faxOptionsHtml = '';
     if (atts.length > 0) {
       atts.forEach((a, i) => {
