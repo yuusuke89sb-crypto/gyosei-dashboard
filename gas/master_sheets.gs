@@ -1161,7 +1161,7 @@ function getJournalsSheetData_() {
     let fullDesc = desc;
     if (memo) fullDesc = desc ? `${desc} (${memo})` : memo;
 
-    let id = txNo ? ('j_ss_' + txNo + '_' + rIdx) : ('j_ss_' + rIdx);
+    let id = txNo ? String(txNo).trim() : ('j_ss_' + rIdx);
     let caseId = colCaseId !== -1 ? String(row[colCaseId]).trim() : '';
     let orderNo = colOrderNo !== -1 ? String(row[colOrderNo]).trim() : '';
 

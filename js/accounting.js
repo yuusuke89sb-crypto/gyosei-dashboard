@@ -205,7 +205,17 @@ const Accounting = {
       const orderNo = j.orderNo || (j.description && j.description.match(/\[注:([^\]]+)\]/)?.[1]) || '';
       const rawDesc = (j.description || '').replace(/【[^】]*】/g, '').trim();
 
-      // 売上仕訳や一般仕訳でも、注文書Noや科目が違えば別取引として保護
+      // 売上仕訳で注文書№がある場合、同一業務（OSS車庫証明等）の重複を確実に1件に集約
+      if (j.credit === '売上高' && orderNo) {
+        const catMatch = (j.description || '').match(/\[(.*?)\]/);
+        const catKey = catMatch ? catMatch[1] : rawDesc;
+        const key = `sales_${orderNo}_${catKey}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push({ journal: j, originalIndex: idx });
+        return;
+      }
+
+      // 一般経費・仕訳でも、注文書Noや科目が違えば別取引として保護
       const key = `${j.date || ''}_${j.amount || 0}_${j.debit || ''}_${j.credit || ''}_${orderNo}_${rawDesc}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push({ journal: j, originalIndex: idx });
@@ -221,11 +231,16 @@ const Accounting = {
       }
 
       // 同一グループ内の重複整理
-      // 摘要に【〇〇費】があるものを最優先
-      // 貸方が「役員借入金」なら加点、「未払金」なら減点
+      // 1. 車庫証明(OSS)の場合は一律3,500円の仕訳を最優先
+      // 2. 摘要に【〇〇費】があるものを優先
+      // 3. 貸方が「役員借入金」なら加点、「未払金」なら減点
       list.sort((a, b) => {
         const descA = a.journal.description || '';
         const descB = b.journal.description || '';
+        if (descA.includes('車庫証明(OSS)') && descB.includes('車庫証明(OSS)')) {
+          if (Number(a.journal.amount) === 3500 && Number(b.journal.amount) !== 3500) return -1;
+          if (Number(b.journal.amount) === 3500 && Number(a.journal.amount) !== 3500) return 1;
+        }
         const scoreA = (descA.includes('【') && descA.includes('費】') ? 20 : (descA.includes('【') ? 10 : 0)) +
                        (a.journal.credit === '役員借入金' ? 5 : 0) -
                        (a.journal.credit === '未払金' ? 5 : 0);

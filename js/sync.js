@@ -219,6 +219,10 @@ const SpreadsheetSync = {
                     remoteKeys[key] = true;
                 });
                 var localOnly = local.filter(function(j){
+                    // OSS案件で3,500円以外の古いゴミ仕訳はローカルからも即座に排除
+                    if (j.description && j.description.includes('車庫証明(OSS)') && Number(j.amount) !== 3500) {
+                        return false;
+                    }
                     if (j.id && remoteKeys[j.id]) return false;
                     if (j.caseId && remoteKeys['case_' + j.caseId]) return false;
                     var orderNo = j.orderNo || (j.description && j.description.match(/\[注:([^\]]+)\]/)?.[1]) || '';
