@@ -296,9 +296,15 @@ const Accounting = {
     const kept = journals.filter(j => !targetIds.has(j.id));
     this.saveJournals(kept);
 
-    // スプレッドシート同期が設定されていれば全仕訳を反映
+    // スプレッドシートからも対象のゴミ仕訳を確実に削除
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-      SpreadsheetSync.push('bulkUpsertJournals', kept).catch(e => console.warn('仕訳Push失敗:', e));
+      targetJournals.forEach(j => {
+        let delId = j.id || '';
+        if (delId.startsWith('j_ss_') && delId.lastIndexOf('_') > 5) {
+          delId = delId.slice(5, delId.lastIndexOf('_'));
+        }
+        SpreadsheetSync.push('deleteJournal', { id: delId }).catch(e => console.warn('仕訳削除Push失敗:', e));
+      });
     }
 
     if (typeof App !== 'undefined') {
