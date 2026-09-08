@@ -219,8 +219,9 @@ const SpreadsheetSync = {
                     remoteKeys[key] = true;
                 });
                 var localOnly = local.filter(function(j){
-                    // OSS案件で3,500円以外の古いゴミ仕訳はローカルからも即座に排除
-                    if (j.description && j.description.includes('車庫証明(OSS)') && Number(j.amount) !== 3500) {
+                    // トヨタの古いゴミ仕訳（警察署単価が誤混入した3,500円以外の仕訳）のみ排除（日産・三菱等の個別単価は保護）
+                    var isToyotaDesc = j.description && (j.description.includes('トヨタ') || j.description.includes('WEST') || j.description.includes('キャラット'));
+                    if (isToyotaDesc && j.description.includes('車庫証明(OSS)') && Number(j.amount) !== 3500) {
                         return false;
                     }
                     if (j.id && remoteKeys[j.id]) return false;

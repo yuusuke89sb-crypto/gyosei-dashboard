@@ -2629,9 +2629,12 @@ const Cases = {
     const cat = catEl ? catEl.value : '';
 
     if (cat === 'garage_oss') {
+      const clientSelect = document.getElementById('csf_clientId');
+      const curClientId = clientSelect ? clientSelect.value : '';
+      const isToyota = (typeof Store !== 'undefined' && Store.isToyotaClient) ? Store.isToyotaClient(curClientId) : true;
       hintEl.innerHTML = `
         <span style="color:var(--text-secondary); font-size:0.75rem;">
-          🚗 OSS車庫証明: <strong style="color:var(--accent-primary, #4f46e5)">一律¥3,500</strong>（警察署出頭なし・所轄単価対象外）
+          🚗 OSS車庫証明: ${isToyota ? '<strong style="color:var(--accent-primary, #4f46e5)">トヨタ標準¥3,500</strong>' : '<strong style="color:var(--accent-primary, #4f46e5)">ディーラー個別単価</strong>（手動設定可能）'}（警察署出頭なし）
         </span>
       `;
       return;
@@ -2702,9 +2705,11 @@ const Cases = {
         this.onPoliceLocationChange(polEl.value);
       }
     } else if (category === 'garage_oss') {
-      // 車庫証明（OSS）に切り替えた場合、一律3,500円をセット
+      // 車庫証明（OSS）新規時または未設定時のみ初期値3,500円をセット（既存案件の手動設定単価は保護）
       const feeEl = document.getElementById('csf_fee');
-      if (feeEl) feeEl.value = 3500;
+      if (feeEl && (!this.editingId || !feeEl.value || Number(feeEl.value) === 0)) {
+        feeEl.value = 3500;
+      }
       this.updateFeeHint();
     }
 

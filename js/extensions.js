@@ -437,9 +437,12 @@ const CaseTemplates = {
     const feeEl = document.getElementById('csf_fee');
     if (!feeEl) return;
 
-    // ★車庫証明（OSS）は警察署に出頭しないため所轄単価は適用せず、トヨタ関係含め一律3,500円
+    // ★車庫証明（OSS）は警察署に出頭しないため所轄単価は適用せず、未入力時のみ初期値3,500円をセット
     if (category === 'garage_oss') {
-      feeEl.value = 3500;
+      const currentFee = feeEl ? feeEl.value : '';
+      if (!currentFee || Number(currentFee) === 0) {
+        feeEl.value = 3500;
+      }
       this._lastAppliedCategory = category;
       return;
     }
@@ -609,14 +612,15 @@ const CaseTemplates = {
         // ★所轄で単価が変わるのはあくまで「車庫証明（一般）」のみ！
         // 車庫証明（OSS）は警察署に行かないため所轄単価を適用しない
         if (isOss) {
-          // トヨタ関係のOSS案件、あるいはgarage_oss案件で誤って所轄単価に更新されていた場合、一律3,500円に復元
+          // トヨタ以外のディーラー（日産・三菱など）や手動設定された単価は一切上書きせず完全保護
           const isToyota = (typeof Store.isToyotaCase === 'function') ? Store.isToyotaCase(c) : (title + memo).includes('トヨタ');
-          if (isToyota || cat === 'garage_oss') {
+          if (isToyota) {
             const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
-            if (currentFee !== 3500 && currentFee > 0) {
+            // トヨタOSSで未設定（0円）の場合のみ標準単価3,500円を補完（手動変更済みの単価は保護）
+            if (currentFee === 0) {
               Store.updateCase(c.id, { fee: 3500 });
               updatedCount++;
-              details.push(`${c.title || '案件'}: ¥${currentFee} → ¥3,500 (OSS一律単価維持)`);
+              details.push(`${c.title || '案件'}: 未設定 → ¥3,500 (トヨタOSS標準単価)`);
             }
           }
           return;

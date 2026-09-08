@@ -237,7 +237,8 @@ const Accounting = {
       list.sort((a, b) => {
         const descA = a.journal.description || '';
         const descB = b.journal.description || '';
-        if (descA.includes('車庫証明(OSS)') && descB.includes('車庫証明(OSS)')) {
+        const isToyotaDesc = descA.includes('トヨタ') || descA.includes('WEST') || descA.includes('キャラット');
+        if (isToyotaDesc && descA.includes('車庫証明(OSS)') && descB.includes('車庫証明(OSS)')) {
           if (Number(a.journal.amount) === 3500 && Number(b.journal.amount) !== 3500) return -1;
           if (Number(b.journal.amount) === 3500 && Number(a.journal.amount) !== 3500) return 1;
         }
