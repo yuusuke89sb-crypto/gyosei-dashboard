@@ -1741,8 +1741,18 @@ const Cases = {
     if (!sel) return;
     const contacts = clientId ? Store.getClientContacts(clientId) : [];
     sel.innerHTML = '<option value="">— 未選択 —</option>' +
-      contacts.map(c => `<option value="${c.id}">${c.name}${c.phone ? ' (' + c.phone + ')' : ''}</option>`).join('');
-    if (preSelectContactId) sel.value = preSelectContactId;
+      contacts.map(c => {
+        const cid = c.id || ('cnt_' + (clientId || '') + '_' + encodeURIComponent(c.name || ''));
+        return `<option value="${cid}">${c.name}${c.phone ? ' (' + c.phone + ')' : ''}</option>`;
+      }).join('');
+    if (preSelectContactId) {
+      sel.value = preSelectContactId;
+      // ID不一致でも名前で部分一致すれば自動選択
+      if (!sel.value && typeof preSelectContactId === 'string') {
+        const opt = Array.from(sel.options).find(o => o.text && (o.text.startsWith(preSelectContactId) || preSelectContactId.startsWith(o.text.split(' ')[0])));
+        if (opt) sel.value = opt.value;
+      }
+    }
   },
 
   quickAddContact() {

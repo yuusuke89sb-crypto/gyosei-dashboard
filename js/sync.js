@@ -162,9 +162,18 @@ const SpreadsheetSync = {
             {
                 var localContacts = JSON.parse(localStorage.getItem('gyosei_client_contacts') || '[]');
                 var remoteContacts = data.clientContacts || [];
+
+                // スプレッドシート側でID未採番の担当者に確定IDを付与
+                remoteContacts.forEach(function(c) {
+                    if (!c.id && c.name) {
+                        c.id = 'cnt_' + (c.clientId || 'c') + '_' + encodeURIComponent(c.name.trim());
+                        SpreadsheetSync.push('upsertClientContact', c).catch(function(){});
+                    }
+                });
+
                 var remoteContactIds = {};
-                remoteContacts.forEach(function(c){ remoteContactIds[c.id] = true; });
-                var localOnlyContacts = localContacts.filter(function(c){ return !remoteContactIds[c.id]; });
+                remoteContacts.forEach(function(c){ if (c.id) remoteContactIds[c.id] = true; });
+                var localOnlyContacts = localContacts.filter(function(c){ return c.id && !remoteContactIds[c.id]; });
 
                 // ローカルのみの担当者をスプレッドシートへ自動Push
                 if (localOnlyContacts.length > 0) {

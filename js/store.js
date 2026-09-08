@@ -444,7 +444,12 @@ const Store = {
 
   // ---- 顧客担当者 CRUD ----
   getAllClientContacts() {
-    return this._get(this.KEYS.CLIENT_CONTACTS);
+    return this._get(this.KEYS.CLIENT_CONTACTS).map(c => {
+      if (!c.id && c.name) {
+        c.id = 'cnt_' + (c.clientId || 'c') + '_' + encodeURIComponent(c.name.trim());
+      }
+      return c;
+    });
   },
 
   getClientContacts(clientId) {
@@ -452,13 +457,14 @@ const Store = {
   },
 
   getClientContact(id) {
-    return this.getAllClientContacts().find(c => c.id == id) || null;
+    if (!id) return null;
+    return this.getAllClientContacts().find(c => c.id == id || (c.name && c.name === id)) || null;
   },
 
   addClientContact(data) {
     const contacts = this.getAllClientContacts();
     const contact = {
-      id: this._generateId(),
+      id: data.id || ('cnt_' + (data.clientId || 'c') + '_' + Date.now().toString(36)),
       clientId: data.clientId || '',
       name: data.name || '',
       phone: data.phone || '',
@@ -468,6 +474,11 @@ const Store = {
     };
     contacts.push(contact);
     this._set(this.KEYS.CLIENT_CONTACTS, contacts);
+
+    // スプレッドシートへ自動プッシュ
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertClientContact', contact);
+    }
     return contact;
   },
 

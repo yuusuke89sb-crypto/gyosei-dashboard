@@ -100,6 +100,19 @@ const App = {
         if (openModal) return;
         SpreadsheetSync.pull().then(() => this.refreshView()).catch(() => { });
       }, 3 * 60 * 1000);
+
+      // タブ復帰時（別タブや別端末操作後に画面へ戻った時）の自動差分取得
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+          const openModal = document.querySelector('.modal[style*="flex"]');
+          if (openModal) return;
+          const conf = SpreadsheetSync.getConfig();
+          const lastSync = conf && conf.lastSync ? new Date(conf.lastSync).getTime() : 0;
+          if (Date.now() - lastSync > 30 * 1000) {
+            SpreadsheetSync.pull().then(() => this.refreshView()).catch(() => { });
+          }
+        }
+      });
     }
     // 期限リマインダー
     if (typeof Reminders !== 'undefined') Reminders.init();
