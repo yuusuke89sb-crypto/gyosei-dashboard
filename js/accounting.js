@@ -183,11 +183,11 @@ const Accounting = {
     return restoredCount + updatedCount;
   },
 
-  cleanDuplicates() {
+  cleanDuplicates(silent = false) {
     const journals = this.getJournals();
     if (!journals || journals.length === 0) {
-      if (typeof App !== 'undefined') App.showToast('仕訳データがありません');
-      return;
+      if (!silent && typeof App !== 'undefined') App.showToast('仕訳データがありません');
+      return 0;
     }
 
     // グループ化キーの生成（案件ID・注文書№・貸借科目を厳密に考慮）
@@ -258,7 +258,11 @@ const Accounting = {
     this.saveJournals(kept);
     if (typeof App !== 'undefined') {
       App.refreshView();
-      App.showToast(`✨ 重複していた仕訳 ${removedCount} 件を整理しました（案件・注文書№別の仕訳は保護されます）`);
+      if (!silent && removedCount > 0) {
+        App.showToast(`✨ 重複していた仕訳 ${removedCount} 件を整理しました（案件・注文書№別の仕訳は保護されます）`);
+      } else if (!silent && removedCount === 0) {
+        App.showToast('✅ 重複仕訳はありません');
+      }
     }
     return removedCount;
   },
