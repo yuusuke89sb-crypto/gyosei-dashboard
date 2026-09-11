@@ -249,7 +249,7 @@ def generate_confirmation_excel(data, output_xlsx):
     ws.cell(12, 4, data.get('zip', ''))
     ws.cell(13, 4, data.get('carAddress', ''))
     ws.cell(14, 4, data.get('applicantName', ''))
-    ws.cell(17, 11, data.get('staffName', ''))
+    ws.cell(17, 11, data.get('staffName') or '吉村')
 
     ws.cell(20, 11, "　　　　　　行政書士法人　フェリス")
     ws.cell(21, 11, "　　　　　　TEL　０５８６－５０－２８９６")
@@ -337,7 +337,7 @@ if __name__ == '__main__':
         'carAddress': '愛知県北名古屋市西春町1-2-3',
         'parkingAddress': '愛知県北名古屋市西春町1-2-5',
         'regNo': '増　　　車',
-        'staffName': '田中'
+        'staffName': '吉村'
     }
 
     if args.input and os.path.exists(args.input):

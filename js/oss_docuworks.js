@@ -24,7 +24,8 @@ const OssDocuWorks = {
     if (!c) return null;
     const client = c.clientId ? Store.getClient(c.clientId) : null;
     const contact = c.clientContactId && typeof Store.getClientContact === 'function' ? Store.getClientContact(c.clientContactId) : null;
-    const staffName = Store.getStaffName(c.staffId) || '田中';
+    const rawStaff = Store.getStaffName(c.staffId);
+    const staffName = (!rawStaff || rawStaff === '—' || rawStaff === '田中') ? '吉村' : rawStaff;
 
     const orderNo = c.orderNo || c['注文書№'] || c['注文書No'] || '58280';
     const orderNo8 = this.formatOrderNo8(orderNo);
@@ -143,7 +144,7 @@ const OssDocuWorks = {
     const x_staff_name_end = Math.round(631 * scaleX);
     const x_sama_end = x7;
 
-    const y_title = Math.round(60 * scaleY);
+    const y_title = Math.round(64 * scaleY);
     const y_msg_top = Math.round(78 * scaleY);
     const y_dealer = Math.round(135 * scaleY);
     const y_greeting1 = Math.round(180 * scaleY);
@@ -219,40 +220,48 @@ const OssDocuWorks = {
       ctx.restore();
     };
 
-    // 1. タイトル
+    // 1. タイトル（原本サンプルの大判・太字・バランス正立配置）
     ctx.fillStyle = '#000000';
-    ctx.font = '68px ' + fFamily;
+    ctx.font = 'bold 88px ' + fFamily;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('OSS申請　書類確認書（車庫証明）', Math.round(480 * scaleX), y_title);
+    ctx.fillText('OSS申請　書類確認書（車庫証明）', Math.round(495 * scaleX), y_title);
 
     // 2. 店舗名（アンダーバー付き） + 御中
     let cleanDealer = (payload.dealerName || '').replace(/(?:TEL|℡|Tel)?\s*[0-9]{2,4}-[0-9]{2,4}-[0-9]{3,4}.*$/i, '').replace(/[\s\u3000]*御中\s*$/, '').trim() || '愛知トヨタ小牧南インター店';
     cleanDealer = cleanDealer.replace(/\s+/g, '');
 
-    ctx.font = 'bold 54px ' + fFamily;
+    ctx.font = 'bold 68px ' + fFamily;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(cleanDealer, x0, y_dealer);
 
     const dealerW = ctx.measureText(cleanDealer).width;
     // 顧客（店舗名）の下にアンダーバー
-    line(x0, y_dealer + 34, x0 + dealerW, y_dealer + 34, 4);
+    line(x0, y_dealer + 40, x0 + dealerW, y_dealer + 40, 5);
 
     // 御中
-    ctx.font = '50px ' + fFamily;
+    ctx.font = '62px ' + fFamily;
     ctx.fillText('御中', x0 + dealerW + Math.round(28 * scaleX), y_dealer);
 
-    // 3. ご案内文
-    ctx.font = '38px ' + fFamily;
+    // 3. ご案内文（原本サンプル同様、表の右端までしっかり届く大判フォント）
+    ctx.font = '50px ' + fFamily;
     ctx.fillText('ご依頼のありました車庫証明関係書類を下記の通り確認させて頂きましたのでご査収下さい。', x0, y_greeting1);
     ctx.fillText('なお、不備のある書類につきましては、担当者と連絡を取り補正等の対応を致しました。', x0, y_greeting2);
 
-    // 4. 日付（令　　和　　X　　年　　X　　月　　X　　日）
-    const now = new Date();
-    const reiwaYear = now.getFullYear() - 2018;
-    const dateStr = payload.dateStr || `令　　和　　${reiwaYear}　　年　　${now.getMonth() + 1}　　月　　${now.getDate()}　　日`;
-    ctx.font = '38px ' + fFamily;
+    // 4. 日付（令　　和　　X　　年　　X　　月　　X　　日：原本通りのワイドスペースと視認性）
+    let dateStr = payload.dateStr;
+    if (!dateStr) {
+      const now = new Date();
+      const reiwaYear = now.getFullYear() - 2018;
+      dateStr = `令　　和　　${reiwaYear}　　年　　${now.getMonth() + 1}　　月　　${now.getDate()}　　日`;
+    } else {
+      const m = dateStr.match(/令[\s\u3000]*和[\s\u3000]*([0-9０-９]+)[\s\u3000]*年[\s\u3000]*([0-9０-９]+)[\s\u3000]*月[\s\u3000]*([0-9０-９]+)[\s\u3000]*日/);
+      if (m) {
+        dateStr = `令　　和　　${m[1]}　　年　　${m[2]}　　月　　${m[3]}　　日`;
+      }
+    }
+    ctx.font = '48px ' + fFamily;
     ctx.fillText(dateStr, x0, y_date);
 
     // 5. 連絡事項・メッセージ枠（右上〜中央右）
@@ -260,7 +269,7 @@ const OssDocuWorks = {
     line(x7, y_r15, x9, y_r15, 7);
     line(x7, y_msg_top, x7, y_r15, 7);
     line(x9, y_msg_top, x9, y_r15, 7);
-    drawCellText('連絡事項・メッセージ', x7, y_msg_top + 10, x9 - x7, 50, 'center', '38px ' + fFamily, false);
+    drawCellText('連絡事項・メッセージ', x7, y_msg_top + 16, x9 - x7, 50, 'center', '46px ' + fFamily, false);
 
     // 6. メイン確認表（外枠）
     line(x0, y_r9, x7, y_r9, 7);
@@ -383,7 +392,11 @@ const OssDocuWorks = {
     drawCellText('※標章交付の際には下記へ記入の上ご依頼下さい。', x7 + 5, y_r15, x9 - x7, y_r16 - y_r15, 'left', '32px ' + fFamily, false);
     drawCellText('作成担当', x7, y_r16, x8 - x7, y_r16_sub - y_r16, 'center', '32px ' + fFamily, false);
     drawCellText('標章交付番号（警察内管理番号）', x8, y_r16, x9 - x8, y_r16_sub - y_r16, 'center', '32px ' + fFamily, false);
-    drawCellText(payload.staffName || '田中', x7, y_r16_sub, x8 - x7, y_r18 - y_r16_sub, 'center', '40px ' + fFamily, false);
+    let displayStaff = payload.staffName;
+    if (!displayStaff || displayStaff === '—' || displayStaff === '田中') {
+      displayStaff = '吉村';
+    }
+    drawCellText(displayStaff, x7, y_r16_sub, x8 - x7, y_r18 - y_r16_sub, 'center', '44px ' + fFamily, false);
 
     // 8. 事務所情報
     ctx.textAlign = 'right';
@@ -860,7 +873,8 @@ const OssDocuWorks = {
       if (payload.applicantName) ws.getCell('D14').value = payload.applicantName;
 
       // 8. 作成担当者
-      if (payload.staffName) ws.getCell('K17').value = payload.staffName;
+      const staffVal = (!payload.staffName || payload.staffName === '—' || payload.staffName === '田中') ? '吉村' : payload.staffName;
+      ws.getCell('K17').value = staffVal;
 
       // 「編集」シートを開いた際のアクティブ表示に設定
       const activeIdx = workbook.worksheets.findIndex(w => w.name === ws.name);
@@ -901,7 +915,8 @@ const OssDocuWorks = {
       if (rawZip) setCell('D12', Number(rawZip) || rawZip);
       setCell('D13', payload.carAddress || '');
       setCell('D14', payload.applicantName || '');
-      setCell('K17', payload.staffName || '田中');
+      const staffValFallback = (!payload.staffName || payload.staffName === '—' || payload.staffName === '田中') ? '吉村' : payload.staffName;
+      setCell('K17', staffValFallback);
       const outBytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       return new Blob([outBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     }

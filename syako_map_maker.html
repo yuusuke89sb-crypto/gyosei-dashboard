@@ -5832,7 +5832,7 @@ async function openDocuWorksExportModal() {
       carAddress: homeAddr,
       parkingAddress: parkAddr,
       zip: '',
-      staffName: '田中',
+      staffName: '吉村',
       sozaiMapPng: sozaiMapPng,
       haichiMapPng: haichiMapPng,
       driveFolderUrl: linkedFolderUrl || ''
@@ -5878,6 +5878,7 @@ async function openDocuWorksExportModal() {
         <div><strong style="color:#94a3b8;">注文書番号:</strong> <span style="color:#38bdf8; font-weight:bold; font-family:monospace; font-size:0.95rem;">D1104701 ${payload.orderNo8}</span></div>
         <div><strong style="color:#94a3b8;">店舗名:</strong> <span>${payload.dealerName}</span></div>
         <div><strong style="color:#94a3b8;">申請者名:</strong> <span>${payload.applicantName} 様</span></div>
+        <div><strong style="color:#94a3b8;">作成担当:</strong> <span style="color:#10b981; font-weight:bold;">${payload.staffName || '吉村'}</span></div>
         <div><strong style="color:#94a3b8;">登録番号:</strong> <span>${payload.regNo || '—'}</span></div>
         <div style="grid-column:1/-1;"><strong style="color:#94a3b8;">保管場所:</strong> <span>${payload.parkingAddress || '同上'}</span></div>
       </div>
@@ -6115,7 +6116,7 @@ async function executeDocuWorksExport(action) {
 <script src="js/exceljs.min.js"></script>
 <script src="js/store.js?v=20260908_0835"></script>
 <script src="js/sync.js?v=20260908_0835"></script>
-<script src="js/oss_docuworks.js?v=20260908_0900"></script>
+<script src="js/oss_docuworks.js?v=20260911_1845"></script>
 
 </body>
 </html>
