@@ -236,27 +236,27 @@ const GlobalSearch = {
     modal.style.display = 'flex';
     modal.innerHTML = `
       <div class="modal-overlay" onclick="document.getElementById('globalSearchModal').remove()"></div>
-      <div class="modal-content" style="max-width: 720px; width: 95%; background: #0f172a; border: 1px solid #334155; border-radius: 16px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.85);">
-        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #334155; padding-bottom: 12px;">
-          <h2 style="font-size: 1.25rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; margin: 0;">
-            <span style="font-size: 1.35rem;">🔍</span> 案件・顧客 リアルタイム検索
+      <div class="modal-content" style="max-width: 720px; width: 95%; max-height: 88vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid #334155; border-radius: 16px; padding: 18px 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.85);">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+          <h2 style="font-size: 1.15rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <span style="font-size: 1.25rem;">🔍</span> 案件・顧客 リアルタイム検索
           </h2>
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 0.75rem; color: #94a3b8; background: #1e293b; padding: 2px 8px; border-radius: 4px; border: 1px solid #475569;">ESCで閉じる</span>
+          <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            ${window.innerWidth > 640 ? '<span style="font-size: 0.75rem; color: #94a3b8; background: #1e293b; padding: 2px 8px; border-radius: 4px; border: 1px solid #475569;">ESCで閉じる</span>' : ''}
             <button class="modal-close" onclick="document.getElementById('globalSearchModal').remove()" style="font-size: 1.4rem; color: #94a3b8; cursor: pointer; background: none; border: none; line-height: 1; padding: 0 4px;" title="閉じる">✕</button>
           </div>
         </div>
         
-        <div style="position: relative; margin-bottom: 16px;">
+        <div style="position: relative; margin-bottom: 12px; flex-shrink: 0;">
           <input type="text" id="globalSearchInput" class="search-input" 
             placeholder="🔍 顧客名・申請者名・車台番号・ナンバー・注文書No等で検索..." autofocus
             value="${this._lastQuery || ''}"
             oninput="GlobalSearch.onSearch(this.value)" 
-            style="width: 100%; font-size: 1.05rem; padding: 13px 18px 13px 44px; background: #1e293b; color: #ffffff !important; border: 2px solid #3b82f6; border-radius: 10px; outline: none; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-          <span style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); font-size: 1.15rem; color: #60a5fa; pointer-events: none;">🔍</span>
+            style="width: 100%; font-size: 1.0rem; padding: 11px 16px 11px 40px; background: #1e293b; color: #ffffff !important; border: 2px solid #3b82f6; border-radius: 10px; outline: none; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+          <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 1.1rem; color: #60a5fa; pointer-events: none;">🔍</span>
         </div>
 
-        <div id="globalSearchResults" style="max-height: 460px; overflow-y: auto; padding-right: 4px;">
+        <div id="globalSearchResults" style="flex: 1; max-height: 58vh; overflow-y: auto; padding-right: 4px;">
           <p style="padding: 36px 16px; text-align: center; color: #94a3b8; font-size: 0.95rem; line-height: 1.6;">
             💡 顧客名、会社名、申請者名、車台番号、ナンバープレート、注文書Noなどを入力してください
           </p>
@@ -291,26 +291,29 @@ const GlobalSearch = {
 
     let html = '';
     const clients = Store.getClients().filter(c =>
-      (c.name || '').toLowerCase().includes(q) ||
-      (c.nameKana || '').toLowerCase().includes(q) ||
-      (c.email || '').toLowerCase().includes(q) ||
-      (c.phone || '').includes(q) ||
-      (c.companyName || '').toLowerCase().includes(q)
+      String(c.name || '').toLowerCase().includes(q) ||
+      String(c.nameKana || '').toLowerCase().includes(q) ||
+      String(c.email || '').toLowerCase().includes(q) ||
+      String(c.phone || '').toLowerCase().includes(q) ||
+      String(c.companyName || '').toLowerCase().includes(q)
     );
     const cases = Store.getCases().filter(c => {
       const client = Store.getClient(c.clientId);
-      const clientName = client ? client.name.toLowerCase() : '';
+      const clientName = client ? String(client.companyName || client.name || '').toLowerCase() : '';
       return (
-        (c.title || '').toLowerCase().includes(q) ||
-        (c.carName || '').toLowerCase().includes(q) ||
-        (c.applicantName || '').toLowerCase().includes(q) ||
-        (c.orderNo || '').toLowerCase().includes(q) ||
-        (c.carNumber || '').toLowerCase().includes(q) ||
-        (c.oldCarNumber || '').toLowerCase().includes(q) ||
-        (c.vin || '').toLowerCase().includes(q) ||
-        (c.carAddress || '').toLowerCase().includes(q) ||
-        (c.parkingAddress || '').toLowerCase().includes(q) ||
-        (typeof c.memo === 'string' && c.memo.toLowerCase().includes(q)) ||
+        String(c.title || '').toLowerCase().includes(q) ||
+        String(c.carName || '').toLowerCase().includes(q) ||
+        String(c.applicantName || '').toLowerCase().includes(q) ||
+        String(c.orderNo || '').toLowerCase().includes(q) ||
+        String(c.caseNo || '').toLowerCase().includes(q) ||
+        String(c.carNumber || '').toLowerCase().includes(q) ||
+        String(c.oldCarNumber || '').toLowerCase().includes(q) ||
+        String(c.vin || '').toLowerCase().includes(q) ||
+        String(c.carAddress || '').toLowerCase().includes(q) ||
+        String(c.parkingAddress || '').toLowerCase().includes(q) ||
+        String(c.carPolice || '').toLowerCase().includes(q) ||
+        String(c.memo || '').toLowerCase().includes(q) ||
+        String(c.subCategory || '').toLowerCase().includes(q) ||
         clientName.includes(q)
       );
     });
@@ -603,8 +606,8 @@ const CaseTemplates = {
       cases.forEach(c => {
         if (!c) return;
         const cat = c.category || '';
-        const title = c.title || '';
-        const memo = c.memo || '';
+        const title = String(c.title || '');
+        const memo = String(c.memo || '');
         const isOss = cat === 'garage_oss' || 
                       title.toUpperCase().includes('OSS') || 
                       memo.toUpperCase().includes('OSS');

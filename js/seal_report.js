@@ -168,15 +168,15 @@ const SealReportManager = {
       // 検索フィルター
       if (this.searchQuery) {
         const q = this.searchQuery.toLowerCase();
-        const match = (r.orderNo && r.orderNo.toLowerCase().includes(q)) ||
-          (r.title && r.title.toLowerCase().includes(q)) ||
-          (r.storeName && r.storeName.toLowerCase().includes(q)) ||
-          (r.applicantName && r.applicantName.toLowerCase().includes(q)) ||
-          (r.carNumber && r.carNumber.toLowerCase().includes(q)) ||
-          (r.oldCarNumber && r.oldCarNumber.toLowerCase().includes(q)) ||
-          (r.vin && r.vin.toLowerCase().includes(q)) ||
-          (r.regTypeLabel && r.regTypeLabel.toLowerCase().includes(q)) ||
-          (r.contactName && r.contactName.toLowerCase().includes(q));
+        const match = (r.orderNo && String(r.orderNo).toLowerCase().includes(q)) ||
+          (r.title && String(r.title).toLowerCase().includes(q)) ||
+          (r.storeName && String(r.storeName).toLowerCase().includes(q)) ||
+          (r.applicantName && String(r.applicantName).toLowerCase().includes(q)) ||
+          (r.carNumber && String(r.carNumber).toLowerCase().includes(q)) ||
+          (r.oldCarNumber && String(r.oldCarNumber).toLowerCase().includes(q)) ||
+          (r.vin && String(r.vin).toLowerCase().includes(q)) ||
+          (r.regTypeLabel && String(r.regTypeLabel).toLowerCase().includes(q)) ||
+          (r.contactName && String(r.contactName).toLowerCase().includes(q));
         if (!match) return false;
       }
 
