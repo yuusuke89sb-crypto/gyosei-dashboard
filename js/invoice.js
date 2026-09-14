@@ -477,6 +477,9 @@ const Invoice = {
     const dueDate = docType === 'estimate' ? '' : document.getElementById('invoiceDueDate').value;
     const taxRate = parseInt(document.getElementById('invoiceTaxRate').value) || 10;
     const note = document.getElementById('invoiceNote').value;
+    const templateType = document.getElementById('invoiceTemplateType')
+      ? document.getElementById('invoiceTemplateType').value
+      : (this.detectTemplate(client) || 'standard');
     const periodKey = document.getElementById('invoiceBillingPeriod') ? document.getElementById('invoiceBillingPeriod').value : '';
     let year, month;
     if (periodKey && periodKey !== 'all') {
