@@ -102,6 +102,23 @@ const SealReportManager = {
         plateReturnedStatus = c.status === 'done' ? '返納完了' : '手続中';
       }
 
+      let repCarNumber = (c.carNumber || '').trim();
+      let repOldCarNumber = (c.oldCarNumber || '').trim();
+      let repVin = (c.vin || '').trim();
+
+      const isChassisPattern = (str) => Boolean(str && !/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(str) && (/^[A-Z0-9]+-[A-Z0-9]+$/i.test(str) || /^[A-Z0-9]{8,18}$/i.test(str)));
+
+      // 救済: vinが空で、carNumberが車台番号（英数字・ハイフンで日本語なし）の場合
+      if (!repVin && isChassisPattern(repCarNumber)) {
+        repVin = repCarNumber;
+        repCarNumber = '';
+      }
+      // 救済: メモ内から車台番号を抽出
+      if (!repVin && c.memo) {
+        const m = c.memo.match(/車台番号\s*[:：]?\s*([0-9A-Z]+-[0-9A-Z]+)/i) || c.memo.match(/\b([A-Z0-9]{2,8}-[0-9A-Z]{4,10})\b/i);
+        if (m) repVin = m[1].toUpperCase();
+      }
+
       return {
         id: 'case_' + c.id,
         caseId: c.id,
@@ -118,9 +135,9 @@ const SealReportManager = {
         storeAddress: storeAddr,
         storePhone: storePhone,
         contactName: contactName,
-        carNumber: c.carNumber || '',
-        oldCarNumber: c.oldCarNumber || '',
-        vin: c.vin || (c.memo ? (c.memo.match(/[A-Z0-9]{6,17}/) || [''])[0] : ''),
+        carNumber: repCarNumber,
+        oldCarNumber: repOldCarNumber,
+        vin: repVin,
         workerName: staffName || '代表行政書士 日栄 政敏',
         checkVinMethod: '打刻目視確認・車検証原本照合',
         plateReturned: plateReturnedStatus,

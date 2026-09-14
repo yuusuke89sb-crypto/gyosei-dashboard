@@ -22,6 +22,63 @@ const Store = {
     let changed = false;
     cases.forEach(c => { if (MAP[c.status]) { c.status = MAP[c.status]; changed = true; } });
     if (changed) localStorage.setItem('gyosei_cases', JSON.stringify(cases));
+    this._migrateVehicleNumbers();
+  },
+
+  // 車台番号(vin)と自動車登録番号(carNumber)の自動救済・分離マイグレーション
+  _migrateVehicleNumbers() {
+    try {
+      const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
+      if (!Array.isArray(cases) || cases.length === 0) return;
+      let changed = false;
+
+      const isChassisNum = (str) => Boolean(str && typeof str === 'string' && !/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(str) && (/^[A-Z0-9]+-[A-Z0-9]+$/i.test(str.trim()) || /^[A-Z0-9]{8,18}$/i.test(str.trim())));
+      const isPlateNum = (str) => Boolean(str && typeof str === 'string' && /[\u3040-\u30ff\u4e00-\u9fff]/.test(str));
+
+      cases.forEach(c => {
+        let curVin = String(c.vin || '').trim();
+        let curCarNum = String(c.carNumber || '').trim();
+
+        // 救済1: vin が空で、carNumber に車台番号形式（英数ハイフンで日本語なし）が入っている
+        if (!curVin && isChassisNum(curCarNum)) {
+          c.vin = curCarNum;
+          c.carNumber = '';
+          changed = true;
+          curVin = c.vin;
+          curCarNum = '';
+        }
+
+        // 救済2: carNumber が空で、vin にナンバープレート形式（地名漢字・かな入り）が入っている
+        if (!curCarNum && isPlateNum(curVin)) {
+          c.carNumber = curVin;
+          c.vin = '';
+          changed = true;
+          curVin = '';
+          curCarNum = c.carNumber;
+        }
+
+        // 救済3: vin が空で、メモ欄に「車台番号: XXX」または車台番号パターンがある
+        if (!curVin && c.memo) {
+          const m = c.memo.match(/車台番号\s*[:：]?\s*([0-9A-Z]+-[0-9A-Z]+)/i) || c.memo.match(/\b([A-Z0-9]{2,8}-[0-9A-Z]{4,10})\b/i);
+          if (m) {
+            c.vin = m[1].toUpperCase();
+            changed = true;
+          }
+        }
+      });
+
+      if (changed) {
+        localStorage.setItem('gyosei_cases', JSON.stringify(cases));
+        console.log('✅ 車台番号(VIN)と登録番号の自動救済・マイグレーションを完了しました');
+        if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+          cases.filter(c => c.vin).forEach(fc => {
+            SpreadsheetSync.push('upsertCase', fc).catch(() => {});
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[_migrateVehicleNumbers error]', err);
+    }
   },
 
   // ---- ユーティリティ ----

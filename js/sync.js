@@ -87,6 +87,29 @@ const SpreadsheetSync = {
                         parsedFamilyTree = localCase.familyTreeData;
                     }
 
+                    // 車台番号(VIN)と自動車登録番号(ナンバー)のスマート判定とフォールバック
+                    let rawCarNum = String(remoteCase.carNumber || remoteCase['自動車登録番号'] || remoteCase['新自動車登録番号'] || remoteCase['登録番号'] || remoteCase['新ナンバー'] || (localCase && localCase.carNumber) || '').trim();
+                    let rawOldCarNum = String(remoteCase.oldCarNumber || remoteCase['旧自動車登録番号'] || remoteCase['旧登録番号'] || remoteCase['旧ナンバー'] || (localCase && localCase.oldCarNumber) || '').trim();
+                    let rawVin = String(remoteCase.vin || remoteCase['車台番号'] || remoteCase['VIN'] || (localCase && localCase.vin) || '').trim();
+                    let rawRegType = String(remoteCase.regType || remoteCase['封印事由'] || remoteCase['登録区分'] || remoteCase['登録種別区分'] || (localCase && localCase.regType) || '').trim();
+
+                    // 車台番号判定（英数字とハイフンのみ、日本語文字なし）
+                    const isChassisNum = (str) => Boolean(str && !/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(str) && /^[A-Z0-9]+-[A-Z0-9]+$/i.test(str));
+                    // ナンバー判定（日本の地域名漢字やひらがなを含む）
+                    const isPlateNum = (str) => Boolean(str && /[\u3040-\u30ff\u4e00-\u9fff]/.test(str));
+
+                    // 救済1: vin にナンバーが入っている場合（旧GASで車台番号列にナンバーを保存していたケース）
+                    if (!rawCarNum && isPlateNum(rawVin)) {
+                        rawCarNum = rawVin;
+                        rawVin = (localCase && localCase.vin) || '';
+                    }
+
+                    // 救済2: carNumber に車台番号が入っている場合（旧GASで車台番号列がcarNumberにマップされていたケース）
+                    if (!rawVin && isChassisNum(rawCarNum)) {
+                        rawVin = rawCarNum;
+                        rawCarNum = (localCase && localCase.carNumber && !isChassisNum(localCase.carNumber)) ? localCase.carNumber : '';
+                    }
+
                     return {
                         ...remoteCase,
                         orderNo: String(remoteCase.orderNo || remoteCase['注文書№'] || remoteCase['注文書No'] || remoteCase['注文書NO'] || remoteCase['注文番号'] || remoteCase['注文No'] || (localCase && localCase.orderNo) || ''),
@@ -101,10 +124,10 @@ const SpreadsheetSync = {
                         carAddress: remoteCase.carAddress || (localCase && localCase.carAddress) || '',
                         parkingAddress: remoteCase.parkingAddress || (localCase && localCase.parkingAddress) || '',
                         carPolice: remoteCase.carPolice || (localCase && localCase.carPolice) || '',
-                        carNumber: remoteCase.carNumber || remoteCase['自動車登録番号'] || remoteCase['登録番号'] || (localCase && localCase.carNumber) || '',
-                        oldCarNumber: remoteCase.oldCarNumber || remoteCase['旧自動車登録番号'] || remoteCase['旧ナンバー'] || (localCase && localCase.oldCarNumber) || '',
-                        vin: remoteCase.vin || remoteCase['車台番号'] || remoteCase['VIN'] || (localCase && localCase.vin) || '',
-                        regType: remoteCase.regType || (localCase && localCase.regType) || '',
+                        carNumber: rawCarNum,
+                        oldCarNumber: rawOldCarNum,
+                        vin: rawVin,
+                        regType: rawRegType,
                         subCategory: remoteCase.subCategory || remoteCase['登録種別'] || (localCase && localCase.subCategory) || '',
                         invoiceNo: remoteCase.invoiceNo || (localCase && localCase.invoiceNo) || '',
                         deathDate: remoteCase.deathDate || (localCase && localCase.deathDate) || '',

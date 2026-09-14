@@ -422,7 +422,7 @@ const Clients = {
     const CATEGORY_LABELS = { garage_oss: '🚗 車庫(OSS)', garage_paper: '📄 車庫(一般)', seal: '🔩 封印', car_reg_standard: '🚘 普通車登録', car_reg_light: '🚙 軽登録' };
     const STATUS_LABELS = { received: '受付', applying: '申請中', delivery: '交付・受取', done: '完了' };
     const applicant = c.carName ? ` 👤 ${c.carName}` : '';
-    const carInfo = (c.carNumber || c.vin) ? ` [${c.carNumber || c.vin}]` : '';
+    const carInfo = (c.carNumber && c.vin) ? ` [${c.carNumber} (${c.vin})]` : ((c.carNumber || c.vin) ? ` [${c.carNumber || c.vin}]` : '');
     const dateStr = (c.completedAt || c.registrationDate || c.policeDeliveryDate || c.createdAt || '').slice(0, 10);
     return `
       <div class="mini-case-item" onclick="Clients.openCaseDetail('${c.id}', '${cid || ''}')"

@@ -630,21 +630,27 @@ const Cases = {
             <!-- ─── 👉 右側: 案件登録フォーム ─── -->
             <div id="caseFormPane" style="flex:1; min-width:0; max-height:78vh; overflow-y:auto; padding-right:8px;">
               <form id="caseForm" onsubmit="Cases.onSubmit(event)" onkeydown="if(event.key==='Enter' && event.target.tagName==='INPUT'){event.preventDefault();}">
+                <!-- ─── 1. 🏢 顧客情報（顧客店舗・店舗担当者） ─── -->
                 <div class="form-row">
-                  <div class="form-group" style="flex:2">
-                    <label>案件名 <span class="required">*</span></label>
-                    <input type="text" name="title" id="csf_title" required placeholder="例：愛知トヨタWEST 一宮開明店 - 横田 清 様 (車庫証明)">
+                  <div class="form-group">
+                    <label>顧客店舗 <span class="required">*</span></label>
+                    <select name="clientId" id="csf_clientId" class="form-select" onchange="Cases.onClientChange(this.value)">
+                      <option value="">未選択</option>
+                      ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                    </select>
                   </div>
-                  <div class="form-group" style="flex:1">
-                    <label>注文書№</label>
-                    <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：57500855">
+                  <div class="form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <label style="margin:0;">顧客担当者（店舗担当）</label>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.7rem; padding:1px 6px;" onclick="Cases.quickAddContact()" title="店舗担当者を新規登録">＋ 担当者追加</button>
+                    </div>
+                    <select name="clientContactId" id="csf_clientContactId" class="form-select">
+                      <option value="">— 未選択 —</option>
+                    </select>
                   </div>
                 </div>
 
-                <!-- マイルストーン表示エリア -->
-                <div id="csf_milestone_stepper_wrap" style="display:none; margin-bottom: 20px;"></div>
-
-                <!-- カテゴリとステータス -->
+                <!-- ─── 2. 📋 案件の基本・種別 ─── -->
                 <div class="form-row">
                   <div class="form-group">
                     <label>カテゴリ <span class="required">*</span></label>
@@ -681,6 +687,21 @@ const Cases = {
                   </div>
                 </div>
 
+                <div class="form-row">
+                  <div class="form-group" style="flex:2">
+                    <label>案件名 <span class="required">*</span></label>
+                    <input type="text" name="title" id="csf_title" required placeholder="例：愛知トヨタWEST 一宮開明店 - 横田 清 様 (車庫証明)">
+                  </div>
+                  <div class="form-group" style="flex:1">
+                    <label>注文書№</label>
+                    <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：57500855">
+                  </div>
+                </div>
+
+                <!-- マイルストーン表示エリア -->
+                <div id="csf_milestone_stepper_wrap" style="display:none; margin-bottom: 20px;"></div>
+
+                <!-- ─── 4. 📅 日程・申請先 ─── -->
                 <!-- 申請先、申請日 -->
                 <div class="form-row" id="csf_garageDates_group_police_apply">
                   <div class="form-group">
@@ -731,26 +752,6 @@ const Cases = {
                   </div>
                 </div>
 
-                <!-- 顧客店舗、担当者、その他の設定 -->
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>顧客店舗</label>
-                    <select name="clientId" id="csf_clientId" class="form-select" onchange="Cases.onClientChange(this.value)">
-                      <option value="">未選択</option>
-                      ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                      <label style="margin:0;">顧客担当者（店舗担当）</label>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.7rem; padding:1px 6px;" onclick="Cases.quickAddContact()" title="店舗担当者を新規登録">＋ 担当者追加</button>
-                    </div>
-                    <select name="clientContactId" id="csf_clientContactId" class="form-select">
-                      <option value="">— 未選択 —</option>
-                    </select>
-                  </div>
-                </div>
-
                 <div class="form-row">
                   <div class="form-group">
                     <label>自所 担当者</label>
@@ -776,42 +777,7 @@ const Cases = {
                   </div>
                 </div>
 
-                <div class="form-row">
-                  <div class="form-group">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:4px;">
-                      <label style="margin:0;">報酬額（円）</label>
-                      <span id="csf_fee_hint" style="font-size:0.75rem;"></span>
-                    </div>
-                    <input type="number" name="fee" id="csf_fee" placeholder="例：4000" min="0" step="1">
-                  </div>
-                </div>
-
-                <!-- 立替金入力エリア -->
-                <div class="advances-section" style="margin-bottom:16px; border:1px solid var(--border-color); border-radius:6px; padding:12px; background:var(--bg-secondary)">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
-                    <label style="font-weight:600; margin:0">💰 立替金（区分・内容・金額）</label>
-                    <div style="display:flex; gap:4px; flex-wrap:wrap;">
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('証紙代', '車庫証明証紙代', 2300)">＋ 証紙2,300円</button>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('証紙代', '軽届出証紙代', 700)">＋ 軽700円</button>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('印紙代', '登録印紙代', 700)">＋ 印紙700円</button>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('送料', 'レターパックプラス送料', 600)">＋ 送料600円</button>
-                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('プレート代', 'ナンバープレート代', 1440)">＋ プレート1,440円</button>
-                      <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow('その他', '', '')">＋ 追加</button>
-                    </div>
-                  </div>
-                  <div id="advancesRowsContainer"></div>
-                </div>
-
-                <div class="form-group">
-                  <label>Google Drive フォルダURL</label>
-                  <div style="display:flex; gap:6px">
-                    <input type="url" name="driveFolderUrl" id="csf_driveFolderUrl"
-                      placeholder="https://drive.google.com/..." style="flex:1">
-                    <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openDriveFolder()" title="フォルダを開く">📂</button>
-                  </div>
-                </div>
-
-                <!-- 車両・保管場所情報 -->
+                <!-- ─── 3. 🚗 車両・保管場所情報 ─── -->
                 <div id="csf_car_fields" style="background:rgba(59,130,246,0.05); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:12px; margin-bottom:16px">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
                     <span style="font-weight:600; font-size:0.9rem; color:var(--primary-color)">🚗 車両・保管場所情報</span>
@@ -863,6 +829,42 @@ const Cases = {
                       <label>車台番号（VIN）</label>
                       <input type="text" name="vin" id="csf_vin" placeholder="例：ZWR90-0123456">
                     </div>
+                  </div>
+                </div>
+
+                <!-- ─── 5. 💰 報酬額・立替金 ─── -->
+                <div class="form-row">
+                  <div class="form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:4px;">
+                      <label style="margin:0;">報酬額（円）</label>
+                      <span id="csf_fee_hint" style="font-size:0.75rem;"></span>
+                    </div>
+                    <input type="number" name="fee" id="csf_fee" placeholder="例：4000" min="0" step="1">
+                  </div>
+                </div>
+
+                <!-- 立替金入力エリア -->
+                <div class="advances-section" style="margin-bottom:16px; border:1px solid var(--border-color); border-radius:6px; padding:12px; background:var(--bg-secondary)">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                    <label style="font-weight:600; margin:0">💰 立替金（区分・内容・金額）</label>
+                    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('証紙代', '車庫証明証紙代', 2300)">＋ 証紙2,300円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('証紙代', '軽届出証紙代', 700)">＋ 軽700円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('印紙代', '登録印紙代', 700)">＋ 印紙700円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('送料', 'レターパックプラス送料', 600)">＋ 送料600円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('プレート代', 'ナンバープレート代', 1440)">＋ プレート1,440円</button>
+                      <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow('その他', '', '')">＋ 追加</button>
+                    </div>
+                  </div>
+                  <div id="advancesRowsContainer"></div>
+                </div>
+
+                <div class="form-group">
+                  <label>Google Drive フォルダURL</label>
+                  <div style="display:flex; gap:6px">
+                    <input type="url" name="driveFolderUrl" id="csf_driveFolderUrl"
+                      placeholder="https://drive.google.com/..." style="flex:1">
+                    <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openDriveFolder()" title="フォルダを開く">📂</button>
                   </div>
                 </div>
 
@@ -1899,13 +1901,25 @@ const Cases = {
         const parkAddrEl = document.getElementById('csf_parkingAddress');
         if (parkAddrEl) parkAddrEl.value = prefills.garageAddress || prefills.parkingAddress;
       }
-      if (prefills.vin || prefills.carNumber) {
+      if (prefills.carNumber) {
         const carNumEl = document.getElementById('csf_carNumber');
-        if (carNumEl) carNumEl.value = prefills.carNumber || prefills.vin;
+        if (carNumEl) carNumEl.value = prefills.carNumber;
       }
       if (prefills.oldCarNumber) {
         const oldCarNumEl = document.getElementById('csf_oldCarNumber');
         if (oldCarNumEl) oldCarNumEl.value = prefills.oldCarNumber;
+      }
+      if (prefills.vin) {
+        const vinEl = document.getElementById('csf_vin');
+        if (vinEl) vinEl.value = prefills.vin;
+      }
+      if (prefills.regType) {
+        const regTypeEl = document.getElementById('csf_regType');
+        if (regTypeEl) regTypeEl.value = prefills.regType;
+      }
+      if (prefills.subCategory) {
+        const subCatEl = document.getElementById('csf_subCategory');
+        if (subCatEl) subCatEl.value = prefills.subCategory;
       }
       if (prefills.deadline) {
         const dlEl = document.getElementById('csf_deadline');
