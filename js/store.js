@@ -58,7 +58,7 @@ const Store = {
         }
 
         // 救済3: vin が空で、メモ欄に「車台番号: XXX」または車台番号パターンがある
-        if (!curVin && c.memo) {
+        if (!curVin && typeof c.memo === 'string' && c.memo) {
           const m = c.memo.match(/車台番号\s*[:：]?\s*([0-9A-Z]+-[0-9A-Z]+)/i) || c.memo.match(/\b([A-Z0-9]{2,8}-[0-9A-Z]{4,10})\b/i);
           if (m) {
             c.vin = m[1].toUpperCase();

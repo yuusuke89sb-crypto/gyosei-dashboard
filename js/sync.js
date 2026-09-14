@@ -22,7 +22,8 @@ const SpreadsheetSync = {
     },
 
     getGasUrl() {
-        return this.getConfig().gasUrl || this.DEFAULT_GAS_URL;
+        const conf = this.getConfig();
+        return (conf.gasUrl && conf.gasUrl.trim()) ? conf.gasUrl.trim() : this.DEFAULT_GAS_URL;
     },
 
     isConfigured() {
@@ -260,6 +261,26 @@ const SpreadsheetSync = {
                 }
             }
 
+            // カレンダー予定データを localStorage にマージ保存
+            if (data.events && Array.isArray(data.events)) {
+                const localEvents = Store.getEvents();
+                const knownIds = new Set(localEvents.filter(e => e.calendarEventId).map(e => e.calendarEventId));
+                data.events.forEach(ge => {
+                    if (knownIds.has(ge.calendarEventId)) return;
+                    let title = ge.title || '';
+                    title = title.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '');
+                    Store.addEvent({
+                        title,
+                        date: ge.date,
+                        time: ge.time || '',
+                        endTime: ge.endTime || '',
+                        category: 'other',
+                        memo: ge.description || '',
+                        calendarEventId: ge.calendarEventId,
+                    });
+                });
+            }
+
             // 同期日時を記録
             this.saveConfig({
                 ...this.getConfig(),
@@ -274,6 +295,7 @@ const SpreadsheetSync = {
                 inbox: (data.inbox || []).length,
                 locations: (data.locations || []).length,
                 clientContacts: (data.clientContacts || []).length,
+                events: (data.events || []).length,
                 syncedAt: data.syncedAt,
             };
 
@@ -339,6 +361,7 @@ const SpreadsheetSync = {
     // ---- 設定モーダル ----
     showSettingsModal() {
         const config = this.getConfig();
+        const currentGasUrl = this.getGasUrl();
         const existing = document.getElementById('syncSettingsModal');
         if (existing) existing.remove();
 
@@ -357,8 +380,8 @@ const SpreadsheetSync = {
           <div class="form-group">
             <label>GAS Web App URL <span class="required">*</span></label>
             <input type="url" id="syncGasUrl" class="search-input" 
-              placeholder="https://script.google.com/macros/s/xxx/exec"
-              value="${config.gasUrl || ''}"
+              placeholder="${this.DEFAULT_GAS_URL}"
+              value="${config.gasUrl || currentGasUrl}"
               style="width:100%;margin-top:4px">
             <p class="form-hint">Apps Script のデプロイ URL を入力してください</p>
           </div>
@@ -460,11 +483,8 @@ const SpreadsheetSync = {
     },
 
     async onTestConnection() {
-        const url = document.getElementById('syncGasUrl').value.trim();
-        if (!url) {
-            App.showToast('URL を入力してください');
-            return;
-        }
+        let url = document.getElementById('syncGasUrl').value.trim();
+        if (!url) url = this.getGasUrl();
 
         const btn = document.getElementById('syncTestBtn');
         btn.disabled = true;
@@ -530,7 +550,7 @@ const SpreadsheetSync = {
         try {
             const result = await this.pull();
             App.refreshView();
-            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 顧客担当者${result.clientContacts || 0}件 / 場所${result.locations}件 / 案件${result.cases}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`);
+            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 顧客担当者${result.clientContacts || 0}件 / 場所${result.locations}件 / 案件${result.cases}件 / 予定${result.events || 0}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`);
         } catch (err) {
             App.showToast('❌ 同期エラー: ' + err.message);
         }
