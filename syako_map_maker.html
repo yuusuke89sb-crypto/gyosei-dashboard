@@ -974,7 +974,9 @@
         </div>
         <!-- 📋 アレイ複写（等間隔複写＋自動連番） -->
         <div class="property-row" id="propertyArrayDupRow" style="display:none; align-items:center; gap:3px; margin-top:4px; flex-wrap:wrap;">
-          <button class="property-btn" style="color:#A78BFA; border-color:#7C3AED; padding:3px 8px;" onclick="arrayDuplicate()" title="選択中の要素を指定方向・個数・間隔で一括複写（駐車枠は自動連番①②③…）">📋 アレイ複写（等間隔複製）</button>
+          <button class="property-btn" style="color:#C4B5FD; border-color:#7C3AED; background:rgba(124,58,237,0.18); padding:4px 10px; font-weight:bold; width:100%; text-align:center;" onclick="arrayDuplicate()" title="選択中の要素を指定方向・個数・間隔で一括複写（駐車枠は自動連番①②③…）">
+            📋 アレイ複写（等間隔複製・連番） [A]
+          </button>
         </div>
         <!-- 🔤 フォントサイズ調整（arrow, line-dim, text, dist-line用） -->
         <div class="property-row" id="propertyFontSizeRow" style="display:none; align-items:center; gap:4px; margin-top:4px;">
@@ -1084,10 +1086,14 @@
         <button class="tool-btn" id="tool-segment-erase" onclick="setTool('segment-erase')" title="交点からはみ出した線の部分だけを削除（節間消去）">
           <span class="tool-btn-icon">✂️</span>節間消去
         </button>
+        <button class="tool-btn" id="tool-array-dup" onclick="arrayDuplicate()" title="選択中の枠を指定方向・台数・ピッチで等間隔に一括連続配置（Aキー）" style="border-color:#7C3AED; color:#C4B5FD;">
+          <span class="tool-btn-icon">📋</span>アレイ複写
+        </button>
       </div>
 
       <div style="font-size:0.70rem; color:#38BDF8; background:#0F172A; border:1px solid #1E293B; border-radius:4px; padding:4px 6px; margin-top:6px; line-height:1.45;">
         💡 <b>Jw_cadライク作図機能:</b><br>
+        ・<b>アレイ複写 (Aキー):</b> 選択した保管場所枠を等間隔・自動連番で一括複製！<br>
         ・<b>吸着スナップ (Sキー):</b> 端点・交点・角に磁石のようにピタッと吸着！<br>
         ・<b>線の伸縮:</b> 選択した線の<b>両端ノード（○）</b>をドラッグで自由伸縮！<br>
         ・<b>複線 (Fキー):</b> 指定寸法（4.0m等）で完全な平行線を一発生成！<br>
@@ -1736,38 +1742,305 @@ function applyLineDash(ctx, style) {
 }
 
 // ─── ③ アレイ複写（等間隔複製＋自動連番） ───
+let currentArrayDir = 'right';
+
 function arrayDuplicate() {
-  if (!selectedItemRef) { showToast('⚠️ 複写する要素を選択してください'); return; }
+  if (!selectedItemRef) {
+    setTool('select');
+    showToast('💡 アレイ複写したい保管場所枠や要素をクリックして選択してください（Aキーでアレイ複写）');
+    return;
+  }
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) {
+    showToast('⚠️ 選択中の要素が見つかりません');
+    return;
+  }
+
+  // 既存モーダルを閉じる
+  const existingModal = document.getElementById('arrayDupModal');
+  if (existingModal) existingModal.remove();
+
+  const isSpot = item.type === 'rect-spot' || item.type === 'poly-spot';
+  const isRect = item.type === 'rect-spot' || item.type === 'rect-other';
+
+  // 基本寸法の取得（pxおよびメートル）
+  let baseWPx = 100, baseHPx = 120;
+  if (isRect) {
+    baseWPx = item.w || 100;
+    baseHPx = item.h || 120;
+  } else if (item.x1 !== undefined && item.x2 !== undefined) {
+    baseWPx = Math.abs(item.x2 - item.x1) || 100;
+    baseHPx = Math.abs(item.y2 - item.y1) || 100;
+  } else if (item.points && item.points.length > 0) {
+    const xs = item.points.map(p => p.x);
+    const ys = item.points.map(p => p.y);
+    baseWPx = Math.max(...xs) - Math.min(...xs);
+    baseHPx = Math.max(...ys) - Math.min(...ys);
+  }
+  const baseWM = pxToMeters(baseWPx, targetKey).toFixed(2);
+  const baseHM = pxToMeters(baseHPx, targetKey).toFixed(2);
+
+  const typeNameMap = {
+    'rect-spot': '🅿️ 保管場所枠(四角)',
+    'poly-spot': '⬡ 保管場所枠(多角形)',
+    'rect-other': '🔲 建物・自宅枠',
+    'line-straight': '📏 直線',
+    'line-road': '🛣️ 道路線',
+    'cad-dim': '📐 CAD寸法線',
+    'car': '🚗 車両マーク'
+  };
+  const typeLabel = typeNameMap[item.type] || item.type;
+  currentArrayDir = 'right';
+
+  const modal = document.createElement('div');
+  modal.id = 'arrayDupModal';
+  modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.8); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px);';
+
+  modal.innerHTML = `
+    <div style="background:#1e293b; border:1px solid #7c3aed; border-radius:12px; width:480px; max-width:94vw; padding:20px; color:#f8fafc; box-shadow:0 16px 40px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:16px;">
+      <!-- ヘッダー -->
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:1.3rem;">📋</span>
+          <div>
+            <div style="font-weight:bold; font-size:1.05rem; color:#c4b5fd;">アレイ複写（等間隔連続配置）</div>
+            <div style="font-size:0.75rem; color:#94a3b8;">対象: <span style="color:#a78bfa; font-weight:bold;">${typeLabel}</span> (幅 ${baseWM}m × 奥行 ${baseHM}m)</div>
+          </div>
+        </div>
+        <button onclick="document.getElementById('arrayDupModal').remove()" style="background:transparent; border:none; color:#94a3b8; font-size:1.3rem; cursor:pointer; padding:2px 8px;">✕</button>
+      </div>
+
+      <!-- 1. 複写方向 -->
+      <div>
+        <label style="font-size:0.8rem; font-weight:bold; color:#c4b5fd; margin-bottom:6px; display:block;">1. 複写方向</label>
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;">
+          <button type="button" class="array-dir-btn active" data-dir="right" onclick="setArrayDir('right')" style="padding:8px 4px; border-radius:6px; font-size:0.82rem; font-weight:bold; cursor:pointer; background:#7c3aed; color:#fff; border:1px solid #a78bfa;">➡️ 右 (横)</button>
+          <button type="button" class="array-dir-btn" data-dir="left" onclick="setArrayDir('left')" style="padding:8px 4px; border-radius:6px; font-size:0.82rem; font-weight:bold; cursor:pointer; background:#0f172a; color:#94a3b8; border:1px solid #475569;">⬅️ 左</button>
+          <button type="button" class="array-dir-btn" data-dir="down" onclick="setArrayDir('down')" style="padding:8px 4px; border-radius:6px; font-size:0.82rem; font-weight:bold; cursor:pointer; background:#0f172a; color:#94a3b8; border:1px solid #475569;">⬇️ 下 (縦)</button>
+          <button type="button" class="array-dir-btn" data-dir="up" onclick="setArrayDir('up')" style="padding:8px 4px; border-radius:6px; font-size:0.82rem; font-weight:bold; cursor:pointer; background:#0f172a; color:#94a3b8; border:1px solid #475569;">⬆️ 上</button>
+        </div>
+      </div>
+
+      <!-- 2. 複写台数（個数） -->
+      <div>
+        <label style="font-size:0.8rem; font-weight:bold; color:#c4b5fd; margin-bottom:6px; display:block;">2. 複写台数（個数）</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button type="button" onclick="changeArrayCount(-1)" style="width:36px; height:34px; background:#334155; border:1px solid #475569; border-radius:6px; color:#fff; font-size:1.1rem; font-weight:bold; cursor:pointer;">−</button>
+          <input type="number" id="arrayCountInput" value="5" min="1" max="50" style="width:70px; height:34px; background:#0f172a; border:1px solid #7c3aed; border-radius:6px; color:#c4b5fd; font-size:1.1rem; font-weight:bold; text-align:center;" oninput="updateArraySummary()">
+          <button type="button" onclick="changeArrayCount(1)" style="width:36px; height:34px; background:#334155; border:1px solid #475569; border-radius:6px; color:#fff; font-size:1.1rem; font-weight:bold; cursor:pointer;">＋</button>
+          <span style="font-size:0.9rem; color:#94a3b8;">台 (個)</span>
+          <div style="margin-left:auto; display:flex; gap:4px;">
+            <button type="button" onclick="setArrayCount(3)" style="padding:3px 8px; font-size:0.75rem; background:#1e293b; border:1px solid #475569; border-radius:4px; color:#cbd5e1; cursor:pointer;">3台</button>
+            <button type="button" onclick="setArrayCount(5)" style="padding:3px 8px; font-size:0.75rem; background:#1e293b; border:1px solid #475569; border-radius:4px; color:#cbd5e1; cursor:pointer;">5台</button>
+            <button type="button" onclick="setArrayCount(8)" style="padding:3px 8px; font-size:0.75rem; background:#1e293b; border:1px solid #475569; border-radius:4px; color:#cbd5e1; cursor:pointer;">8台</button>
+            <button type="button" onclick="setArrayCount(10)" style="padding:3px 8px; font-size:0.75rem; background:#1e293b; border:1px solid #475569; border-radius:4px; color:#cbd5e1; cursor:pointer;">10台</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 配置間隔（ピッチ） -->
+      <div>
+        <label style="font-size:0.8rem; font-weight:bold; color:#c4b5fd; margin-bottom:6px; display:block;">3. 配置ピッチ（間隔）</label>
+        <div style="display:flex; flex-direction:column; gap:6px; background:#0f172a; padding:10px 12px; border-radius:8px; border:1px solid #334155;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.82rem;">
+            <input type="radio" name="arrayPitchMode" value="exact" checked onchange="onPitchModeChange()" style="accent-color:#7c3aed;">
+            <span style="color:#f8fafc; font-weight:bold;">枠サイズぴったり（隙間なし 0m）</span>
+            <span style="color:#a78bfa; font-size:0.75rem; margin-left:auto;" id="arrayExactPitchDisplay">${baseWM}m</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.82rem;">
+            <input type="radio" name="arrayPitchMode" value="clearance" onchange="onPitchModeChange()" style="accent-color:#7c3aed;">
+            <span>枠の間に隙間を開ける</span>
+            <div style="margin-left:auto; display:flex; align-items:center; gap:4px;">
+              <span style="color:#94a3b8; font-size:0.75rem;">隙間:</span>
+              <input type="number" id="arrayClearanceMInput" value="0.5" step="0.1" min="0.1" max="20" style="width:50px; background:#1e293b; border:1px solid #475569; border-radius:4px; color:#fff; font-size:0.78rem; text-align:right; padding:1px 3px;" oninput="updateArraySummary()">
+              <span style="font-size:0.75rem; color:#94a3b8;">m</span>
+            </div>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:0.82rem;">
+            <input type="radio" name="arrayPitchMode" value="custom" onchange="onPitchModeChange()" style="accent-color:#7c3aed;">
+            <span>ピッチ（芯々距離）を直接指定</span>
+            <div style="margin-left:auto; display:flex; align-items:center; gap:4px;">
+              <input type="number" id="arrayCustomMInput" value="${baseWM}" step="0.1" min="0.1" max="50" style="width:54px; background:#1e293b; border:1px solid #475569; border-radius:4px; color:#fff; font-size:0.78rem; text-align:right; padding:1px 3px;" oninput="updateArraySummary()">
+              <span style="font-size:0.75rem; color:#94a3b8;">m</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- 4. 自動連番設定（保管場所枠の場合） -->
+      <div id="arrayNumberingSection" style="display:${isSpot ? 'block' : 'none'};">
+        <label style="font-size:0.8rem; font-weight:bold; color:#c4b5fd; margin-bottom:6px; display:block;">4. 番号の自動連番</label>
+        <div style="display:flex; align-items:center; gap:10px; background:#0f172a; padding:8px 12px; border-radius:8px; border:1px solid #334155; font-size:0.82rem;">
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+            <input type="checkbox" id="arrayNumberingCheck" checked style="accent-color:#7c3aed;">
+            <span>連番を付与</span>
+          </label>
+          <div style="display:flex; align-items:center; gap:4px; margin-left:auto;">
+            <select id="arrayNumStyle" style="background:#1e293b; border:1px solid #475569; border-radius:4px; color:#fff; font-size:0.78rem; padding:2px 4px;">
+              <option value="circled" selected>①②③… (丸数字)</option>
+              <option value="plain">1, 2, 3… (半角数字)</option>
+              <option value="no">No.1, No.2… (No.付)</option>
+            </select>
+            <span style="color:#94a3b8; font-size:0.75rem;">開始:</span>
+            <input type="number" id="arrayStartNum" value="1" min="1" max="99" style="width:40px; background:#1e293b; border:1px solid #475569; border-radius:4px; color:#fff; font-size:0.78rem; text-align:center; padding:1px 2px;">
+          </div>
+        </div>
+      </div>
+
+      <!-- 実行ボタン -->
+      <div style="display:flex; gap:8px; margin-top:6px;">
+        <button type="button" onclick="document.getElementById('arrayDupModal').remove()" style="flex:1; padding:10px; background:#334155; border:1px solid #475569; border-radius:8px; color:#cbd5e1; font-weight:bold; font-size:0.88rem; cursor:pointer;">
+          キャンセル (Esc)
+        </button>
+        <button type="button" onclick="executeArrayDuplicate()" style="flex:2; padding:10px; background:linear-gradient(135deg, #7c3aed, #6366f1); border:none; border-radius:8px; color:#fff; font-weight:bold; font-size:0.95rem; cursor:pointer; box-shadow:0 4px 12px rgba(124,58,237,0.4);">
+          📋 複写を実行する (Enter)
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      modal.remove();
+    } else if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') {
+      executeArrayDuplicate();
+    }
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+
+  updateArraySummary();
+}
+
+function setArrayDir(dir) {
+  currentArrayDir = dir;
+  document.querySelectorAll('.array-dir-btn').forEach(btn => {
+    if (btn.dataset.dir === dir) {
+      btn.style.background = '#7c3aed';
+      btn.style.color = '#fff';
+      btn.style.borderColor = '#a78bfa';
+    } else {
+      btn.style.background = '#0f172a';
+      btn.style.color = '#94a3b8';
+      btn.style.borderColor = '#475569';
+    }
+  });
+  updateArraySummary();
+}
+
+function changeArrayCount(delta) {
+  const input = document.getElementById('arrayCountInput');
+  if (!input) return;
+  let val = (parseInt(input.value, 10) || 1) + delta;
+  if (val < 1) val = 1;
+  if (val > 50) val = 50;
+  input.value = val;
+  updateArraySummary();
+}
+
+function setArrayCount(val) {
+  const input = document.getElementById('arrayCountInput');
+  if (!input) return;
+  input.value = val;
+  updateArraySummary();
+}
+
+function onPitchModeChange() {
+  updateArraySummary();
+}
+
+function updateArraySummary() {
+  if (!selectedItemRef) return;
   const { targetKey, index } = selectedItemRef;
   const item = drawings[targetKey][index];
   if (!item) return;
 
-  const countStr = prompt('複写する個数を入力してください（例: 5）:', '5');
-  if (!countStr) return;
-  const count = parseInt(countStr, 10);
-  if (!count || count < 1 || count > 50) { showToast('⚠️ 1〜50の個数を入力してください'); return; }
-
-  const dirStr = prompt('複写方向を入力（right / left / up / down）:', 'right');
-  if (!dirStr) return;
-  const dir = dirStr.trim().toLowerCase();
-  if (!['right', 'left', 'up', 'down'].includes(dir)) { showToast('⚠️ right / left / up / down のいずれかを入力'); return; }
-
-  let pitchPx;
-  if (item.type === 'rect-spot' || item.type === 'rect-other') {
-    const pitchStr = prompt(`ピッチ（間隔）を入力\n※ px単位で直接入力。現在の枠サイズ: 幅${item.w}px × 高さ${item.h}px\n例: 枠幅と同じ=${item.w}`, String(dir === 'right' || dir === 'left' ? item.w : item.h));
-    if (!pitchStr) return;
-    pitchPx = parseFloat(pitchStr);
-  } else {
-    const pitchStr = prompt('ピッチ（間隔）をpxで入力（例: 60）:', '60');
-    if (!pitchStr) return;
-    pitchPx = parseFloat(pitchStr);
+  const isRect = item.type === 'rect-spot' || item.type === 'rect-other';
+  let baseWPx = item.w || 100;
+  let baseHPx = item.h || 120;
+  if (!isRect && item.x1 !== undefined && item.x2 !== undefined) {
+    baseWPx = Math.abs(item.x2 - item.x1) || 100;
+    baseHPx = Math.abs(item.y2 - item.y1) || 100;
   }
-  if (!pitchPx || pitchPx <= 0) { showToast('⚠️ 正の数値でピッチを入力してください'); return; }
+  const isHoriz = currentArrayDir === 'right' || currentArrayDir === 'left';
+  const sizePx = isHoriz ? baseWPx : baseHPx;
+  const sizeM = pxToMeters(sizePx, targetKey).toFixed(2);
+
+  const exactDisp = document.getElementById('arrayExactPitchDisplay');
+  if (exactDisp) exactDisp.textContent = `${sizeM}m (${Math.round(sizePx)}px)`;
+
+  const customInput = document.getElementById('arrayCustomMInput');
+  if (customInput && document.activeElement !== customInput && customInput.value === '') {
+    customInput.value = sizeM;
+  }
+}
+
+function executeArrayDuplicate() {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+
+  const countInput = document.getElementById('arrayCountInput');
+  const count = parseInt(countInput ? countInput.value : '5', 10) || 5;
+  if (count < 1 || count > 50) {
+    showToast('⚠️ 1〜50の個数を指定してください');
+    return;
+  }
+
+  const dir = currentArrayDir;
+  const isHoriz = dir === 'right' || dir === 'left';
+  const isRect = item.type === 'rect-spot' || item.type === 'rect-other';
+  let baseWPx = item.w || 100;
+  let baseHPx = item.h || 120;
+  if (!isRect && item.x1 !== undefined && item.x2 !== undefined) {
+    baseWPx = Math.abs(item.x2 - item.x1) || 100;
+    baseHPx = Math.abs(item.y2 - item.y1) || 100;
+  }
+
+  const pitchMode = document.querySelector('input[name="arrayPitchMode"]:checked')?.value || 'exact';
+  let pitchPx = isHoriz ? baseWPx : baseHPx;
+
+  if (pitchMode === 'clearance') {
+    const clrM = parseFloat(document.getElementById('arrayClearanceMInput')?.value) || 0.5;
+    pitchPx += metersToPx(clrM, targetKey);
+  } else if (pitchMode === 'custom') {
+    const custM = parseFloat(document.getElementById('arrayCustomMInput')?.value) || pxToMeters(pitchPx, targetKey);
+    pitchPx = metersToPx(custM, targetKey);
+  }
+
+  if (pitchPx <= 0) pitchPx = isHoriz ? baseWPx : baseHPx;
+
+  const doNumbering = document.getElementById('arrayNumberingCheck')?.checked ?? true;
+  const numStyle = document.getElementById('arrayNumStyle')?.value || 'circled';
+  const startNum = parseInt(document.getElementById('arrayStartNum')?.value || '1', 10) || 1;
 
   const circledNums = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿';
+
+  function getNumberLabel(num) {
+    if (numStyle === 'circled') {
+      const idx = num - 1;
+      return (idx >= 0 && idx < circledNums.length) ? circledNums[idx] : String(num);
+    } else if (numStyle === 'no') {
+      return `No.${num}`;
+    } else {
+      return String(num);
+    }
+  }
+
   const isSpot = item.type === 'rect-spot' || item.type === 'poly-spot';
 
   pushHistory();
+  // 元の要素に最初の連番を付与
+  if (isSpot && doNumbering) {
+    item.label = getNumberLabel(startNum);
+  }
+
   for (let i = 1; i <= count; i++) {
     const newItem = JSON.parse(JSON.stringify(item));
     const dx = dir === 'right' ? pitchPx * i : dir === 'left' ? -pitchPx * i : 0;
@@ -1779,22 +2052,20 @@ function arrayDuplicate() {
       newItem.points.forEach(p => { p.x += dx; p.y += dy; });
     }
 
-    if (isSpot && i < circledNums.length) {
-      newItem.label = circledNums[i];
+    if (isSpot && doNumbering) {
+      newItem.label = getNumberLabel(startNum + i);
     }
 
     drawings[targetKey].push(newItem);
   }
 
-  // 元の要素にも連番を付ける（最初の番号）
-  if (isSpot) {
-    item.label = circledNums[0];
-  }
+  const modal = document.getElementById('arrayDupModal');
+  if (modal) modal.remove();
 
   pushHistory();
   autoSaveDraft();
   redraw(targetKey);
-  showToast(`📋 ${count}個のアレイ複写を完了${isSpot ? '（自動連番①②③…付与）' : ''}しました`);
+  showToast(`📋 ${count}個のアレイ複写を完了しました！${(isSpot && doNumbering) ? '（連番自動付与）' : ''}`);
 }
 
 // ─── ① CAD寸法線の描画関数 ───
@@ -2211,7 +2482,7 @@ function setupKeyboardShortcuts() {
       rotateSelectedItem(1);
     }
     // アレイ複写: Aキー
-    if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && selectedItemRef && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
       e.preventDefault();
       arrayDuplicate();
     }
@@ -4455,7 +4726,7 @@ function setupCanvasEvents(canvas, targetKey) {
         label: labelText,
         angle: 0
       });
-      showToast('🅿️ 保管場所枠を作成しました');
+      showToast('🅿️ 保管場所枠を作成しました（Aキーでアレイ複写）');
     } else if (currentTool === 'rect-other') {
       const w = dragDist < 8 ? 140 : Math.abs(endX - startX);
       const h = dragDist < 8 ? 140 : Math.abs(endY - startY);
@@ -4669,6 +4940,7 @@ function setupCanvasEvents(canvas, targetKey) {
     pushHistory();
     redraw(targetKey);
     showPropertyPanel(targetKey, newIndex);
+    drawSelectionHighlight(targetKey, newIndex);
   });
 
   canvas.addEventListener('dblclick', (e) => {
