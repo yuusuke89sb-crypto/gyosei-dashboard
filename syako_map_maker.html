@@ -880,6 +880,7 @@
         <div class="property-title">
           <span id="selectedItemTypeLabel">🎯 選択中の要素</span>
           <div style="display:flex; gap:4px;">
+            <button class="property-btn" style="color:#38BDF8; padding:1px 6px; font-weight:bold;" onclick="duplicateSelectedItem()" title="選択中の要素を複製 (Ctrl+D)">📋 複写</button>
             <button class="property-btn" style="color:#94A3B8; padding:1px 5px;" onclick="clearSelection()" title="選択を解除 (Esc)">✖ 選択解除</button>
             <button class="property-btn" style="color:#EF4444; padding:1px 5px;" onclick="deleteSelectedItem()">🗑️ 削除</button>
           </div>
@@ -913,6 +914,27 @@
           <button class="property-btn" onclick="scaleSelectedItem(0.85)">➖ 縮小</button>
           <button class="property-btn" onclick="scaleSelectedItem(1.18)">➕ 拡大</button>
           <button class="property-btn" onclick="editSelectedText()">✏️ 文字変更</button>
+        </div>
+        <!-- 📏 線の長さ調整（伸縮）と複線（平行線）バー -->
+        <div class="property-row" id="propertyLineLengthRow" style="display:none; align-items:center; gap:4px; margin-top:4px; flex-wrap:wrap;">
+          <span style="font-size:0.72rem; color:#38BDF8; width:48px; flex-shrink:0;">📏 長さ:</span>
+          <span id="propertyLineLengthDisplay" style="font-size:0.75rem; font-weight:bold; color:#F59E0B; min-width:65px;">-</span>
+          <input type="number" id="propertyLineLengthInput" step="0.1" min="0.1" placeholder="m" style="width:52px; background:#1E293B; border:1px solid #475569; border-radius:3px; color:#38BDF8; font-size:0.75rem; font-weight:bold; text-align:right; padding:1px 3px;">
+          <span style="font-size:0.72rem; color:#94A3B8;">m</span>
+          <button class="property-btn" onclick="applyLineLengthInput()" title="入力した長さに伸縮">伸縮適用</button>
+          <button class="property-btn" style="color:#34D399; border-color:#10B981;" onclick="startParallelFromSelected()" title="この線から指定寸法で平行線（複線）を生成">🪜 複線作成</button>
+        </div>
+        <!-- 🪜 複線（平行線）設定バー -->
+        <div class="property-row" id="propertyParallelBar" style="display:none; align-items:center; gap:3px; margin-top:4px; flex-wrap:wrap; background:#064E3B; border:1px solid #10B981; border-radius:4px; padding:3px 6px;">
+          <span style="font-size:0.72rem; color:#6EE7B7; font-weight:bold;">🪜 複線間隔:</span>
+          <input type="number" id="parallelDistInput" value="4.0" step="0.5" min="0.5" style="width:46px; background:#0F172A; border:1px solid #34D399; border-radius:3px; color:#34D399; font-size:0.75rem; font-weight:bold; text-align:right; padding:1px 3px;" onchange="parallelDistM = parseFloat(this.value) || 4.0">
+          <span style="font-size:0.72rem; color:#A7F3D0;">m</span>
+          <button class="property-btn" style="padding:1px 4px;" onclick="setParallelDist(2.0)">2m</button>
+          <button class="property-btn" style="padding:1px 4px;" onclick="setParallelDist(3.0)">3m</button>
+          <button class="property-btn" style="padding:1px 4px;" onclick="setParallelDist(4.0)">4m</button>
+          <button class="property-btn" style="padding:1px 4px;" onclick="setParallelDist(5.0)">5m</button>
+          <button class="property-btn" style="padding:1px 4px;" onclick="setParallelDist(6.0)">6m</button>
+          <button class="property-btn" style="padding:1px 4px; background:#047857; color:#fff;" onclick="createDoubleSidedParallel()" title="両側に一括で平行線を生成（道路両端を作成）">両側複線</button>
         </div>
         <div class="property-row" id="propertyTextRow" style="display:none; margin-top:4px;">
           <span style="font-size:0.72rem; color:#38BDF8; width:48px;">✏️ 文字:</span>
@@ -1013,15 +1035,28 @@
         <button class="tool-btn" id="tool-ortho-toggle" onclick="toggleOrthoLock()" title="水平・垂直の直交ロック（Shiftキーでも可）" style="background:#1e293b; border-color:#38bdf8;">
           <span class="tool-btn-icon">📐</span>直交ロック <span id="orthoLockBadge" style="font-size:0.65rem; padding:1px 3px; border-radius:3px; background:#475569; color:#fff;">OFF</span>
         </button>
+        <button class="tool-btn" id="tool-parallel" onclick="setTool('parallel')" title="寸法を指定して平行線（複線）を引く（Fキー）">
+          <span class="tool-btn-icon">🪜</span>複線 (平行線)
+        </button>
+        <button class="tool-btn" id="tool-corner-trim" onclick="setTool('corner-trim')" title="2つの線をクリックして角を綺麗に結合・成形">
+          <span class="tool-btn-icon">📐</span>コーナー結合
+        </button>
+        <button class="tool-btn" id="tool-snap-toggle" onclick="toggleObjectSnap()" title="端点・交点・角への磁石吸着（Sキーで切替）" style="background:#064e3b; border-color:#10b981;">
+          <span class="tool-btn-icon">🧲</span>吸着スナップ <span id="objectSnapBadge" style="font-size:0.65rem; padding:1px 3px; border-radius:3px; background:#10B981; color:#fff;">ON</span>
+        </button>
         <button class="tool-btn" id="tool-clean-roads" onclick="autoCleanRoadIntersections()" title="道路のT字路・交差点を自動判定して綺麗に開口・成形" style="background:#1e293b; border-color:#10b981;">
           <span class="tool-btn-icon">✂️</span>T字路・交差点成形
         </button>
       </div>
 
-      <div style="font-size:0.70rem; color:#38BDF8; background:#0F172A; border:1px solid #1E293B; border-radius:4px; padding:4px 6px; margin-top:6px;">
-        💡 <b>直線の引き方:</b> 「直線ペン」「道路境界線」はドラッグで引けます。<br>
-        <b>「直交ロック」ボタンまたはShiftキー</b>で、100%水平・垂直にまっすぐ引けます！<br>
-        T字路や交差した箇所は<b>「✂️ T字路・交差点成形」</b>を押すと自動で余分な線を開口・接続します！
+      <div style="font-size:0.70rem; color:#38BDF8; background:#0F172A; border:1px solid #1E293B; border-radius:4px; padding:4px 6px; margin-top:6px; line-height:1.45;">
+        💡 <b>Jw_cadライク作図機能:</b><br>
+        ・<b>吸着スナップ (Sキー):</b> 端点・交点・角に磁石のようにピタッと吸着！<br>
+        ・<b>線の伸縮:</b> 選択した線の<b>両端ノード（○）</b>をドラッグで自由伸縮！<br>
+        ・<b>複線 (Fキー):</b> 指定寸法（4.0m等）で完全な平行線を一発生成！<br>
+        ・<b>コーナー結合:</b> 2本の線をクリックして角を綺麗に隙間なく結合！<br>
+        ・<b>複写:</b> <b>Ctrl+C / Ctrl+V</b> または <b>Ctrl+D</b> で複製！<br>
+        ・<b>直交ロック (Shiftキー):</b> 水平・垂直にまっすぐ描画！
       </div>
 
       <!-- スタンプ管理（削除×ボタン付き・自由編集） -->
@@ -1246,6 +1281,14 @@ let selectedItemRef = null; // { targetKey, index }
 let startX = 0, startY = 0;
 let lastPanX = 0, lastPanY = 0;
 
+// ─── Jw_cad ライク作図機能用ステート ───
+let clipboardItem = null;
+window.objectSnapEnabled = true;
+let currentSnapIndicator = null;
+let cornerFirstItemRef = null;
+let parallelBaseRef = null;
+let parallelDistM = 4.0;
+
 // ─── 多角形・フリーハンド作図用ステート ───
 let polygonPoints = [];
 let isFreehandDrawing = false;
@@ -1308,6 +1351,311 @@ function toggleOrthoLock() {
     if (btn) { btn.style.background = '#1e293b'; btn.style.borderColor = '#38bdf8'; }
     showToast('📐 直交ロック: OFF（自由角度）');
   }
+}
+
+
+// ─── CAD縮尺・寸法計算ユーティリティ ───
+function getMetersPerPixel(target = 'haichi') {
+  if (target === 'haichi' && haichiMode === 'blank') {
+    return window.blankMetersPerPixel || 0.05; // 20px = 1m
+  }
+  const map = target === 'sozai' ? sozaiMap : haichiMap;
+  if (map) {
+    try {
+      const center = map.getCenter();
+      const pt1 = map.latLngToContainerPoint(center);
+      const pt2 = L.point(pt1.x + 100, pt1.y);
+      const latlng2 = map.containerPointToLatLng(pt2);
+      const d = center.distanceTo(latlng2) / 100.0;
+      if (d > 0.001 && d < 1000) return d;
+    } catch(e) {}
+  }
+  return 0.25;
+}
+
+function pxToMeters(px, target = 'haichi') {
+  return px * getMetersPerPixel(target);
+}
+
+function metersToPx(meters, target = 'haichi') {
+  const mpp = getMetersPerPixel(target);
+  return mpp > 0 ? (meters / mpp) : (meters * 20);
+}
+
+// ─── 複写（コピー・貼り付け・複製） ───
+function copySelectedItem() {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+  clipboardItem = JSON.parse(JSON.stringify(item));
+  showToast('📋 要素をコピーしました (Ctrl+Vで貼り付け)');
+}
+
+function pasteCopiedItem() {
+  if (!clipboardItem) {
+    showToast('⚠️ コピーされた要素がありません');
+    return;
+  }
+  pushHistory();
+  const targetKey = activeTarget || 'haichi';
+  const newItem = JSON.parse(JSON.stringify(clipboardItem));
+  const offset = 20;
+  if (newItem.x !== undefined) { newItem.x += offset; newItem.y += offset; }
+  if (newItem.x1 !== undefined) {
+    newItem.x1 += offset; newItem.y1 += offset;
+    newItem.x2 += offset; newItem.y2 += offset;
+  }
+  if (newItem.points && Array.isArray(newItem.points)) {
+    newItem.points.forEach(p => { p.x += offset; p.y += offset; });
+  }
+  drawings[targetKey].push(newItem);
+  const newIndex = drawings[targetKey].length - 1;
+  pushHistory();
+  autoSaveDraft();
+  redraw(targetKey);
+  showPropertyPanel(targetKey, newIndex);
+  drawSelectionHighlight(targetKey, newIndex);
+  showToast('📋 要素を貼り付けました');
+}
+
+function duplicateSelectedItem() {
+  if (!selectedItemRef) {
+    showToast('⚠️ 複製する要素を選択してください');
+    return;
+  }
+  copySelectedItem();
+  pasteCopiedItem();
+}
+
+// ─── 吸着スナップ (CAD Osnap) ───
+function toggleObjectSnap() {
+  window.objectSnapEnabled = !window.objectSnapEnabled;
+  const badge = document.getElementById('objectSnapBadge');
+  const btn = document.getElementById('tool-snap-toggle');
+  if (window.objectSnapEnabled) {
+    if (badge) { badge.textContent = 'ON'; badge.style.background = '#10B981'; }
+    if (btn) { btn.style.background = '#064e3b'; btn.style.borderColor = '#10B981'; }
+    showToast('🧲 端点・交点スナップ: ON（端点や角に吸着）');
+  } else {
+    if (badge) { badge.textContent = 'OFF'; badge.style.background = '#475569'; }
+    if (btn) { btn.style.background = '#1e293b'; btn.style.borderColor = '#475569'; }
+    showToast('🧲 端点・交点スナップ: OFF');
+  }
+  redrawAll();
+}
+
+function getLineLineIntersection(l1, l2, extend = false) {
+  const { x1, y1, x2, y2 } = l1;
+  const { x1: x3, y1: y3, x2: x4, y2: y4 } = l2;
+  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (Math.abs(denom) < 1e-6) return null;
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+  const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+  if (extend || (t >= -0.05 && t <= 1.05 && u >= -0.05 && u <= 1.05)) {
+    return {
+      x: Math.round(x1 + t * (x2 - x1)),
+      y: Math.round(y1 + t * (y2 - y1))
+    };
+  }
+  return null;
+}
+
+function getSnapPoints(targetKey, excludeIndex = -1) {
+  const points = [];
+  const items = drawings[targetKey] || [];
+
+  items.forEach((item, idx) => {
+    if (idx === excludeIndex) return;
+
+    if (item.x1 !== undefined && item.y1 !== undefined && item.x2 !== undefined && item.y2 !== undefined) {
+      points.push({ x: item.x1, y: item.y1, type: 'endpoint', label: '端点' });
+      points.push({ x: item.x2, y: item.y2, type: 'endpoint', label: '端点' });
+      points.push({ x: Math.round((item.x1 + item.x2) / 2), y: Math.round((item.y1 + item.y2) / 2), type: 'midpoint', label: '中点' });
+    } else if (item.type && (item.type.startsWith('rect') || item.type === 'car')) {
+      const x = item.x, y = item.y, w = item.w, h = item.h;
+      points.push({ x: x, y: y, type: 'corner', label: '頂点' });
+      points.push({ x: x + w, y: y, type: 'corner', label: '頂点' });
+      points.push({ x: x + w, y: y + h, type: 'corner', label: '頂点' });
+      points.push({ x: x, y: y + h, type: 'corner', label: '頂点' });
+      points.push({ x: Math.round(x + w / 2), y: y, type: 'midpoint', label: '中点' });
+      points.push({ x: Math.round(x + w / 2), y: y + h, type: 'midpoint', label: '中点' });
+      points.push({ x: x, y: Math.round(y + h / 2), type: 'midpoint', label: '中点' });
+      points.push({ x: x + w, y: Math.round(y + h / 2), type: 'midpoint', label: '中点' });
+    } else if (item.points && Array.isArray(item.points)) {
+      item.points.forEach(p => {
+        points.push({ x: p.x, y: p.y, type: 'corner', label: '頂点' });
+      });
+      for (let i = 0; i < item.points.length; i++) {
+        const p1 = item.points[i];
+        const p2 = item.points[(i + 1) % item.points.length];
+        points.push({ x: Math.round((p1.x + p2.x) / 2), y: Math.round((p1.y + p2.y) / 2), type: 'midpoint', label: '中点' });
+      }
+    }
+  });
+
+  const lines = [];
+  items.forEach((item, idx) => {
+    if (idx === excludeIndex) return;
+    if (item.x1 !== undefined && item.y1 !== undefined && item.x2 !== undefined && item.y2 !== undefined) {
+      lines.push(item);
+    }
+  });
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = i + 1; j < lines.length; j++) {
+      const inter = getLineLineIntersection(lines[i], lines[j], false);
+      if (inter) {
+        points.push({ x: inter.x, y: inter.y, type: 'intersection', label: '交点' });
+      }
+    }
+  }
+
+  return points;
+}
+
+function findNearestSnap(x, y, targetKey, excludeIndex = -1, threshold = 14) {
+  if (!window.objectSnapEnabled) return null;
+  const snapPoints = getSnapPoints(targetKey, excludeIndex);
+  let bestDist = threshold;
+  let bestPoint = null;
+  for (const pt of snapPoints) {
+    const d = Math.hypot(pt.x - x, pt.y - y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestPoint = pt;
+    }
+  }
+  return bestPoint;
+}
+
+function drawSnapIndicator(ctx, snap) {
+  if (!snap) return;
+  ctx.save();
+  ctx.lineWidth = 2;
+  const size = 6;
+  if (snap.type === 'endpoint' || snap.type === 'corner') {
+    ctx.strokeStyle = '#10B981';
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.25)';
+    ctx.beginPath();
+    ctx.rect(snap.x - size, snap.y - size, size * 2, size * 2);
+    ctx.fill();
+    ctx.stroke();
+  } else if (snap.type === 'midpoint') {
+    ctx.strokeStyle = '#06B6D4';
+    ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
+    ctx.beginPath();
+    ctx.moveTo(snap.x, snap.y - size);
+    ctx.lineTo(snap.x + size, snap.y + size);
+    ctx.lineTo(snap.x - size, snap.y + size);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  } else if (snap.type === 'intersection') {
+    ctx.strokeStyle = '#F97316';
+    ctx.beginPath();
+    ctx.moveTo(snap.x - size, snap.y - size);
+    ctx.lineTo(snap.x + size, snap.y + size);
+    ctx.moveTo(snap.x - size, snap.y + size);
+    ctx.lineTo(snap.x + size, snap.y - size);
+    ctx.stroke();
+  }
+  ctx.font = 'bold 11px sans-serif';
+  const labelText = snap.label || '吸着';
+  const tw = ctx.measureText(labelText).width;
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+  ctx.fillRect(snap.x + 8, snap.y - 18, tw + 8, 16);
+  ctx.fillStyle = '#38BDF8';
+  ctx.fillText(labelText, snap.x + 12, snap.y - 6);
+  ctx.restore();
+}
+
+// ─── 線の長さ調整（伸縮） ───
+function applyLineLengthInput() {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item || item.x1 === undefined || item.x2 === undefined) return;
+  const valM = parseFloat(document.getElementById('propertyLineLengthInput').value);
+  if (!valM || valM <= 0) {
+    showToast('⚠️ 有効な長さを入力してください（例: 5.0）');
+    return;
+  }
+  const curDx = item.x2 - item.x1;
+  const curDy = item.y2 - item.y1;
+  const curLen = Math.hypot(curDx, curDy);
+  if (curLen === 0) return;
+  const targetPx = metersToPx(valM, targetKey);
+  pushHistory();
+  item.x2 = Math.round(item.x1 + (curDx / curLen) * targetPx);
+  item.y2 = Math.round(item.y1 + (curDy / curLen) * targetPx);
+  pushHistory();
+  autoSaveDraft();
+  redraw(targetKey);
+  showPropertyPanel(targetKey, index);
+  drawSelectionHighlight(targetKey, index);
+  showToast(`📏 線の長さを ${valM.toFixed(2)}m に変更しました`);
+}
+
+// ─── 複線（Jw_cad 複線 / 平行線） ───
+function setParallelDist(m) {
+  parallelDistM = parseFloat(m) || 4.0;
+  const input = document.getElementById('parallelDistInput');
+  if (input) input.value = parallelDistM;
+  showToast(`🪜 複線間隔: ${parallelDistM}m に設定`);
+}
+
+function startParallelFromSelected() {
+  if (!selectedItemRef) return;
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item || item.x1 === undefined || item.x2 === undefined) {
+    showToast('⚠️ 線を選択してください');
+    return;
+  }
+  parallelBaseRef = { targetKey, index };
+  setTool('parallel');
+  showToast('🪜 複線モード: 作成したい側（左右/上下）をクリックしてください');
+}
+
+function createDoubleSidedParallel() {
+  let targetRef = parallelBaseRef || selectedItemRef;
+  if (!targetRef) {
+    showToast('⚠️ 基準となる線を選択してください');
+    return;
+  }
+  const { targetKey, index } = targetRef;
+  const item = drawings[targetKey][index];
+  if (!item || item.x1 === undefined || item.x2 === undefined) return;
+
+  const distM = parseFloat(document.getElementById('parallelDistInput')?.value) || parallelDistM || 4.0;
+  const offsetPx = metersToPx(distM, targetKey);
+
+  const dx = item.x2 - item.x1;
+  const dy = item.y2 - item.y1;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return;
+  const nx = -dy / len;
+  const ny = dx / len;
+
+  pushHistory();
+  const line1 = JSON.parse(JSON.stringify(item));
+  line1.x1 = Math.round(item.x1 + offsetPx * nx);
+  line1.y1 = Math.round(item.y1 + offsetPx * ny);
+  line1.x2 = Math.round(item.x2 + offsetPx * nx);
+  line1.y2 = Math.round(item.y2 + offsetPx * ny);
+  drawings[targetKey].push(line1);
+
+  const line2 = JSON.parse(JSON.stringify(item));
+  line2.x1 = Math.round(item.x1 - offsetPx * nx);
+  line2.y1 = Math.round(item.y1 - offsetPx * ny);
+  line2.x2 = Math.round(item.x2 - offsetPx * nx);
+  line2.y2 = Math.round(item.y2 - offsetPx * ny);
+  drawings[targetKey].push(line2);
+
+  pushHistory();
+  autoSaveDraft();
+  redraw(targetKey);
+  showToast(`🪜 基準線の両側に複線（幅 ${distM}m）を2本作成しました`);
 }
 
 function snapToAngle(x1, y1, x2, y2, allow45 = false) {
@@ -1438,6 +1786,42 @@ function setupKeyboardShortcuts() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
       e.preventDefault();
       undo();
+    }
+    // CAD複写: Ctrl+C
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      if (selectedItemRef) {
+        e.preventDefault();
+        copySelectedItem();
+      }
+    }
+    // CAD貼り付け: Ctrl+V
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      if (clipboardItem) {
+        e.preventDefault();
+        pasteCopiedItem();
+      }
+    }
+    // CAD複製: Ctrl+D
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      if (selectedItemRef) {
+        e.preventDefault();
+        duplicateSelectedItem();
+      }
+    }
+    // CADスナップ切り替え: Sキー
+    if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      toggleObjectSnap();
+    }
+    // CAD複線ツール: Fキー
+    if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      setTool('parallel');
+    }
+    // 直交ロック切り替え: Oキー
+    if ((e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      toggleOrthoLock();
     }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
       e.preventDefault();
@@ -2337,6 +2721,27 @@ function showPropertyPanel(targetKey, index) {
     }
   }
 
+  // 📏 線の長さ調整・複線バー
+  const lineLengthRow = document.getElementById('propertyLineLengthRow');
+  const lineLengthDisplay = document.getElementById('propertyLineLengthDisplay');
+  const lineLengthInput = document.getElementById('propertyLineLengthInput');
+  const parallelBar = document.getElementById('propertyParallelBar');
+  if (lineLengthRow) {
+    if (item && item.x1 !== undefined && item.x2 !== undefined) {
+      lineLengthRow.style.display = 'flex';
+      if (parallelBar) parallelBar.style.display = (currentTool === 'parallel') ? 'flex' : 'none';
+      const lenPx = Math.hypot(item.x2 - item.x1, item.y2 - item.y1);
+      const lenM = pxToMeters(lenPx, targetKey).toFixed(2);
+      if (lineLengthDisplay) lineLengthDisplay.textContent = `${lenM}m (${Math.round(lenPx)}px)`;
+      if (lineLengthInput && document.activeElement !== lineLengthInput) {
+        lineLengthInput.value = lenM;
+      }
+    } else {
+      lineLengthRow.style.display = 'none';
+      if (parallelBar && currentTool !== 'parallel') parallelBar.style.display = 'none';
+    }
+  }
+
   const fontRow = document.getElementById('propertyFontSizeRow');
   const fontDisp = document.getElementById('propertyFontSizeDisplay');
   if (fontRow && fontDisp) {
@@ -2962,8 +3367,14 @@ function setTool(tool) {
     'text': '文字入力（クリック）',
     'landmark-dot': '⚫ 目印(黒丸) 配置（クリックした位置に黒丸●を配置）',
     'dist-line': '直線距離線（ドラッグまたはクリック / Shiftキーで水平垂直スナップ）',
-    'eraser': '要素削除（クリックで削除）'
+    'eraser': '要素削除（クリックで削除）',
+    'parallel': '🪜 複線(平行線)ツール: 基準線をクリック後、平行線を作りたい側（左右/上下）をクリック',
+    'corner-trim': '📐 コーナー結合: 1本目の線、2本目の線を順にクリックして角を隙間なく結合'
   };
+  if (tool === 'parallel') {
+    const pBar = document.getElementById('propertyParallelBar');
+    if (pBar) pBar.style.display = 'flex';
+  }
   showToast(toolLabels[tool] || tool);
 }
 
@@ -3046,7 +3457,40 @@ function setupCanvasEvents(canvas, targetKey) {
     lastPanX = e.clientX;
     lastPanY = e.clientY;
 
+    // 1. 選択モード時の端点ハンドル（伸縮）ドラッグ判定
     if (currentTool === 'select') {
+      if (selectedItemRef && selectedItemRef.targetKey === targetKey) {
+        const selItem = drawings[targetKey][selectedItemRef.index];
+        if (selItem && selItem.x1 !== undefined && selItem.x2 !== undefined) {
+          const dStart = Math.hypot(startX - selItem.x1, startY - selItem.y1);
+          const dEnd = Math.hypot(startX - selItem.x2, startY - selItem.y2);
+          if (dStart <= 12) {
+            isDragging = true;
+            dragTarget = {
+              targetKey,
+              index: selectedItemRef.index,
+              handle: 'start',
+              lastX: startX,
+              lastY: startY
+            };
+            pushHistory();
+            canvas.style.cursor = 'crosshair';
+            return;
+          } else if (dEnd <= 12) {
+            isDragging = true;
+            dragTarget = {
+              targetKey,
+              index: selectedItemRef.index,
+              handle: 'end',
+              lastX: startX,
+              lastY: startY
+            };
+            pushHistory();
+            canvas.style.cursor = 'crosshair';
+            return;
+          }
+        }
+      }
       const hitResult = hitTestElement(targetKey, startX, startY);
       if (hitResult !== null) {
         isDragging = true;
@@ -3082,6 +3526,109 @@ function setupCanvasEvents(canvas, targetKey) {
       isPanning = true;
       canvas.style.cursor = 'grabbing';
       return;
+    }
+
+    // 🪜 複線（平行線）ツール
+    if (currentTool === 'parallel') {
+      const hitResult = hitTestElement(targetKey, startX, startY);
+      if (!parallelBaseRef) {
+        if (hitResult !== null && drawings[targetKey][hitResult].x1 !== undefined) {
+          parallelBaseRef = { targetKey, index: hitResult };
+          showPropertyPanel(targetKey, hitResult);
+          drawSelectionHighlight(targetKey, hitResult);
+          const pBar = document.getElementById('propertyParallelBar');
+          if (pBar) pBar.style.display = 'flex';
+          showToast('🪜 基準線を選択しました。平行線を作成したい側をクリックしてください');
+        } else {
+          showToast('💡 平行線を作りたい基準線をクリックしてください');
+        }
+        return;
+      } else {
+        const baseItem = drawings[parallelBaseRef.targetKey][parallelBaseRef.index];
+        if (baseItem && baseItem.x1 !== undefined) {
+          const distM = parseFloat(document.getElementById('parallelDistInput')?.value) || parallelDistM || 4.0;
+          const offsetPx = metersToPx(distM, targetKey);
+          const dx = baseItem.x2 - baseItem.x1;
+          const dy = baseItem.y2 - baseItem.y1;
+          const len = Math.hypot(dx, dy);
+          if (len > 0) {
+            const nx = -dy / len;
+            const ny = dx / len;
+            const cp = dx * (startY - baseItem.y1) - dy * (startX - baseItem.x1);
+            const side = cp >= 0 ? 1 : -1;
+
+            pushHistory();
+            const newLine = JSON.parse(JSON.stringify(baseItem));
+            newLine.x1 = Math.round(baseItem.x1 + side * offsetPx * nx);
+            newLine.y1 = Math.round(baseItem.y1 + side * offsetPx * ny);
+            newLine.x2 = Math.round(baseItem.x2 + side * offsetPx * nx);
+            newLine.y2 = Math.round(baseItem.y2 + side * offsetPx * ny);
+            drawings[targetKey].push(newLine);
+            pushHistory();
+            autoSaveDraft();
+            redraw(targetKey);
+            showPropertyPanel(targetKey, drawings[targetKey].length - 1);
+            drawSelectionHighlight(targetKey, drawings[targetKey].length - 1);
+            showToast(`🪜 複線（幅 ${distM}m）を作成しました！`);
+          }
+        }
+        return;
+      }
+    }
+
+    // 📐 コーナー結合ツール
+    if (currentTool === 'corner-trim') {
+      const hitResult = hitTestElement(targetKey, startX, startY);
+      if (hitResult === null || drawings[targetKey][hitResult].x1 === undefined) {
+        showToast('💡 結合したい線をクリックしてください');
+        return;
+      }
+      if (!cornerFirstItemRef) {
+        cornerFirstItemRef = { targetKey, index: hitResult };
+        drawSelectionHighlight(targetKey, hitResult);
+        showToast('📐 1本目を選択しました。結合する2本目の線をクリックしてください');
+        return;
+      } else {
+        if (cornerFirstItemRef.index === hitResult && cornerFirstItemRef.targetKey === targetKey) {
+          showToast('⚠️ 異なる線をクリックしてください');
+          return;
+        }
+        const l1 = drawings[cornerFirstItemRef.targetKey][cornerFirstItemRef.index];
+        const l2 = drawings[targetKey][hitResult];
+        const inter = getLineLineIntersection(l1, l2, true);
+        if (!inter) {
+          showToast('⚠️ 2本の線が平行なため角結合できません');
+          cornerFirstItemRef = null;
+          redraw(targetKey);
+          return;
+        }
+        pushHistory();
+        const d1_start = Math.hypot(l1.x1 - inter.x, l1.y1 - inter.y);
+        const d1_end = Math.hypot(l1.x2 - inter.x, l1.y2 - inter.y);
+        if (d1_start < d1_end) { l1.x1 = inter.x; l1.y1 = inter.y; }
+        else { l1.x2 = inter.x; l1.y2 = inter.y; }
+
+        const d2_start = Math.hypot(l2.x1 - inter.x, l2.y1 - inter.y);
+        const d2_end = Math.hypot(l2.x2 - inter.x, l2.y2 - inter.y);
+        if (d2_start < d2_end) { l2.x1 = inter.x; l2.y1 = inter.y; }
+        else { l2.x2 = inter.x; l2.y2 = inter.y; }
+
+        pushHistory();
+        autoSaveDraft();
+        redraw(targetKey);
+        cornerFirstItemRef = null;
+        showToast('🎉 2本の線を角（交点）で綺麗に結合しました！');
+        return;
+      }
+    }
+
+    // 描画開始時の端点スナップ
+    if (window.objectSnapEnabled && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+      const snapStart = findNearestSnap(startX, startY, targetKey);
+      if (snapStart) {
+        startX = snapStart.x;
+        startY = snapStart.y;
+      }
     }
 
     // 多角形（保管場所 / 建物）描画モード
@@ -3174,6 +3721,46 @@ function setupCanvasEvents(canvas, targetKey) {
 
     if (isDragging && dragTarget && dragTarget.targetKey === targetKey) {
       const item = drawings[targetKey][dragTarget.index];
+
+      // 端点ハンドルドラッグ（伸縮）
+      if (dragTarget.handle) {
+        const otherX = dragTarget.handle === 'start' ? item.x2 : item.x1;
+        const otherY = dragTarget.handle === 'start' ? item.y2 : item.y1;
+        let finalX = curX;
+        let finalY = curY;
+
+        const snap = findNearestSnap(curX, curY, targetKey, dragTarget.index);
+        if (snap) {
+          finalX = snap.x;
+          finalY = snap.y;
+          currentSnapIndicator = snap;
+        } else {
+          currentSnapIndicator = null;
+          if (window.orthoLock || e.shiftKey) {
+            const snapped = snapToAngle(otherX, otherY, curX, curY, !window.orthoLock && e.shiftKey);
+            finalX = snapped.x;
+            finalY = snapped.y;
+          }
+        }
+
+        if (dragTarget.handle === 'start') {
+          item.x1 = finalX;
+          item.y1 = finalY;
+        } else {
+          item.x2 = finalX;
+          item.y2 = finalY;
+        }
+
+        redraw(targetKey);
+        drawSelectionHighlight(targetKey, dragTarget.index);
+        if (currentSnapIndicator) {
+          const ctx = targetKey === 'sozai' ? sozaiCtx : haichiCtx;
+          drawSnapIndicator(ctx, currentSnapIndicator);
+        }
+        showPropertyPanel(targetKey, dragTarget.index);
+        return;
+      }
+
       const deltaX = curX - dragTarget.lastX;
       const deltaY = curY - dragTarget.lastY;
       dragTarget.lastX = curX;
@@ -3193,6 +3780,56 @@ function setupCanvasEvents(canvas, targetKey) {
       }
       redraw(targetKey);
       drawSelectionHighlight(targetKey, dragTarget.index);
+      return;
+    }
+
+    // 🪜 複線ツールのマウス追従プレビュー
+    if (currentTool === 'parallel' && parallelBaseRef && parallelBaseRef.targetKey === targetKey) {
+      const baseItem = drawings[targetKey][parallelBaseRef.index];
+      if (baseItem && baseItem.x1 !== undefined) {
+        redraw(targetKey);
+        drawSelectionHighlight(targetKey, parallelBaseRef.index);
+        const distM = parseFloat(document.getElementById('parallelDistInput')?.value) || parallelDistM || 4.0;
+        const offsetPx = metersToPx(distM, targetKey);
+        const dx = baseItem.x2 - baseItem.x1;
+        const dy = baseItem.y2 - baseItem.y1;
+        const len = Math.hypot(dx, dy);
+        if (len > 0) {
+          const nx = -dy / len;
+          const ny = dx / len;
+          const cp = dx * (curY - baseItem.y1) - dy * (curX - baseItem.x1);
+          const side = cp >= 0 ? 1 : -1;
+          const px1 = Math.round(baseItem.x1 + side * offsetPx * nx);
+          const py1 = Math.round(baseItem.y1 + side * offsetPx * ny);
+          const px2 = Math.round(baseItem.x2 + side * offsetPx * nx);
+          const py2 = Math.round(baseItem.y2 + side * offsetPx * ny);
+
+          const ctx = targetKey === 'sozai' ? sozaiCtx : haichiCtx;
+          if (ctx) {
+            ctx.save();
+            ctx.strokeStyle = '#10B981';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(px1, py1);
+            ctx.lineTo(px2, py2);
+            ctx.stroke();
+
+            // 複線ラベル
+            const mx = (px1 + px2) / 2;
+            const my = (py1 + py2) / 2;
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillStyle = 'rgba(6, 78, 59, 0.9)';
+            const text = `🪜 複線: ${distM}m`;
+            const tw = ctx.measureText(text).width + 8;
+            ctx.fillRect(mx - tw / 2, my - 10, tw, 18);
+            ctx.fillStyle = '#6EE7B7';
+            ctx.textAlign = 'center';
+            ctx.fillText(text, mx, my + 4);
+            ctx.restore();
+          }
+        }
+      }
       return;
     }
 
@@ -3285,15 +3922,31 @@ function setupCanvasEvents(canvas, targetKey) {
 
     let targetEndX = curX;
     let targetEndY = curY;
-    const shouldSnap = window.orthoLock || e.shiftKey;
-    if (shouldSnap && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
-      const snapped = snapToAngle(startX, startY, curX, curY, !window.orthoLock && e.shiftKey);
-      targetEndX = snapped.x;
-      targetEndY = snapped.y;
+    let snapFound = null;
+
+    if (window.objectSnapEnabled && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+      snapFound = findNearestSnap(curX, curY, targetKey);
+      if (snapFound) {
+        targetEndX = snapFound.x;
+        targetEndY = snapFound.y;
+      }
+    }
+
+    if (!snapFound) {
+      const shouldSnap = window.orthoLock || e.shiftKey;
+      if (shouldSnap && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+        const snapped = snapToAngle(startX, startY, curX, curY, !window.orthoLock && e.shiftKey);
+        targetEndX = snapped.x;
+        targetEndY = snapped.y;
+      }
     }
 
     redraw(targetKey);
     drawPreview(targetKey, startX, startY, targetEndX, targetEndY);
+    if (snapFound) {
+      const ctx = targetKey === 'sozai' ? sozaiCtx : haichiCtx;
+      drawSnapIndicator(ctx, snapFound);
+    }
   });
 
   canvas.addEventListener('mouseup', (e) => {
@@ -3339,6 +3992,14 @@ function setupCanvasEvents(canvas, targetKey) {
     const rect = canvas.getBoundingClientRect();
     let endX = e.clientX - rect.left;
     let endY = e.clientY - rect.top;
+
+    if (window.objectSnapEnabled && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+      const snapEnd = findNearestSnap(endX, endY, targetKey);
+      if (snapEnd) {
+        endX = snapEnd.x;
+        endY = snapEnd.y;
+      }
+    }
 
     const shouldSnap = window.orthoLock || e.shiftKey;
     if (shouldSnap && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
@@ -3661,12 +4322,56 @@ function drawSelectionHighlight(targetKey, index) {
     ctx.beginPath();
     ctx.arc(item.x, item.y, (item.radius || 4.5) + 5, 0, Math.PI * 2);
     ctx.stroke();
-  } else {
+  } else if (item.x1 !== undefined && item.y1 !== undefined && item.x2 !== undefined && item.y2 !== undefined) {
+    // 線の選択ハイライト破線
+    ctx.strokeStyle = '#2563EB';
+    ctx.lineWidth = Math.max(3, (item.lineWidth || 2) + 2);
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(item.x1, item.y1);
+    ctx.lineTo(item.x2, item.y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 始点ハンドル（水色円・白枠・伸縮用）
+    ctx.fillStyle = '#0EA5E9';
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(item.x1, item.y1, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 終点ハンドル（濃い青円・白枠・伸縮用）
+    ctx.fillStyle = '#2563EB';
+    ctx.beginPath();
+    ctx.arc(item.x2, item.y2, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 中点マーク
     const mx = (item.x1 + item.x2) / 2;
     const my = (item.y1 + item.y2) / 2;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = '#2563EB';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(mx, my, 20, 0, Math.PI * 2);
+    ctx.rect(mx - 4, my - 4, 8, 8);
+    ctx.fill();
     ctx.stroke();
+
+    // 寸法バッジ
+    const lenPx = Math.hypot(item.x2 - item.x1, item.y2 - item.y1);
+    const lenM = pxToMeters(lenPx, targetKey).toFixed(2);
+    const badgeText = `${lenM}m`;
+    ctx.font = 'bold 11px sans-serif';
+    const bw = ctx.measureText(badgeText).width + 8;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.fillRect(mx - bw / 2, my - 22, bw, 16);
+    ctx.fillStyle = '#F59E0B';
+    ctx.textAlign = 'center';
+    ctx.fillText(badgeText, mx, my - 10);
+    ctx.textAlign = 'start';
   }
   ctx.restore();
 }
@@ -4527,15 +5232,18 @@ function toggleSameAddress() {
 }
 
 function updateShutterDisplay() {
-  const val = document.getElementById('shutterVal').value;
+  const shutterValEl = document.getElementById('shutterVal');
+  const val = shutterValEl ? shutterValEl.value : '';
   const yes = document.getElementById('shutterDisplayYes');
   const no = document.getElementById('shutterDisplayNo');
-  if (val === '有') {
-    yes.className = 'shutter-circle';
-    no.className = '';
-  } else {
-    yes.className = '';
-    no.className = 'shutter-circle';
+  if (yes && no) {
+    if (val === '有') {
+      yes.className = 'shutter-circle';
+      no.className = '';
+    } else {
+      yes.className = '';
+      no.className = 'shutter-circle';
+    }
   }
 }
 

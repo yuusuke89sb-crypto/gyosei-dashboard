@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-車庫証明申請簿（R7(2025)年度）.xlsx へのダッシュボード完了案件（今月分: 2026-08-26〜）自動転記スクリプト
+車庫証明申請簿（R7(2025)年度）.xlsx へのダッシュボード完了案件（2026-08-26〜）自動転記スクリプト
+・GAS APIから直接最新データを取得
+・注文書№が同一であってもカテゴリ（車庫証明・出張封印・登録等）や申請者が異なる場合は重複除外せず確実に別行転記
+・バックアップ自動生成およびログ出力
 """
 import os
 import sys
@@ -8,18 +11,59 @@ import shutil
 import json
 import re
 import datetime
+import urllib.request
+import time
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-from copy import copy
 
 try:
     sys.stdout.reconfigure(encoding='utf-8')
 except Exception:
     pass
 
-EXCEL_PATH = r"D:\行政書士\開業\gyosei-dashboard\請求書\車庫証明申請簿（R7(2025)年度）.xlsx"
-DATA_PATH = r"C:\Users\yuusu\.gemini\antigravity-ide\brain\4898e3cc-8664-4464-adf9-08975979f6f1\scratch\all_data.json"
-REPORT_OUTPUT = r"D:\行政書士\開業\gyosei-dashboard\scratch_export_report.txt"
+BASE_DIR = r"D:\行政書士\開業\gyosei-dashboard"
+EXCEL_PATH = os.path.join(BASE_DIR, "請求書", "車庫証明申請簿（R7(2025)年度）.xlsx")
+BACKUP_DIR = os.path.join(BASE_DIR, "請求書", "backups")
+CACHE_PATH = os.path.join(BASE_DIR, "data", "gas_sync_cache.json")
+LOG_PATH = os.path.join(BASE_DIR, "scripts", "last_sync_shinsei_book.log")
+
+GAS_URL = "https://script.google.com/macros/s/AKfycbzdDtMhSmy5tqSWNtNnbnCQ-68PY7emgDhdR_abTCuvxv--WgCjIMO0qTgysE2864MA/exec?type=all"
+
+class RedirectHandlerWithHeaders(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new_req = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new_req:
+            for header, value in req.headers.items():
+                new_req.add_header(header, value)
+        return new_req
+
+def fetch_gas_data(url=GAS_URL, max_retries=3):
+    opener = urllib.request.build_opener(RedirectHandlerWithHeaders())
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*'
+    }
+    
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with opener.open(req, timeout=35) as resp:
+                raw = resp.read().decode('utf-8')
+                data = json.loads(raw)
+                os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
+                with open(CACHE_PATH, "w", encoding="utf-8") as cf:
+                    cf.write(raw)
+                return data
+        except Exception as e:
+            print(f"  [GAS通信試行 {attempt + 1}/{max_retries}] エラー: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+            else:
+                if os.path.exists(CACHE_PATH):
+                    print("  ⚠️ GAS通信失敗のため、ローカルキャッシュ(gas_sync_cache.json)を使用します。")
+                    with open(CACHE_PATH, "r", encoding="utf-8") as cf:
+                        return json.load(cf)
+                raise
 
 # 店舗名正規化マッピング（トヨタ）
 STORE_MAP = {
@@ -60,7 +104,6 @@ def clean_store_toyota(raw_store, title):
     for key, val in STORE_MAP.items():
         if key in combined:
             return val
-    # Fallback
     m = re.search(r'ATW([^\s　]+)', str(title or ''))
     if m:
         st = m.group(1)
@@ -83,7 +126,6 @@ def clean_applicant(c):
     if car_name and car_name != 'None':
         return car_name
     title = str(c.get('title') or '').strip()
-    # Remove prefix like "ATW一宮　" or "三菱小牧　"
     m = re.sub(r'^(ATW|愛知トヨタ|三菱ふそう|三菱|日産)[^\s　]*[\s　]+', '', title)
     return m.strip() or title
 
@@ -100,23 +142,59 @@ def classify_dealer(c, customers):
         return '三菱'
     return '日産・その他'
 
+def get_oss_str(cat):
+    if cat == 'garage_oss':
+        return '○'
+    elif cat == 'seal':
+        return '封印'
+    elif cat == 'car_reg_standard':
+        return '登録'
+    elif cat == 'car_reg_light':
+        return '軽'
+    return ''
+
+def norm(s):
+    if s is None:
+        return ""
+    return re.sub(r'[\s　]+', '', str(s)).upper()
+
 def main():
     report_lines = []
     def log(msg):
         print(msg)
         report_lines.append(msg)
 
-    log("=== 車庫証明申請簿 自動転記処理開始 ===")
+    start_time = datetime.datetime.now()
+    log(f"=== 車庫証明申請簿 自動転記処理開始 ({start_time.strftime('%Y-%m-%d %H:%M:%S')}) ===")
 
     # 1. バックアップ作成
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = EXCEL_PATH.replace(".xlsx", f"_backup_{ts}.xlsx")
-    shutil.copy2(EXCEL_PATH, backup_path)
-    log(f"✅ 元ファイルをバックアップしました:\n  -> {backup_path}")
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    ts = start_time.strftime("%Y%m%d_%H%M%S")
+    backup_filename = f"車庫証明申請簿（R7(2025)年度）_backup_{ts}.xlsx"
+    backup_path = os.path.join(BACKUP_DIR, backup_filename)
+    if os.path.exists(EXCEL_PATH):
+        shutil.copy2(EXCEL_PATH, backup_path)
+        log(f"✅ 元ファイルをバックアップしました:\n  -> {backup_path}")
+    else:
+        log(f"❌ Excelファイルが見つかりません: {EXCEL_PATH}")
+        return
 
-    # 2. データ読み込み
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
-        all_data = json.load(f)
+    # 古いバックアップの整理（直近15件を残して削除）
+    try:
+        bk_files = sorted([f for f in os.listdir(BACKUP_DIR) if f.endswith('.xlsx')], reverse=True)
+        if len(bk_files) > 15:
+            for old_bk in bk_files[15:]:
+                os.remove(os.path.join(BACKUP_DIR, old_bk))
+    except Exception as e:
+        log(f"⚠️ バックアップ整理エラー: {e}")
+
+    # 2. データ読み込み (GASから直接取得)
+    log("📡 Google Apps Script API から最新データを同期中...")
+    try:
+        all_data = fetch_gas_data()
+    except Exception as e:
+        log(f"❌ データ取得に失敗しました: {e}")
+        return
 
     cases = all_data.get('cases', [])
     customers = {c['id']: c for c in all_data.get('customers', [])}
@@ -136,7 +214,6 @@ def main():
         apply_date = (c.get('applyDate') or '')[:10]
         created_date = (c.get('createdAt') or '')[:10]
         
-        # 完了日付の決定
         date_str = comp_date or pol_deliv or store_deliv or apply_date or created_date
         if not date_str or date_str < '2026-08-26':
             continue
@@ -148,7 +225,7 @@ def main():
         c['_loc'] = locations.get(c.get('policeLocationId') or c.get('locationId'), {})
         target_cases.append(c)
 
-    log(f"転記対象件数 (完了 & 2026-08-26以降): {len(target_cases)}件")
+    log(f"転記対象案件 (完了 & 2026-08-26以降): {len(target_cases)}件")
 
     # 4. ソート: 完了日付昇順 -> 注文書No昇順
     target_cases.sort(key=lambda x: (
@@ -163,12 +240,11 @@ def main():
 
     log(f"  ・トヨタシート対象: {len(toyota_list)}件")
     log(f"  ・三菱シート対象:   {len(fuso_list)}件")
-    log(f"  ・その他シート対象: {len(other_list)}件")
+    log(f"  ・日産・その他対象: {len(other_list)}件")
 
     # 6. Excel 読み込み
     wb = openpyxl.load_workbook(EXCEL_PATH)
 
-    # 共通フォント・スタイル定義
     font_main = Font(name="MS PGothic", size=12)
     font_oss = Font(name="MS PGothic", size=14)
     thin_border = Border(
@@ -185,19 +261,23 @@ def main():
     # A. トヨタ シートへの転記
     # ──────────────────────────────────────────
     ws_toyota = wb['トヨタ']
-    
-    # 既存の最大記入行を特定 (A列が空でない最終行)
-    last_row_toyota = 2
-    existing_orders_t = set()
+    last_row_toyota = 3
+    existing_keys_t = set()
+    existing_no_ord_t = set()
+
     for r in range(4, ws_toyota.max_row + 1):
         v = ws_toyota.cell(r, 1).value
-        ord_v = str(ws_toyota.cell(r, 2).value or '').strip()
         if v is not None and str(v).strip() != '':
             last_row_toyota = r
+            ord_v = str(ws_toyota.cell(r, 2).value or '').strip()
+            app_v = norm(ws_toyota.cell(r, 3).value)
+            oss_v = norm(ws_toyota.cell(r, 7).value)
             if ord_v:
-                existing_orders_t.add(ord_v)
+                existing_keys_t.add((ord_v, app_v, oss_v))
+            else:
+                existing_no_ord_t.add((str(v)[:10], app_v, oss_v))
 
-    log(f"\n[トヨタ] 既存最終行: {last_row_toyota}行 (追記開始: {last_row_toyota + 1}行目〜)")
+    log(f"\n[トヨタ] 既存最終行: {last_row_toyota}行 (既存件数キー: {len(existing_keys_t)}件)")
 
     added_toyota = 0
     skipped_toyota = 0
@@ -205,32 +285,26 @@ def main():
 
     for c in toyota_list:
         ord_no = str(c.get('orderNo') or c.get('注文書№') or '').strip()
-        d_val = datetime.date.fromisoformat(c['_resolved_date'])
-        
-        # 重複チェック (同一注文番号が既に存在すればスキップ)
-        if ord_no and ord_no in existing_orders_t:
-            skipped_toyota += 1
-            continue
-
         app_name = clean_applicant(c)
+        app_norm = norm(app_name)
+        oss_str = get_oss_str(c.get('category', ''))
+        oss_norm = norm(oss_str)
+        d_str = c['_resolved_date']
+        d_val = datetime.date.fromisoformat(d_str)
+
+        # 複合キー判定（注文書№ ＋ 申請者名 ＋ カテゴリ/OSS区分）
+        if ord_no:
+            if (ord_no, app_norm, oss_norm) in existing_keys_t:
+                skipped_toyota += 1
+                continue
+        else:
+            if (d_str, app_norm, oss_norm) in existing_no_ord_t:
+                skipped_toyota += 1
+                continue
+
         pol_name = clean_police(c.get('carPolice') or c['_loc'].get('name'))
         store_name = clean_store_toyota(c['_client'].get('name'), c.get('title'))
         contact_name = str(c['_contact'].get('name') or '').strip()
-        cat = c.get('category', '')
-        
-        # OSS列の表記
-        if cat == 'garage_oss':
-            oss_str = '○'
-        elif cat == 'garage_paper':
-            oss_str = ''
-        elif cat == 'seal':
-            oss_str = '封印'
-        elif cat == 'car_reg_standard':
-            oss_str = '登録'
-        elif cat == 'car_reg_light':
-            oss_str = '軽'
-        else:
-            oss_str = ''
 
         # 1: 提出日
         cell_d = ws_toyota.cell(cur_r, 1, d_val)
@@ -276,35 +350,44 @@ def main():
         cell_oss.alignment = align_center
         cell_oss.border = thin_border
 
-        # 8〜11: 依頼先・代行料・県証紙・連絡先
+        # 8〜11 (空白枠と罫線)
         for col_idx in range(8, 12):
             cell_extra = ws_toyota.cell(cur_r, col_idx, None)
             cell_extra.font = font_main
             cell_extra.border = thin_border
 
-        existing_orders_t.add(ord_no)
+        if ord_no:
+            existing_keys_t.add((ord_no, app_norm, oss_norm))
+        else:
+            existing_no_ord_t.add((d_str, app_norm, oss_norm))
+
         cur_r += 1
         added_toyota += 1
 
-    log(f"  -> トヨタ追記完了: {added_toyota}件 (重複スキップ: {skipped_toyota}件, 終了行: {cur_r - 1}行)")
+    log(f"  -> トヨタ追記完了: {added_toyota}件 (重複スキップ: {skipped_toyota}件, 最終行: {cur_r - 1}行)")
 
     # ──────────────────────────────────────────
     # B. 三菱 シートへの転記
     # 列順: 1:提出日, 2:申請者名, 3:管轄署, 4:注文No., 5:提出者, 6:担当, 7:ＯＳＳ...
     # ──────────────────────────────────────────
     ws_fuso = wb['三菱']
-    
-    last_row_fuso = 1
-    existing_orders_f = set()
+    last_row_fuso = 2
+    existing_keys_f = set()
+    existing_no_ord_f = set()
+
     for r in range(3, ws_fuso.max_row + 1):
         v = ws_fuso.cell(r, 1).value
-        ord_v = str(ws_fuso.cell(r, 4).value or '').strip()
         if v is not None and str(v).strip() != '':
             last_row_fuso = r
+            app_v = norm(ws_fuso.cell(r, 2).value)
+            ord_v = str(ws_fuso.cell(r, 4).value or '').strip()
+            oss_v = norm(ws_fuso.cell(r, 7).value)
             if ord_v:
-                existing_orders_f.add(ord_v)
+                existing_keys_f.add((ord_v, app_v, oss_v))
+            else:
+                existing_no_ord_f.add((str(v)[:10], app_v, oss_v))
 
-    log(f"\n[三菱] 既存最終行: {last_row_fuso}行 (追記開始: {last_row_fuso + 1}行目〜)")
+    log(f"\n[三菱] 既存最終行: {last_row_fuso}行 (既存件数キー: {len(existing_keys_f)}件)")
 
     added_fuso = 0
     skipped_fuso = 0
@@ -312,19 +395,25 @@ def main():
 
     for c in fuso_list:
         ord_no = str(c.get('orderNo') or c.get('注文書№') or '').strip()
-        d_val = datetime.date.fromisoformat(c['_resolved_date'])
-
-        if ord_no and ord_no in existing_orders_f:
-            skipped_fuso += 1
-            continue
-
         app_name = clean_applicant(c)
+        app_norm = norm(app_name)
+        oss_str = get_oss_str(c.get('category', ''))
+        oss_norm = norm(oss_str)
+        d_str = c['_resolved_date']
+        d_val = datetime.date.fromisoformat(d_str)
+
+        if ord_no:
+            if (ord_no, app_norm, oss_norm) in existing_keys_f:
+                skipped_fuso += 1
+                continue
+        else:
+            if (d_str, app_norm, oss_norm) in existing_no_ord_f:
+                skipped_fuso += 1
+                continue
+
         pol_name = clean_police(c.get('carPolice') or c['_loc'].get('name'))
         store_name = clean_store_fuso(c['_client'].get('name'), c.get('title'))
         contact_name = str(c['_contact'].get('name') or '').strip()
-        cat = c.get('category', '')
-
-        oss_str = '封印' if cat == 'seal' else ('登録' if cat == 'car_reg_standard' else '')
 
         # 1: 提出日
         cell_d = ws_fuso.cell(cur_r_f, 1, d_val)
@@ -376,15 +465,18 @@ def main():
             cell_extra.font = font_main
             cell_extra.border = thin_border
 
-        existing_orders_f.add(ord_no)
+        if ord_no:
+            existing_keys_f.add((ord_no, app_norm, oss_norm))
+        else:
+            existing_no_ord_f.add((d_str, app_norm, oss_norm))
+
         cur_r_f += 1
         added_fuso += 1
 
-    log(f"  -> 三菱追記完了: {added_fuso}件 (重複スキップ: {skipped_fuso}件, 終了行: {cur_r_f - 1}行)")
+    log(f"  -> 三菱追記完了: {added_fuso}件 (重複スキップ: {skipped_fuso}件, 最終行: {cur_r_f - 1}行)")
 
     # ──────────────────────────────────────────
     # C. 日産・その他 シートへの転記
-    # 既存の「Sheet2」を「日産・その他」に改名してヘッダーを設定
     # ──────────────────────────────────────────
     other_sheet_name = '日産・その他'
     if other_sheet_name in wb.sheetnames:
@@ -395,7 +487,6 @@ def main():
     else:
         ws_other = wb.create_sheet(title=other_sheet_name)
 
-    # ヘッダー設置 (Row 2に設定)
     headers = ['提出日', '注文No.', '申 請 者 名', '管轄署', '提出者', '担当', 'ＯＳＳ', '依頼先', '代行料', '県証紙', '連絡先']
     header_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
     font_header = Font(name="MS PGothic", size=11, bold=True)
@@ -407,33 +498,52 @@ def main():
         cell_h.fill = header_fill
         cell_h.border = thin_border
 
-    # 列幅設定
     col_widths = {1: 13, 2: 14, 3: 25, 4: 12, 5: 20, 6: 12, 7: 8, 8: 15, 9: 12, 10: 12, 11: 15}
     for col_idx, width in col_widths.items():
         ws_other.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = width
 
-    cur_r_o = 3
+    last_row_other = 2
+    existing_keys_o = set()
+    existing_no_ord_o = set()
+    for r in range(3, ws_other.max_row + 1):
+        v = ws_other.cell(r, 1).value
+        if v is not None and str(v).strip() != '':
+            last_row_other = r
+            ord_v = str(ws_other.cell(r, 2).value or '').strip()
+            app_v = norm(ws_other.cell(r, 3).value)
+            oss_v = norm(ws_other.cell(r, 7).value)
+            if ord_v:
+                existing_keys_o.add((ord_v, app_v, oss_v))
+            else:
+                existing_no_ord_o.add((str(v)[:10], app_v, oss_v))
+
+    log(f"\n[日産・その他] 既存最終行: {last_row_other}行 (既存件数キー: {len(existing_keys_o)}件)")
+
+    cur_r_o = last_row_other + 1
     added_other = 0
+    skipped_other = 0
 
     for c in other_list:
         ord_no = str(c.get('orderNo') or c.get('注文書№') or '').strip()
-        d_val = datetime.date.fromisoformat(c['_resolved_date'])
         app_name = clean_applicant(c)
+        app_norm = norm(app_name)
+        oss_str = get_oss_str(c.get('category', ''))
+        oss_norm = norm(oss_str)
+        d_str = c['_resolved_date']
+        d_val = datetime.date.fromisoformat(d_str)
+
+        if ord_no:
+            if (ord_no, app_norm, oss_norm) in existing_keys_o:
+                skipped_other += 1
+                continue
+        else:
+            if (d_str, app_norm, oss_norm) in existing_no_ord_o:
+                skipped_other += 1
+                continue
+
         pol_name = clean_police(c.get('carPolice') or c['_loc'].get('name'))
         store_name = str(c['_client'].get('name') or c.get('title') or '').strip()
         contact_name = str(c['_contact'].get('name') or '').strip()
-        cat = c.get('category', '')
-        
-        if cat == 'garage_oss':
-            oss_str = '○'
-        elif cat == 'seal':
-            oss_str = '封印'
-        elif cat == 'car_reg_standard':
-            oss_str = '登録'
-        elif cat == 'car_reg_light':
-            oss_str = '軽'
-        else:
-            oss_str = ''
 
         cell_d = ws_other.cell(cur_r_o, 1, d_val)
         cell_d.number_format = r'[$-411]ge\.m\.d'
@@ -477,19 +587,25 @@ def main():
             cell_extra.font = font_main
             cell_extra.border = thin_border
 
+        if ord_no:
+            existing_keys_o.add((ord_no, app_norm, oss_norm))
+        else:
+            existing_no_ord_o.add((d_str, app_norm, oss_norm))
+
         cur_r_o += 1
         added_other += 1
 
-    log(f"\n[日産・その他] シート作成・追記完了: {added_other}件 (行番号: 3〜{cur_r_o - 1}行)")
+    log(f"  -> 日産・その他追記完了: {added_other}件 (重複スキップ: {skipped_other}件, 最終行: {cur_r_o - 1}行)")
 
     # 7. 保存
     wb.save(EXCEL_PATH)
     log(f"\n🎉 転記完了！Excelファイルを上書き保存しました:\n  -> {EXCEL_PATH}")
 
     total_added = added_toyota + added_fuso + added_other
-    log(f"合計追記件数: {total_added}件")
+    log(f"今回新規追記合計: {total_added}件")
 
-    with open(REPORT_OUTPUT, "w", encoding="utf-8") as rf:
+    # 8. ログ出力
+    with open(LOG_PATH, "w", encoding="utf-8") as rf:
         rf.write("\n".join(report_lines))
 
 if __name__ == '__main__':

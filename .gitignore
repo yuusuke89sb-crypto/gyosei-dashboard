@@ -5,3 +5,8 @@ output/
 OSSサンプル/
 完全OSS様式パックサンプル/
 scratch/
+請求書/*.xlsx
+請求書/backups/
+*.log
+*_backup_*.html
+data/gas_sync_cache.json
