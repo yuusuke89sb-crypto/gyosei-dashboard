@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>配置図作成ツール 使い方マニュアル | 行政書士法人フェリス</title>
+  <meta name="description" content="車庫証明 OSS 配置図作成ツールの操作方法・機能一覧・ショートカットキー・FAQ">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #0F172A;
+      --bg-secondary: #1E293B;
+      --bg-card: #1E293B;
+      --text-primary: #E2E8F0;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+      --accent: #38BDF8;
+      --accent-green: #10B981;
+      --accent-purple: #A78BFA;
+      --accent-amber: #F59E0B;
+      --accent-red: #EF4444;
+      --border: #334155;
+    }
+    body {
+      font-family: 'Noto Sans JP', 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header .subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .back-btn:hover { background: #334155; border-color: var(--accent); }
+    .wrapper {
+      display: flex;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+      gap: 28px;
+    }
+    .sidebar {
+      width: 240px;
+      position: sticky;
+      top: 80px;
+      height: calc(100vh - 100px);
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .sidebar h3 {
+      font-size: 0.82rem;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar ul { list-style: none; }
+    .sidebar li { margin-bottom: 2px; }
+    .sidebar a {
+      display: block;
+      padding: 5px 10px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.78rem;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .sidebar a:hover, .sidebar a.active {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent);
+    }
+    .content {
+      flex: 1;
+      min-width: 0;
+    }
+    section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin-bottom: 20px;
+      scroll-margin-top: 90px;
+    }
+    section h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    section h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--accent-green);
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+    section p { color: var(--text-primary); margin-bottom: 10px; font-size: 0.9rem; }
+    .tool-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.85rem;
+    }
+    .tool-table th {
+      background: #0F172A;
+      color: var(--accent);
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 2px solid var(--accent);
+    }
+    .tool-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      vertical-align: top;
+    }
+    .tool-table tr:hover td { background: rgba(56, 189, 248, 0.04); }
+    .tool-table .icon { font-size: 1.1rem; text-align: center; width: 40px; }
+    kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      font-size: 0.78rem;
+      font-family: 'Inter', monospace;
+      font-weight: 600;
+      color: #E2E8F0;
+      background: #334155;
+      border: 1px solid #475569;
+      border-radius: 4px;
+      box-shadow: 0 1px 0 #475569;
+    }
+    .tip-box {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 0.85rem;
+      color: var(--accent-green);
+    }
+    .warn-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 0.85rem;
+      color: var(--accent-amber);
+    }
+    .step-list { counter-reset: step; list-style: none; padding: 0; }
+    .step-list li {
+      counter-increment: step;
+      padding: 10px 14px 10px 50px;
+      position: relative;
+      margin-bottom: 8px;
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+    .step-list li::before {
+      content: counter(step);
+      position: absolute;
+      left: 14px;
+      top: 10px;
+      width: 26px;
+      height: 26px;
+      background: var(--accent);
+      color: #0F172A;
+      border-radius: 50%;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .faq-item {
+      margin-bottom: 12px;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .faq-q {
+      padding: 12px 16px;
+      font-weight: 600;
+      color: var(--accent-amber);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.88rem;
+    }
+    .faq-q:hover { background: rgba(245, 158, 11, 0.06); }
+    .faq-a {
+      padding: 0 16px 14px 36px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      display: none;
+    }
+    .faq-item.open .faq-a { display: block; }
+    .faq-item.open .faq-q .arrow { transform: rotate(90deg); }
+    .arrow { transition: transform 0.2s; font-size: 0.7rem; }
+    .shortcut-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .shortcut-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.82rem;
+    }
+    .shortcut-item .desc { color: var(--text-secondary); }
+    .badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+    .badge-new { background: var(--accent-green); color: #0F172A; }
+    .badge-jw { background: var(--accent-purple); color: #fff; }
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .wrapper { padding: 16px; }
+      section { padding: 18px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <a href="syako_map_maker.html" class="back-btn">← ツールに戻る</a>
+  <div>
+    <h1>📖 配置図作成ツール 使い方マニュアル</h1>
+    <div class="subtitle">行政書士法人フェリス 車庫証明 OSS 所在図・配置図 作成ツール</div>
+  </div>
+</div>
+
+<div class="wrapper">
+  <nav class="sidebar">
+    <h3>📋 目次</h3>
+    <ul>
+      <li><a href="#basic">1. 基本操作</a></li>
+      <li><a href="#tools">2. 作図ツール一覧</a></li>
+      <li><a href="#jw-cad">3. Jw_cadライク機能</a></li>
+      <li><a href="#new-features">4. 新機能</a></li>
+      <li><a href="#erase">5. 消去機能</a></li>
+      <li><a href="#sample">6. サンプル・テンプレート</a></li>
+      <li><a href="#shortcuts">7. ショートカットキー</a></li>
+      <li><a href="#save-export">8. 保存・出力</a></li>
+      <li><a href="#faq">9. FAQ</a></li>
+    </ul>
+  </nav>
+
+  <main class="content">
+
+    <!-- 1. 基本操作 -->
+    <section id="basic">
+      <h2>👆 1. 基本操作</h2>
+
+      <h3>要素の選択・移動</h3>
+      <ol class="step-list">
+        <li>左サイドバーの「👆 選択 / 移動」ボタンをクリック（または <kbd>Esc</kbd> で選択モードに切替）</li>
+        <li>キャンバス上の要素をクリックすると選択状態になり、プロパティパネル（調整バー）が表示されます</li>
+        <li>選択した要素をドラッグすると自由に移動できます</li>
+        <li>選択解除するには、何もない場所をクリックします</li>
+      </ol>
+
+      <h3>要素の回転</h3>
+      <p>選択状態の要素は、プロパティパネルの回転スライダーまたはボタンで回転できます。<kbd>R</kbd> キーで +5° ずつ、<kbd>Shift</kbd>+<kbd>R</kbd> で -5° ずつ回転します。</p>
+
+      <h3>要素のサイズ変更</h3>
+      <p>プロパティパネルの「➖ 縮小」「➕ 拡大」ボタンで要素サイズを調整できます。</p>
+
+      <h3>要素の削除</h3>
+      <p>選択した状態で <kbd>Delete</kbd> キー、または「🧹 要素削除」ツールで不要な要素をクリックして削除できます。</p>
+
+      <h3>元に戻す / やり直し</h3>
+      <p><kbd>Ctrl</kbd>+<kbd>Z</kbd> で元に戻す、<kbd>Ctrl</kbd>+<kbd>Y</kbd> でやり直しができます。</p>
+    </section>
+
+    <!-- 2. 作図ツール -->
+    <section id="tools">
+      <h2>🛠️ 2. 作図ツール一覧</h2>
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th class="icon">アイコン</th>
+            <th>ツール名</th>
+            <th>使い方</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="icon">👆</td><td>選択 / 移動</td><td>要素のクリック選択→ドラッグで移動。端点ハンドル（○）ドラッグで線を伸縮</td></tr>
+          <tr><td class="icon">🅿️</td><td>保管場所(四角)</td><td>ドラッグで矩形枠を描画。申請車両の駐車位置を示す赤枠</td></tr>
+          <tr><td class="icon">⬡</td><td>保管場所(多角形)</td><td>角を順にクリック。始点クリック or Enter で完了。変形駐車場用</td></tr>
+          <tr><td class="icon">🔲</td><td>建物枠(四角)</td><td>ドラッグで矩形枠を描画。建物・自宅・隣接建物を示す</td></tr>
+          <tr><td class="icon">🔷</td><td>建物枠(多角形)</td><td>角を順にクリック。L字型・コの字型等の変形建物用</td></tr>
+          <tr><td class="icon">✏️</td><td>手書きペン</td><td>ドラッグで自由曲線を描画。道路のカーブ部分等</td></tr>
+          <tr><td class="icon">📏</td><td>直線ペン</td><td>ドラッグで直線を描画。Shift で水平・垂直にスナップ</td></tr>
+          <tr><td class="icon">🛣️</td><td>道路境界線(太)</td><td>ドラッグで太い直線を描画。道路の境界を示す</td></tr>
+          <tr><td class="icon">📐</td><td>寸法線(両矢)</td><td>ドラッグ後に数値入力。壁面間距離等を矢印＋数値で表示</td></tr>
+          <tr><td class="icon">🚆</td><td>線路(鉄道記号)</td><td>ドラッグで鉄道記号線を描画。路線名を任意入力</td></tr>
+          <tr><td class="icon">↔️</td><td>出入口・幅員(↔)</td><td>ドラッグ後に幅員を入力。出入口の幅を両矢印＋数値で表示</td></tr>
+          <tr><td class="icon">🧭</td><td>JIS方位記号</td><td>クリックで配置。方位記号（N）を表示</td></tr>
+          <tr><td class="icon">🚗</td><td>車両マーク</td><td>クリックで配置。車両のシルエットを表示</td></tr>
+          <tr><td class="icon">🔤</td><td>文字入力</td><td>クリック後にテキスト入力。施設名・道路名・寸法値等</td></tr>
+          <tr><td class="icon">⚫</td><td>目印(黒丸)</td><td>クリックで配置。施設名入力で目印付き文字配置</td></tr>
+          <tr><td class="icon">📍</td><td>直線距離線</td><td>所在図用。自宅→駐車場の直線距離を示す</td></tr>
+          <tr><td class="icon">🧹</td><td>要素削除</td><td>クリックした要素を即座に削除</td></tr>
+          <tr><td class="icon">✂️</td><td>道路カット</td><td>道路線をクリックして開口部を作る（T字路手動開口）</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 3. Jw_cadライク機能 -->
+    <section id="jw-cad">
+      <h2>📐 3. Jw_cadライク機能 <span class="badge badge-jw">Jw_cad</span></h2>
+      <p>建築CAD「Jw_cad」の主要操作に対応した機能を搭載しています。</p>
+
+      <h3>🧲 吸着スナップ（Sキーで切替）</h3>
+      <p>端点・交点・中点・角に自動的にピタッと吸い付きます。線を引く時やドラッグ移動時にスナップポイントが自動検出され、線の始点や終点が既存の線と正確に一致します。</p>
+      <div class="tip-box">
+        💡 <b>スナップポイント表示:</b><br>
+        ■ 緑の四角 = 端点・角<br>
+        △ 水色の三角 = 中点<br>
+        × オレンジのクロス = 交点
+      </div>
+
+      <h3>📏 線の伸縮（端点ドラッグ）</h3>
+      <p>選択した線の両端に表示される丸ハンドル（○）をドラッグすることで、自由に線の長さを変更できます。スナップも効くので、他の線の端点にピッタリ合わせられます。</p>
+
+      <h3>🪜 複線（Fキー）</h3>
+      <ol class="step-list">
+        <li>「🪜 複線 (平行線)」ボタンをクリック、または <kbd>F</kbd> キーを押す</li>
+        <li>基準にする線をクリック</li>
+        <li>プロパティバーで間隔（メートル単位）を設定</li>
+        <li>平行線を作りたい側（左右/上下）をクリック → 指定距離で完全な平行線が生成！</li>
+      </ol>
+      <div class="tip-box">💡 「両側複線」ボタンで左右両側に一括生成も可能（道路の両端作成に便利）</div>
+
+      <h3>📐 コーナー結合</h3>
+      <ol class="step-list">
+        <li>「📐 コーナー結合」ボタンをクリック</li>
+        <li>1本目の線をクリック</li>
+        <li>2本目の線をクリック → 2本の線が交点で隙間なく綺麗に結合されます</li>
+      </ol>
+
+      <h3>📐 直交ロック（Shiftキー / Oキー）</h3>
+      <p>線を引く際に <kbd>Shift</kbd> を押しながらドラッグ、または <kbd>O</kbd> キーで常時直交ロックをON/OFFできます。水平・垂直方向にのみ線が引けるようになります。</p>
+
+      <h3>📋 複写（Ctrl+C / Ctrl+V / Ctrl+D）</h3>
+      <p>選択した要素を <kbd>Ctrl</kbd>+<kbd>C</kbd> でコピー → <kbd>Ctrl</kbd>+<kbd>V</kbd> で貼り付け。<kbd>Ctrl</kbd>+<kbd>D</kbd> で即座に複製（少しずらして配置）もできます。</p>
+
+      <h3>✂️ T字路・交差点成形</h3>
+      <p>「✂️ T字路・交差点成形」ボタンをクリックすると、交差している道路線の接続部分を自動検出し、道路として綺麗に開口（T字路のように成形）します。</p>
+    </section>
+
+    <!-- 4. 新機能 -->
+    <section id="new-features">
+      <h2>🆕 4. 新機能 <span class="badge badge-new">NEW</span></h2>
+
+      <h3>📐 CAD寸法線</h3>
+      <p>2点をドラッグすると、プロのCAD図面と同じ引き出し線＋矢印＋実寸メートル値を自動生成します。スナップ対応で正確な寸法計測が可能です。</p>
+      <ol class="step-list">
+        <li>「📐 CAD寸法線」ツールを選択</li>
+        <li>計測したい始点をクリック → 終点までドラッグ</li>
+        <li>自動で実寸値（m）が算出されます。プロパティパネルで数値の手動編集も可能</li>
+      </ol>
+
+      <h3>- - 破線（屋根・庇）</h3>
+      <p>カーポートの屋根、庇、上空の障害物など、地面に設置されていない構造物を破線で表現できます。</p>
+
+      <h3>─・─ 敷地境界（一点鎖線）</h3>
+      <p>敷地の境界線、官民境界線、道路の中心線を一点鎖線で表現できます。正式な配置図での区分線に使用します。</p>
+
+      <h3>線種の変更</h3>
+      <p>既存の直線や道路線を選択して、プロパティパネルの「線種」ボタンで実線 → 破線 → 一点鎖線に変更できます。</p>
+
+      <h3>📋 アレイ複写（等間隔複製＋自動連番）</h3>
+      <p>選択した要素を指定方向（上下左右）に指定間隔でN個一括コピーできます。駐車場の枠を一発で量産できる便利機能です。</p>
+      <ol class="step-list">
+        <li>複写したい要素を選択（例：保管場所の枠）</li>
+        <li>プロパティパネルの「📋 アレイ複写」ボタンをクリック、または <kbd>A</kbd> キーを押す</li>
+        <li>個数（例：5）→ 方向（right/left/up/down）→ 間隔（px）を入力</li>
+        <li>保管場所枠の場合、自動で①②③…の連番が付与されます</li>
+      </ol>
+      <div class="tip-box">💡 月極駐車場の6台・10台の枠をワンクリックで一括配置できます！</div>
+    </section>
+
+    <!-- 5. 消去機能 -->
+    <section id="erase">
+      <h2>🗑️ 5. 消去機能</h2>
+
+      <h3>🧹 要素削除（単体）</h3>
+      <p>「🧹 要素削除」ツールで、クリックした要素を1つずつ削除します。選択モードで <kbd>Delete</kbd> キーでも削除可能です。</p>
+
+      <h3>🟥 範囲消去</h3>
+      <p>「🟥 範囲消去」ツールで矩形をドラッグすると、範囲内に中心がある全ての要素を一括削除します。大量のオブジェクトを一度にクリアしたい時に便利です。</p>
+
+      <h3>✂️ 節間消去</h3>
+      <p>交差している線の飛び出した部分だけを消去します。交差点からはみ出した不要な線端を綺麗にトリミングできます。</p>
+      <ol class="step-list">
+        <li>「✂️ 節間消去」ツールを選択（または <kbd>E</kbd> キー）</li>
+        <li>消去したい線の「飛び出し部分」付近をクリック</li>
+        <li>クリック位置を挟む交差点間のセグメントが消去されます</li>
+      </ol>
+
+      <h3>✂️ T字路・交差点成形（自動）</h3>
+      <p>「✂️ T字路・交差点成形」ボタンで、全ての道路線の交差部分を自動検出し、T字路や交差点の開口を一括成形します。</p>
+    </section>
+
+    <!-- 6. サンプル -->
+    <section id="sample">
+      <h2>📁 6. サンプル・テンプレート</h2>
+      <p>ヘッダーのボタンからサンプル配置図を読み込めます：</p>
+      <table class="tool-table">
+        <thead><tr><th>ボタン</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>🏠 黒田サンプル</td><td>一般的な戸建て住宅の配置図サンプル。駐車枠・道路・建物・寸法値</td></tr>
+          <tr><td>🏛️ 行政書士会サンプル</td><td>愛知県行政書士会の配置図サンプル。6台駐車場・複雑な建物形状・多数の寸法値</td></tr>
+        </tbody>
+      </table>
+      <div class="tip-box">💡 サンプルを読み込んで構造を確認した後、クリアして自分の配置図を作成するのがおすすめです。</div>
+    </section>
+
+    <!-- 7. ショートカットキー -->
+    <section id="shortcuts">
+      <h2>⌨️ 7. ショートカットキー一覧</h2>
+      <div class="shortcut-grid">
+        <div class="shortcut-item"><span class="desc">元に戻す</span><kbd>Ctrl</kbd>+<kbd>Z</kbd></div>
+        <div class="shortcut-item"><span class="desc">やり直し</span><kbd>Ctrl</kbd>+<kbd>Y</kbd></div>
+        <div class="shortcut-item"><span class="desc">コピー</span><kbd>Ctrl</kbd>+<kbd>C</kbd></div>
+        <div class="shortcut-item"><span class="desc">貼り付け</span><kbd>Ctrl</kbd>+<kbd>V</kbd></div>
+        <div class="shortcut-item"><span class="desc">複製</span><kbd>Ctrl</kbd>+<kbd>D</kbd></div>
+        <div class="shortcut-item"><span class="desc">削除</span><kbd>Delete</kbd></div>
+        <div class="shortcut-item"><span class="desc">吸着スナップ ON/OFF</span><kbd>S</kbd></div>
+        <div class="shortcut-item"><span class="desc">複線ツール</span><kbd>F</kbd></div>
+        <div class="shortcut-item"><span class="desc">直交ロック ON/OFF</span><kbd>O</kbd></div>
+        <div class="shortcut-item"><span class="desc">直交スナップ（一時的）</span><kbd>Shift</kbd>+ドラッグ</div>
+        <div class="shortcut-item"><span class="desc">回転 +5°</span><kbd>R</kbd></div>
+        <div class="shortcut-item"><span class="desc">回転 -5°</span><kbd>Shift</kbd>+<kbd>R</kbd></div>
+        <div class="shortcut-item"><span class="desc">微調整 -1°</span><kbd>[</kbd></div>
+        <div class="shortcut-item"><span class="desc">微調整 +1°</span><kbd>]</kbd></div>
+        <div class="shortcut-item"><span class="desc">アレイ複写</span><kbd>A</kbd> <span class="badge badge-new">NEW</span></div>
+        <div class="shortcut-item"><span class="desc">節間消去ツール</span><kbd>E</kbd> <span class="badge badge-new">NEW</span></div>
+      </div>
+    </section>
+
+    <!-- 8. 保存・出力 -->
+    <section id="save-export">
+      <h2>💾 8. 保存・出力</h2>
+      <table class="tool-table">
+        <thead><tr><th>機能</th><th>説明</th></tr></thead>
+        <tbody>
+          <tr><td>💾 JSON保存</td><td>作図データをJSONファイルとして保存。後で「📂 案件読込」で復元可能</td></tr>
+          <tr><td>📂 案件読込</td><td>保存したJSONファイルを読み込んで復元</td></tr>
+          <tr><td>📜 履歴・下書き復元</td><td>自動保存された下書きデータを一覧から選択して復元</td></tr>
+          <tr><td>💾 案件に保存</td><td>ダッシュボードの案件データに直接保存（案件連携時）</td></tr>
+          <tr><td>🖼️ OSS画像(2枚)保存</td><td>所在図と配置図をそれぞれ画像ファイルとして保存</td></tr>
+          <tr><td>📋 透過コピー(DW貼付)</td><td>選択中の図面を透過PNGとしてクリップボードにコピー。DocuWorks等にCtrl+V貼付可能</td></tr>
+          <tr><td>🖨️ 印刷 / PDF保存</td><td>A4横でブラウザ印刷。PDF保存も可能</td></tr>
+          <tr><td>📑 OSS正式様式パック</td><td>DocuWorks完全一致PDF・xdw・確認書Excel・メール送信の一括出力</td></tr>
+        </tbody>
+      </table>
+      <div class="warn-box">⚠️ 作図データは定期的に自動保存（下書き）されますが、大事なデータは必ず「💾 JSON保存」で手動保存してください。</div>
+    </section>
+
+    <!-- 9. FAQ -->
+    <section id="faq">
+      <h2>❓ 9. よくある質問 (FAQ)</h2>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span class="arrow">▶</span> 線をピッタリ端点に合わせるにはどうすればいい？</div>
+        <div class="faq-a">「🧲 吸着スナップ」がONの状態（<kbd>S</kbd>キーで切替）で線を引くと、既存の端点・交点・中点に自動的にスナップします。端点に近づくと緑の四角マーカーが表示されます。</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span class="arrow">▶</span> 道路の幅を指定して平行線を引きたい</div>
+        <div class="faq-a">①基準線を描画 → ②<kbd>F</kbd>キーで複線ツールを起動 → ③間隔（メートル）を入力 → ④クリック側に平行線が生成されます。「両側複線」で左右同時生成も可能です。</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span class="arrow">▶</span> 駐車場の枠を一括で量産したい</div>
+        <div class="faq-a">①1つ目の枠を作成 → ②選択して <kbd>A</kbd>キーまたは「📋 アレイ複写」ボタン → ③個数・方向・間隔を入力で一括複製。保管場所枠の場合は自動で①②③…の連番が付きます。</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span class="arrow">▶</span> カーポートの屋根部分はどう表現する？</div>
+        <div class="faq-a">「- - 破線（屋根・庇）」ツールで破線を描画してください。配置図では、地面に設置されていない上空の構造物は破線で表現するのが一般的です。</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span class="arrow">▶</span> 敷地の境界線を描きたい</div>
+        <div class="faq-a">「─・─ 敷地境界(鎖線)」ツールで一点鎖線を描画するか、通常の直線を描いた後にプロパティパネルで線種を変更できます。</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span class="arrow">▶</span> 交差点部分の線が重なってしまう</div>
+        <div class="faq-a">「✂️ T字路・交差点成形」ボタンで自動成形するか、「✂️ 節間消去」ツール（<kbd>E</kbd>キー）で飛び出し部分だけをクリックして消去してください。</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')"><span class="arrow">▶</span> データが消えてしまった！</div>
+        <div class="faq-a">作図データは自動的にlocalStorageに下書き保存されています。「📜 履歴・下書き復元」ボタンから復元できる場合があります。大切なデータは「💾 JSON保存」で手動バックアップを推奨します。</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>

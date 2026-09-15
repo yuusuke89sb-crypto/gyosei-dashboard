@@ -184,6 +184,15 @@
   }
   .tool-btn-icon { font-size: 1.05rem; }
 
+  /* 範囲消去の選択矩形 */
+  .range-erase-overlay {
+    position: absolute;
+    border: 2px dashed #EF4444;
+    background: rgba(239, 68, 68, 0.08);
+    pointer-events: none;
+    z-index: 5;
+  }
+
   /* 選択中要素のクイック調整パネル */
   .property-panel {
     background: #0F172A;
@@ -655,11 +664,13 @@
     <button class="btn btn-secondary" onclick="showSavedHistoryModal()" title="保存済みの作図データや下書き一覧から選択して復元" style="background:#0F172A; border-color:#38BDF8; color:#38BDF8;">📜 履歴・下書き復元</button>
     
     <button class="btn btn-secondary" onclick="loadKurodaSample()">🏠 黒田サンプル</button>
+      <button class="btn btn-primary" style="background:#0284C7; font-weight:bold;" onclick="loadAichiGyoseiSample()" title="ご提示いただいた愛知県行政書士会の配置図サンプルをワンクリックで読み込み">🏛️ 行政書士会サンプル</button>
     <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ クリア</button>
     <button class="btn btn-primary" onclick="exportOSSImage()">🖼️ OSS画像(2枚)保存</button>
     <button class="btn btn-secondary" onclick="copyMapToClipboard()" style="background:#0F172A; border-color:#10B981; color:#34D399; font-weight:600;" title="選択中の図面（所在図または配置図）を枠線なし・透過PNGとしてクリップボードにコピー（DocuWorks等に直接Ctrl+V貼り付け可能）">📋 透過コピー(DW貼付)</button>
     <button class="btn btn-success" onclick="exportA4PDF()">🖨️ 印刷 / PDF保存</button>
     <button class="btn" onclick="openDocuWorksExportModal()" style="background:linear-gradient(135deg, #2563eb, #7c3aed); color:#fff; font-weight:bold; box-shadow:0 2px 8px rgba(37,99,235,0.4);" title="DocuWorks完全一致PDF・xdw・確認書Excel・メール送信の一括出力">📑 OSS正式様式パック（DW準拠）</button>
+    <button class="btn btn-secondary" onclick="window.open('syako_map_maker_manual.html','_blank')" style="background:#0F172A; border-color:#F59E0B; color:#FCD34D;" title="使い方マニュアル（別タブ）">📖 使い方</button>
   </div>
 </header>
 
@@ -954,6 +965,17 @@
             ✂️ T字路を成形（交差部を自動開口）
           </button>
         </div>
+        <!-- ── 線種切替（実線・破線・一点鎖線） -->
+        <div class="property-row" id="propertyLineStyleRow" style="display:none; align-items:center; gap:3px; margin-top:4px; flex-wrap:wrap;">
+          <span style="font-size:0.72rem; color:#A78BFA; width:52px; flex-shrink:0;">─ 線種:</span>
+          <button class="property-btn" id="btnStyleSolid" onclick="setSelectedLineStyle('solid')" title="実線">━ 実線</button>
+          <button class="property-btn" id="btnStyleDashed" onclick="setSelectedLineStyle('dashed')" title="破線（カーポート屋根・庇等）">- - 破線</button>
+          <button class="property-btn" id="btnStyleDashDot" onclick="setSelectedLineStyle('dash-dot')" title="一点鎖線（敷地境界線・道路中心線）">─・─ 一点鎖線</button>
+        </div>
+        <!-- 📋 アレイ複写（等間隔複写＋自動連番） -->
+        <div class="property-row" id="propertyArrayDupRow" style="display:none; align-items:center; gap:3px; margin-top:4px; flex-wrap:wrap;">
+          <button class="property-btn" style="color:#A78BFA; border-color:#7C3AED; padding:3px 8px;" onclick="arrayDuplicate()" title="選択中の要素を指定方向・個数・間隔で一括複写（駐車枠は自動連番①②③…）">📋 アレイ複写（等間隔複製）</button>
+        </div>
         <!-- 🔤 フォントサイズ調整（arrow, line-dim, text, dist-line用） -->
         <div class="property-row" id="propertyFontSizeRow" style="display:none; align-items:center; gap:4px; margin-top:4px;">
           <span style="font-size:0.72rem; color:#38BDF8; width:52px; flex-shrink:0;">🔤 文字大:</span>
@@ -1046,6 +1068,21 @@
         </button>
         <button class="tool-btn" id="tool-clean-roads" onclick="autoCleanRoadIntersections()" title="道路のT字路・交差点を自動判定して綺麗に開口・成形" style="background:#1e293b; border-color:#10b981;">
           <span class="tool-btn-icon">✂️</span>T字路・交差点成形
+        </button>
+        <button class="tool-btn" id="tool-cad-dim" onclick="setTool('cad-dim')" title="2点をクリック/ドラッグで引き出し線＋矢印＋実寸値を自動生成">
+          <span class="tool-btn-icon">📐</span>CAD寸法線
+        </button>
+        <button class="tool-btn" id="tool-line-dashed" onclick="setTool('line-dashed')" title="破線（カーポート屋根・庇・上空の障害物）">
+          <span class="tool-btn-icon">- -</span>破線（屋根・庇）
+        </button>
+        <button class="tool-btn" id="tool-line-dashdot" onclick="setTool('line-dashdot')" title="一点鎖線（敷地境界線・官民境界線・道路中心線）">
+          <span class="tool-btn-icon">─・</span>敷地境界(鎖線)
+        </button>
+        <button class="tool-btn" id="tool-range-erase" onclick="setTool('range-erase')" title="矩形をドラッグして範囲内の要素を一括削除">
+          <span class="tool-btn-icon">🟥</span>範囲消去
+        </button>
+        <button class="tool-btn" id="tool-segment-erase" onclick="setTool('segment-erase')" title="交点からはみ出した線の部分だけを削除（節間消去）">
+          <span class="tool-btn-icon">✂️</span>節間消去
         </button>
       </div>
 
@@ -1288,6 +1325,7 @@ let currentSnapIndicator = null;
 let cornerFirstItemRef = null;
 let parallelBaseRef = null;
 let parallelDistM = 4.0;
+let rangeEraseStart = null; // { x, y } for range-erase tool
 
 // ─── 多角形・フリーハンド作図用ステート ───
 let polygonPoints = [];
@@ -1658,6 +1696,331 @@ function createDoubleSidedParallel() {
   showToast(`🪜 基準線の両側に複線（幅 ${distM}m）を2本作成しました`);
 }
 
+// ─── ④ 線種切替（solid / dashed / dash-dot） ───
+function setSelectedLineStyle(style) {
+  if (!selectedItemRef) { showToast('⚠️ 線を選択してください'); return; }
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+  if (item.x1 === undefined) { showToast('⚠️ 線種は線要素のみ変更可能です'); return; }
+  pushHistory();
+  item.lineStyle = style;
+  pushHistory();
+  autoSaveDraft();
+  redraw(targetKey);
+  drawSelectionHighlight(targetKey, index);
+  updateLineStyleButtons(style);
+  const labels = { 'solid': '━ 実線', 'dashed': '- - 破線', 'dash-dot': '─・─ 一点鎖線' };
+  showToast(`線種を「${labels[style] || style}」に変更しました`);
+}
+
+function updateLineStyleButtons(activeStyle) {
+  ['Solid', 'Dashed', 'DashDot'].forEach(s => {
+    const btn = document.getElementById('btnStyle' + s);
+    if (btn) {
+      const sKey = s === 'DashDot' ? 'dash-dot' : s.toLowerCase();
+      btn.style.background = (sKey === activeStyle) ? '#7C3AED' : '#1E293B';
+      btn.style.color = (sKey === activeStyle) ? '#fff' : '#E2E8F0';
+    }
+  });
+}
+
+function applyLineDash(ctx, style) {
+  if (style === 'dashed') {
+    ctx.setLineDash([10, 5]);
+  } else if (style === 'dash-dot') {
+    ctx.setLineDash([12, 4, 3, 4]);
+  } else {
+    ctx.setLineDash([]);
+  }
+}
+
+// ─── ③ アレイ複写（等間隔複製＋自動連番） ───
+function arrayDuplicate() {
+  if (!selectedItemRef) { showToast('⚠️ 複写する要素を選択してください'); return; }
+  const { targetKey, index } = selectedItemRef;
+  const item = drawings[targetKey][index];
+  if (!item) return;
+
+  const countStr = prompt('複写する個数を入力してください（例: 5）:', '5');
+  if (!countStr) return;
+  const count = parseInt(countStr, 10);
+  if (!count || count < 1 || count > 50) { showToast('⚠️ 1〜50の個数を入力してください'); return; }
+
+  const dirStr = prompt('複写方向を入力（right / left / up / down）:', 'right');
+  if (!dirStr) return;
+  const dir = dirStr.trim().toLowerCase();
+  if (!['right', 'left', 'up', 'down'].includes(dir)) { showToast('⚠️ right / left / up / down のいずれかを入力'); return; }
+
+  let pitchPx;
+  if (item.type === 'rect-spot' || item.type === 'rect-other') {
+    const pitchStr = prompt(`ピッチ（間隔）を入力\n※ px単位で直接入力。現在の枠サイズ: 幅${item.w}px × 高さ${item.h}px\n例: 枠幅と同じ=${item.w}`, String(dir === 'right' || dir === 'left' ? item.w : item.h));
+    if (!pitchStr) return;
+    pitchPx = parseFloat(pitchStr);
+  } else {
+    const pitchStr = prompt('ピッチ（間隔）をpxで入力（例: 60）:', '60');
+    if (!pitchStr) return;
+    pitchPx = parseFloat(pitchStr);
+  }
+  if (!pitchPx || pitchPx <= 0) { showToast('⚠️ 正の数値でピッチを入力してください'); return; }
+
+  const circledNums = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿';
+  const isSpot = item.type === 'rect-spot' || item.type === 'poly-spot';
+
+  pushHistory();
+  for (let i = 1; i <= count; i++) {
+    const newItem = JSON.parse(JSON.stringify(item));
+    const dx = dir === 'right' ? pitchPx * i : dir === 'left' ? -pitchPx * i : 0;
+    const dy = dir === 'down' ? pitchPx * i : dir === 'up' ? -pitchPx * i : 0;
+
+    if (newItem.x !== undefined) { newItem.x += dx; newItem.y += dy; }
+    if (newItem.x1 !== undefined) { newItem.x1 += dx; newItem.y1 += dy; newItem.x2 += dx; newItem.y2 += dy; }
+    if (newItem.points && Array.isArray(newItem.points)) {
+      newItem.points.forEach(p => { p.x += dx; p.y += dy; });
+    }
+
+    if (isSpot && i < circledNums.length) {
+      newItem.label = circledNums[i];
+    }
+
+    drawings[targetKey].push(newItem);
+  }
+
+  // 元の要素にも連番を付ける（最初の番号）
+  if (isSpot) {
+    item.label = circledNums[0];
+  }
+
+  pushHistory();
+  autoSaveDraft();
+  redraw(targetKey);
+  showToast(`📋 ${count}個のアレイ複写を完了${isSpot ? '（自動連番①②③…付与）' : ''}しました`);
+}
+
+// ─── ① CAD寸法線の描画関数 ───
+function drawCadDimension(ctx, item) {
+  ctx.save();
+  const { x1, y1, x2, y2 } = item;
+  const offsetPx = item.offsetPx || 25;
+  const extLen = item.extLen || 8;
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) { ctx.restore(); return; }
+
+  // 寸法線の方向に垂直なオフセット（外側に出す）
+  const nx = -dy / len;
+  const ny = dx / len;
+
+  // オフセットされた寸法線の端点
+  const sx1 = x1 + nx * offsetPx;
+  const sy1 = y1 + ny * offsetPx;
+  const sx2 = x2 + nx * offsetPx;
+  const sy2 = y2 + ny * offsetPx;
+
+  ctx.strokeStyle = '#000000';
+  ctx.fillStyle = '#000000';
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = 'round';
+
+  // 引き出し線（extension lines）
+  ctx.beginPath();
+  ctx.moveTo(x1 + nx * 3, y1 + ny * 3);
+  ctx.lineTo(sx1 + nx * extLen, sy1 + ny * extLen);
+  ctx.moveTo(x2 + nx * 3, y2 + ny * 3);
+  ctx.lineTo(sx2 + nx * extLen, sy2 + ny * extLen);
+  ctx.stroke();
+
+  // 寸法線（dimension line）
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(sx1, sy1);
+  ctx.lineTo(sx2, sy2);
+  ctx.stroke();
+
+  // 矢印（arrowheads）
+  const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
+  const headLen = 7;
+  ctx.beginPath();
+  ctx.moveTo(sx1, sy1);
+  ctx.lineTo(sx1 + headLen * Math.cos(angle - Math.PI / 6), sy1 + headLen * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(sx1 + headLen * Math.cos(angle + Math.PI / 6), sy1 + headLen * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(sx2, sy2);
+  ctx.lineTo(sx2 - headLen * Math.cos(angle - Math.PI / 6), sy2 - headLen * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(sx2 - headLen * Math.cos(angle + Math.PI / 6), sy2 - headLen * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+
+  // テキスト
+  const text = item.text || '';
+  if (text) {
+    const fSize = item.fontSize || 12;
+    ctx.font = `bold ${fSize}px sans-serif`;
+    const mx = (sx1 + sx2) / 2;
+    const my = (sy1 + sy2) / 2;
+    const tw = ctx.measureText(text).width;
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(mx - tw / 2 - 3, my - fSize * 0.65, tw + 6, fSize * 1.3);
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, mx, my);
+  }
+
+  ctx.restore();
+}
+
+// ─── ⑤-b 範囲消去 ───
+function rangeEraseInRect(targetKey, rx, ry, rw, rh) {
+  const list = drawings[targetKey];
+  if (!list || list.length === 0) return 0;
+
+  const minX = Math.min(rx, rx + rw);
+  const maxX = Math.max(rx, rx + rw);
+  const minY = Math.min(ry, ry + rh);
+  const maxY = Math.max(ry, ry + rh);
+
+  function isInRect(x, y) {
+    return x >= minX && x <= maxX && y >= minY && y <= maxY;
+  }
+
+  const toRemove = new Set();
+  list.forEach((item, idx) => {
+    if (item.type.startsWith('rect') || item.type === 'compass' || item.type === 'car' || item.type === 'text' || item.type === 'landmark-dot') {
+      const cx = item.x + (item.w || 0) / 2;
+      const cy = item.y + (item.h || 0) / 2;
+      if (isInRect(cx, cy)) toRemove.add(idx);
+    } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
+      const center = getPolygonCenter(item.points);
+      if (isInRect(center.cx, center.cy)) toRemove.add(idx);
+    } else if (item.x1 !== undefined) {
+      const mx = (item.x1 + item.x2) / 2;
+      const my = (item.y1 + item.y2) / 2;
+      if (isInRect(mx, my)) toRemove.add(idx);
+    }
+  });
+
+  if (toRemove.size > 0) {
+    drawings[targetKey] = list.filter((_, idx) => !toRemove.has(idx));
+  }
+  return toRemove.size;
+}
+
+// ─── ⑤-c 節間消去（交差点はみ出し部分のみ削除） ───
+function segmentEraseAtPoint(targetKey, cx, cy) {
+  const list = drawings[targetKey];
+  if (!list || list.length === 0) return;
+
+  // クリック位置付近の線を探す
+  let hitIdx = -1;
+  let minDist = Infinity;
+  list.forEach((item, idx) => {
+    if (item.x1 !== undefined && item.x2 !== undefined) {
+      const d = distToSegment(cx, cy, item.x1, item.y1, item.x2, item.y2);
+      if (d < 12 && d < minDist) {
+        minDist = d;
+        hitIdx = idx;
+      }
+    }
+  });
+
+  if (hitIdx < 0) {
+    showToast('💡 消去する線の近くをクリックしてください');
+    return;
+  }
+
+  const hitLine = list[hitIdx];
+
+  // hitLineと他の線との交点を全て求める
+  const intersections = [];
+  list.forEach((item, idx) => {
+    if (idx === hitIdx) return;
+    if (item.x1 === undefined) return;
+    const inter = getLineLineIntersection(hitLine, item, false);
+    if (inter) {
+      // パラメータtを算出（hitLine上の位置 0〜1）
+      const dx = hitLine.x2 - hitLine.x1;
+      const dy = hitLine.y2 - hitLine.y1;
+      const len2 = dx * dx + dy * dy;
+      if (len2 < 1) return;
+      const t = ((inter.x - hitLine.x1) * dx + (inter.y - hitLine.y1) * dy) / len2;
+      if (t >= -0.02 && t <= 1.02) {
+        intersections.push({ t: Math.max(0, Math.min(1, t)), x: inter.x, y: inter.y });
+      }
+    }
+  });
+
+  if (intersections.length === 0) {
+    showToast('💡 この線には交差する他の線がありません');
+    return;
+  }
+
+  intersections.sort((a, b) => a.t - b.t);
+
+  // クリック位置がhitLine上のどの位置にあるかを算出
+  const lineDx = hitLine.x2 - hitLine.x1;
+  const lineDy = hitLine.y2 - hitLine.y1;
+  const lineLen2 = lineDx * lineDx + lineDy * lineDy;
+  const clickT = Math.max(0, Math.min(1, ((cx - hitLine.x1) * lineDx + (cy - hitLine.y1) * lineDy) / lineLen2));
+
+  // クリック位置を挟む2つの交点を見つける
+  let segStart = 0;  // 線の始点
+  let segEnd = 1;    // 線の終点
+  let startPt = { x: hitLine.x1, y: hitLine.y1 };
+  let endPt = { x: hitLine.x2, y: hitLine.y2 };
+
+  for (const inter of intersections) {
+    if (inter.t <= clickT && inter.t > segStart) {
+      segStart = inter.t;
+      startPt = { x: inter.x, y: inter.y };
+    }
+  }
+  for (const inter of intersections) {
+    if (inter.t >= clickT && inter.t < segEnd) {
+      segEnd = inter.t;
+      endPt = { x: inter.x, y: inter.y };
+    }
+  }
+
+  // segStart == 0 (始端) or segEnd == 1 (終端) の場合 = はみ出し部分
+  // 中間セグメント（両方とも交点に挟まれている）の場合も消去可能
+
+  pushHistory();
+
+  const newSegments = [];
+  // 始端側が残る場合
+  if (segStart > 0.01) {
+    newSegments.push({
+      ...hitLine,
+      x1: hitLine.x1, y1: hitLine.y1,
+      x2: Math.round(startPt.x), y2: Math.round(startPt.y)
+    });
+  }
+  // 終端側が残る場合
+  if (segEnd < 0.99) {
+    newSegments.push({
+      ...hitLine,
+      x1: Math.round(endPt.x), y1: Math.round(endPt.y),
+      x2: hitLine.x2, y2: hitLine.y2
+    });
+  }
+
+  // 元の線を削除し、残りのセグメントを追加
+  drawings[targetKey].splice(hitIdx, 1);
+  drawings[targetKey].push(...newSegments);
+
+  pushHistory();
+  autoSaveDraft();
+  redraw(targetKey);
+  showToast('✂️ 節間消去しました（交点間のセグメントを除去）');
+}
+
 function snapToAngle(x1, y1, x2, y2, allow45 = false) {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -1846,6 +2209,16 @@ function setupKeyboardShortcuts() {
     if ((e.key === ']' || (e.key === 'ArrowRight' && e.altKey)) && selectedItemRef && document.activeElement.tagName !== 'INPUT') {
       e.preventDefault();
       rotateSelectedItem(1);
+    }
+    // アレイ複写: Aキー
+    if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && selectedItemRef && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      arrayDuplicate();
+    }
+    // 節間消去ツール: Eキー
+    if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      setTool('segment-erase');
     }
   });
 }
@@ -2537,7 +2910,7 @@ function autoCleanRoadIntersections(targetKey) {
   pushHistory();
   let modified = false;
 
-  function intersectSegs(x1, y1, x2, y2, x3, y3, x4, y4, tol = 26) {
+  function intersectSegs(x1, y1, x2, y2, x3, y3, x4, y4, tol = 30) {
     const dx1 = x2 - x1, dy1 = y2 - y1;
     const dx2 = x4 - x3, dy2 = y4 - y3;
     const denom = dy2 * dx1 - dx2 * dy1;
@@ -2552,8 +2925,8 @@ function autoCleanRoadIntersections(targetKey) {
       return {
         ua: Math.max(0, Math.min(1, ua)),
         ub: Math.max(0, Math.min(1, ub)),
-        x: x1 + ua * dx1,
-        y: y1 + ua * dy1
+        x: x1 + Math.max(0, Math.min(1, ua)) * dx1,
+        y: y1 + Math.max(0, Math.min(1, ua)) * dy1
       };
     }
     return null;
@@ -2573,40 +2946,65 @@ function autoCleanRoadIntersections(targetKey) {
       const inter = intersectSegs(
         mainLine.x1, mainLine.y1, mainLine.x2, mainLine.y2,
         otherLine.x1, otherLine.y1, otherLine.x2, otherLine.y2,
-        20
+        30
       );
       if (inter) {
-        const isTouchingEnd = inter.ub <= 0.25 || inter.ub >= 0.75;
         intersections.push({
           otherIdx: oIdx,
           ua: inter.ua,
           ub: inter.ub,
           x: inter.x,
-          y: inter.y,
-          isTouchingEnd: isTouchingEnd
+          y: inter.y
         });
       }
     }
 
+    if (intersections.length === 0) continue;
+
     intersections.sort((a, b) => a.ua - b.ua);
 
+    // ペアリング: 隣接する2交点の間隔が道路幅（15〜350px）のペアを切り取る
     let cutIntervals = [];
+    const used = new Set();
     for (let k = 0; k < intersections.length - 1; k++) {
+      if (used.has(k)) continue;
       const p1 = intersections[k];
       const p2 = intersections[k + 1];
       const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-      if (dist >= 15 && dist <= 280) {
+      if (dist >= 12 && dist <= 350) {
         cutIntervals.push({ startUa: p1.ua, endUa: p2.ua, startPt: p1, endPt: p2 });
+        used.add(k);
+        used.add(k + 1);
 
+        // 他方の道路線の端を交点に合わせる（T字路成形）
         const line1 = list[p1.otherIdx];
-        if (p1.ub <= 0.25) { line1.x1 = Math.round(p1.x); line1.y1 = Math.round(p1.y); }
-        else if (p1.ub >= 0.75) { line1.x2 = Math.round(p1.x); line1.y2 = Math.round(p1.y); }
-
+        if (line1) {
+          if (p1.ub <= 0.3) { line1.x1 = Math.round(p1.x); line1.y1 = Math.round(p1.y); }
+          else if (p1.ub >= 0.7) { line1.x2 = Math.round(p1.x); line1.y2 = Math.round(p1.y); }
+        }
         const line2 = list[p2.otherIdx];
-        if (p2.ub <= 0.25) { line2.x1 = Math.round(p2.x); line2.y1 = Math.round(p2.y); }
-        else if (p2.ub >= 0.75) { line2.x2 = Math.round(p2.x); line2.y2 = Math.round(p2.y); }
+        if (line2) {
+          if (p2.ub <= 0.3) { line2.x1 = Math.round(p2.x); line2.y1 = Math.round(p2.y); }
+          else if (p2.ub >= 0.7) { line2.x2 = Math.round(p2.x); line2.y2 = Math.round(p2.y); }
+        }
+      }
+    }
 
-        k++;
+    // T字路ケース: 交差点が1つだけの場合、突き当たる側の線を交点で切り詰める
+    if (cutIntervals.length === 0 && intersections.length >= 1) {
+      for (const inter of intersections) {
+        const otherLine = list[inter.otherIdx];
+        if (!otherLine) continue;
+        // 他方の線の端点が近い場合のみ（T字路）
+        if (inter.ub <= 0.15) {
+          otherLine.x1 = Math.round(inter.x);
+          otherLine.y1 = Math.round(inter.y);
+          modified = true;
+        } else if (inter.ub >= 0.85) {
+          otherLine.x2 = Math.round(inter.x);
+          otherLine.y2 = Math.round(inter.y);
+          modified = true;
+        }
       }
     }
 
@@ -2646,14 +3044,16 @@ function autoCleanRoadIntersections(targetKey) {
 
   if (modified) {
     drawings[tKey] = drawings[tKey].filter((_, idx) => !handledOriginalIndices.has(idx)).concat(newDrawings);
+    pushHistory();
     redraw(tKey);
     autoSaveDraft();
     showToast('🛣️ T字路・交差点を自動成形しました！（接続口を綺麗に開口）');
   } else {
-    showToast('💡 突き当たるT字路や交差が見つかりませんでした。直交線を描いてから再度実行してください。');
+    showToast('💡 突き当たるT字路や交差が見つかりませんでした。直交する道路線を描いてから再度実行してください。');
   }
 }
 window.autoCleanRoadIntersections = autoCleanRoadIntersections;
+
 
 function showPropertyPanel(targetKey, index) {
   selectedItemRef = { targetKey, index };
@@ -2679,7 +3079,8 @@ function showPropertyPanel(targetKey, index) {
     'arrow': `↔️ 出入口・幅員: 「${item.label || item.text || ''}」`,
     'line-road': '🛣️ 道路境界線',
     'line-rail': `🚆 線路: 「${item.text || ''}」`,
-    'dist-line': `📍 距離線: 「${item.text || ''}」`
+    'dist-line': `📍 距離線: 「${item.text || ''}」`,
+    'cad-dim': `📐 CAD寸法線: 「${item.text || ''}」`
   };
 
   const currentAngle = Math.round(((item.angle || 0) % 360 + 360) % 360);
@@ -2693,7 +3094,7 @@ function showPropertyPanel(targetKey, index) {
   const textRow = document.getElementById('propertyTextRow');
   const textInput = document.getElementById('propertyTextInput');
   if (textRow && textInput) {
-    if (item.type === 'text' || item.type === 'landmark-dot' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail' || item.type === 'arrow' || item.label !== undefined || item.type === 'rect-spot' || item.type === 'poly-spot') {
+    if (item.type === 'text' || item.type === 'landmark-dot' || item.type === 'line-dim' || item.type === 'dist-line' || item.type === 'line-rail' || item.type === 'arrow' || item.type === 'cad-dim' || item.label !== undefined || item.type === 'rect-spot' || item.type === 'poly-spot') {
       textRow.style.display = 'flex';
       textInput.value = item.label !== undefined ? item.label : (item.text || '');
       textInput.placeholder = item.type === 'arrow' ? '幅員を入力（例: 幅員 4.0m, 出入口 5.0m）' : (item.type === 'rect-spot' || item.type === 'poly-spot' ? '文字を入力（空欄でラベル非表示）' : 'テキストを入力');
@@ -2745,7 +3146,7 @@ function showPropertyPanel(targetKey, index) {
   const fontRow = document.getElementById('propertyFontSizeRow');
   const fontDisp = document.getElementById('propertyFontSizeDisplay');
   if (fontRow && fontDisp) {
-    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'arrow' || item.type === 'dist-line') {
+    if (item.type === 'text' || item.type === 'line-dim' || item.type === 'arrow' || item.type === 'dist-line' || item.type === 'cad-dim') {
       fontRow.style.display = 'flex';
       const curFSize = item.fontSize || (item.type === 'text' ? 14 : (item.type === 'line-dim' ? 13 : 12));
       fontDisp.textContent = `${curFSize}px`;
@@ -2762,6 +3163,23 @@ function showPropertyPanel(targetKey, index) {
     } else {
       arrowLayoutRow.style.display = 'none';
     }
+  }
+
+  // --- 線種切替ボタンの表示制御 ---
+  const lineStyleRow = document.getElementById('propertyLineStyleRow');
+  if (lineStyleRow) {
+    if (item.x1 !== undefined && (item.type === 'line-straight' || item.type === 'line-road' || item.type === 'cad-dim')) {
+      lineStyleRow.style.display = 'flex';
+      updateLineStyleButtons(item.lineStyle || 'solid');
+    } else {
+      lineStyleRow.style.display = 'none';
+    }
+  }
+
+  // --- アレイ複写ボタンの表示制御 ---
+  const arrayDupRow = document.getElementById('propertyArrayDupRow');
+  if (arrayDupRow) {
+    arrayDupRow.style.display = 'flex';
   }
 
   panel.classList.add('active');
@@ -3340,13 +3758,14 @@ function setTool(tool) {
     cancelPolygon();
   }
   currentTool = tool;
+  rangeEraseStart = null;
   document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.getElementById(`tool-${tool}`);
   if (btn) btn.classList.add('active');
 
-  const isDraw = tool !== 'select' && tool !== 'eraser';
-  if (sozaiCanvas) sozaiCanvas.classList.toggle('drawing-mode', isDraw);
-  if (haichiCanvas) haichiCanvas.classList.toggle('drawing-mode', isDraw);
+  const isDraw = tool !== 'select' && tool !== 'eraser' && tool !== 'range-erase' && tool !== 'segment-erase';
+  if (sozaiCanvas) sozaiCanvas.classList.toggle('drawing-mode', isDraw || tool === 'range-erase' || tool === 'segment-erase');
+  if (haichiCanvas) haichiCanvas.classList.toggle('drawing-mode', isDraw || tool === 'range-erase' || tool === 'segment-erase');
 
   clearSelection();
 
@@ -3369,7 +3788,12 @@ function setTool(tool) {
     'dist-line': '直線距離線（ドラッグまたはクリック / Shiftキーで水平垂直スナップ）',
     'eraser': '要素削除（クリックで削除）',
     'parallel': '🪜 複線(平行線)ツール: 基準線をクリック後、平行線を作りたい側（左右/上下）をクリック',
-    'corner-trim': '📐 コーナー結合: 1本目の線、2本目の線を順にクリックして角を隙間なく結合'
+    'corner-trim': '📐 コーナー結合: 1本目の線、2本目の線を順にクリックして角を隙間なく結合',
+    'cad-dim': '📐 CAD寸法線: 2点をドラッグで引き出し線＋矢印＋実寸値を自動生成（スナップ対応）',
+    'line-dashed': '- - 破線ペン: カーポート屋根・庇・上空の障害物（Shiftで直交）',
+    'line-dashdot': '─・─ 一点鎖線ペン: 敷地境界線・官民境界線・道路中心線（Shiftで直交）',
+    'range-erase': '🟥 範囲消去: 矩形をドラッグして範囲内の要素を一括削除',
+    'segment-erase': '✂️ 節間消去: 交差する線の飛び出し部分のみを消去（クリック）'
   };
   if (tool === 'parallel') {
     const pBar = document.getElementById('propertyParallelBar');
@@ -3623,7 +4047,7 @@ function setupCanvasEvents(canvas, targetKey) {
     }
 
     // 描画開始時の端点スナップ
-    if (window.objectSnapEnabled && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+    if (window.objectSnapEnabled && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line' || currentTool === 'cad-dim')) {
       const snapStart = findNearestSnap(startX, startY, targetKey);
       if (snapStart) {
         startX = snapStart.x;
@@ -3711,6 +4135,9 @@ function setupCanvasEvents(canvas, targetKey) {
       isDrawing = false;
       redraw(targetKey);
       showToast('🧹 要素を削除しました');
+    } else if (currentTool === 'segment-erase') {
+      segmentEraseAtPoint(targetKey, startX, startY);
+      isDrawing = false;
     }
   });
 
@@ -3993,7 +4420,7 @@ function setupCanvasEvents(canvas, targetKey) {
     let endX = e.clientX - rect.left;
     let endY = e.clientY - rect.top;
 
-    if (window.objectSnapEnabled && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+    if (window.objectSnapEnabled && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line' || currentTool === 'cad-dim')) {
       const snapEnd = findNearestSnap(endX, endY, targetKey);
       if (snapEnd) {
         endX = snapEnd.x;
@@ -4002,7 +4429,7 @@ function setupCanvasEvents(canvas, targetKey) {
     }
 
     const shouldSnap = window.orthoLock || e.shiftKey;
-    if (shouldSnap && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line')) {
+    if (shouldSnap && (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line' || currentTool === 'cad-dim')) {
       const snapped = snapToAngle(startX, startY, endX, endY, !window.orthoLock && e.shiftKey);
       endX = snapped.x;
       endY = snapped.y;
@@ -4167,6 +4594,76 @@ function setupCanvasEvents(canvas, targetKey) {
       cutRoadAtPoint(targetKey, startX, startY);
       isDrawing = false;
       return;
+    } else if (currentTool === 'cad-dim') {
+      if (dragDist >= 4) {
+        const lenPx = Math.hypot(endX - startX, endY - startY);
+        const meterVal = pxToMeters(lenPx, targetKey).toFixed(1);
+        drawings[targetKey].push({
+          type: 'cad-dim',
+          x1: startX, y1: startY, x2: endX, y2: endY,
+          text: meterVal + 'm',
+          offsetPx: 25,
+          extLen: 8,
+          fontSize: 12,
+          angle: 0
+        });
+        showToast(`📏 CAD寸法線を作成しました（${meterVal}m）`);
+      } else {
+        showToast('💡 始点から終点までドラッグするとCAD寸法線が引けます');
+      }
+    } else if (currentTool === 'line-dashed') {
+      if (dragDist >= 4) {
+        drawings[targetKey].push({
+          type: 'line-straight',
+          x1: startX, y1: startY, x2: endX, y2: endY,
+          lineWidth: 2.0,
+          color: '#000000',
+          lineStyle: 'dashed',
+          angle: 0
+        });
+        showToast('- - 破線（屋根・庮）を描画しました');
+        showPropertyPanel(targetKey, newIndex);
+      } else {
+        showToast('💡 始点から終点までドラッグすると破線が引けます');
+      }
+    } else if (currentTool === 'line-dashdot') {
+      if (dragDist >= 4) {
+        drawings[targetKey].push({
+          type: 'line-straight',
+          x1: startX, y1: startY, x2: endX, y2: endY,
+          lineWidth: 2.0,
+          color: '#000000',
+          lineStyle: 'dash-dot',
+          angle: 0
+        });
+        showToast('─・─ 一点鎖線（敷地境界）を描画しました');
+        showPropertyPanel(targetKey, newIndex);
+      } else {
+        showToast('💡 始点から終点までドラッグすると一点鎖線が引けます');
+      }
+    } else if (currentTool === 'range-erase') {
+      if (dragDist >= 8) {
+        const rx = Math.min(startX, endX);
+        const ry = Math.min(startY, endY);
+        const rw = Math.abs(endX - startX);
+        const rh = Math.abs(endY - startY);
+        pushHistory();
+        const count = rangeEraseInRect(targetKey, rx, ry, rw, rh);
+        if (count > 0) {
+          pushHistory();
+          autoSaveDraft();
+          redraw(targetKey);
+          showToast(`🟥 範囲内の${count}個の要素を削除しました`);
+        } else {
+          showToast('💡 範囲内に削除対象の要素がありませんでした');
+        }
+        isDrawing = false;
+        return;
+      } else {
+        showToast('💡 削除範囲をドラッグで囲んでください');
+        isDrawing = false;
+        return;
+      }
     }
 
     pushHistory();
@@ -4201,7 +4698,7 @@ function hitTestElement(targetKey, x, y) {
       if (it.type.startsWith('rect') || it.type === 'car') {
         cx = it.x + (it.w || 60) / 2;
         cy = it.y + (it.h || 60) / 2;
-      } else if (it.type.startsWith('line') || it.type === 'arrow' || it.type === 'dist-line') {
+      } else if (it.type.startsWith('line') || it.type === 'arrow' || it.type === 'dist-line' || it.type === 'cad-dim') {
         cx = (it.x1 + it.x2) / 2;
         cy = (it.y1 + it.y2) / 2;
       } else if ((it.type.startsWith('poly') || it.type === 'freehand') && it.points) {
@@ -4249,7 +4746,7 @@ function hitTestElement(targetKey, x, y) {
       if (Math.hypot(it.x - testX, it.y - testY) <= (it.radius || 4.5) + 8) {
         return i;
       }
-    } else if (it.type.startsWith('line') || it.type === 'arrow' || it.type === 'dist-line') {
+    } else if (it.type.startsWith('line') || it.type === 'arrow' || it.type === 'dist-line' || it.type === 'cad-dim') {
       const dist = Math.hypot((it.x1 + it.x2) / 2 - testX, (it.y1 + it.y2) / 2 - testY);
       if (dist < 30) {
         return i;
@@ -4270,7 +4767,7 @@ function drawSelectionHighlight(targetKey, index) {
     if (item.type.startsWith('rect') || item.type === 'car') {
       cx = item.x + item.w / 2;
       cy = item.y + item.h / 2;
-    } else if (item.type.startsWith('line') || item.type === 'arrow' || item.type === 'dist-line') {
+    } else if (item.type.startsWith('line') || item.type === 'arrow' || item.type === 'dist-line' || item.type === 'cad-dim') {
       cx = (item.x1 + item.x2) / 2;
       cy = (item.y1 + item.y2) / 2;
     } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
@@ -4451,6 +4948,68 @@ function drawPreview(targetKey, x1, y1, x2, y2) {
     ctx.setLineDash([4, 4]);
     ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
     ctx.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+  } else if (currentTool === 'cad-dim') {
+    // CAD寸法線プレビュー
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    if (len > 2) {
+      const nx = -dy / len;
+      const ny = dx / len;
+      const off = 25;
+      const sx1 = x1 + nx * off, sy1 = y1 + ny * off;
+      const sx2 = x2 + nx * off, sy2 = y2 + ny * off;
+      ctx.strokeStyle = '#7C3AED';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(x1 + nx * 3, y1 + ny * 3);
+      ctx.lineTo(sx1 + nx * 8, sy1 + ny * 8);
+      ctx.moveTo(x2 + nx * 3, y2 + ny * 3);
+      ctx.lineTo(sx2 + nx * 8, sy2 + ny * 8);
+      ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.stroke();
+      // 実寸プレビュー
+      const meterVal = pxToMeters(len, activeTarget).toFixed(1);
+      ctx.fillStyle = 'rgba(124, 58, 237, 0.9)';
+      const midX = (sx1 + sx2) / 2;
+      const midY = (sy1 + sy2) / 2;
+      ctx.font = 'bold 12px sans-serif';
+      const tw = ctx.measureText(meterVal + 'm').width + 8;
+      ctx.fillRect(midX - tw / 2, midY - 10, tw, 18);
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(meterVal + 'm', midX, midY + 4);
+    }
+  } else if (currentTool === 'range-erase') {
+    // 範囲消去プレビュー（赤い破線矩形）
+    ctx.strokeStyle = '#EF4444';
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    const rx = Math.min(x1, x2), ry = Math.min(y1, y2);
+    const rw = Math.abs(x2 - x1), rh = Math.abs(y2 - y1);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.85)';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('🟥 範囲消去', rx + 4, ry + 14);
+  } else if (currentTool === 'line-dashed' || currentTool === 'line-dashdot') {
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.0;
+    ctx.lineCap = 'round';
+    applyLineDash(ctx, currentTool === 'line-dashed' ? 'dashed' : 'dash-dot');
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
   } else if (currentTool.startsWith('line') || currentTool === 'arrow' || currentTool === 'dist-line') {
     ctx.strokeStyle = '#2563EB';
     ctx.lineWidth = 2.0;
@@ -4471,7 +5030,7 @@ function drawElement(ctx, item) {
     if (item.type.startsWith('rect') || item.type === 'car') {
       cx = item.x + item.w / 2;
       cy = item.y + item.h / 2;
-    } else if (item.type.startsWith('line') || item.type === 'arrow' || item.type === 'dist-line') {
+    } else if (item.type.startsWith('line') || item.type === 'arrow' || item.type === 'dist-line' || item.type === 'cad-dim') {
       cx = (item.x1 + item.x2) / 2;
       cy = (item.y1 + item.y2) / 2;
     } else if ((item.type.startsWith('poly') || item.type === 'freehand') && item.points) {
@@ -4586,12 +5145,12 @@ function drawElement(ctx, item) {
       });
     }
   } else if (item.type === 'rect-other') {
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = item.color || '#000000';
+    ctx.lineWidth = item.lineWidth || 2;
     ctx.strokeRect(item.x, item.y, item.w, item.h);
   } else if (item.type === 'poly-other' && item.points && item.points.length >= 3) {
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2.0;
+    ctx.strokeStyle = item.color || '#000000';
+    ctx.lineWidth = item.lineWidth || 2.0;
     ctx.beginPath();
     ctx.moveTo(item.points[0].x, item.points[0].y);
     for (let i = 1; i < item.points.length; i++) {
@@ -4612,25 +5171,31 @@ function drawElement(ctx, item) {
     ctx.stroke();
   } else if (item.type === 'line-dim') {
     drawDimensionLine(ctx, item.x1, item.y1, item.x2, item.y2, item.text, item.fontSize || 13, item.textPos || 'auto');
+  } else if (item.type === 'cad-dim') {
+    drawCadDimension(ctx, item);
   } else if (item.type === 'arrow') {
     drawArrow(ctx, item.x1, item.y1, item.x2, item.y2, '#000000', 2.0, true, item.label || item.text || '', item.fontSize || 12, item.textPos || 'auto');
   } else if (item.type === 'line-straight') {
     ctx.strokeStyle = item.color || '#000000';
     ctx.lineWidth = item.lineWidth || 2.0;
     ctx.lineCap = 'round';
+    applyLineDash(ctx, item.lineStyle || 'solid');
     ctx.beginPath();
     ctx.moveTo(item.x1, item.y1);
     ctx.lineTo(item.x2, item.y2);
     ctx.stroke();
+    ctx.setLineDash([]);
   } else if (item.type === 'line-road') {
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 4.0;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    applyLineDash(ctx, item.lineStyle || 'solid');
     ctx.beginPath();
     ctx.moveTo(item.x1, item.y1);
     ctx.lineTo(item.x2, item.y2);
     ctx.stroke();
+    ctx.setLineDash([]);
   } else if (item.type === 'line-rail') {
     drawRailwayTrack(ctx, item.x1, item.y1, item.x2, item.y2, item.text);
   } else if (item.type === 'dist-line') {
@@ -4670,9 +5235,12 @@ function drawElement(ctx, item) {
   } else if (item.type === 'text') {
     ctx.fillStyle = item.color || '#000000';
     const fSize = item.fontSize || 14;
-    ctx.font = `bold ${fSize}px sans-serif`;
+    ctx.font = `${item.bold ? 'bold ' : ''}${fSize}px sans-serif`;
     ctx.textAlign = 'left';
-    ctx.fillText(item.text, item.x, item.y);
+    const textLines = String(item.text || '').split('\n');
+    textLines.forEach((tLine, lIdx) => {
+      ctx.fillText(tLine, item.x, item.y + lIdx * Math.round(fSize * 1.3));
+    });
 
     // 申請地以外の目印用 黒丸 (⚫) の描画（下▼、上▲、左◀、右▶）
     if (item.landmarkDot && item.landmarkDot !== 'none') {
@@ -5409,6 +5977,117 @@ function switchLayout() {
     if (haichiMap) haichiMap.invalidateSize();
   }, 100);
   showToast(`📄 様式を変更しました: ${badge.textContent}`);
+}
+
+
+/**
+ * 🏛️ 愛知県行政書士会 配置図サンプル
+ * （添付画像と100%同一のCAD配置図レイアウト: 駐車場6台、赤枠①番、愛知県行政書士会、道路・歩道、寸法値）
+ */
+function loadAichiGyoseiSample() {
+  document.getElementById('layoutSelect').value = 'oss-2page';
+  switchLayout();
+  setHaichiMode('blank');
+
+  document.getElementById('homeAddress').value = '愛知県名古屋市熱田区神宮三丁目3番8号';
+  document.getElementById('parkingAddress').value = '愛知県名古屋市熱田区神宮三丁目3番8号';
+  document.getElementById('sameAddress').checked = true;
+  document.getElementById('spotNo').value = '①';
+  document.getElementById('spotWidth').value = '2.0m';
+  document.getElementById('spotLength').value = '5.0m';
+  document.getElementById('roadWidth').value = '5.0m';
+  document.getElementById('entranceWidth').value = '10.0m';
+  document.getElementById('distanceVal').value = '同上 (0m)';
+  document.getElementById('shutterVal').value = '無';
+  document.getElementById('dealerInfoInput').value = '愛知県行政書士会館';
+  document.getElementById('officeInfoInput').value = '行政書士法人フェリス 0586-50-2896';
+  document.getElementById('showSealCheckbox').checked = true;
+  updateFooterDealerInfo();
+  updateFooterOfficeInfo();
+  toggleSeal();
+
+  setTimeout(() => {
+    // 添付図面と完全一致する配置図作図オブジェクト配列
+    drawings.haichi = [
+      // 1. 左側歩道と道路
+      { type: 'line-straight', x1: 50, y1: 50, x2: 50, y2: 670, lineWidth: 2, color: '#000000' },
+      { type: 'line-straight', x1: 85, y1: 50, x2: 85, y2: 670, lineWidth: 2, color: '#000000' },
+      { type: 'text', x: 62, y: 350, text: '歩\n道', fontSize: 13, bold: true, color: '#000000' },
+      { type: 'text', x: 145, y: 330, text: '道\n\n路', fontSize: 24, bold: true, color: '#000000' },
+      { type: 'text', x: 138, y: 440, text: '5.0ｍ', fontSize: 14, bold: true, color: '#000000' },
+      { type: 'line-straight', x1: 220, y1: 50, x2: 220, y2: 670, lineWidth: 2, color: '#000000' },
+      { type: 'text', x: 195, y: 160, text: '出\n入\n口', fontSize: 13, bold: true, color: '#000000' },
+
+      // 2. 駐車場外枠 (19300 x 6400)
+      { type: 'rect-other', x: 220, y: 100, w: 450, h: 140, lineWidth: 2, color: '#000000' },
+      { type: 'text', x: 430, y: 92, text: '19300', fontSize: 11, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 675, y: 165, text: '6400', fontSize: 11, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 405, y: 178, text: '駐 車 場', fontSize: 16, bold: true, color: '#000000' },
+
+      // 3. 駐車枠 6区画 (2行 x 3列)
+      // ① 申請保管場所 (赤枠・太線)
+      { type: 'rect-other', x: 245, y: 105, w: 115, h: 46, lineWidth: 2.2, color: '#EF4444' },
+      { type: 'text', x: 295, y: 136, text: '①', fontSize: 22, bold: true, color: '#000000' },
+      { type: 'text', x: 228, y: 132, text: '2\n.\n0\nm', fontSize: 11, bold: true, color: '#000000' },
+      { type: 'text', x: 285, y: 168, text: '5.0ｍ', fontSize: 13, bold: true, color: '#000000' },
+
+      // 2台目 (上段中央)
+      { type: 'rect-other', x: 385, y: 105, w: 115, h: 46, lineWidth: 1.8, color: '#000000' },
+      // 3台目 (上段右)
+      { type: 'rect-other', x: 525, y: 105, w: 115, h: 46, lineWidth: 1.8, color: '#000000' },
+      // 4台目 (下段左)
+      { type: 'rect-other', x: 245, y: 190, w: 115, h: 46, lineWidth: 1.8, color: '#000000' },
+      // 5台目 (下段中央)
+      { type: 'rect-other', x: 385, y: 190, w: 115, h: 46, lineWidth: 1.8, color: '#000000' },
+      // 6台目 (下段右)
+      { type: 'rect-other', x: 525, y: 190, w: 115, h: 46, lineWidth: 1.8, color: '#000000' },
+
+      // 4. 敷地外枠 (駐車場下の区画)
+      { type: 'text', x: 678, y: 240, text: '1600', fontSize: 11, bold: true, color: '#00E5FF' },
+      { type: 'line-straight', x1: 220, y1: 245, x2: 700, y2: 245, lineWidth: 2, color: '#000000' },
+      { type: 'line-straight', x1: 700, y1: 245, x2: 700, y2: 605, lineWidth: 2, color: '#000000' },
+      { type: 'line-straight', x1: 220, y1: 605, x2: 700, y2: 605, lineWidth: 2, color: '#000000' },
+      { type: 'text', x: 480, y: 622, text: '20900', fontSize: 11, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 710, y: 440, text: '15800', fontSize: 11, bold: true, color: '#00E5FF' },
+
+      // 5. 愛知県行政書士会 建物多角形 (段差形状を完全再現)
+      {
+        type: 'poly-other',
+        points: [
+          { x: 232, y: 260 }, // 頂点1: 上辺左
+          { x: 685, y: 260 }, // 頂点2: 上辺右 (19700)
+          { x: 685, y: 590 }, // 頂点3: 右辺下 (15800)
+          { x: 330, y: 590 }, // 頂点4: 下辺右
+          { x: 330, y: 580 }, // 頂点5: 段差上 (300)
+          { x: 280, y: 580 }, // 頂点6: 段差左 (2000)
+          { x: 280, y: 395 }, // 頂点7: 縦辺上 (8200)
+          { x: 255, y: 395 }, // 頂点8: 段差左 (3000)
+          { x: 255, y: 335 }, // 頂点9: 縦辺上 (2600)
+          { x: 232, y: 335 }  // 頂点10: 段差左 (1000)
+        ],
+        lineWidth: 2.2,
+        color: '#000000'
+      },
+
+      // 6. 建物寸法値 (水色)
+      { type: 'text', x: 460, y: 275, text: '19700', fontSize: 11, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 237, y: 305, text: '3300', fontSize: 10, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 235, y: 330, text: '1000', fontSize: 10, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 260, y: 368, text: '2600', fontSize: 10, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 265, y: 390, text: '3000', fontSize: 10, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 285, y: 490, text: '8200', fontSize: 11, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 290, y: 575, text: '2000', fontSize: 10, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 265, y: 590, text: '300', fontSize: 10, bold: true, color: '#00E5FF' },
+      { type: 'text', x: 505, y: 585, text: '17700', fontSize: 11, bold: true, color: '#00E5FF' },
+
+      // 7. 建物名
+      { type: 'text', x: 470, y: 435, text: '愛知県行政書士会', fontSize: 20, bold: true, color: '#000000' }
+    ];
+
+    pushHistory();
+    redrawAll();
+    showToast('🏛️ 愛知県行政書士会の配置図サンプルを展開しました！');
+  }, 150);
 }
 
 function loadKurodaSample() {
