@@ -1132,9 +1132,35 @@ const Cases = {
             }
             return;
           } else {
-            // 画像（TIFF / JPG / PNG等）：Google DriveのCDN直結サムネイルで爆速表示（約0.7秒）！
+            // 画像（TIFF / JPG / PNG等）
+            const thumbUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2048`;
+
+            // FAX原本（TIFF）の場合：Google Driveの高精細2048pxサムネイルをCanvasで270度正立に物理回転！
+            // これにより横向き縮小バグを完全解消し、解像度100%・横幅いっぱいに大きくクッキリ表示（わずか0.7〜0.8秒）
+            if (isTiff) {
+              try {
+                const rotatedDataUrl = await this.rotateImageSource(thumbUrl, 270);
+                if (rotatedDataUrl) {
+                  att.dataUrl = rotatedDataUrl;
+                  this.viewerState.rotation = 0; // 物理回転済みのためCSS回転は0度（縦向きA4フル幅表示）
+                  if (loading) loading.style.display = 'none';
+                  if (wrapper && imgEl) {
+                    imgEl.src = rotatedDataUrl;
+                    wrapper.style.display = 'flex';
+                    imgEl.style.display = 'block';
+                    this.applyViewerTransform();
+                    this.setupViewerInteractions();
+                  }
+                  return;
+                }
+              } catch (rotErr) {
+                console.warn('Canvas rotation on thumbnail failed, falling back to direct display:', rotErr);
+              }
+            }
+
+            // 通常画像（JPG/PNG）またはCanvas物理回転フォールバック：直接<img>にロード
             if (isTiff && (!this.viewerState.rotation || this.viewerState.rotation === 0)) {
-              this.viewerState.rotation = 270; // FAX原本は初期向きを正立(270度)にセット
+              this.viewerState.rotation = 270;
             }
 
             const showImg = () => {
@@ -1164,7 +1190,7 @@ const Cases = {
                 imgEl.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2048`;
               };
               // 最速のlh3 CDNを優先指定
-              imgEl.src = `https://lh3.googleusercontent.com/d/${fileId}`;
+              imgEl.src = `https://lh3.googleusercontent.com/d/${fileId}=w2048`;
               if (imgEl.complete && imgEl.naturalWidth > 0) {
                 showImg();
               }
