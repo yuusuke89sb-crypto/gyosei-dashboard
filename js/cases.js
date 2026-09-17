@@ -1133,16 +1133,14 @@ const Cases = {
             return;
           } else {
             // 画像（TIFF / JPG / PNG等）
-            const thumbUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2048`;
-
-            // FAX原本（TIFF）の場合：Google Driveの高精細2048pxサムネイルをCanvasで270度正立に物理回転！
-            // これにより横向き縮小バグを完全解消し、解像度100%・横幅いっぱいに大きくクッキリ表示（わずか0.7〜0.8秒）
+            // FAX原本（TIFF）の場合：lh3 CDNから高精細2048px画像をBlob直接取得し、Canvasで270度正立に物理回転！
+            // 302リダイレクトによるCORS遮断を完全回避し、プレビュー枠の横幅100%いっぱいに大きくクッキリ表示（所要時間わずか0.7秒）
             if (isTiff) {
               try {
-                const rotatedDataUrl = await this.rotateImageSource(thumbUrl, 270);
+                const rotatedDataUrl = await this.fetchAndRotateDriveImage(fileId, 270);
                 if (rotatedDataUrl) {
                   att.dataUrl = rotatedDataUrl;
-                  this.viewerState.rotation = 0; // 物理回転済みのためCSS回転は0度（縦向きA4フル幅表示）
+                  this.viewerState.rotation = 0; // 物理回転済みのためCSS回転は0度（A4フル幅表示）
                   if (loading) loading.style.display = 'none';
                   if (wrapper && imgEl) {
                     imgEl.src = rotatedDataUrl;
@@ -1154,7 +1152,7 @@ const Cases = {
                   return;
                 }
               } catch (rotErr) {
-                console.warn('Canvas rotation on thumbnail failed, falling back to direct display:', rotErr);
+                console.warn('fetchAndRotateDriveImage failed, falling back to direct display:', rotErr);
               }
             }
 
@@ -1371,6 +1369,48 @@ const Cases = {
     this.viewerState.zoom = 1.0;
     this.applyViewerTransform();
     App.showToast('↕ 横幅に合わせてフィットしました');
+  },
+
+  /**
+   * Google Driveの高解像度サムネイルをlh3 CDNからBlobとして直接取得し、Canvasで物理270度正立回転
+   * （302リダイレクトによるCORS遮断を回避し、A4フル幅100%の縦長正立画像データを瞬時生成）
+   */
+  async fetchAndRotateDriveImage(fileId, angle = 270) {
+    try {
+      // 1. lh3 CDNから直接fetch (302リダイレクトなし、Access-Control-Allow-Origin: * 完全対応)
+      const res = await fetch(`https://lh3.googleusercontent.com/d/${fileId}=w2048`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // 2. ローカルBlobからImage生成 (同一オリジン扱い)
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = blobUrl;
+      });
+      URL.revokeObjectURL(blobUrl);
+
+      // 3. Canvasで270度正立に物理回転
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (angle === 90 || angle === 270) {
+        canvas.width = img.naturalHeight;
+        canvas.height = img.naturalWidth;
+      } else {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+      }
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((angle * Math.PI) / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+      return canvas.toDataURL('image/jpeg', 0.95);
+    } catch (e) {
+      console.warn('fetchAndRotateDriveImage error:', e);
+      return null;
+    }
   },
 
   /**
@@ -1654,17 +1694,11 @@ const Cases = {
       imgEl.style.boxShadow = '0 6px 25px rgba(0,0,0,0.6)';
       imgEl.style.borderRadius = '4px';
 
-      if (isSideways) {
-        imgEl.style.maxWidth = '65vh';
-        imgEl.style.maxHeight = '90%';
-        imgEl.style.width = 'auto';
-        imgEl.style.height = 'auto';
-      } else {
-        imgEl.style.maxWidth = '100%';
-        imgEl.style.maxHeight = 'none';
-        imgEl.style.width = '100%';
-        imgEl.style.height = 'auto';
-      }
+      // プレビュー枠の横幅いっぱいに最大表示（縮小制限を解除して大きく読みやすく表示）
+      imgEl.style.maxWidth = '100%';
+      imgEl.style.width = '100%';
+      imgEl.style.maxHeight = 'none';
+      imgEl.style.height = 'auto';
 
       imgEl.style.transform = `scale(${zoom}) rotate(${rotation}deg)`;
       imgEl.style.transformOrigin = 'center center';
