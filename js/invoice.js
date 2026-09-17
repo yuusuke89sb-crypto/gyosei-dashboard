@@ -803,24 +803,24 @@ const Invoice = {
       detailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:22px; letter-spacing:6px; margin-bottom:15px;">車庫証明申請等明細書</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:12px;">車庫証明申請等明細書</div>
   
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; font-size:13px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; font-size:12.5px;">
     <div>
-      <div style="font-size:16px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; display:inline-block;">
+      <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block;">
         ${clientName}　御中
       </div>
     </div>
-    <div style="text-align:right; font-size:12px; line-height:1.6;">
+    <div style="text-align:right; font-size:11.5px; line-height:1.45;">
       <div>〒${office.zip || '481-0033'}</div>
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
-      <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
+      <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
       <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
-      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM} 月分　　№${pageNum}</div>
+      <div style="margin-top:4px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM} 月分　　№${pageNum}</div>
     </div>
   </div>
 
-  <table class="grid-table" style="font-size:12px;">
+  <table class="grid-table" style="font-size:11.5px; margin-bottom:8px;">
     <thead>
       <tr>
         <th rowspan="2" style="width:7%;">日付</th>
@@ -846,13 +846,9 @@ const Invoice = {
     </tbody>
   </table>
 
-  ${isLastPage ? `
-  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
-    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
-  </div>` : `
-  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
+  <div class="detail-footer" style="font-size:10.5px; text-align:right; color:#666; margin-top:auto; padding-top:6px;">
     ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
-  </div>`}
+  </div>
 </div>
 `;
     }
@@ -873,19 +869,46 @@ const Invoice = {
     -webkit-print-color-adjust: exact;
   }
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff; padding: 0; margin: 0; }
     .no-print { display: none !important; }
-    @page { size: A4 portrait; margin: 12mm 15mm; }
-    .page-break { page-break-after: always; break-after: page; }
+    @page { size: A4 portrait; margin: 0; }
+    .page {
+      width: 210mm !important;
+      min-height: 297mm !important;
+      height: 297mm !important;
+      margin: 0 !important;
+      padding: 12mm 15mm 10mm !important;
+      box-shadow: none !important;
+      box-sizing: border-box !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      position: relative !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+    }
+    .page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+    .page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
   }
   .page {
     width: 210mm;
     min-height: 297mm;
     background: #fff;
     margin: 0 auto 20px;
-    padding: 20mm 20mm 15mm;
+    padding: 15mm 18mm 12mm;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
   }
   .no-print-bar {
     max-width: 210mm;
@@ -907,15 +930,15 @@ const Invoice = {
 
   .doc-title {
     text-align: center;
-    font-size: 26px;
+    font-size: 24px;
     font-weight: bold;
-    letter-spacing: 12px;
-    margin-bottom: 25px;
-    padding-bottom: 8px;
+    letter-spacing: 10px;
+    margin-bottom: 18px;
+    padding-bottom: 6px;
   }
   .recipient-box {
-    margin-bottom: 25px;
-    font-size: 18px;
+    margin-bottom: 18px;
+    font-size: 17px;
     font-weight: bold;
   }
   .recipient-box .name {
@@ -927,12 +950,13 @@ const Invoice = {
   table.grid-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 20px;
-    font-size: 13px;
+    margin-bottom: 12px;
+    font-size: 12px;
   }
   table.grid-table th, table.grid-table td {
     border: 1px solid #000;
-    padding: 6px 10px;
+    padding: 4px 7px;
+    line-height: 1.35;
   }
   table.grid-table th {
     background: #f8fafc;
@@ -951,7 +975,7 @@ const Invoice = {
   }
 
   .grand-total-row th, .grand-total-row td {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
     background: #f8fafc;
     border-top: 2px solid #000;
@@ -959,11 +983,11 @@ const Invoice = {
   }
 
   .sender-container {
-    margin-top: 25px;
+    margin-top: 18px;
     display: flex;
     justify-content: space-between;
-    font-size: 12.5px;
-    line-height: 1.7;
+    font-size: 12px;
+    line-height: 1.6;
   }
   .bank-info {
     width: 48%;
@@ -1216,24 +1240,24 @@ ${detailPagesHTML}
       fusoDetailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:22px; letter-spacing:6px; margin-bottom:15px;">車庫証明・登録申請等明細書</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:12px;">車庫証明・登録申請等明細書</div>
   
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; font-size:13px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; font-size:12.5px;">
     <div>
-      <div style="font-size:16px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; display:inline-block;">
+      <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block;">
         ${clientName}　御中
       </div>
     </div>
-    <div style="text-align:right; font-size:12px; line-height:1.6;">
+    <div style="text-align:right; font-size:11.5px; line-height:1.45;">
       <div>〒${office.zip || '481-0033'}</div>
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
-      <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
+      <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
       <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
-      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM || ''} 月分　　№${pageNum}</div>
+      <div style="margin-top:4px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM || ''} 月分　　№${pageNum}</div>
     </div>
   </div>
 
-  <table class="fuso-table" style="font-size:12px;">
+  <table class="fuso-table" style="font-size:11.5px; margin-bottom:8px;">
     <thead>
       <tr>
         <th rowspan="2" style="width:7%;">日付</th>
@@ -1259,13 +1283,9 @@ ${detailPagesHTML}
     </tbody>
   </table>
 
-  ${isLastPage ? `
-  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
-    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
-  </div>` : `
-  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
+  <div class="detail-footer" style="font-size:10.5px; text-align:right; color:#666; margin-top:auto; padding-top:6px;">
     ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
-  </div>`}
+  </div>
 </div>
 `;
     }
@@ -1286,38 +1306,65 @@ ${detailPagesHTML}
     -webkit-print-color-adjust: exact;
   }
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff; padding: 0; margin: 0; }
     .no-print { display: none !important; }
-    @page { size: A4 portrait; margin: 12mm 15mm; }
-    .page-break { page-break-after: always; break-after: page; }
+    @page { size: A4 portrait; margin: 0; }
+    .page {
+      width: 210mm !important;
+      min-height: 297mm !important;
+      height: 297mm !important;
+      margin: 0 !important;
+      padding: 12mm 15mm 10mm !important;
+      box-shadow: none !important;
+      box-sizing: border-box !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      position: relative !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+    }
+    .page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+    .page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
   }
   .page {
     width: 210mm;
     min-height: 297mm;
     background: #fff;
     margin: 0 auto 20px;
-    padding: 20mm 20mm 15mm;
+    padding: 15mm 18mm 12mm;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
   }
   .no-print-bar { max-width: 210mm; margin: 0 auto 15px; display: flex; justify-content: flex-end; gap: 10px; }
   .btn { padding: 8px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; border: none; font-size: 14px; }
   .btn-print { background: #dc2626; color: #fff; }
   .btn-close { background: #cbd5e1; color: #1e293b; }
 
-  .doc-title { text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 10px; margin-bottom: 25px; }
-  table.fuso-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
-  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 7px 10px; }
+  .doc-title { text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 10px; margin-bottom: 18px; padding-bottom: 6px; }
+  table.fuso-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px; }
+  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 4px 7px; line-height: 1.35; }
   table.fuso-table th { background: #f8fafc; text-align: center; font-weight: bold; }
   .col-num { text-align: right; font-family: 'Noto Sans JP', sans-serif; }
   .col-center { text-align: center; }
 
   .sender-container {
-    margin-top: 25px;
+    margin-top: 18px;
     display: flex;
     justify-content: space-between;
-    font-size: 12.5px;
-    line-height: 1.7;
+    font-size: 12px;
+    line-height: 1.6;
   }
   .bank-info { width: 50%; }
   .bank-info h4 { font-size: 13px; margin-bottom: 4px; font-weight: bold; }
@@ -1508,13 +1555,13 @@ ${fusoDetailPagesHTML}
       nissanDetailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:4px; margin-bottom:15px;">別 紙 納 品 ・ 請 求 明 細 書</div>
-  <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-size:13px;">
+  <div class="doc-title" style="font-size:20px; letter-spacing:4px; margin-bottom:12px;">別 紙 納 品 ・ 請 求 明 細 書</div>
+  <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12.5px;">
     <div><strong>${clientName} 御中</strong></div>
     <div>令和 ${reiwaYear} 年 ${month || issueM} 月分　　№${pageNum}</div>
   </div>
 
-  <table class="nissan-table" style="font-size:12px;">
+  <table class="nissan-table" style="font-size:11.5px; margin-bottom:8px;">
     <thead>
       <tr>
         <th rowspan="2" style="width:7%;">日付</th>
@@ -1539,6 +1586,10 @@ ${fusoDetailPagesHTML}
       </tr>` : ''}
     </tbody>
   </table>
+
+  <div class="detail-footer" style="font-size:10.5px; text-align:right; color:#666; margin-top:auto; padding-top:6px;">
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
+  </div>
 </div>
 `;
     }
@@ -1558,27 +1609,55 @@ ${fusoDetailPagesHTML}
     padding: 20px;
   }
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: #fff; padding: 0; margin: 0; }
     .no-print { display: none !important; }
-    @page { size: A4 portrait; margin: 15mm; }
-    .page-break { page-break-after: always; break-after: page; }
+    @page { size: A4 portrait; margin: 0; }
+    .page {
+      width: 210mm !important;
+      min-height: 297mm !important;
+      height: 297mm !important;
+      margin: 0 !important;
+      padding: 12mm 15mm 10mm !important;
+      box-shadow: none !important;
+      box-sizing: border-box !important;
+      page-break-after: always !important;
+      break-after: page !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      position: relative !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+    }
+    .page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+    .page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
   }
   .page {
     width: 210mm;
     min-height: 297mm;
     background: #fff;
     margin: 0 auto 20px;
-    padding: 20mm;
+    padding: 15mm 18mm 12mm;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
   }
   .no-print-bar { max-width: 210mm; margin: 0 auto 15px; display: flex; justify-content: flex-end; gap: 10px; }
   .btn { padding: 8px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; border: none; }
   .btn-print { background: #ea580c; color: #fff; }
   .btn-close { background: #cbd5e1; color: #1e293b; }
 
-  .doc-title { text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 10px; margin-bottom: 25px; }
-  table.nissan-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 14px; }
-  table.nissan-table th, table.nissan-table td { border: 1px solid #000; padding: 10px 14px; }
+  .doc-title { text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 10px; margin-bottom: 18px; padding-bottom: 6px; }
+  table.nissan-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px; }
+  table.nissan-table th, table.nissan-table td { border: 1px solid #000; padding: 4px 7px; line-height: 1.35; }
   table.nissan-table th { background: #f8fafc; text-align: center; }
   .col-num { text-align: right; font-family: 'Noto Sans JP', sans-serif; font-weight: bold; }
 </style>
