@@ -718,6 +718,145 @@ const Invoice = {
     const [issueY, issueM, issueD] = issueDate.split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
 
+    // ソートキー取得関数
+    const getSortDate = (c) => {
+      return c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+    };
+    // 封印判定
+    const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印');
+    // 車庫・その他（封印以外）と封印を分離し、それぞれ完了日順でソート
+    const nonSealCases = cases.filter(c => !isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
+    const sealCases = cases.filter(c => isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
+    const sortedCases = [...nonSealCases, ...sealCases];
+
+    // 明細ページの分割（1ページあたり22件、見出し・№1, №2...を各ページに描画）
+    const ROWS_PER_PAGE = 22;
+    const totalDetailPages = Math.ceil(sortedCases.length / ROWS_PER_PAGE) || 1;
+
+    let detailPagesHTML = '';
+    for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
+      const pageNum = pIdx + 1;
+      const isLastPage = (pageNum === totalDetailPages);
+      const pageCases = sortedCases.slice(pIdx * ROWS_PER_PAGE, (pIdx + 1) * ROWS_PER_PAGE);
+
+      const rowsHTML = pageCases.map((c) => {
+        const rawDate = getSortDate(c);
+        let dateStr = '-';
+        if (rawDate) {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+          } else {
+            const parts = String(rawDate).split(/[-/T]/);
+            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+            else dateStr = String(rawDate).slice(5);
+          }
+        }
+        const orderNo = c.orderNo || c.caseNo || '-';
+        const applicant = c.carName || c.applicantName || c.title || '-';
+        
+        // OSSの管轄は空欄
+        let policeName = '';
+        if (c.category !== 'garage_oss') {
+          policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+          if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+            const loc = Store.getLocation(c.policeLocationId);
+            if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+          }
+          if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+        }
+
+        let categoryShort = '';
+        if (c.category === 'garage_oss') {
+          categoryShort = 'OSS';
+        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+          categoryShort = '一般';
+        } else if (c.subCategory) {
+          categoryShort = c.subCategory;
+        } else if (c.category === 'car_reg_standard') {
+          categoryShort = '新規登録';
+        } else if (c.category === 'car_reg_light') {
+          categoryShort = '軽登録';
+        } else if (c.category === 'seal') {
+          categoryShort = '封印';
+        }
+
+        const fee = Number(c.fee || 0);
+        const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+        const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
+          const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
+          return `${displayLabel}:${Number(a.amount).toLocaleString()}`;
+        }).join(' ');
+
+        return `
+        <tr>
+          <td class="col-center">${dateStr}</td>
+          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif;">${orderNo}</td>
+          <td><strong>${applicant}</strong></td>
+          <td class="col-center">${policeName}</td>
+          <td class="col-center">${categoryShort}</td>
+          <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+          <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
+        </tr>`;
+      }).join('');
+
+      detailPagesHTML += `
+<!-- 明細書 ページ ${pageNum} -->
+<div class="page ${isLastPage ? '' : 'page-break'}">
+  <div class="doc-title" style="font-size:22px; letter-spacing:6px; margin-bottom:15px;">車庫証明申請等明細書</div>
+  
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; font-size:13px;">
+    <div>
+      <div style="font-size:16px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; display:inline-block;">
+        ${clientName}　御中
+      </div>
+    </div>
+    <div style="text-align:right; font-size:12px; line-height:1.6;">
+      <div>〒${office.zip || '481-0033'}</div>
+      <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM} 月分　　№${pageNum}</div>
+    </div>
+  </div>
+
+  <table class="grid-table" style="font-size:12px;">
+    <thead>
+      <tr>
+        <th rowspan="2" style="width:7%;">日付</th>
+        <th colspan="4" style="width:65%;">申　請　者</th>
+        <th rowspan="2" style="width:14%;">報酬額</th>
+        <th rowspan="2" style="width:14%;">立替金</th>
+      </tr>
+      <tr>
+        <th style="width:16%;">注文No.</th>
+        <th style="width:21%;">氏　名</th>
+        <th style="width:14%;">管　轄</th>
+        <th style="width:14%;">備　考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHTML}
+      ${isLastPage ? `
+      <tr style="font-weight:bold; background:#f8fafc;">
+        <td colspan="5" class="col-center">合　　計</td>
+        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num">${advanceTotal.toLocaleString()}</td>
+      </tr>` : ''}
+    </tbody>
+  </table>
+
+  ${isLastPage ? `
+  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
+  </div>` : `
+  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
+  </div>`}
+</div>
+`;
+    }
+
     return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -737,7 +876,7 @@ const Invoice = {
     body { background: #fff; padding: 0; }
     .no-print { display: none !important; }
     @page { size: A4 portrait; margin: 12mm 15mm; }
-    .page-break { page-break-after: always; }
+    .page-break { page-break-after: always; break-after: page; }
   }
   .page {
     width: 210mm;
@@ -962,126 +1101,7 @@ const Invoice = {
   </div>
 </div>
 
-<!-- 2ページ目：車庫証明申請等明細書 -->
-<div class="page">
-  <div class="doc-title" style="font-size:22px; letter-spacing:6px; margin-bottom:15px;">車庫証明申請等明細書</div>
-  
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; font-size:13px;">
-    <div>
-      <div style="font-size:16px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; display:inline-block;">
-        ${clientName}　御中
-      </div>
-    </div>
-    <div style="text-align:right; font-size:12px; line-height:1.6;">
-      <div>〒${office.zip || '481-0033'}</div>
-      <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
-      <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
-      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
-      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM} 月分　　NO. 1</div>
-    </div>
-  </div>
-
-  <table class="grid-table" style="font-size:12px;">
-    <thead>
-      <tr>
-        <th rowspan="2" style="width:7%;">日付</th>
-        <th colspan="4" style="width:65%;">申　請　者</th>
-        <th rowspan="2" style="width:14%;">報酬額</th>
-        <th rowspan="2" style="width:14%;">立替金</th>
-      </tr>
-      <tr>
-        <th style="width:16%;">注文No.</th>
-        <th style="width:21%;">氏　名</th>
-        <th style="width:14%;">管　轄</th>
-        <th style="width:14%;">備　考</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${(() => {
-        // ソートキー取得関数
-        const getSortDate = (c) => {
-          return c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
-        };
-        // 封印判定
-        const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印');
-        // 車庫・その他（封印以外）と封印を分離し、それぞれ完了日順でソート
-        const nonSealCases = cases.filter(c => !isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
-        const sealCases = cases.filter(c => isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
-        const sortedCases = [...nonSealCases, ...sealCases];
-
-        return sortedCases.map((c) => {
-        const rawDate = getSortDate(c);
-        let dateStr = '-';
-        if (rawDate) {
-          const d = new Date(rawDate);
-          if (!isNaN(d.getTime())) {
-            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
-          } else {
-            const parts = String(rawDate).split(/[-/T]/);
-            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-            else dateStr = String(rawDate).slice(5);
-          }
-        }
-        const orderNo = c.orderNo || c.caseNo || '-';
-        const applicant = c.carName || c.applicantName || c.title || '-';
-        
-        // OSSの管轄は空欄
-        let policeName = '';
-        if (c.category !== 'garage_oss') {
-          policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
-          if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-            const loc = Store.getLocation(c.policeLocationId);
-            if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-          }
-          if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
-        }
-
-        let categoryShort = '';
-        if (c.category === 'garage_oss') {
-          categoryShort = 'OSS';
-        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-          categoryShort = '一般';
-        } else if (c.subCategory) {
-          categoryShort = c.subCategory;
-        } else if (c.category === 'car_reg_standard') {
-          categoryShort = '新規登録';
-        } else if (c.category === 'car_reg_light') {
-          categoryShort = '軽登録';
-        } else if (c.category === 'seal') {
-          categoryShort = '封印';
-        }
-
-        const fee = Number(c.fee || 0);
-        const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
-        const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
-          const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
-          return `${displayLabel}:${Number(a.amount).toLocaleString()}`;
-        }).join(' ');
-
-        return `
-        <tr>
-          <td class="col-center">${dateStr}</td>
-          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif;">${orderNo}</td>
-          <td><strong>${applicant}</strong></td>
-          <td class="col-center">${policeName}</td>
-          <td class="col-center">${categoryShort}</td>
-          <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
-        </tr>`;
-      }).join('');
-      })()}
-      <tr style="font-weight:bold; background:#f8fafc;">
-        <td colspan="5" class="col-center">合　　計</td>
-        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
-        <td class="col-num">${advanceTotal.toLocaleString()}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
-    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
-  </div>
-</div>
+${detailPagesHTML}
 
 </body>
 </html>`;
@@ -1130,6 +1150,126 @@ const Invoice = {
 
     const otherFee = docCases.reduce((s,c)=>s+Number(c.fee||0),0) + regCases.reduce((s,c)=>s+Number(c.fee||0),0);
 
+    // 明細ページの分割（1ページあたり22件、見出し・№1, №2...を各ページに描画）
+    const ROWS_PER_PAGE = 22;
+    const totalDetailPages = Math.ceil(cases.length / ROWS_PER_PAGE) || 1;
+
+    let fusoDetailPagesHTML = '';
+    for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
+      const pageNum = pIdx + 1;
+      const isLastPage = (pageNum === totalDetailPages);
+      const pageCases = cases.slice(pIdx * ROWS_PER_PAGE, (pIdx + 1) * ROWS_PER_PAGE);
+
+      const rowsHTML = pageCases.map((c) => {
+        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+        let dateStr = '-';
+        if (rawDate) {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+          } else {
+            const parts = String(rawDate).split(/[-/T]/);
+            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+            else dateStr = String(rawDate).slice(5);
+          }
+        }
+        const orderNo = c.orderNo || c.caseNo || '-';
+        const applicant = c.carName || c.applicantName || c.title || '-';
+        
+        let policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+          const loc = Store.getLocation(c.policeLocationId);
+          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+        }
+        if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+
+        let categoryShort = '';
+        if (c.category === 'garage_oss') {
+          categoryShort = 'OSS';
+        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+          categoryShort = '一般';
+        } else if (c.subCategory) {
+          categoryShort = c.subCategory;
+        } else if (c.category === 'car_reg_standard') {
+          categoryShort = '新規登録';
+        } else if (c.category === 'car_reg_light') {
+          categoryShort = '軽登録';
+        } else if (c.category === 'seal') {
+          categoryShort = '封印';
+        }
+
+        const fee = Number(c.fee || 0);
+        const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+
+        return `
+        <tr>
+          <td class="col-center">${dateStr}</td>
+          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif;">${orderNo}</td>
+          <td><strong>${applicant}</strong></td>
+          <td class="col-center">${policeName}</td>
+          <td class="col-center">${categoryShort}</td>
+          <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+          <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
+        </tr>`;
+      }).join('');
+
+      fusoDetailPagesHTML += `
+<!-- 明細書 ページ ${pageNum} -->
+<div class="page ${isLastPage ? '' : 'page-break'}">
+  <div class="doc-title" style="font-size:22px; letter-spacing:6px; margin-bottom:15px;">車庫証明・登録申請等明細書</div>
+  
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; font-size:13px;">
+    <div>
+      <div style="font-size:16px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; display:inline-block;">
+        ${clientName}　御中
+      </div>
+    </div>
+    <div style="text-align:right; font-size:12px; line-height:1.6;">
+      <div>〒${office.zip || '481-0033'}</div>
+      <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM || ''} 月分　　№${pageNum}</div>
+    </div>
+  </div>
+
+  <table class="fuso-table" style="font-size:12px;">
+    <thead>
+      <tr>
+        <th rowspan="2" style="width:7%;">日付</th>
+        <th colspan="4" style="width:65%;">申　請　者</th>
+        <th rowspan="2" style="width:14%;">報酬額</th>
+        <th rowspan="2" style="width:14%;">立替金</th>
+      </tr>
+      <tr>
+        <th style="width:16%;">注文No.</th>
+        <th style="width:21%;">氏　名</th>
+        <th style="width:14%;">管　轄</th>
+        <th style="width:14%;">備　考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHTML}
+      ${isLastPage ? `
+      <tr style="font-weight:bold; background:#f8fafc;">
+        <td colspan="5" class="col-center">合　　計</td>
+        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num">${advanceTotal.toLocaleString()}</td>
+      </tr>` : ''}
+    </tbody>
+  </table>
+
+  ${isLastPage ? `
+  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
+  </div>` : `
+  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
+  </div>`}
+</div>
+`;
+    }
+
     return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1149,7 +1289,7 @@ const Invoice = {
     body { background: #fff; padding: 0; }
     .no-print { display: none !important; }
     @page { size: A4 portrait; margin: 12mm 15mm; }
-    .page-break { page-break-after: always; }
+    .page-break { page-break-after: always; break-after: page; }
   }
   .page {
     width: 210mm;
@@ -1284,42 +1424,31 @@ const Invoice = {
   </div>
 </div>
 
-<!-- 2ページ目：三菱ふそう 申請等明細書 -->
-<div class="page">
-  <div class="doc-title" style="font-size:22px; letter-spacing:6px; margin-bottom:15px;">車庫証明・登録申請等明細書</div>
-  
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:15px; font-size:13px;">
-    <div>
-      <div style="font-size:16px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; display:inline-block;">
-        ${clientName}　御中
-      </div>
-    </div>
-    <div style="text-align:right; font-size:12px; line-height:1.6;">
-      <div>〒${office.zip || '481-0033'}</div>
-      <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
-      <div style="font-weight:bold; font-size:13px;">${office.name || '行政書士法人フェリス'}</div>
-      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
-      <div style="margin-top:6px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM || ''} 月分　　NO. 1</div>
-    </div>
-  </div>
+${fusoDetailPagesHTML}
 
-  <table class="fuso-table" style="font-size:12px;">
-    <thead>
-      <tr>
-        <th rowspan="2" style="width:7%;">日付</th>
-        <th colspan="4" style="width:65%;">申　請　者</th>
-        <th rowspan="2" style="width:14%;">報酬額</th>
-        <th rowspan="2" style="width:14%;">立替金</th>
-      </tr>
-      <tr>
-        <th style="width:16%;">注文No.</th>
-        <th style="width:21%;">氏　名</th>
-        <th style="width:14%;">管　轄</th>
-        <th style="width:14%;">備　考</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${cases.map((c) => {
+</body>
+</html>`;
+  },
+
+  // =========================================================================
+  // 3. 日産愛知販売様式（別紙明細報酬＋税目別立替集計）
+  // =========================================================================
+  buildNissanInvoiceHTML({ invoiceNo, issueDate, dueDate = '', year = '', month = '', client, office, cases, feeSubtotal, tax, total, advanceTotal, docType = 'invoice' }) {
+    const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
+    const [issueY, issueM, issueD] = issueDate.split('-');
+    const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
+
+    // 明細ページの分割（1ページあたり22件、見出し・№1, №2...を各ページに描画）
+    const ROWS_PER_PAGE = 22;
+    const totalDetailPages = Math.ceil(cases.length / ROWS_PER_PAGE) || 1;
+
+    let nissanDetailPagesHTML = '';
+    for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
+      const pageNum = pIdx + 1;
+      const isLastPage = (pageNum === totalDetailPages);
+      const pageCases = cases.slice(pIdx * ROWS_PER_PAGE, (pIdx + 1) * ROWS_PER_PAGE);
+
+      const rowsHTML = pageCases.map((c) => {
         const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
         let dateStr = '-';
         if (rawDate) {
@@ -1357,44 +1486,62 @@ const Invoice = {
           categoryShort = '封印';
         }
 
-        const fee = Number(c.fee || 0);
+        const feeTaxIncluded = Math.floor(Number(c.fee || 0) * 1.1);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+        const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
+          const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
+          return `${cat}:${Number(a.amount).toLocaleString()}`;
+        }).join(' ');
 
         return `
         <tr>
-          <td class="col-center">${dateStr}</td>
-          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif;">${orderNo}</td>
+          <td style="text-align:center;">${dateStr}</td>
+          <td style="text-align:center;">${orderNo}</td>
           <td><strong>${applicant}</strong></td>
-          <td class="col-center">${policeName}</td>
-          <td class="col-center">${categoryShort}</td>
-          <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
+          <td style="text-align:center;">${policeName}</td>
+          <td style="text-align:center;">${categoryShort}</td>
+          <td class="col-num">${feeTaxIncluded > 0 ? '¥' + feeTaxIncluded.toLocaleString() : '-'}</td>
+          <td class="col-num">${advSum > 0 ? `¥${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
         </tr>`;
-      }).join('')}
-      <tr style="font-weight:bold; background:#f8fafc;">
-        <td colspan="5" class="col-center">合　　計</td>
-        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
-        <td class="col-num">${advanceTotal.toLocaleString()}</td>
+      }).join('');
+
+      nissanDetailPagesHTML += `
+<!-- 明細書 ページ ${pageNum} -->
+<div class="page ${isLastPage ? '' : 'page-break'}">
+  <div class="doc-title" style="font-size:20px; letter-spacing:4px; margin-bottom:15px;">別 紙 納 品 ・ 請 求 明 細 書</div>
+  <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-size:13px;">
+    <div><strong>${clientName} 御中</strong></div>
+    <div>令和 ${reiwaYear} 年 ${month || issueM} 月分　　№${pageNum}</div>
+  </div>
+
+  <table class="nissan-table" style="font-size:12px;">
+    <thead>
+      <tr>
+        <th rowspan="2" style="width:7%;">日付</th>
+        <th colspan="4" style="width:65%;">申　請　者</th>
+        <th rowspan="2" style="width:14%;">報酬料（税込）</th>
+        <th rowspan="2" style="width:14%;">立替金</th>
       </tr>
+      <tr>
+        <th style="width:16%;">注文No.</th>
+        <th style="width:21%;">氏　名</th>
+        <th style="width:14%;">管　轄</th>
+        <th style="width:14%;">備　考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHTML}
+      ${isLastPage ? `
+      <tr style="font-weight:bold; background:#f8fafc;">
+        <td colspan="5" style="text-align:center;">合　　計</td>
+        <td class="col-num">¥${(feeSubtotal + tax).toLocaleString()}</td>
+        <td class="col-num">¥${advanceTotal.toLocaleString()}</td>
+      </tr>` : ''}
     </tbody>
   </table>
-
-  <div style="font-size:11px; text-align:right; color:#666; margin-top:20px;">
-    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}
-  </div>
 </div>
-
-</body>
-</html>`;
-  },
-
-  // =========================================================================
-  // 3. 日産愛知販売様式（別紙明細報酬＋税目別立替集計）
-  // =========================================================================
-  buildNissanInvoiceHTML({ invoiceNo, issueDate, dueDate = '', year = '', month = '', client, office, cases, feeSubtotal, tax, total, advanceTotal, docType = 'invoice' }) {
-    const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
-    const [issueY, issueM, issueD] = issueDate.split('-');
-    const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
+`;
+    }
 
     return `<!DOCTYPE html>
 <html lang="ja">
@@ -1414,7 +1561,7 @@ const Invoice = {
     body { background: #fff; padding: 0; }
     .no-print { display: none !important; }
     @page { size: A4 portrait; margin: 15mm; }
-    .page-break { page-break-after: always; }
+    .page-break { page-break-after: always; break-after: page; }
   }
   .page {
     width: 210mm;
@@ -1508,94 +1655,7 @@ const Invoice = {
   </div>
 </div>
 
-<!-- 2ページ目：別紙納品・請求明細書 -->
-<div class="page">
-  <div class="doc-title" style="font-size:20px; letter-spacing:4px; margin-bottom:15px;">別 紙 納 品 ・ 請 求 明 細 書</div>
-  <div style="display:flex; justify-content:space-between; margin-bottom:15px; font-size:13px;">
-    <div><strong>${clientName} 御中</strong></div>
-    <div>令和 ${reiwaYear} 年 ${month || issueM} 月分</div>
-  </div>
-
-  <table class="nissan-table" style="font-size:12px;">
-    <thead>
-      <tr>
-        <th rowspan="2" style="width:7%;">日付</th>
-        <th colspan="4" style="width:65%;">申　請　者</th>
-        <th rowspan="2" style="width:14%;">報酬料（税込）</th>
-        <th rowspan="2" style="width:14%;">立替金</th>
-      </tr>
-      <tr>
-        <th style="width:16%;">注文No.</th>
-        <th style="width:21%;">氏　名</th>
-        <th style="width:14%;">管　轄</th>
-        <th style="width:14%;">備　考</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${cases.map((c) => {
-        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
-        let dateStr = '-';
-        if (rawDate) {
-          const d = new Date(rawDate);
-          if (!isNaN(d.getTime())) {
-            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
-          } else {
-            const parts = String(rawDate).split(/[-/T]/);
-            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-            else dateStr = String(rawDate).slice(5);
-          }
-        }
-        const orderNo = c.orderNo || c.caseNo || '-';
-        const applicant = c.carName || c.applicantName || c.title || '-';
-        
-        let policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
-        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-          const loc = Store.getLocation(c.policeLocationId);
-          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-        }
-        if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
-
-        let categoryShort = '';
-        if (c.category === 'garage_oss') {
-          categoryShort = 'OSS';
-        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-          categoryShort = '一般';
-        } else if (c.subCategory) {
-          categoryShort = c.subCategory;
-        } else if (c.category === 'car_reg_standard') {
-          categoryShort = '新規登録';
-        } else if (c.category === 'car_reg_light') {
-          categoryShort = '軽登録';
-        } else if (c.category === 'seal') {
-          categoryShort = '封印';
-        }
-
-        const feeTaxIncluded = Math.floor(Number(c.fee || 0) * 1.1);
-        const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
-        const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
-          const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
-          return `${cat}:${Number(a.amount).toLocaleString()}`;
-        }).join(' ');
-
-        return `
-        <tr>
-          <td style="text-align:center;">${dateStr}</td>
-          <td style="text-align:center;">${orderNo}</td>
-          <td><strong>${applicant}</strong></td>
-          <td style="text-align:center;">${policeName}</td>
-          <td style="text-align:center;">${categoryShort}</td>
-          <td class="col-num">${feeTaxIncluded > 0 ? '¥' + feeTaxIncluded.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? `¥${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
-        </tr>`;
-      }).join('')}
-      <tr style="font-weight:bold; background:#f8fafc;">
-        <td colspan="5" style="text-align:center;">合　　計</td>
-        <td class="col-num">¥${(feeSubtotal + tax).toLocaleString()}</td>
-        <td class="col-num">¥${advanceTotal.toLocaleString()}</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+${nissanDetailPagesHTML}
 
 </body>
 </html>`;

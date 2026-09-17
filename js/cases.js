@@ -1117,68 +1117,7 @@ const Cases = {
       const isPdf = !isTiff && ((att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf')));
       const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
 
-      // 1. TIFFファイルの場合：Google Driveのサムネイル直接参照ではなく、Base64経由で確実に270度正立回転させて表示
-      if (isTiff && gasUrl && att.url) {
-        let data = null;
-        try {
-          const res = await fetch(gasUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-              action: 'getFileBase64',
-              fileUrl: att.url,
-              fileId: (att.url.match(/[-\w]{25,}/) || [])[0] || ''
-            })
-          });
-          data = await res.json();
-        } catch (e) {
-          console.warn('doPost getFileBase64 failed, trying doGet fallback...', e);
-          const fileId = (att.url.match(/[-\w]{25,}/) || [])[0] || '';
-          if (fileId) {
-            const getRes = await fetch(`${gasUrl}?action=getFileBase64&fileId=${fileId}`);
-            data = await getRes.json();
-          }
-        }
-
-        if (data && data.success && data.base64) {
-          let converted = null;
-          // ① UTIFによるバイナリデコード ＆ 270度回転
-          if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
-            converted = DealerDocumentParser.convertTiffToJpeg(data.base64, 270);
-          }
-          // ② もしUTIFが未対応/GASがDriveサムネイルJPEGで返してきた場合：Canvasで270度正立回転
-          if (!converted) {
-            const mime = data.mimeType || 'image/jpeg';
-            const imgSrc = data.base64.startsWith('data:') ? data.base64 : `data:${mime};base64,${data.base64}`;
-            converted = await this.rotateImageSource(imgSrc, 270);
-          }
-          if (!converted) {
-            converted = data.base64.startsWith('data:') ? data.base64 : `data:${data.mimeType || 'image/jpeg'};base64,${data.base64}`;
-          }
-
-          // 次回以降の切り替えを瞬時にするためキャッシュ
-          att.dataUrl = converted;
-          att.rawBase64 = data.base64;
-
-          if (loading) loading.style.display = 'none';
-          if (imgEl && wrapper) {
-            imgEl.src = converted;
-            wrapper.style.display = 'flex';
-            imgEl.style.display = 'block';
-            imgEl.onload = () => {
-              this.applyViewerTransform();
-              this.setupViewerInteractions();
-            };
-            if (imgEl.complete) {
-              this.applyViewerTransform();
-              this.setupViewerInteractions();
-            }
-          }
-          return;
-        }
-      }
-
-      // 2. Google DriveのPDFまたは通常画像ファイル
+      // 1. Google Driveのファイル（TIFF, 通常画像, PDF）
       if (att.url && att.url.includes('drive.google.com')) {
         const match = att.url.match(/[-\w]{25,}/);
         if (match) {
@@ -1193,11 +1132,28 @@ const Cases = {
             }
             return;
           } else {
-            // 通常画像（JPG/PNG等）の場合はネイティブ<img>で直接ロード
-            if (loading) loading.style.display = 'none';
+            // 画像（TIFF / JPG / PNG等）：Google DriveのCDN直結サムネイルで爆速表示（約0.7秒）！
+            if (isTiff && (!this.viewerState.rotation || this.viewerState.rotation === 0)) {
+              this.viewerState.rotation = 270; // FAX原本は初期向きを正立(270度)にセット
+            }
+
+            const showImg = () => {
+              if (loading) loading.style.display = 'none';
+              if (wrapper && imgEl) {
+                wrapper.style.display = 'flex';
+                imgEl.style.display = 'block';
+                this.applyViewerTransform();
+                this.setupViewerInteractions();
+              }
+            };
+
             if (imgEl && wrapper) {
+              imgEl.onload = () => showImg();
               imgEl.onerror = () => {
+                // サムネイルURLフォールバック1: drive.google.com/thumbnail
                 imgEl.onerror = () => {
+                  // サムネイルURLフォールバック2: iframeプレビュー
+                  if (loading) loading.style.display = 'none';
                   if (iframeEl) {
                     wrapper.style.display = 'none';
                     imgEl.style.display = 'none';
@@ -1205,19 +1161,38 @@ const Cases = {
                     iframeEl.style.display = 'block';
                   }
                 };
-                imgEl.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2500`;
+                imgEl.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2048`;
               };
+              // 最速のlh3 CDNを優先指定
               imgEl.src = `https://lh3.googleusercontent.com/d/${fileId}`;
-              wrapper.style.display = 'flex';
-              imgEl.style.display = 'block';
-              imgEl.onload = () => {
-                this.applyViewerTransform();
-                this.setupViewerInteractions();
-              };
-              if (imgEl.complete) {
-                this.applyViewerTransform();
-                this.setupViewerInteractions();
+              if (imgEl.complete && imgEl.naturalWidth > 0) {
+                showImg();
               }
+            }
+
+            // バックグラウンドでBase64を非同期キャッシュ（修正テープ等の後続機能用、UI描画は一切ブロックしない）
+            if (isTiff && gasUrl && !att.rawBase64 && !att.dataUrl) {
+              setTimeout(async () => {
+                try {
+                  const controller = new AbortController();
+                  const timer = setTimeout(() => controller.abort(), 6000);
+                  const res = await fetch(gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                      action: 'getFileBase64',
+                      fileUrl: att.url,
+                      fileId: fileId
+                    }),
+                    signal: controller.signal
+                  });
+                  clearTimeout(timer);
+                  const data = await res.json();
+                  if (data && data.success && data.base64) {
+                    att.rawBase64 = data.base64;
+                  }
+                } catch(e) {}
+              }, 300);
             }
             return;
           }
@@ -1412,20 +1387,22 @@ const Cases = {
     
     // 1. 画像が表示されている場合
     if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
-      // まずCanvasによる物理回転を試行（解像度・レイアウト比率をそのまま反転）
-      const rotatedSrc = await this.rotateImageSource(imgEl.src, 90);
-      if (rotatedSrc) {
-        imgEl.src = rotatedSrc;
-        if (this.viewerState.attachments && this.viewerState.attachments[this.viewerState.currentIndex]) {
-          this.viewerState.attachments[this.viewerState.currentIndex].dataUrl = rotatedSrc;
+      // data:URL（ローカル画像または展開済みBase64）の場合はCanvasによる物理回転を試行
+      if (imgEl.src.startsWith('data:')) {
+        const rotatedSrc = await this.rotateImageSource(imgEl.src, 90);
+        if (rotatedSrc) {
+          imgEl.src = rotatedSrc;
+          if (this.viewerState.attachments && this.viewerState.attachments[this.viewerState.currentIndex]) {
+            this.viewerState.attachments[this.viewerState.currentIndex].dataUrl = rotatedSrc;
+          }
+          this.viewerState.rotation = 0; // 物理回転したのでCSS回転は0に戻す
+          this.applyViewerTransform();
+          App.showToast('🔄 90°回転しました（紙面の向きを変更）');
+          return;
         }
-        this.viewerState.rotation = 0; // 物理回転したのでCSS回転は0に戻す
-        this.applyViewerTransform();
-        App.showToast('🔄 90°回転しました（紙面の向きを変更）');
-        return;
       }
 
-      // CORS制限等でCanvasが使えない場合：CSS Transformで回転
+      // Drive直結画像またはCORS制限の場合：CSS Transformで瞬時回転（0ms応答）
       this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
       this.applyViewerTransform();
       App.showToast(`🔄 ${this.viewerState.rotation}° 回転しました`);

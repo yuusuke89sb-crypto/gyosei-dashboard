@@ -885,9 +885,8 @@ function getFileBase64Action_(body) {
     }
     if (!fileId) return { error: 'fileId または fileUrl が必要です' };
     var file = DriveApp.getFileById(fileId);
-    var blob = file.getBlob();
     var fileName = file.getName();
-    var mime = blob.getContentType() || 'image/jpeg';
+    var mime = file.getMimeType() || 'image/jpeg';
     var isTiff = !!fileName.match(/\.tiff?$/i) || mime.indexOf('tif') !== -1;
     var b64 = '';
     var isConverted = false;
@@ -914,6 +913,7 @@ function getFileBase64Action_(body) {
     }
 
     if (!b64) {
+      var blob = file.getBlob();
       b64 = Utilities.base64Encode(blob.getBytes());
     }
 
