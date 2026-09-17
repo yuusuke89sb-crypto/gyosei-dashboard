@@ -796,17 +796,17 @@ const Cases = {
                     </div>
                     <div class="form-group">
                       <label>使用の本拠の位置（自宅住所）</label>
-                      <input type="text" name="carAddress" id="csf_carAddress" placeholder="例：一宮市三条 字墓北94-3">
+                      <input type="text" name="carAddress" id="csf_carAddress" placeholder="例：一宮市三条 字墓北94-3" oninput="Cases.onAddressInput(this.value, 'carAddress')" onchange="Cases.onAddressInput(this.value, 'carAddress')">
                     </div>
                   </div>
                   <div class="form-row">
                     <div class="form-group">
                       <label>保管場所の位置（車庫住所） <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は自宅と同上)</span></label>
-                      <input type="text" name="parkingAddress" id="csf_parkingAddress" placeholder="例：一宮市三条 字墓北94-3 (空欄時は同上)">
+                      <input type="text" name="parkingAddress" id="csf_parkingAddress" placeholder="例：一宮市三条 字墓北94-3 (空欄時は同上)" oninput="Cases.onAddressInput(this.value, 'parkingAddress')" onchange="Cases.onAddressInput(this.value, 'parkingAddress')">
                     </div>
                     <div class="form-group">
                       <label>所轄警察署</label>
-                      <select name="carPolice" id="csf_carPolice" class="form-select">
+                      <select name="carPolice" id="csf_carPolice" class="form-select" onchange="Cases.onCarPoliceChange(this.value)">
                         <option value="">— 選択（任意） —</option>
                         ${typeof Briefing !== 'undefined' 
                           ? Briefing.PRESETS.filter(p => p.group === '警察署').map(p => `<option value="${p.label}">${p.label}</option>`).join('') 
@@ -1969,6 +1969,15 @@ const Cases = {
         formEl.appendChild(inboxInput);
       }
       if (inboxInput) inboxInput.value = prefills.inboxId || '';
+      
+      // 警察署が未選択の場合、住所から自動マッチング
+      const polLocSelect = document.getElementById('csf_policeLocationId');
+      if (polLocSelect && !polLocSelect.value) {
+        const addrToTry = prefills.garageAddress || prefills.parkingAddress || prefills.applicantAddress || prefills.carAddress;
+        if (addrToTry) {
+          this.onAddressInput(addrToTry, 'parkingAddress');
+        }
+      }
     } else {
       const faxInput = document.getElementById('csf_faxId');
       if (faxInput) faxInput.value = '';
@@ -2023,7 +2032,7 @@ const Cases = {
       const deadlineEl = document.getElementById('csf_deadline');
       if (deadlineEl) deadlineEl.value = c.deadline || '';
       document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
-      // 警察署の特定（ID未指定なら所轄警察署テキストから自動マッチ）
+      // 警察署の特定（ID未指定なら所轄警察署テキストまたは住所から自動マッチ）
       let resolvedPolId = c.policeLocationId || '';
       if (!resolvedPolId && c.carPolice && typeof Store !== 'undefined') {
         const locs = Store.getLocations();
@@ -2032,6 +2041,10 @@ const Cases = {
           const lClean = l.name.replace(/\s+/g, '');
           return pClean.includes(lClean.replace('警察署', '')) || lClean.includes(pClean.replace('警察署', ''));
         });
+        if (matched) resolvedPolId = matched.id;
+      }
+      if (!resolvedPolId && (c.parkingAddress || c.carAddress)) {
+        const matched = this.autoDetectPoliceFromAddress(c.parkingAddress || c.carAddress);
         if (matched) resolvedPolId = matched.id;
       }
       const policeLocationIdEl = document.getElementById('csf_policeLocationId');
@@ -2605,17 +2618,215 @@ const Cases = {
     }
   },
 
+  // 住所文字列から警察署マスタを自動検出
+  autoDetectPoliceFromAddress(address) {
+    if (!address || typeof address !== 'string') return null;
+    const cleanAddr = address.replace(/\s+/g, '').trim();
+    if (!cleanAddr || cleanAddr === '同上' || cleanAddr === '別紙' || cleanAddr === '-') return null;
+
+    if (typeof Store === 'undefined' || typeof Store.getLocations !== 'function') return null;
+    const locations = Store.getLocations() || [];
+    if (locations.length === 0) return null;
+
+    // 1. 警察署名が直接住所に含まれている場合 (例: "一宮警察署管轄", "一宮署")
+    for (const loc of locations) {
+      if (!loc || !loc.name) continue;
+      const pureName = loc.name.replace(/\s+/g, '').replace('警察署', '');
+      if (pureName && pureName.length >= 2) {
+        if (cleanAddr.includes(pureName + '警察署') || cleanAddr.includes(pureName + '署')) {
+          return loc;
+        }
+      }
+    }
+
+    // 2. 市区町村・行政区から警察署への高精度マッピングルール（最長一致）
+    const jurisdictionRules = [
+      // 愛知県 尾張・海部・知多・三河
+      { keywords: ['一宮市'], police: '一宮' },
+      { keywords: ['江南市', '岩倉市', '大口町', '丹羽郡大口町'], police: '江南' },
+      { keywords: ['稲沢市'], police: '稲沢' },
+      { keywords: ['小牧市'], police: '小牧' },
+      { keywords: ['犬山市', '扶桑町', '丹羽郡扶桑町'], police: '犬山' },
+      { keywords: ['清須市', '北名古屋市', '豊山町', '西春日井郡', '西枇杷島'], police: '西枇杷島' },
+      { keywords: ['津島市', '愛西市', 'あま市', '大治町', '海部郡大治町'], police: '津島' },
+      { keywords: ['蟹江町', '海部郡蟹江町', '弥富市', '飛島村', '海部郡飛島村'], police: '蟹江' },
+      { keywords: ['春日井市'], police: '春日井' },
+      { keywords: ['瀬戸市', '尾張旭市'], police: '瀬戸' },
+      { keywords: ['東郷町', '愛知郡東郷町', '日進市', 'みよし市', '豊明市'], police: '愛知' },
+      { keywords: ['東海市', '大府市'], police: '東海' },
+      { keywords: ['刈谷市', '知立市'], police: '刈谷' },
+      { keywords: ['豊田市'], police: '豊田' },
+      { keywords: ['知多市'], police: '知多' },
+      { keywords: ['岡崎市', '幸田町', '額田郡'], police: '岡崎' },
+      { keywords: ['安城市'], police: '安城' },
+      { keywords: ['西尾市'], police: '西尾' },
+      { keywords: ['常滑市'], police: '常滑' },
+      { keywords: ['半田市', '阿久比町', '武豊町', '東浦町', '南知多町', '美浜町', '知多郡'], police: '半田' },
+      { keywords: ['碧南市', '高浜市'], police: '碧南' },
+      { keywords: ['豊川市'], police: '豊川' },
+      { keywords: ['豊橋市'], police: '豊橋' },
+      { keywords: ['新城市'], police: '新城' },
+      { keywords: ['田原市'], police: '田原' },
+
+      // 名古屋市内（区名）
+      { keywords: ['名古屋市中区', '中区'], police: '中警察署' },
+      { keywords: ['名古屋市北区', '北区'], police: '名古屋北' },
+      { keywords: ['名古屋市西区', '西区'], police: '名古屋西' },
+      { keywords: ['名古屋市東区', '東区'], police: '名古屋東' },
+      { keywords: ['名古屋市南区', '南区'], police: '名古屋南' },
+      { keywords: ['名古屋市中村区', '中村区'], police: '中村' },
+      { keywords: ['名古屋市中川区', '中川区'], police: '中川' },
+      { keywords: ['名古屋市千種区', '千種区'], police: '千種' },
+      { keywords: ['名古屋市熱田区', '熱田区'], police: '熱田' },
+      { keywords: ['名古屋市名東区', '名東区'], police: '名東' },
+      { keywords: ['名古屋市瑞穂区', '瑞穂区'], police: '瑞穂' },
+      { keywords: ['名古屋市昭和区', '昭和区'], police: '昭和' },
+      { keywords: ['名古屋市守山区', '守山区'], police: '守山' },
+      { keywords: ['名古屋市天白区', '天白区'], police: '天白' },
+      { keywords: ['名古屋市港区', '港区'], police: '港警察署' },
+      { keywords: ['名古屋市緑区', '緑区'], police: '緑警察署' },
+
+      // 岐阜県
+      { keywords: ['羽島市', '笠松町', '岐南町', '羽島郡'], police: '岐阜羽島' },
+      { keywords: ['各務原市'], police: '各務原' },
+      { keywords: ['北方町', '本巣市', '瑞穂市', '本巣郡'], police: '北方' },
+      { keywords: ['山県市'], police: '山県' },
+      { keywords: ['大垣市', '安八町', '輪之内町', '神戸町', '安八郡'], police: '大垣' },
+      { keywords: ['関市', '美濃市'], police: '関警察署' },
+      { keywords: ['海津市'], police: '海津' },
+      { keywords: ['養老町', '養老郡', '上石津町'], police: '養老' },
+      { keywords: ['垂井町', '関ケ原町', '不破郡'], police: '垂井' },
+      { keywords: ['美濃加茂市', '坂祝町', '富加町', '川辺町', '七宗町', '八百津町', '白川町', '東白川村', '加茂郡'], police: '加茂' },
+      { keywords: ['揖斐川町', '大野町', '池田町', '揖斐郡'], police: '揖斐' },
+      { keywords: ['可児市', '御嵩町', '可児郡'], police: '可児' },
+      { keywords: ['多治見市', '土岐市', '瑞浪市'], police: '多治見' },
+      { keywords: ['郡上市'], police: '郡上' },
+      { keywords: ['中津川市'], police: '中津川' },
+      { keywords: ['岐阜市'], police: '岐阜中' },
+
+      // 三重県・滋賀県
+      { keywords: ['四日市市', '川越町', '朝日町', '三重郡'], police: '四日市北' },
+      { keywords: ['桑名市', '木曽岬町', 'いなべ市', '東員町', '桑名郡', '員弁郡'], police: '桑名' },
+      { keywords: ['鳥羽市', '志摩市'], police: '鳥羽' },
+      { keywords: ['甲賀市', '湖南市'], police: '甲賀' }
+    ];
+
+    // 長いキーワードから順にマッチング
+    const flattened = [];
+    for (const rule of jurisdictionRules) {
+      for (const kw of rule.keywords) {
+        flattened.push({ kw, target: rule.police });
+      }
+    }
+    flattened.sort((a, b) => b.kw.length - a.kw.length);
+
+    for (const item of flattened) {
+      if (cleanAddr.includes(item.kw)) {
+        const found = locations.find(l => {
+          if (!l || !l.name) return false;
+          const pureL = l.name.replace(/\s+/g, '');
+          return pureL.includes(item.target) || item.target.includes(pureL.replace('警察署', ''));
+        });
+        if (found) return found;
+      }
+    }
+
+    // 3. マスタの名称やメモ・住所から直接フォールバック照合
+    for (const loc of locations) {
+      if (!loc || !loc.name) continue;
+      const pName = loc.name.replace('警察署', '').replace(/\s+/g, '');
+      if (pName && pName.length >= 2 && cleanAddr.includes(pName)) {
+        return loc;
+      }
+      if (loc.memo) {
+        const mClean = loc.memo.replace(/\s+/g, '');
+        if (mClean.includes(cleanAddr) || cleanAddr.split(/[市区町村]/).some(part => part && part.length >= 2 && mClean.includes(part))) {
+          return loc;
+        }
+      }
+    }
+
+    return null;
+  },
+
+  // 保管場所または使用の本拠住所入力時の自動判定ハンドラ
+  onAddressInput(value, fieldType) {
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+    // 一般車庫証明（未選択状態含む）のみ対象
+    if (cat && cat !== 'garage_paper') return;
+
+    // 保管場所住所を優先、なければ自宅住所
+    const parkAddrEl = document.getElementById('csf_parkingAddress');
+    const carAddrEl = document.getElementById('csf_carAddress');
+    let parkVal = parkAddrEl ? parkAddrEl.value.trim() : '';
+    let carVal = carAddrEl ? carAddrEl.value.trim() : '';
+
+    let effectiveAddr = parkVal;
+    if (!effectiveAddr || effectiveAddr === '同上' || effectiveAddr === '別紙') {
+      effectiveAddr = carVal;
+    }
+    if (!effectiveAddr && value) {
+      effectiveAddr = value.trim();
+    }
+    if (!effectiveAddr || effectiveAddr === '同上' || effectiveAddr === '別紙') return;
+
+    const matchedLoc = this.autoDetectPoliceFromAddress(effectiveAddr);
+    if (matchedLoc) {
+      const polLocSelect = document.getElementById('csf_policeLocationId');
+      if (polLocSelect && polLocSelect.value !== matchedLoc.id) {
+        polLocSelect.value = matchedLoc.id;
+        this.onPoliceLocationChange(matchedLoc.id);
+      }
+      const carPoliceSelect = document.getElementById('csf_carPolice');
+      if (carPoliceSelect) {
+        const pureName = matchedLoc.name.replace('警察署', '');
+        const matchedOpt = Array.from(carPoliceSelect.options).find(o => o.value === matchedLoc.name || (pureName && o.value.includes(pureName)));
+        if (matchedOpt) {
+          carPoliceSelect.value = matchedOpt.value;
+        }
+      }
+    }
+  },
+
+  // 所轄警察署（csf_carPolice）セレクトボックス変更時ハンドラ
+  onCarPoliceChange(policeName) {
+    if (!policeName || typeof Store === 'undefined') return;
+    const locations = Store.getLocations() || [];
+    const pClean = policeName.replace(/\s+/g, '').replace('警察署', '');
+    const matched = locations.find(l => l && l.name && (l.name.includes(pClean) || pClean.includes(l.name.replace('警察署', ''))));
+    if (matched) {
+      const polLocSelect = document.getElementById('csf_policeLocationId');
+      if (polLocSelect && polLocSelect.value !== matched.id) {
+        polLocSelect.value = matched.id;
+        this.onPoliceLocationChange(matched.id);
+      }
+    }
+  },
+
   // 申請先警察署の変更時ハンドラ（所轄で単価が変わるのは「車庫証明（一般）」のみ）
   onPoliceLocationChange(locationId) {
     const catEl = document.getElementById('csf_category');
     const cat = catEl ? catEl.value : '';
+
+    // 所轄警察署セレクト（csf_carPolice）も連動
+    const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
+    if (loc && loc.name) {
+      const carPoliceSelect = document.getElementById('csf_carPolice');
+      if (carPoliceSelect) {
+        const pureName = loc.name.replace('警察署', '');
+        const matchedOpt = Array.from(carPoliceSelect.options).find(o => o.value === loc.name || (pureName && o.value.includes(pureName)));
+        if (matchedOpt) {
+          carPoliceSelect.value = matchedOpt.value;
+        }
+      }
+    }
 
     if (cat === 'garage_paper') {
       if (!locationId) {
         this.updateFeeHint('');
         return;
       }
-      const loc = typeof Store !== 'undefined' ? Store.getLocation(locationId) : null;
       if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
         const feeEl = document.getElementById('csf_fee');
         if (feeEl) {
@@ -2717,6 +2928,8 @@ const Cases = {
       const polEl = document.getElementById('csf_policeLocationId');
       if (polEl && polEl.value) {
         this.onPoliceLocationChange(polEl.value);
+      } else {
+        this.onAddressInput('', 'parkingAddress');
       }
     } else if (category === 'garage_oss') {
       // 車庫証明（OSS）新規時または未設定時のみ初期値3,500円をセット（既存案件の手動設定単価は保護）

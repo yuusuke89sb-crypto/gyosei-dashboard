@@ -878,14 +878,21 @@ const Invoice = {
     </thead>
     <tbody>
       <tr>
-        <td class="section-label col-center">報酬</td>
+        <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
           <div style="font-weight:bold;">車庫証明申請他</div>
           <div style="font-size:11px; color:#475569; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>
         </td>
-        <td class="col-center">${cases.length}件</td>
-        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-center">${garageCount + otherCount}件</td>
+        <td class="col-num">${(garageFee + otherFee).toLocaleString()}</td>
       </tr>
+      ${sealCount > 0 ? `<tr>
+        <td>
+          <div style="font-weight:bold;">出張封印</div>
+        </td>
+        <td class="col-center">${sealCount}件</td>
+        <td class="col-num">${sealFee.toLocaleString()}</td>
+      </tr>` : ''}
       <tr style="background:#fdfdfd;">
         <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
         <td class="col-center">${cases.length}件</td>
@@ -990,8 +997,20 @@ const Invoice = {
       </tr>
     </thead>
     <tbody>
-      ${cases.map((c) => {
-        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+      ${(() => {
+        // ソートキー取得関数
+        const getSortDate = (c) => {
+          return c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+        };
+        // 封印判定
+        const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印');
+        // 車庫・その他（封印以外）と封印を分離し、それぞれ完了日順でソート
+        const nonSealCases = cases.filter(c => !isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
+        const sealCases = cases.filter(c => isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
+        const sortedCases = [...nonSealCases, ...sealCases];
+
+        return sortedCases.map((c) => {
+        const rawDate = getSortDate(c);
         let dateStr = '-';
         if (rawDate) {
           const d = new Date(rawDate);
@@ -1006,12 +1025,16 @@ const Invoice = {
         const orderNo = c.orderNo || c.caseNo || '-';
         const applicant = c.carName || c.applicantName || c.title || '-';
         
-        let policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
-        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-          const loc = Store.getLocation(c.policeLocationId);
-          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+        // OSSの管轄は空欄
+        let policeName = '';
+        if (c.category !== 'garage_oss') {
+          policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+          if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+            const loc = Store.getLocation(c.policeLocationId);
+            if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+          }
+          if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
         }
-        if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
 
         let categoryShort = '';
         if (c.category === 'garage_oss') {
@@ -1031,8 +1054,8 @@ const Invoice = {
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
         const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
-          const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
-          return `${cat}:${Number(a.amount).toLocaleString()}`;
+          const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
+          return `${displayLabel}:${Number(a.amount).toLocaleString()}`;
         }).join(' ');
 
         return `
@@ -1045,7 +1068,8 @@ const Invoice = {
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
         </tr>`;
-      }).join('')}
+      }).join('');
+      })()}
       <tr style="font-weight:bold; background:#f8fafc;">
         <td colspan="5" class="col-center">合　　計</td>
         <td class="col-num">${feeSubtotal.toLocaleString()}</td>
@@ -1760,7 +1784,7 @@ const Invoice = {
         <form id="officeForm" onsubmit="Invoice.onSaveOffice(event)">
           <div class="form-group">
             <label>事務所・法人名 <span class="required">*</span></label>
-            <input type="text" name="name" value="${info.name}" required placeholder="行政書士法人フェリス">
+            <input type="text" name="officeName" value="${info.name}" required placeholder="行政書士法人フェリス">
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -1838,7 +1862,7 @@ const Invoice = {
     e.preventDefault();
     const form = e.target;
     const info = {
-      name: form.name.value.trim(),
+      name: form.officeName.value.trim(),
       assocName: form.assocName.value.trim(),
       representative: form.representative.value.trim(),
       registrationNumber: form.registrationNumber.value.trim(),
