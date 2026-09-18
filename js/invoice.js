@@ -1635,7 +1635,7 @@ ${fusoDetailPagesHTML}
   // =========================================================================
   // 3. 日産愛知販売様式（A4縦表紙＋A4横納品・請求明細書30行＋OSS作成明細別紙）
   // =========================================================================
-  buildNissanInvoiceHTML({ invoiceNo, issueDate, dueDate = '', year = '', month = '', client, office, cases, feeSubtotal, tax, total, advanceTotal, docType = 'invoice' }) {
+  buildNissanInvoiceHTML({ invoiceNo, issueDate, dueDate = '', year = '', month = '', client, office, cases, feeSubtotal, tax, taxRate = 10, total, advanceTotal, docType = 'invoice' }) {
     let clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
     if (!clientName) clientName = '日産愛知販売株式会社 御中';
     else if (!clientName.includes('御中') && !clientName.includes('様')) clientName += ' 御中';
@@ -1702,7 +1702,7 @@ ${fusoDetailPagesHTML}
         applicantName: c.carName || c.applicantName || c.title || '',
         policeName: formatPoliceName(c),
         item: formatItemName(c),
-        feeTaxIncluded: Math.round(Number(c.fee || 0) * 1.1),
+        fee: Number(c.fee || 0), // 税抜金額
         completedDateStr: formatDateMMDD(c.completedAt || c.registrationDate || c.policeDeliveryDate || ''),
         advances: advList
       };
@@ -1718,7 +1718,7 @@ ${fusoDetailPagesHTML}
       });
       const firstOssDate = formatDateMMDD(sortedOssCases[0].applyDate || sortedOssCases[0].completedAt || sortedOssCases[0].createdAt || '');
       const lastOssDate = formatDateMMDD(sortedOssCases[sortedOssCases.length - 1].completedAt || sortedOssCases[sortedOssCases.length - 1].applyDate || sortedOssCases[sortedOssCases.length - 1].createdAt || '');
-      const ossFeeTaxIncludedTotal = sortedOssCases.reduce((s, c) => s + Math.round(Number(c.fee || 0) * 1.1), 0);
+      const ossFeeSubtotal = sortedOssCases.reduce((s, c) => s + Number(c.fee || 0), 0);
 
       processedRegularItems.push({
         isOssBundle: true,
@@ -1727,16 +1727,18 @@ ${fusoDetailPagesHTML}
         applicantName: `別紙明細参照【${sortedOssCases.length}件】`,
         policeName: '',
         item: '車庫証明（OSS作成）',
-        feeTaxIncluded: ossFeeTaxIncludedTotal,
+        fee: ossFeeSubtotal, // 税抜金額
         completedDateStr: lastOssDate,
         advances: []
       });
     }
 
-    // 全体集計（税抜・税込の丸め誤差ゼロで一致）
-    const totalFeeTaxIncluded = processedRegularItems.reduce((s, it) => s + (it.feeTaxIncluded || 0), 0);
-    const totalAdvances = processedRegularItems.reduce((s, it) => s + it.advances.reduce((sa, a) => sa + Number(a.amount || 0), 0), 0);
-    const invoiceGrandTotal = totalFeeTaxIncluded + totalAdvances;
+    // 金額集計（税抜報酬、消費税10%、立替金、総合計）
+    const effectiveFeeSubtotal = (feeSubtotal !== undefined) ? feeSubtotal : processedRegularItems.reduce((s, it) => s + (it.fee || 0), 0);
+    const effectiveTaxRate = (taxRate !== undefined) ? taxRate : 10;
+    const effectiveTax = (tax !== undefined) ? tax : Math.floor(effectiveFeeSubtotal * effectiveTaxRate / 100);
+    const effectiveAdvanceTotal = (advanceTotal !== undefined) ? advanceTotal : processedRegularItems.reduce((s, it) => s + it.advances.reduce((sa, a) => sa + Number(a.amount || 0), 0), 0);
+    const invoiceGrandTotal = (total !== undefined) ? total : (effectiveFeeSubtotal + effectiveTax + effectiveAdvanceTotal);
 
     // A4横向き台帳の改ページ制御（1ページ30行、案件間は必ず1行空ける、余白は30行まで空行パディング）
     const MAX_ROWS = 30;
@@ -1800,7 +1802,7 @@ ${fusoDetailPagesHTML}
           const adv = r.adv;
 
           if (isFirst) {
-            pageFeeSubtotal += (it.feeTaxIncluded || 0);
+            pageFeeSubtotal += (it.fee || 0);
           }
           if (adv && Number(adv.amount || 0) > 0) {
             pageAdvSubtotal += Number(adv.amount || 0);
@@ -1811,7 +1813,7 @@ ${fusoDetailPagesHTML}
           const applicant = isFirst ? `<strong>${it.applicantName || ''}</strong>` : '';
           const police = isFirst ? (it.policeName || '') : '';
           const itemText = isFirst ? (it.item || '') : '';
-          const feeText = (isFirst && it.feeTaxIncluded > 0) ? it.feeTaxIncluded.toLocaleString() : '';
+          const feeText = (isFirst && it.fee > 0) ? it.fee.toLocaleString() : '';
           const completeDate = isFirst ? (it.completedDateStr || '') : '';
 
           const advLabel = adv ? (adv.label || adv.category || '') : '';
@@ -1856,16 +1858,18 @@ ${fusoDetailPagesHTML}
         <table>
           <thead>
             <tr>
-              <th style="width:33%;">報酬料合計</th>
-              <th style="width:33%;">立替金合計</th>
-              <th style="width:34%;">ご請求額</th>
+              <th style="width:25%;">報酬料（税抜）</th>
+              <th style="width:23%;">消費税(${effectiveTaxRate}%)</th>
+              <th style="width:25%;">立替金合計</th>
+              <th style="width:27%;">ご請求額</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td class="num">${totalFeeTaxIncluded.toLocaleString()}</td>
-              <td class="num">${totalAdvances.toLocaleString()}</td>
-              <td class="num">${invoiceGrandTotal.toLocaleString()}</td>
+              <td class="num">${effectiveFeeSubtotal.toLocaleString()}</td>
+              <td class="num">${effectiveTax.toLocaleString()}</td>
+              <td class="num">${effectiveAdvanceTotal.toLocaleString()}</td>
+              <td class="num" style="font-size:12.5px; font-weight:bold;">${invoiceGrandTotal.toLocaleString()}</td>
             </tr>
           </tbody>
         </table>
@@ -1880,10 +1884,6 @@ ${fusoDetailPagesHTML}
           <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
           <div>TEL ${office.tel || '0586-50-2896'} / FAX ${office.fax || '0568-26-3714'}</div>
         </div>
-        <div class="seal-mark">
-          <div>${((office.name || '日栄').includes('フェリス') ? 'フェリス' : '日栄')}</div>
-          <div>之印</div>
-        </div>
       </div>
       <div class="page-no-indicator">No. ${pageNum}</div>
     </div>
@@ -1897,8 +1897,8 @@ ${fusoDetailPagesHTML}
         <th style="width:9.2%;">受注No.</th>
         <th style="width:16%;">申請者名</th>
         <th style="width:9.8%;">管　轄</th>
-        <th style="width:17%;">項　目</th>
-        <th style="width:7.8%;">報酬料</th>
+        <th style="width:16.8%;">項　目</th>
+        <th style="width:8%;">報酬料（税抜）</th>
         <th style="width:5.8%;">完了日</th>
         <th style="width:10.5%;">立替金 名目</th>
         <th style="width:7.8%;">立替金額</th>
@@ -1919,7 +1919,7 @@ ${fusoDetailPagesHTML}
   </table>
 
   <div class="landscape-footer">
-    <span>※金額はすべて消費税込みとなっております。</span>
+    <span>※報酬料は税抜表示です。全頁合計 報酬税抜: ¥${effectiveFeeSubtotal.toLocaleString()} ＋ 消費税(${effectiveTaxRate}%): ¥${effectiveTax.toLocaleString()} ＝ 報酬税込: ¥${(effectiveFeeSubtotal + effectiveTax).toLocaleString()}</span>
     <span>${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalLandscapePages})</span>
   </div>
 </div>
@@ -1981,7 +1981,7 @@ ${fusoDetailPagesHTML}
   </table>
 
   <div style="margin-top:auto; display:flex; justify-content:space-between; font-size:11px; color:#666; padding-top:10px;">
-    <span>車庫証明OSS所在図・配置図作成分</span>
+    <span>車庫証明OSS所在図・配置図作成分（単価: 税抜¥3,000 / 税込¥3,300）</span>
     <span>${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}</span>
   </div>
 </div>
@@ -2217,34 +2217,12 @@ ${fusoDetailPagesHTML}
     width: 48%;
     text-align: right;
     position: relative;
+    padding-right: 5px;
   }
   .cover-office-name {
     font-weight: bold;
     font-size: 14.5px;
     margin: 2px 0;
-  }
-  .seal-cover-pos {
-    position: absolute;
-    right: -10px;
-    top: 25px;
-  }
-
-  /* Seal stamp style */
-  .seal-mark {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    border: 2px solid #dc2626;
-    color: #dc2626;
-    border-radius: 4px;
-    font-size: 10.5px;
-    font-weight: bold;
-    line-height: 1.15;
-    background: rgba(254, 242, 242, 0.4);
-    box-shadow: 0 0 1px rgba(220, 38, 38, 0.4);
   }
 
   /* Landscape Detail Page Header (A4横) */
@@ -2255,7 +2233,7 @@ ${fusoDetailPagesHTML}
     margin-bottom: 5px;
   }
   .landscape-header-left {
-    width: 38%;
+    width: 34%;
   }
   .landscape-recipient {
     font-size: 15px;
@@ -2276,19 +2254,19 @@ ${fusoDetailPagesHTML}
     font-weight: bold;
   }
   .landscape-header-center {
-    width: 28%;
+    width: 34%;
     display: flex;
     justify-content: center;
   }
   .nissan-summary-box table {
     border-collapse: collapse;
-    width: 245px;
+    width: 320px;
   }
   .nissan-summary-box th, .nissan-summary-box td {
     border: 1px solid #000;
     text-align: center;
-    padding: 2px 6px;
-    font-size: 10.5px;
+    padding: 2px 5px;
+    font-size: 10px;
     line-height: 1.25;
   }
   .nissan-summary-box th {
@@ -2297,11 +2275,11 @@ ${fusoDetailPagesHTML}
   }
   .nissan-summary-box td {
     font-weight: bold;
-    font-size: 12px;
+    font-size: 11.5px;
     text-align: right;
   }
   .landscape-header-right {
-    width: 33%;
+    width: 32%;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -2309,7 +2287,6 @@ ${fusoDetailPagesHTML}
   .office-box-inner {
     display: flex;
     align-items: center;
-    gap: 8px;
     text-align: right;
     font-size: 10px;
     line-height: 1.35;
@@ -2443,12 +2420,17 @@ ${fusoDetailPagesHTML}
     <tbody>
       <tr>
         <td>別紙明細報酬</td>
-        <td class="col-right num">¥ ${totalFeeTaxIncluded.toLocaleString()}</td>
-        <td class="col-center">（税込）</td>
+        <td class="col-right num">¥ ${effectiveFeeSubtotal.toLocaleString()}</td>
+        <td class="col-center">（税抜）</td>
+      </tr>
+      <tr>
+        <td>消費税等（${effectiveTaxRate}%）</td>
+        <td class="col-right num">¥ ${effectiveTax.toLocaleString()}</td>
+        <td class="col-center"></td>
       </tr>
       <tr>
         <td>立　替　金</td>
-        <td class="col-right num">¥ ${totalAdvances.toLocaleString()}</td>
+        <td class="col-right num">¥ ${effectiveAdvanceTotal.toLocaleString()}</td>
         <td class="col-center">（実費）</td>
       </tr>
       <tr class="total-row">
@@ -2482,12 +2464,6 @@ ${fusoDetailPagesHTML}
       <div>TEL　${office.tel || '0586-50-2896'}</div>
       <div>FAX　${office.fax || '0568-26-3714'}</div>
       ${office.registrationNumber ? `<div style="font-size:11px;">登録番号: ${office.registrationNumber}</div>` : ''}
-      <div class="seal-cover-pos">
-        <div class="seal-mark">
-          <div>${((office.name || '日栄').includes('フェリス') ? 'フェリス' : '日栄')}</div>
-          <div>之印</div>
-        </div>
-      </div>
     </div>
   </div>
 </div>
