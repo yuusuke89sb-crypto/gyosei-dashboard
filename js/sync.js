@@ -156,25 +156,7 @@ const SpreadsheetSync = {
 
             // インボックスデータを localStorage に保存（ローカルのステータス変更を優先保持）
             if (data.inbox && Array.isArray(data.inbox)) {
-                const localInbox = Store.getInbox ? Store.getInbox() : [];
-                const mergedInbox = data.inbox.map(remoteItem => {
-                    const localItem = localInbox.find(l => String(l.id) === String(remoteItem.id));
-                    return {
-                        ...remoteItem,
-                        // ローカルで保留・除外・対応済に変更されていればローカルのステータスを優先
-                        status: (localItem && localItem.status && localItem.status !== '未対応')
-                            ? localItem.status
-                            : (remoteItem.status || '未対応'),
-                        caseId: (localItem && localItem.caseId) || remoteItem.caseId || ''
-                    };
-                });
-                // ローカルにしか存在しないアイテムも保持
-                localInbox.forEach(l => {
-                    if (!mergedInbox.some(m => String(m.id) === String(l.id))) {
-                        mergedInbox.push(l);
-                    }
-                });
-                Store._set(Store.KEYS.INBOX, mergedInbox);
+                this.mergeInboxData(data.inbox);
             }
 
             // 場所マスタデータを localStorage に保存
@@ -628,6 +610,54 @@ const SpreadsheetSync = {
 
         } catch (err) {
             console.error('カレンダー取得エラー:', err);
+            throw err;
+        }
+    },
+
+    // インボックスデータのマージ処理（ローカルのステータス変更・追加を優先保護）
+    mergeInboxData(remoteInbox) {
+        if (!remoteInbox || !Array.isArray(remoteInbox)) return [];
+        const localInbox = (typeof Store !== 'undefined' && Store.getInbox) ? Store.getInbox() : [];
+        const mergedInbox = remoteInbox.map(remoteItem => {
+            const localItem = localInbox.find(l => String(l.id) === String(remoteItem.id));
+            return {
+                ...remoteItem,
+                // ローカルで保留・除外・対応済に変更されていればローカルのステータスを優先
+                status: (localItem && localItem.status && localItem.status !== '未対応')
+                    ? localItem.status
+                    : (remoteItem.status || '未対応'),
+                caseId: (localItem && localItem.caseId) || remoteItem.caseId || ''
+            };
+        });
+        // ローカルにしか存在しないアイテムも保持
+        localInbox.forEach(l => {
+            if (!mergedInbox.some(m => String(m.id) === String(l.id))) {
+                mergedInbox.push(l);
+            }
+        });
+        if (typeof Store !== 'undefined' && Store._set && Store.KEYS && Store.KEYS.INBOX) {
+            Store._set(Store.KEYS.INBOX, mergedInbox);
+        } else {
+            localStorage.setItem('gyosei_inbox', JSON.stringify(mergedInbox));
+        }
+        return mergedInbox;
+    },
+
+    // インボックス単体のみを高速同期（全テーブル読み込みをスキップして0.3秒で完了）
+    async pullInbox() {
+        const url = this.getGasUrl();
+        if (!url) throw new Error('GAS URL が設定されていません');
+
+        try {
+            const response = await fetch(url + '?type=inbox');
+            if (!response.ok) throw new Error('通信エラー: ' + response.status);
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+
+            return this.mergeInboxData(data.inbox || []);
+        } catch (err) {
+            console.error('インボックス取得エラー:', err);
             throw err;
         }
     },

@@ -2397,9 +2397,9 @@ function getInboxDriveFolder_(subfolderName) {
 
 function checkIncomingInbox_(options) {
   options = options || {};
-  const days = options.days ? Number(options.days) : 10; // デフォルトを3日から10日（約1週間半）に拡大
+  const days = options.days ? Number(options.days) : 3; // デフォルトを10日から3日に適正化（高速化）
   const maxExecutionTimeMs = options.maxTimeMs || 25000; // Web Appの30秒タイムアウト対策（25秒で安全終了）
-  const maxThreads = options.maxThreads || 100;           // 検索スレッド上限を50から100に拡大
+  const maxThreads = options.maxThreads ? Number(options.maxThreads) : 25; // デフォルトを25スレッドに軽量化
   const startTime = Date.now();
   let timedOut = false;
 
@@ -2601,7 +2601,28 @@ function checkIncomingInbox_(options) {
       }
     } catch (e) {}
 
-    return { success: true, saved: savedCount, timedOut: timedOut };
+    // まとめて最新のインボックスデータとFAXログを取得してレスポンスに同梱（フロントエンドの追加通信を完全排除）
+    let updatedInbox = [];
+    try {
+      updatedInbox = getSheetDataAsJson_(SHEET_NAMES.INBOX, INBOX_HEADERS);
+    } catch (e) {
+      Logger.log('INBOX取得エラー: ' + e.message);
+    }
+
+    let updatedFaxLog = [];
+    try {
+      updatedFaxLog = getFaxLog_(50);
+    } catch (e) {
+      Logger.log('FAXログ取得エラー: ' + e.message);
+    }
+
+    return {
+      success: true,
+      saved: savedCount,
+      timedOut: timedOut,
+      inbox: updatedInbox,
+      faxLog: updatedFaxLog
+    };
   } catch (globalErr) {
     Logger.log('checkIncomingInbox 全体エラー: ' + globalErr.message);
     return { error: '受信チェック処理で例外が発生しました: ' + globalErr.message, saved: 0 };

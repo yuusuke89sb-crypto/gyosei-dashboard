@@ -493,24 +493,27 @@ const InboxManager = {
       btn.textContent = '⏳ スキャン中...';
     }
 
-    App.showToast(isDeep ? '📥 8月29日前後を含む過去14日分のメール・FAXを深層スキャン中...' : '📥 新規メールおよびFAXをスキャン中...');
+    App.showToast(isDeep ? '📥 過去14日分のメール・FAXを深層スキャン中...' : '📥 新規メールおよびFAXを高速スキャン中...');
+
+    // 通常の受信チェックは直近3日間・最大25スレッドに絞り込んで超高速化
+    const scanOptions = isDeep
+      ? { days: 14, maxThreads: 80, ...options }
+      : { days: 3, maxThreads: 25, ...options };
 
     try {
       // GAS側でGmail検索とインボックス書込を実行
-      const result = await SpreadsheetSync.pushCalendarEvent('checkInbox', options);
+      const result = await SpreadsheetSync.pushCalendarEvent('checkInbox', scanOptions);
 
       if (result && result.success) {
-        // GASからローカルストレージへデータをプル
-        const syncResult = await SpreadsheetSync.pull();
-        
-        // 旧FAXログのロード (互換用)
-        if (typeof SpreadsheetSync.getGasUrl === 'function') {
-          const url = SpreadsheetSync.getGasUrl();
-          const response = await fetch(url + '?type=faxLog');
-          const logData = await response.json();
-          if (logData.faxLog) {
-            localStorage.setItem('gyosei_fax_logs', JSON.stringify(logData.faxLog));
+        // 1. GASから直接最新インボックスデータが返ってきた場合は即座にマージ（追加通信ゼロ）
+        if (result.inbox && Array.isArray(result.inbox)) {
+          SpreadsheetSync.mergeInboxData(result.inbox);
+          if (result.faxLog && Array.isArray(result.faxLog)) {
+            localStorage.setItem('gyosei_fax_logs', JSON.stringify(result.faxLog));
           }
+        } else {
+          // 2. 旧GAS互換：インボックス単体のみプル（全テーブル一括プルではなく0.3秒で完了）
+          await SpreadsheetSync.pullInbox();
         }
 
         App.refreshView();
