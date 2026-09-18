@@ -437,6 +437,7 @@ const Cases = {
         onclick="Cases.showEditModal('${c.id}')">
         <div class="kanban-card-cat" style="display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
           <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : c.category}</span>
+          ${c.isUsedCar ? `<span style="font-size:0.7rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:1px 5px; border-radius:3px; font-weight:bold;">🚙 中古</span>` : ''}
           ${c.subCategory ? `<span style="font-size:0.7rem;background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:3px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
           ${syakoMapBadgeHtml}
         </div>
@@ -514,6 +515,7 @@ const Cases = {
                 <div class="case-list-item ${deadlineClass}" onclick="Cases.showEditModal('${c.id}')">
                   <div class="case-list-top">
                     <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : ''}</span>
+                    ${c.isUsedCar ? `<span style="font-size:0.72rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:1px 6px; border-radius:3px; font-weight:bold; margin-left:4px;">🚙 中古</span>` : ''}
                     ${c.subCategory ? `<span style="font-size:0.75rem;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
                     ${syakoMapBadgeHtml}
                     <span class="status-badge status-${c.status}">${statusInfo ? statusInfo.icon + ' ' + statusInfo.label : ''}</span>
@@ -788,6 +790,14 @@ const Cases = {
                         🗺️ 所在図・配置図を作成
                       </button>
                     </div>
+                  </div>
+                  <!-- 車両区分（新車 / 中古車）選択 -->
+                  <div style="margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; background:var(--bg-card); padding:8px 12px; border-radius:6px; border:1px solid rgba(59,130,246,0.25);">
+                    <label style="display:inline-flex; align-items:center; gap:8px; margin:0; cursor:pointer; font-weight:600; font-size:0.88rem; color:var(--text-primary);">
+                      <input type="checkbox" name="isUsedCar" id="csf_isUsedCar" style="width:18px; height:18px; cursor:pointer; accent-color:#f59e0b;">
+                      <span>🚙 中古車（U-Car案件）</span>
+                    </label>
+                    <span style="font-size:0.73rem; color:var(--text-muted);">※ チェック時は中古車、未チェック時は新車として請求書を分離できます</span>
                   </div>
                   <div class="form-row">
                     <div class="form-group">
@@ -1897,6 +1907,20 @@ const Cases = {
     }
 
     // 受信FAX/メールインボックスからの自動入力（プリフィル）
+    const isUsedCarEl = document.getElementById('csf_isUsedCar');
+    if (isUsedCarEl) {
+      if (prefills && prefills.isUsedCar !== undefined) {
+        isUsedCarEl.checked = !!prefills.isUsedCar;
+      } else if (prefills && (
+        (prefills.title && (prefills.title.includes('中古') || prefills.title.includes('U-Car') || prefills.title.includes('UCAR'))) ||
+        (prefills.memo && (prefills.memo.includes('中古') || prefills.memo.includes('U-Car')))
+      )) {
+        isUsedCarEl.checked = true;
+      } else {
+        isUsedCarEl.checked = false;
+      }
+    }
+
     if (prefills) {
       if (prefills.title) {
         const tEl = document.getElementById('csf_title');
@@ -2055,6 +2079,8 @@ const Cases = {
       : '';
     document.getElementById('caseModalTitle').innerHTML = '案件編集' + invBadge;
       document.getElementById('csf_title').value = c.title || '';
+      const isUsedCarEl = document.getElementById('csf_isUsedCar');
+      if (isUsedCarEl) isUsedCarEl.checked = !!c.isUsedCar;
       document.getElementById('csf_orderNo').value = c.orderNo || c['注文書№'] || c['注文書No'] || c['注文番号'] || '';
       document.getElementById('csf_clientId').value = c.clientId || '';
       Cases.onClientChange(c.clientId || '', c.clientContactId || '');
@@ -2292,6 +2318,7 @@ const Cases = {
       oldCarNumber: form.oldCarNumber ? form.oldCarNumber.value.trim() : '',
       vin: form.vin ? form.vin.value.trim() : '',
       carPolice: form.carPolice ? form.carPolice.value.trim() : '',
+      isUsedCar: !!(form.isUsedCar && form.isUsedCar.checked),
       faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',
       inboxId: document.getElementById('csf_inboxId') ? document.getElementById('csf_inboxId').value : '',
       memo: (form.memo && form.memo.value) ? form.memo.value.trim() : '',

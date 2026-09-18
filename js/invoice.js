@@ -113,31 +113,71 @@ const Invoice = {
 
     // 未請求案件のリスト生成
     const unbilledCases = this.getUnbilledCases(clientId, includeAll);
+    const newCount = unbilledCases.filter(c => !c.isUsedCar).length;
+    const usedCount = unbilledCases.filter(c => !!c.isUsedCar).length;
+    this.activeCarFilter = 'all';
+
     let unbilledHtml = '';
     if (unbilledCases.length === 0) {
-      unbilledHtml = `<div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">${includeAll ? '請求可能な案件がありません。' : '未請求の完了案件はありません。（下の「進行中・受付済みも表示」にチェックを入れると未完了案件も請求可能になります）'}</div>`;
+      unbilledHtml = `<div style="color:var(--text-muted);font-size:0.9rem;padding:20px 0;text-align:center;">${includeAll ? '請求可能な案件がありません。' : '未請求の完了案件はありません。（右上の「未完了も表示」にチェックを入れると未完了案件も請求可能になります）'}</div>`;
     } else {
       unbilledHtml = unbilledCases.map(c => {
+        const isUsed = !!c.isUsedCar;
         const effectiveFee = c.isPaid ? 0 : Number(c.fee||0);
         const effectiveAdv = c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0);
         let partialBadge = '';
         if (c.status !== 'done') {
-          partialBadge = `<span style="background:#fef3c7;color:#b45309;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">${c.status === 'in_progress' ? '進行中' : '受付済'}</span>`;
+          partialBadge = `<span style="background:#fef3c7;color:#b45309;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;">${c.status === 'in_progress' ? '進行中' : '受付済'}</span>`;
         }
-        if (c.isAdvancePaid && !c.isPaid) partialBadge += '<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">立替済</span>';
-        if (c.isPaid && !c.isAdvancePaid) partialBadge += '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;margin-left:4px;">報酬済</span>';
+        if (c.isAdvancePaid && !c.isPaid) partialBadge += '<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;">立替済</span>';
+        if (c.isPaid && !c.isAdvancePaid) partialBadge += '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;">報酬済</span>';
 
         const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || (c.createdAt ? c.createdAt.slice(0, 10) : '') || '';
         const cDate = rawDate.slice(0, 10);
         const inPeriod = currentPeriod ? (cDate >= currentPeriod.startDate && cDate <= currentPeriod.endDate) : true;
-        const dateBadge = cDate ? `<span style="background:${inPeriod ? '#e0f2fe;color:#0369a1;' : '#f1f5f9;color:#64748b;'}padding:1px 5px;border-radius:3px;font-size:0.7rem;margin-left:4px;">${inPeriod ? '📅 ' + cDate.slice(5) : '⚠️ 期間外 ' + cDate.slice(5)}</span>` : '';
+        const dateBadge = cDate ? `<span style="background:${inPeriod ? 'rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);' : 'rgba(100,116,139,0.1);color:var(--text-muted);border:1px solid var(--border-color);'}padding:1px 5px;border-radius:3px;font-size:0.7rem;white-space:nowrap;">${inPeriod ? '📅 ' + cDate.slice(5) : '⚠️ 期間外 ' + cDate.slice(5)}</span>` : '';
 
-        const amountStr = `報酬 ¥${effectiveFee.toLocaleString()} ${effectiveAdv>0 ? '+ 立替 ¥'+effectiveAdv.toLocaleString() : ''}`;
+        const carTypeBadge = isUsed
+          ? `<span style="font-size:0.72rem;background:#fef3c7;color:#b45309;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;font-weight:bold;white-space:nowrap;">🚙 中古</span>`
+          : `<span style="font-size:0.72rem;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;padding:1px 6px;border-radius:4px;font-weight:600;white-space:nowrap;">🚗 新車</span>`;
+
+        let catName = c.category || '';
+        if (c.category === 'garage_oss') catName = '車庫OSS';
+        else if (c.category === 'garage_paper') catName = '車庫一般';
+        else if (c.category === 'seal') catName = '封印';
+        else if (c.category === 'car_reg_standard') catName = '普通車登録';
+        else if (c.category === 'car_reg_light') catName = '軽登録';
+        const subCat = c.subCategory ? ` (${c.subCategory})` : '';
+
         return `
-          <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.9rem;cursor:pointer;border-bottom:1px solid rgba(0,0,0,0.03);">
-            <input type="checkbox" name="targetCases" value="${c.id}" data-case-date="${cDate}" ${inPeriod ? 'checked' : ''} class="case-checkbox" onchange="Invoice.updatePreview('${clientId}')">
-            <span>${c.title}${partialBadge}${dateBadge} <small style="color:var(--text-muted)">(${amountStr})</small></span>
-          </label>
+          <div class="invoice-case-row ${inPeriod ? 'selected' : ''}" id="caseRow_${c.id}" onclick="Invoice.toggleCaseRow('${c.id}', '${clientId}', event)" data-is-used="${isUsed ? '1' : '0'}" data-case-date="${cDate}">
+            <div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">
+              <input type="checkbox" name="targetCases" value="${c.id}" id="cb_${c.id}" data-case-date="${cDate}" data-is-used="${isUsed ? '1' : '0'}" ${inPeriod ? 'checked' : ''} class="case-checkbox" onclick="event.stopPropagation()" onchange="Invoice.onCheckboxChange('${clientId}', '${c.id}')">
+              
+              <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                ${carTypeBadge}
+                ${dateBadge}
+                ${partialBadge}
+              </div>
+
+              <div style="min-width:0; flex:1;">
+                <div style="font-size:0.86rem; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:6px;">
+                  ${c.orderNo ? `<span style="font-size:0.72rem; color:var(--text-muted); font-family:monospace; background:rgba(255,255,255,0.05); padding:1px 4px; border-radius:3px; border:1px solid var(--border-color);">№${c.orderNo}</span>` : ''}
+                  <span>${c.carName ? `${c.carName} 様` : c.title}</span>
+                </div>
+                <div style="font-size:0.74rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  ${c.carName && c.title !== c.carName ? `${c.title} • ` : ''}${catName}${subCat}
+                </div>
+              </div>
+            </div>
+
+            <div style="flex-shrink:0; text-align:right; margin-left:8px;">
+              <div style="font-size:0.88rem; font-weight:bold; color:var(--text-primary);">¥${(effectiveFee + effectiveAdv).toLocaleString()}</div>
+              <div style="font-size:0.72rem; color:var(--text-muted); white-space:nowrap;">
+                報酬:¥${effectiveFee.toLocaleString()}${effectiveAdv > 0 ? ` + 立替:¥${effectiveAdv.toLocaleString()}` : ''}
+              </div>
+            </div>
+          </div>
         `;
       }).join('');
     }
@@ -201,22 +241,37 @@ const Invoice = {
               </div>
             </div>
 
-            <div class="form-group" style="background:var(--bg-secondary); padding:12px; border-radius:var(--radius-sm); margin-bottom:16px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
-                <label style="margin:0;">📝 ${docType === 'estimate' ? '見積対象の案件を選択' : '請求対象の案件を選択'}</label>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <div style="display:flex; gap:4px;">
-                    <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Invoice.selectCasesByPeriod('${clientId}', 'period')">🎯 期間内のみ</button>
-                    <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Invoice.selectCasesByPeriod('${clientId}', 'all')">全選択</button>
-                    <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Invoice.selectCasesByPeriod('${clientId}', 'none')">解除</button>
-                  </div>
-                  <label style="font-size:0.78rem; color:var(--text-muted); display:flex; align-items:center; gap:4px; cursor:pointer;">
-                    <input type="checkbox" ${includeAll ? 'checked' : ''} onchange="Invoice.toggleIncludeAll('${clientId}', '${docType}', this.checked)">
-                    進行中・受付済みも表示
+            <div class="form-group" style="background:var(--bg-secondary); padding:14px; border-radius:var(--radius-sm); border:1px solid var(--border-color); margin-bottom:16px;">
+              <!-- フィルタバー＆選択アクション -->
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                <!-- 車両区分フィルタ (すべて / 新車のみ / 中古車のみ) -->
+                <div style="display:inline-flex; background:var(--bg-card); border:1px solid var(--border-color); border-radius:6px; padding:2px; gap:2px;">
+                  <button type="button" id="btnFilterAllCars" class="filter-pill-btn active" onclick="Invoice.filterCarType('${clientId}', 'all')">
+                    すべて <span style="font-size:0.7rem; opacity:0.85;">(${unbilledCases.length})</span>
+                  </button>
+                  <button type="button" id="btnFilterNewCars" class="filter-pill-btn" onclick="Invoice.filterCarType('${clientId}', 'new')">
+                    🚗 新車のみ <span style="font-size:0.7rem; opacity:0.85;">(${newCount})</span>
+                  </button>
+                  <button type="button" id="btnFilterUsedCars" class="filter-pill-btn" onclick="Invoice.filterCarType('${clientId}', 'used')">
+                    🚙 中古車のみ <span style="font-size:0.7rem; opacity:0.85;">(${usedCount})</span>
+                  </button>
+                </div>
+
+                <!-- 一括選択ボタン -->
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:3px 8px;" onclick="Invoice.selectFilteredCases('${clientId}', 'period')">🎯 期間内のみ</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:3px 8px;" onclick="Invoice.selectFilteredCases('${clientId}', 'all')">全選択</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:3px 8px;" onclick="Invoice.selectFilteredCases('${clientId}', 'none')">解除</button>
+                  
+                  <label style="font-size:0.78rem; color:var(--text-muted); display:flex; align-items:center; gap:4px; cursor:pointer; margin-left:6px;">
+                    <input type="checkbox" ${includeAll ? 'checked' : ''} onchange="Invoice.toggleIncludeAll('${clientId}', '${docType}', this.checked)" style="width:14px;height:14px;margin:0;">
+                    未完了も表示
                   </label>
                 </div>
               </div>
-              <div style="margin-top:8px; max-height:160px; overflow-y:auto;">
+
+              <!-- 案件リストコンテナ -->
+              <div class="invoice-case-list" id="invoiceCaseList">
                 ${unbilledHtml}
               </div>
             </div>
@@ -239,7 +294,7 @@ const Invoice = {
             </div>
             <div class="form-group">
               <label>備考</label>
-              <textarea id="invoiceNote" rows="2" placeholder="備考があれば入力..."></textarea>
+              <textarea id="invoiceNote" rows="2" placeholder="例：中古車分、9月登録分 など"></textarea>
             </div>
             <div id="invoicePreviewInfoNew" style="margin:12px 0;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.85rem"></div>
             
@@ -297,22 +352,21 @@ const Invoice = {
     }
 
     // チェックボックスの自動選別
-    const checkboxes = document.querySelectorAll('.case-checkbox');
-    checkboxes.forEach(cb => {
-      const caseDate = cb.getAttribute('data-case-date') || '';
-      if (!period || periodKey === 'all') {
-        cb.checked = true;
-      } else if (caseDate) {
-        cb.checked = (caseDate >= period.startDate && caseDate <= period.endDate);
-      } else {
-        cb.checked = true;
-      }
-    });
-
-    this.updatePreview(clientId);
+    this.selectFilteredCases(clientId, 'period');
   },
 
-  selectCasesByPeriod(clientId, mode) {
+  activeCarFilter: 'all',
+
+  filterCarType(clientId, filterType) {
+    this.activeCarFilter = filterType;
+
+    const btnAll = document.getElementById('btnFilterAllCars');
+    const btnNew = document.getElementById('btnFilterNewCars');
+    const btnUsed = document.getElementById('btnFilterUsedCars');
+    if (btnAll) btnAll.classList.toggle('active', filterType === 'all');
+    if (btnNew) btnNew.classList.toggle('active', filterType === 'new');
+    if (btnUsed) btnUsed.classList.toggle('active', filterType === 'used');
+
     const periodKey = document.getElementById('invoiceBillingPeriod') ? document.getElementById('invoiceBillingPeriod').value : 'all';
     let period = null;
     if (periodKey && periodKey !== 'all') {
@@ -320,8 +374,64 @@ const Invoice = {
       period = this.getBillingPeriod(parts[0], parts[1]);
     }
 
-    const checkboxes = document.querySelectorAll('.case-checkbox');
-    checkboxes.forEach(cb => {
+    const rows = document.querySelectorAll('.invoice-case-row');
+    rows.forEach(row => {
+      const isUsed = row.getAttribute('data-is-used') === '1';
+      const caseDate = row.getAttribute('data-case-date') || '';
+      const inPeriod = (!period || periodKey === 'all') ? true : (caseDate >= period.startDate && caseDate <= period.endDate);
+      const cb = row.querySelector('.case-checkbox');
+
+      let visible = true;
+      if (filterType === 'new') {
+        visible = !isUsed;
+      } else if (filterType === 'used') {
+        visible = isUsed;
+      }
+
+      row.style.display = visible ? 'flex' : 'none';
+
+      if (visible) {
+        if (cb) {
+          cb.checked = inPeriod;
+          row.classList.toggle('selected', cb.checked);
+        }
+      } else {
+        if (cb) {
+          cb.checked = false;
+          row.classList.remove('selected');
+        }
+      }
+    });
+
+    const noteEl = document.getElementById('invoiceNote');
+    if (noteEl) {
+      let currentNote = noteEl.value.trim();
+      if (filterType === 'used') {
+        if (!currentNote.includes('中古車分')) {
+          noteEl.value = currentNote ? `${currentNote}（中古車分）` : '（中古車分）';
+        }
+      } else {
+        noteEl.value = currentNote.replace(/[（(]?中古車分[）)]?/g, '').trim();
+      }
+    }
+
+    this.updatePreview(clientId);
+  },
+
+  selectFilteredCases(clientId, mode) {
+    const periodKey = document.getElementById('invoiceBillingPeriod') ? document.getElementById('invoiceBillingPeriod').value : 'all';
+    let period = null;
+    if (periodKey && periodKey !== 'all') {
+      const parts = periodKey.split('-');
+      period = this.getBillingPeriod(parts[0], parts[1]);
+    }
+
+    const rows = document.querySelectorAll('.invoice-case-row');
+    rows.forEach(row => {
+      if (row.style.display === 'none') return;
+      const cb = row.querySelector('.case-checkbox');
+      if (!cb) return;
+
       if (mode === 'all') {
         cb.checked = true;
       } else if (mode === 'none') {
@@ -336,8 +446,30 @@ const Invoice = {
           cb.checked = true;
         }
       }
+      row.classList.toggle('selected', cb.checked);
     });
 
+    this.updatePreview(clientId);
+  },
+
+  selectCasesByPeriod(clientId, mode) {
+    this.selectFilteredCases(clientId, mode);
+  },
+
+  toggleCaseRow(caseId, clientId, event) {
+    if (event && event.target && event.target.tagName === 'INPUT') return;
+    const cb = document.getElementById(`cb_${caseId}`);
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    this.onCheckboxChange(clientId, caseId);
+  },
+
+  onCheckboxChange(clientId, caseId) {
+    const row = document.getElementById(`caseRow_${caseId}`);
+    const cb = document.getElementById(`cb_${caseId}`);
+    if (row && cb) {
+      row.classList.toggle('selected', cb.checked);
+    }
     this.updatePreview(clientId);
   },
 
@@ -388,12 +520,24 @@ const Invoice = {
     
     const feeTotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
     const advTotal = cases.reduce((sum, c) => sum + (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0), 0);
-    
-    let html = `<strong>選択中案件 (${cases.length}件)</strong><br>`;
+
+    const usedCount = cases.filter(c => !!c.isUsedCar).length;
+    const newCount = cases.length - usedCount;
+    let carBreakdownBadge = '';
+    if (usedCount > 0 && newCount > 0) {
+      carBreakdownBadge = `<span style="font-size:0.75rem; color:var(--text-secondary); margin-left:6px;">(新車:${newCount}件, 中古:${usedCount}件)</span>`;
+    } else if (usedCount > 0) {
+      carBreakdownBadge = `<span style="font-size:0.75rem; color:#b45309; font-weight:bold; margin-left:6px;">(全件中古車)</span>`;
+    } else {
+      carBreakdownBadge = `<span style="font-size:0.75rem; color:#0369a1; font-weight:600; margin-left:6px;">(全件新車)</span>`;
+    }
+
+    let html = `<strong>選択中案件 (${cases.length}件)</strong>${carBreakdownBadge}<br>`;
     html += cases.map(c => {
       const advs = (c.advances||[]).filter(a=>a.label||Number(a.amount)>0);
       const advSum = advs.reduce((s,a)=>s+Number(a.amount||0),0);
-      return `・${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
+      const usedTag = c.isUsedCar ? '【中古】' : '';
+      return `・${usedTag}${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
     }).join('<br>');
     html += `<br><strong style="color:var(--accent-green)">報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
     info.innerHTML = html;
@@ -476,7 +620,12 @@ const Invoice = {
     const issueDate = document.getElementById('invoiceDate').value;
     const dueDate = docType === 'estimate' ? '' : document.getElementById('invoiceDueDate').value;
     const taxRate = parseInt(document.getElementById('invoiceTaxRate').value) || 10;
-    const note = document.getElementById('invoiceNote').value;
+    let note = (document.getElementById('invoiceNote').value || '').trim();
+    // 全選択案件が中古車で備考に「中古車分」の指定がなければ自動付与
+    const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
+    if (isAllUsed && !note.includes('中古車分')) {
+      note = note ? `${note}（中古車分）` : '（中古車分）';
+    }
     const templateType = document.getElementById('invoiceTemplateType')
       ? document.getElementById('invoiceTemplateType').value
       : (this.detectTemplate(client) || 'standard');
@@ -780,6 +929,9 @@ const Invoice = {
         } else if (c.category === 'seal') {
           categoryShort = '封印';
         }
+        if (c.isUsedCar) {
+          categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
+        }
 
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
@@ -803,7 +955,7 @@ const Invoice = {
       detailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:12px;">車庫証明申請等明細書</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:12px;">車庫証明申請等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${note}</span>` : ''}</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; font-size:12.5px;">
     <div>
@@ -1024,7 +1176,7 @@ const Invoice = {
 
 <!-- 1ページ目：請求書 表紙 -->
 <div class="page page-break">
-  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}</div>
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${note}</div>` : ''}</div>
   
   <div class="recipient-box">
     <span class="name">${clientName} 御中</span>
@@ -1220,6 +1372,9 @@ ${detailPagesHTML}
           categoryShort = '軽登録';
         } else if (c.category === 'seal') {
           categoryShort = '封印';
+        }
+        if (c.isUsedCar) {
+          categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
         }
 
         const fee = Number(c.fee || 0);
@@ -1531,6 +1686,9 @@ ${fusoDetailPagesHTML}
           categoryShort = '軽登録';
         } else if (c.category === 'seal') {
           categoryShort = '封印';
+        }
+        if (c.isUsedCar) {
+          categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
         }
 
         const feeTaxIncluded = Math.floor(Number(c.fee || 0) * 1.1);
@@ -1853,7 +2011,7 @@ ${nissanDetailPagesHTML}
       ${cases.map((c, i) => `
       <tr>
         <td>${i + 1}</td>
-        <td><strong>${c.title}</strong></td>
+        <td><strong>${c.title}</strong>${c.isUsedCar ? ' <span style="font-size:11px; background:#fef3c7; color:#b45309; padding:1px 5px; border-radius:3px; font-weight:bold;">(中古)</span>' : ''}</td>
         <td>${CATS[c.category] || c.category || '業務'}</td>
         <td class="num">¥${Number(c.fee||0).toLocaleString()}</td>
       </tr>
