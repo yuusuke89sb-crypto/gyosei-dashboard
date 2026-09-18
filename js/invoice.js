@@ -2198,26 +2198,25 @@ ${fusoDetailPagesHTML}
     display: flex;
     justify-content: space-between;
     margin-top: auto;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.65;
   }
   .cover-bank-area {
-    width: 48%;
+    width: 36%;
   }
   .cover-bank-title {
     font-weight: bold;
     margin-bottom: 4px;
   }
-  .cover-bank-note {
-    font-size: 11px;
-    color: #444;
-    margin-top: 5px;
-  }
   .cover-office-area {
-    width: 48%;
+    width: 62%;
     text-align: right;
     position: relative;
     padding-right: 5px;
+  }
+  .cover-address-line {
+    white-space: nowrap;
+    letter-spacing: -0.2px;
   }
   .cover-office-name {
     font-weight: bold;
@@ -2454,11 +2453,10 @@ ${fusoDetailPagesHTML}
       <div>${office.bankName || '三菱UFJ銀行'}　${office.bankBranch || '西春支店'}</div>
       <div>(${office.accountType || '普通'}) ${office.accountNumber || '0129129'}</div>
       <div>口座名義：${office.accountHolder || '行政書士法人フェリス'}</div>
-      <div class="cover-bank-note">※恐れ入りますが、振込手数料はお客様の負担でお願いいたします</div>
     </div>
     <div class="cover-office-area">
       <div>${office.assocName || '愛知県行政書士会会員'}</div>
-      <div>事業所所在地　${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div class="cover-address-line">事業所所在地　${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div class="cover-office-name">事務所の名称　${office.name || '行政書士法人フェリス'}</div>
       <div>行　政　書　士　${office.representative || '代表行政書士 日栄 政敏'}</div>
       <div>TEL　${office.tel || '0586-50-2896'}</div>
