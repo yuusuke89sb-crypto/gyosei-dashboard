@@ -1633,120 +1633,356 @@ ${fusoDetailPagesHTML}
   },
 
   // =========================================================================
-  // 3. 日産愛知販売様式（別紙明細報酬＋税目別立替集計）
+  // 3. 日産愛知販売様式（A4縦表紙＋A4横納品・請求明細書30行＋OSS作成明細別紙）
   // =========================================================================
   buildNissanInvoiceHTML({ invoiceNo, issueDate, dueDate = '', year = '', month = '', client, office, cases, feeSubtotal, tax, total, advanceTotal, docType = 'invoice' }) {
-    const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
-    const [issueY, issueM, issueD] = issueDate.split('-');
-    const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
+    let clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
+    if (!clientName) clientName = '日産愛知販売株式会社 御中';
+    else if (!clientName.includes('御中') && !clientName.includes('様')) clientName += ' 御中';
 
-    // 明細ページの分割（1ページあたり22件、見出し・№1, №2...を各ページに描画）
-    const ROWS_PER_PAGE = 22;
-    const totalDetailPages = Math.ceil(cases.length / ROWS_PER_PAGE) || 1;
+    const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
+    const reiwaYear = issueY ? parseInt(issueY, 10) - 2018 : 8;
 
+    const formatDateMMDD = (rawDate) => {
+      if (!rawDate) return '';
+      const d = new Date(rawDate);
+      if (!isNaN(d.getTime())) {
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+      }
+      const parts = String(rawDate).split(/[-/T]/);
+      if (parts.length >= 3) return `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+      return String(rawDate).slice(5);
+    };
+
+    const formatItemName = (c) => {
+      if (c.item) return c.item;
+      if (c.category === 'garage_oss' || (c.title || '').includes('OSS作成')) return '車庫証明（OSS作成）';
+      if (c.category === 'garage_light' || ((c.title || '').includes('車庫') && (c.title || '').includes('軽'))) return '車庫証明（軽自動車届出）';
+      if (c.category === 'garage_paper' || (c.title || '').includes('車庫')) return '車庫証明（申請・取得）';
+      if (c.category === 'seal' || (c.title || '').includes('封印')) return '封印';
+      if (c.category === 'car_reg_new' || (c.title || '').includes('新規')) return (c.title || '').includes('軽') ? '新車新規登録（軽）' : '新車新規登録';
+      if (c.category === 'tax_reduction' || (c.title || '').includes('減免')) return '減免申請';
+      if (c.category === 'plate' || (c.title || '').includes('ナンバー')) return 'ナンバー再交付';
+      if (c.isUsedCar) return `中古・${c.title || c.subCategory || '登録申請等'}`;
+      return c.title || c.subCategory || '登録申請等';
+    };
+
+    const formatPoliceName = (c) => {
+      if (c.policeName) return c.policeName;
+      let p = (c.carPolice || '').replace(/警察署?/, '').trim();
+      if (!p && c.policeLocationId && typeof Store !== 'undefined') {
+        const loc = Store.getLocation(c.policeLocationId);
+        if (loc) p = (loc.name || '').replace(/警察署?/, '').trim();
+      }
+      if (!p) p = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+      return p;
+    };
+
+    // OSS図面作成（立替金のないOSS案件）を分離し別紙集計、通常案件を個別計上
+    const ossCases = [];
+    const nonOssCases = [];
+
+    cases.forEach(c => {
+      const isOss = c.category === 'garage_oss' || 
+                    (c.subCategory && c.subCategory.includes('OSS')) || 
+                    (c.title && c.title.includes('OSS作成'));
+      const hasAdvances = (c.advances || []).some(a => Number(a.amount || 0) > 0);
+      if (isOss && !hasAdvances) {
+        ossCases.push(c);
+      } else {
+        nonOssCases.push(c);
+      }
+    });
+
+    const processedRegularItems = nonOssCases.map(c => {
+      const advList = (c.advances || []).filter(a => Number(a.amount || 0) > 0 || (a.label && a.label.trim()));
+      return {
+        applyDateStr: formatDateMMDD(c.applyDate || c.createdAt || c.completedAt),
+        orderNo: c.orderNo || c.caseNo || '',
+        applicantName: c.carName || c.applicantName || c.title || '',
+        policeName: formatPoliceName(c),
+        item: formatItemName(c),
+        feeTaxIncluded: Math.round(Number(c.fee || 0) * 1.1),
+        completedDateStr: formatDateMMDD(c.completedAt || c.registrationDate || c.policeDeliveryDate || ''),
+        advances: advList
+      };
+    });
+
+    // OSS案件が存在する場合：横向き台帳には「別紙明細参照【N件】」として1行に集約し、Page 4に別紙明細を出力
+    let sortedOssCases = [];
+    if (ossCases.length > 0) {
+      sortedOssCases = [...ossCases].sort((a, b) => {
+        const da = a.completedAt || a.applyDate || a.createdAt || '';
+        const db = b.completedAt || b.applyDate || b.createdAt || '';
+        return da.localeCompare(db);
+      });
+      const firstOssDate = formatDateMMDD(sortedOssCases[0].applyDate || sortedOssCases[0].completedAt || sortedOssCases[0].createdAt || '');
+      const lastOssDate = formatDateMMDD(sortedOssCases[sortedOssCases.length - 1].completedAt || sortedOssCases[sortedOssCases.length - 1].applyDate || sortedOssCases[sortedOssCases.length - 1].createdAt || '');
+      const ossFeeTaxIncludedTotal = sortedOssCases.reduce((s, c) => s + Math.round(Number(c.fee || 0) * 1.1), 0);
+
+      processedRegularItems.push({
+        isOssBundle: true,
+        applyDateStr: firstOssDate,
+        orderNo: '',
+        applicantName: `別紙明細参照【${sortedOssCases.length}件】`,
+        policeName: '',
+        item: '車庫証明（OSS作成）',
+        feeTaxIncluded: ossFeeTaxIncludedTotal,
+        completedDateStr: lastOssDate,
+        advances: []
+      });
+    }
+
+    // 全体集計（税抜・税込の丸め誤差ゼロで一致）
+    const totalFeeTaxIncluded = processedRegularItems.reduce((s, it) => s + (it.feeTaxIncluded || 0), 0);
+    const totalAdvances = processedRegularItems.reduce((s, it) => s + it.advances.reduce((sa, a) => sa + Number(a.amount || 0), 0), 0);
+    const invoiceGrandTotal = totalFeeTaxIncluded + totalAdvances;
+
+    // A4横向き台帳の改ページ制御（1ページ30行、案件間は必ず1行空ける、余白は30行まで空行パディング）
+    const MAX_ROWS = 30;
+    const landscapePages = [];
+    let curPageRows = [];
+
+    processedRegularItems.forEach((item, itemIdx) => {
+      const advCount = Math.max(1, item.advances.length);
+      
+      // 次の案件が現在のページに入らない場合は30行までパディングして次ページへ
+      if (curPageRows.length + advCount > MAX_ROWS) {
+        while (curPageRows.length < MAX_ROWS) {
+          curPageRows.push({ type: 'pad' });
+        }
+        landscapePages.push(curPageRows);
+        curPageRows = [];
+      }
+      
+      // 案件の行を追加（立替金が複数ある場合は2行目以降も消費）
+      for (let aIdx = 0; aIdx < advCount; aIdx++) {
+        curPageRows.push({
+          type: 'case',
+          item: item,
+          isFirst: (aIdx === 0),
+          adv: item.advances[aIdx] || null
+        });
+      }
+      
+      // 【ユーザー指定】案件ごとに必ず1行空ける（空行も行番号付きの行としてカウント）
+      if (curPageRows.length < MAX_ROWS && itemIdx < processedRegularItems.length - 1) {
+        curPageRows.push({ type: 'blank' });
+      }
+    });
+
+    if (curPageRows.length > 0) {
+      while (curPageRows.length < MAX_ROWS) {
+        curPageRows.push({ type: 'pad' });
+      }
+      landscapePages.push(curPageRows);
+    } else if (landscapePages.length === 0) {
+      while (curPageRows.length < MAX_ROWS) {
+        curPageRows.push({ type: 'pad' });
+      }
+      landscapePages.push(curPageRows);
+    }
+
+    const totalLandscapePages = landscapePages.length;
+
+    // 横向き明細書HTMLの生成
     let nissanDetailPagesHTML = '';
-    for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
+    landscapePages.forEach((pRows, pIdx) => {
       const pageNum = pIdx + 1;
-      const isLastPage = (pageNum === totalDetailPages);
-      const pageCases = cases.slice(pIdx * ROWS_PER_PAGE, (pIdx + 1) * ROWS_PER_PAGE);
+      let pageFeeSubtotal = 0;
+      let pageAdvSubtotal = 0;
 
-      const rowsHTML = pageCases.map((c) => {
-        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
-        let dateStr = '-';
-        if (rawDate) {
-          const d = new Date(rawDate);
-          if (!isNaN(d.getTime())) {
-            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
-          } else {
-            const parts = String(rawDate).split(/[-/T]/);
-            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-            else dateStr = String(rawDate).slice(5);
+      const rowsHTML = pRows.map((r, rIdx) => {
+        const lineNo = rIdx + 1;
+        if (r.type === 'case') {
+          const it = r.item;
+          const isFirst = r.isFirst;
+          const adv = r.adv;
+
+          if (isFirst) {
+            pageFeeSubtotal += (it.feeTaxIncluded || 0);
           }
-        }
-        const orderNo = c.orderNo || c.caseNo || '-';
-        const applicant = c.carName || c.applicantName || c.title || '-';
-        
-        let policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
-        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-          const loc = Store.getLocation(c.policeLocationId);
-          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-        }
-        if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+          if (adv && Number(adv.amount || 0) > 0) {
+            pageAdvSubtotal += Number(adv.amount || 0);
+          }
 
-        let categoryShort = '';
-        if (c.category === 'garage_oss') {
-          categoryShort = 'OSS';
-        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-          categoryShort = '一般';
-        } else if (c.subCategory) {
-          categoryShort = c.subCategory;
-        } else if (c.category === 'car_reg_standard') {
-          categoryShort = '新規登録';
-        } else if (c.category === 'car_reg_light') {
-          categoryShort = '軽登録';
-        } else if (c.category === 'seal') {
-          categoryShort = '封印';
-        }
-        if (c.isUsedCar) {
-          categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
-        }
+          const applyDate = isFirst ? (it.applyDateStr || '') : '';
+          const orderNo = isFirst ? (it.orderNo || '') : '';
+          const applicant = isFirst ? `<strong>${it.applicantName || ''}</strong>` : '';
+          const police = isFirst ? (it.policeName || '') : '';
+          const itemText = isFirst ? (it.item || '') : '';
+          const feeText = (isFirst && it.feeTaxIncluded > 0) ? it.feeTaxIncluded.toLocaleString() : '';
+          const completeDate = isFirst ? (it.completedDateStr || '') : '';
 
-        const feeTaxIncluded = Math.floor(Number(c.fee || 0) * 1.1);
-        const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
-        const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
-          const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
-          return `${cat}:${Number(a.amount).toLocaleString()}`;
-        }).join(' ');
+          const advLabel = adv ? (adv.label || adv.category || '') : '';
+          const advAmt = (adv && Number(adv.amount || 0) > 0) ? Number(adv.amount).toLocaleString() : '';
 
-        return `
-        <tr>
-          <td style="text-align:center;">${dateStr}</td>
-          <td style="text-align:center;">${orderNo}</td>
-          <td><strong>${applicant}</strong></td>
-          <td style="text-align:center;">${policeName}</td>
-          <td style="text-align:center;">${categoryShort}</td>
-          <td class="col-num">${feeTaxIncluded > 0 ? '¥' + feeTaxIncluded.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? `¥${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
-        </tr>`;
+          return `
+          <tr>
+            <td class="col-no">${lineNo}</td>
+            <td class="col-center">${applyDate}</td>
+            <td class="col-center col-ord">${orderNo}</td>
+            <td class="col-left col-app">${applicant}</td>
+            <td class="col-center">${police}</td>
+            <td class="col-left">${itemText}</td>
+            <td class="col-right num">${feeText}</td>
+            <td class="col-center">${completeDate}</td>
+            <td class="col-left">${advLabel}</td>
+            <td class="col-right num">${advAmt}</td>
+            <td class="col-left"></td>
+          </tr>`;
+        } else {
+          // 案件間の空行または30行目までの余白空行
+          return `
+          <tr class="${r.type === 'blank' ? 'blank-row' : 'pad-row'}">
+            <td class="col-no">${lineNo}</td>
+            <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+          </tr>`;
+        }
       }).join('');
 
       nissanDetailPagesHTML += `
-<!-- 明細書 ページ ${pageNum} -->
-<div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:4px; margin-bottom:12px;">別 紙 納 品 ・ 請 求 明 細 書</div>
-  <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12.5px;">
-    <div><strong>${clientName} 御中</strong></div>
-    <div>令和 ${reiwaYear} 年 ${month || issueM} 月分　　№${pageNum}</div>
+<!-- 横向き明細書 ページ ${pageNum} (No. ${pageNum}) -->
+<div class="page page-landscape">
+  <div class="landscape-header">
+    <div class="landscape-header-left">
+      <div class="landscape-recipient"><span>${clientName}</span></div>
+      <div class="landscape-subtext">下記のとおりご請求申し上げます。</div>
+      <div class="landscape-month">令和 ${reiwaYear} 年 ${month || issueM} 月分</div>
+    </div>
+
+    <div class="landscape-header-center">
+      <div class="nissan-summary-box">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:33%;">報酬料合計</th>
+              <th style="width:33%;">立替金合計</th>
+              <th style="width:34%;">ご請求額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num">${totalFeeTaxIncluded.toLocaleString()}</td>
+              <td class="num">${totalAdvances.toLocaleString()}</td>
+              <td class="num">${invoiceGrandTotal.toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="landscape-header-right">
+      <div class="office-box-inner">
+        <div class="office-text">
+          <div class="office-title">${office.name || '行政書士法人フェリス'}</div>
+          <div>行政書士　${office.representative || '日栄 政敏'}</div>
+          <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+          <div>TEL ${office.tel || '0586-50-2896'} / FAX ${office.fax || '0568-26-3714'}</div>
+        </div>
+        <div class="seal-mark">
+          <div>${((office.name || '日栄').includes('フェリス') ? 'フェリス' : '日栄')}</div>
+          <div>之印</div>
+        </div>
+      </div>
+      <div class="page-no-indicator">No. ${pageNum}</div>
+    </div>
   </div>
 
-  <table class="nissan-table" style="font-size:11.5px; margin-bottom:8px;">
+  <table class="nissan-table">
     <thead>
       <tr>
-        <th rowspan="2" style="width:7%;">日付</th>
-        <th colspan="4" style="width:65%;">申　請　者</th>
-        <th rowspan="2" style="width:14%;">報酬料（税込）</th>
-        <th rowspan="2" style="width:14%;">立替金</th>
-      </tr>
-      <tr>
-        <th style="width:16%;">注文No.</th>
-        <th style="width:21%;">氏　名</th>
-        <th style="width:14%;">管　轄</th>
-        <th style="width:14%;">備　考</th>
+        <th style="width:2.8%;">No.</th>
+        <th style="width:5.8%;">申請日</th>
+        <th style="width:9.2%;">受注No.</th>
+        <th style="width:16%;">申請者名</th>
+        <th style="width:9.8%;">管　轄</th>
+        <th style="width:17%;">項　目</th>
+        <th style="width:7.8%;">報酬料</th>
+        <th style="width:5.8%;">完了日</th>
+        <th style="width:10.5%;">立替金 名目</th>
+        <th style="width:7.8%;">立替金額</th>
+        <th style="width:7.5%;">備考</th>
       </tr>
     </thead>
     <tbody>
       ${rowsHTML}
-      ${isLastPage ? `
-      <tr style="font-weight:bold; background:#f8fafc;">
-        <td colspan="5" style="text-align:center;">合　　計</td>
-        <td class="col-num">¥${(feeSubtotal + tax).toLocaleString()}</td>
-        <td class="col-num">¥${advanceTotal.toLocaleString()}</td>
-      </tr>` : ''}
+      <tr class="subtotal-row">
+        <td colspan="6" class="col-center" style="letter-spacing:4px;">小　　計</td>
+        <td class="col-right num">${pageFeeSubtotal > 0 ? pageFeeSubtotal.toLocaleString() : '0'}</td>
+        <td></td>
+        <td></td>
+        <td class="col-right num">${pageAdvSubtotal > 0 ? pageAdvSubtotal.toLocaleString() : '0'}</td>
+        <td class="col-right num">0</td>
+      </tr>
     </tbody>
   </table>
 
-  <div class="detail-footer" style="font-size:10.5px; text-align:right; color:#666; margin-top:auto; padding-top:6px;">
-    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
+  <div class="landscape-footer">
+    <span>※金額はすべて消費税込みとなっております。</span>
+    <span>${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalLandscapePages})</span>
+  </div>
+</div>
+`;
+    });
+
+    // OSS明細別紙（OSS作成案件がある場合のみA4縦で出力）
+    let ossSheetHTML = '';
+    if (sortedOssCases.length > 0) {
+      const OSS_ROWS_PER_PAGE = 30;
+      const ossRows = [];
+      for (let i = 0; i < OSS_ROWS_PER_PAGE; i++) {
+        const oc = sortedOssCases[i];
+        const lineNo = i + 1;
+        if (oc) {
+          const ocDate = formatDateMMDD(oc.completedAt || oc.applyDate || oc.createdAt || '');
+          const ocOrder = oc.orderNo || oc.caseNo || '';
+          const ocName = oc.applicantName || oc.carName || oc.title || '';
+          ossRows.push(`
+          <tr>
+            <td class="col-center">${lineNo}</td>
+            <td class="col-center">${ocDate}</td>
+            <td class="col-center col-ord">${ocOrder}</td>
+            <td class="col-left"><strong>${ocName}</strong></td>
+            <td></td>
+          </tr>`);
+        } else {
+          ossRows.push(`
+          <tr>
+            <td class="col-center">${lineNo}</td>
+            <td></td><td></td><td></td><td></td>
+          </tr>`);
+        }
+      }
+
+      ossSheetHTML = `
+<!-- PAGE: OSS所在図・配置図作成明細 (A4縦) -->
+<div class="page page-portrait page-oss" id="nissanOssPage">
+  <div class="oss-title">ＯＳＳ所在図・配置図作成明細</div>
+  
+  <div class="oss-meta">
+    <div style="font-weight:bold; font-size:16px;">${clientName}</div>
+    <div style="margin-top:6px; font-size:14px;">令和 ${reiwaYear} 年 ${month || issueM} 月分</div>
+  </div>
+
+  <table class="oss-table">
+    <thead>
+      <tr>
+        <th style="width:7%;">No.</th>
+        <th style="width:14%;">日　付</th>
+        <th style="width:25%;">受注No.</th>
+        <th style="width:40%;">申　請　者　名</th>
+        <th style="width:14%;">備　考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${ossRows.join('')}
+    </tbody>
+  </table>
+
+  <div style="margin-top:auto; display:flex; justify-content:space-between; font-size:11px; color:#666; padding-top:10px;">
+    <span>車庫証明OSS所在図・配置図作成分</span>
+    <span>${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo}</span>
   </div>
 </div>
 `;
@@ -1756,143 +1992,527 @@ ${fusoDetailPagesHTML}
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>請求書 ${clientName} 様</title>
+<title>請求書 ${clientName}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
-  * { margin:0; padding:0; box-sizing:border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  @page { margin: 0; }
+  @page portrait-sheet { size: A4 portrait; margin: 0; }
+  @page landscape-sheet { size: A4 landscape; margin: 0; }
+
   body {
-    font-family: 'Shippori Mincho', 'Noto Sans JP', serif;
+    font-family: 'Shippori Mincho', 'Yu Mincho', serif;
     color: #000;
-    background: #e2e8f0;
+    background: #cbd5e1;
     padding: 20px;
   }
+
+  .no-print-bar {
+    max-width: 297mm;
+    margin: 0 auto 15px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 7px 15px;
+    font-size: 13px;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+  }
+  .btn-all { background: #ea580c; color: #fff; }
+  .btn-all:hover { background: #c2410c; }
+  .btn-sec { background: #2563eb; color: #fff; }
+  .btn-sec:hover { background: #1d4ed8; }
+  .btn-oss { background: #059669; color: #fff; }
+  .btn-oss:hover { background: #047857; }
+  .btn-close { background: #64748b; color: #fff; }
+  .btn-close:hover { background: #475569; }
+
+  /* Page base styles */
+  .page {
+    background: #fff;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .page-portrait {
+    page: portrait-sheet;
+    width: 210mm;
+    min-height: 297mm;
+    height: 297mm;
+    margin: 0 auto 20px;
+    padding: 24mm 24mm 18mm;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .page-landscape {
+    page: landscape-sheet;
+    width: 297mm;
+    min-height: 210mm;
+    height: 210mm;
+    margin: 0 auto 20px;
+    padding: 7mm 11mm 5mm;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Print Media Rules */
   @media print {
-    body { background: #fff; padding: 0; margin: 0; }
+    body {
+      background: #fff !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
     .no-print { display: none !important; }
-    @page { size: A4 portrait; margin: 0; }
-    .page {
+    
+    .page-portrait {
       width: 210mm !important;
-      min-height: 297mm !important;
       height: 297mm !important;
       margin: 0 !important;
-      padding: 12mm 15mm 10mm !important;
+      padding: 20mm 22mm 15mm !important;
       box-shadow: none !important;
-      box-sizing: border-box !important;
       page-break-after: always !important;
       break-after: page !important;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      position: relative !important;
-      display: flex !important;
-      flex-direction: column !important;
+      overflow: hidden !important;
+    }
+    .page-landscape {
+      width: 297mm !important;
+      height: 210mm !important;
+      margin: 0 !important;
+      padding: 6mm 10mm 5mm !important;
+      box-shadow: none !important;
+      page-break-after: always !important;
+      break-after: page !important;
       overflow: hidden !important;
     }
     .page:last-child {
       page-break-after: auto !important;
       break-after: auto !important;
     }
-    .page-break {
-      page-break-after: always !important;
-      break-after: page !important;
+
+    body.print-cover-only .page-landscape,
+    body.print-cover-only .page-oss {
+      display: none !important;
+    }
+    body.print-detail-only .page-portrait {
+      display: none !important;
+    }
+    body.print-oss-only .page-portrait:not(.page-oss),
+    body.print-oss-only .page-landscape {
+      display: none !important;
     }
   }
-  .page {
-    width: 210mm;
-    min-height: 297mm;
+
+  /* Typography and alignments */
+  .num { font-family: 'Noto Sans JP', sans-serif; font-feature-settings: 'tnum'; }
+  .col-center { text-align: center; }
+  .col-left { text-align: left; }
+  .col-right { text-align: right; }
+  .col-ord { font-family: 'Noto Sans JP', sans-serif; font-size: 9.5px; letter-spacing: -0.2px; }
+  .col-app { font-weight: normal; }
+
+  /* Cover Page (A4縦) */
+  .cover-title {
+    text-align: center;
+    font-size: 26px;
+    font-weight: bold;
+    letter-spacing: 12px;
+    margin-bottom: 25px;
+    padding-bottom: 6px;
+  }
+  .cover-recipient {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 25px;
+  }
+  .cover-recipient span {
+    border-bottom: 1.5px solid #000;
+    padding-bottom: 4px;
+    display: inline-block;
+  }
+  .cover-claim-box {
+    border: 2px solid #000;
+    padding: 13px 22px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     background: #fff;
-    margin: 0 auto 20px;
-    padding: 15mm 18mm 12mm;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+  .cover-claim-label {
+    font-size: 19px;
+    font-weight: bold;
+    letter-spacing: 8px;
+  }
+  .cover-claim-amount {
+    font-size: 24px;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  .cover-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+  }
+  .cover-summary-table th, .cover-summary-table td {
+    border: 1px solid #000;
+    padding: 7px 14px;
+    font-size: 13.5px;
+    line-height: 1.4;
+  }
+  .cover-summary-table th {
+    background: #fff;
+    text-align: center;
+    font-weight: bold;
+  }
+  .cover-summary-table tr.total-row {
+    font-weight: bold;
+    font-size: 15px;
+  }
+  .cover-prose {
+    font-size: 13.5px;
+    margin: 10px 0 6px;
+  }
+  .cover-date {
+    font-size: 13.5px;
+    margin-bottom: 6px;
+  }
+  .cover-duedate {
+    font-size: 13px;
+    font-weight: bold;
+    color: #b91c1c;
+    margin-bottom: 20px;
+  }
+  .cover-footer-grid {
+    display: flex;
+    justify-content: space-between;
+    margin-top: auto;
+    font-size: 12.5px;
+    line-height: 1.65;
+  }
+  .cover-bank-area {
+    width: 48%;
+  }
+  .cover-bank-title {
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  .cover-bank-note {
+    font-size: 11px;
+    color: #444;
+    margin-top: 5px;
+  }
+  .cover-office-area {
+    width: 48%;
+    text-align: right;
     position: relative;
-    box-sizing: border-box;
+  }
+  .cover-office-name {
+    font-weight: bold;
+    font-size: 14.5px;
+    margin: 2px 0;
+  }
+  .seal-cover-pos {
+    position: absolute;
+    right: -10px;
+    top: 25px;
+  }
+
+  /* Seal stamp style */
+  .seal-mark {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 2px solid #dc2626;
+    color: #dc2626;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: bold;
+    line-height: 1.15;
+    background: rgba(254, 242, 242, 0.4);
+    box-shadow: 0 0 1px rgba(220, 38, 38, 0.4);
+  }
+
+  /* Landscape Detail Page Header (A4横) */
+  .landscape-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 5px;
+  }
+  .landscape-header-left {
+    width: 38%;
+  }
+  .landscape-recipient {
+    font-size: 15px;
+    font-weight: bold;
+    margin-bottom: 3px;
+  }
+  .landscape-recipient span {
+    border-bottom: 1.5px solid #000;
+    padding-bottom: 2px;
+    display: inline-block;
+  }
+  .landscape-subtext {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+  .landscape-month {
+    font-size: 12.5px;
+    font-weight: bold;
+  }
+  .landscape-header-center {
+    width: 28%;
+    display: flex;
+    justify-content: center;
+  }
+  .nissan-summary-box table {
+    border-collapse: collapse;
+    width: 245px;
+  }
+  .nissan-summary-box th, .nissan-summary-box td {
+    border: 1px solid #000;
+    text-align: center;
+    padding: 2px 6px;
+    font-size: 10.5px;
+    line-height: 1.25;
+  }
+  .nissan-summary-box th {
+    background: #fff;
+    font-weight: bold;
+  }
+  .nissan-summary-box td {
+    font-weight: bold;
+    font-size: 12px;
+    text-align: right;
+  }
+  .landscape-header-right {
+    width: 33%;
     display: flex;
     flex-direction: column;
+    align-items: flex-end;
   }
-  .no-print-bar { max-width: 210mm; margin: 0 auto 15px; display: flex; justify-content: flex-end; gap: 10px; }
-  .btn { padding: 8px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; border: none; }
-  .btn-print { background: #ea580c; color: #fff; }
-  .btn-close { background: #cbd5e1; color: #1e293b; }
+  .office-box-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: right;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+  .office-title {
+    font-weight: bold;
+    font-size: 11.5px;
+  }
+  .page-no-indicator {
+    font-size: 12px;
+    font-weight: bold;
+    margin-top: 2px;
+    letter-spacing: 1px;
+  }
 
-  .doc-title { text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 10px; margin-bottom: 18px; padding-bottom: 6px; }
-  table.nissan-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px; }
-  table.nissan-table th, table.nissan-table td { border: 1px solid #000; padding: 4px 7px; line-height: 1.35; }
-  table.nissan-table th { background: #f8fafc; text-align: center; }
-  .col-num { text-align: right; font-family: 'Noto Sans JP', sans-serif; font-weight: bold; }
+  /* 30-Row Table */
+  table.nissan-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    table-layout: fixed;
+    margin-bottom: 0;
+  }
+  table.nissan-table th, table.nissan-table td {
+    border: 1px solid #000;
+    padding: 0 4px;
+    height: 4.6mm;
+    line-height: 4.6mm;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+  }
+  table.nissan-table th {
+    background: #fff;
+    text-align: center;
+    font-weight: bold;
+    font-size: 10.5px;
+    height: 5.2mm;
+    line-height: 5.2mm;
+  }
+  table.nissan-table td.col-no {
+    text-align: center;
+    font-weight: normal;
+    font-size: 9px;
+  }
+  table.nissan-table tr.blank-row td,
+  table.nissan-table tr.pad-row td {
+    height: 4.6mm;
+    line-height: 4.6mm;
+    background: #fff;
+  }
+  table.nissan-table tr.subtotal-row td {
+    font-weight: bold;
+    font-size: 10.5px;
+    height: 5.2mm;
+    line-height: 5.2mm;
+    background: #fff;
+  }
+  .landscape-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #555;
+    margin-top: auto;
+    padding-top: 3px;
+  }
+
+  /* OSS Sheet Styling (A4縦) */
+  .oss-title {
+    text-align: center;
+    font-size: 21px;
+    font-weight: bold;
+    letter-spacing: 6px;
+    margin-bottom: 24px;
+  }
+  .oss-meta {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 18px;
+  }
+  table.oss-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.oss-table th, table.oss-table td {
+    border: 1px solid #000;
+    padding: 5px 8px;
+    line-height: 1.35;
+    height: 6.8mm;
+  }
+  table.oss-table th {
+    background: #fff;
+    text-align: center;
+    font-weight: bold;
+  }
 </style>
 </head>
 <body>
 
 <div class="no-print-bar no-print">
-  <button class="btn btn-print" onclick="window.print()">🖨️ 印刷 / PDF出力</button>
+  <button class="btn btn-all" onclick="NissanPrint.printAll()">🖨️ 全ページ一括印刷</button>
+  <button class="btn btn-sec" onclick="NissanPrint.printSection('cover')">📄 表紙のみ印刷 (A4縦)</button>
+  <button class="btn btn-sec" onclick="NissanPrint.printSection('detail')">📋 明細書のみ印刷 (A4横)</button>
+  ${sortedOssCases.length > 0 ? `<button class="btn btn-oss" onclick="NissanPrint.printSection('oss')">🗺️ OSS明細のみ印刷 (A4縦)</button>` : ''}
   <button class="btn btn-close" onclick="window.close()">✕ 閉じる</button>
 </div>
 
-<!-- 1ページ目：表紙請求書 -->
-<div class="page page-break">
-  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}</div>
+<!-- PAGE 1: 表紙請求書 (A4縦) -->
+<div class="page page-portrait" id="nissanCoverPage">
+  <div class="cover-title">${docType === 'estimate' ? '御 見 積 書' : '請　求　書'}</div>
   
-  <div style="font-size:18px; font-weight:bold; margin-bottom:25px;">
-    <span style="border-bottom:1.5px solid #000; padding-bottom:3px;">${clientName} 御中</span>
+  <div class="cover-recipient">
+    <span>${clientName}</span>
   </div>
 
-  <div style="background:#f8fafc; border:2px solid #000; padding:15px 20px; margin-bottom:25px; font-size:18px; font-weight:bold; display:flex; justify-content:space-between;">
-    <span>ご請求金額</span>
-    <span>¥${total.toLocaleString()}</span>
+  <div class="cover-claim-box">
+    <span class="cover-claim-label">${docType === 'estimate' ? '御 見 積 額' : 'ご 請 求 額'}</span>
+    <span class="cover-claim-amount num">¥ ${invoiceGrandTotal.toLocaleString()}</span>
   </div>
 
-  <table class="nissan-table">
+  <table class="cover-summary-table">
     <thead>
       <tr>
-        <th style="width:50%;">摘　要</th>
-        <th style="width:30%;">金　額</th>
+        <th style="width:45%;">摘　　要</th>
+        <th style="width:35%;">金　　額</th>
         <th style="width:20%;">備　考</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td>別紙明細報酬</td>
-        <td class="col-num">¥${(feeSubtotal + tax).toLocaleString()}</td>
-        <td style="text-align:center;">（税込）</td>
+        <td class="col-right num">¥ ${totalFeeTaxIncluded.toLocaleString()}</td>
+        <td class="col-center">（税込）</td>
       </tr>
       <tr>
-        <td>立替金</td>
-        <td class="col-num">¥${advanceTotal.toLocaleString()}</td>
-        <td style="text-align:center;">（実費）</td>
+        <td>立　替　金</td>
+        <td class="col-right num">¥ ${totalAdvances.toLocaleString()}</td>
+        <td class="col-center">（実費）</td>
       </tr>
-      <tr style="background:#f8fafc; font-size:16px;">
-        <td style="font-weight:bold; text-align:center;">合　　計</td>
-        <td class="col-num">¥${total.toLocaleString()}</td>
+      <tr class="total-row">
+        <td class="col-center">合　　計</td>
+        <td class="col-right num">¥ ${invoiceGrandTotal.toLocaleString()}</td>
         <td></td>
       </tr>
     </tbody>
   </table>
 
-  <div style="font-size:13px; margin: 15px 0 8px;">上記のとおりご請求申し上げます。</div>
-  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  <div class="cover-prose">上記のとおりご請求申し上げます。</div>
+  <div class="cover-date">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
   ${dueDate && docType !== 'estimate' ? `
-  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 20px;">
+  <div class="cover-duedate">
     お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
-  </div>` : '<div style="margin-bottom: 25px;"></div>'}
+  </div>` : '<div style="margin-bottom: 20px;"></div>'}
 
-  <div style="display:flex; justify-content:space-between; font-size:13px;">
-    <div style="width:48%;">
-      <div style="font-weight:bold; margin-bottom:4px;">《 振込先 》</div>
-      <div>${office.bankName} ${office.bankBranch}</div>
-      <div>${office.accountType} ${office.accountNumber}</div>
-      <div>口座名義：${office.accountHolder}</div>
+  <div class="cover-footer-grid">
+    <div class="cover-bank-area">
+      <div class="cover-bank-title">≪振込先≫</div>
+      <div>${office.bankName || '三菱UFJ銀行'}　${office.bankBranch || '西春支店'}</div>
+      <div>(${office.accountType || '普通'}) ${office.accountNumber || '0129129'}</div>
+      <div>口座名義：${office.accountHolder || '行政書士法人フェリス'}</div>
+      <div class="cover-bank-note">※恐れ入りますが、振込手数料はお客様の負担でお願いいたします</div>
     </div>
-    <div style="width:48%; text-align:right;">
+    <div class="cover-office-area">
       <div>${office.assocName || '愛知県行政書士会会員'}</div>
-      <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
-      <div style="font-weight:bold; font-size:14px;">${office.name || '行政書士法人フェリス'}</div>
-      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
-      <div>TEL: ${office.tel || '0586-50-2896'} / FAX: ${office.fax || '0568-26-3714'}</div>
+      <div>事業所所在地　${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div class="cover-office-name">事務所の名称　${office.name || '行政書士法人フェリス'}</div>
+      <div>行　政　書　士　${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div>TEL　${office.tel || '0586-50-2896'}</div>
+      <div>FAX　${office.fax || '0568-26-3714'}</div>
       ${office.registrationNumber ? `<div style="font-size:11px;">登録番号: ${office.registrationNumber}</div>` : ''}
+      <div class="seal-cover-pos">
+        <div class="seal-mark">
+          <div>${((office.name || '日栄').includes('フェリス') ? 'フェリス' : '日栄')}</div>
+          <div>之印</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- PAGE 2以降: 納品・請求明細書 (A4横・1ページ30行台帳) -->
 ${nissanDetailPagesHTML}
+
+<!-- PAGE LAST: OSS所在図・配置図作成明細 (A4縦、存在時のみ) -->
+${ossSheetHTML}
+
+<script>
+window.NissanPrint = {
+  printAll() {
+    document.body.className = '';
+    window.print();
+  },
+  printSection(sec) {
+    document.body.className = 'print-' + sec + '-only';
+    window.print();
+    setTimeout(() => {
+      document.body.className = '';
+    }, 1000);
+  }
+};
+</script>
 
 </body>
 </html>`;
