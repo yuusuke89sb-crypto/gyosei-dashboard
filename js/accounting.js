@@ -117,6 +117,7 @@ const Accounting = {
     const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
 
     doneCases.forEach(c => {
+      if (!c || !c.id) return;
       const client = Store.getClient(c.clientId);
       const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
       const desc = `[${CATS[c.category] || c.category}] ${c.title}${client ? ' / ' + client.name : ''}${orderStr}`;
@@ -128,8 +129,12 @@ const Accounting = {
         Store.getLocalDateStr();
       const expectedAmount = Number(c.fee);
       const catLabel = CATS[c.category] || c.category;
+      const deterministicId = `j_case_${c.id}_${c.category || 'sales'}`;
 
-      let jIdx = modifiedJournals.findIndex(j => j.caseId === c.id);
+      let jIdx = modifiedJournals.findIndex(j => 
+        (j.id && j.id === deterministicId) || 
+        (j.caseId && String(j.caseId) === String(c.id))
+      );
       if (jIdx === -1 && c.orderNo) {
         // 同じ注文書Noでも、既に別案件のcaseIdが紐づいている仕訳や別カテゴリの仕訳は誤マッチさせない
         jIdx = modifiedJournals.findIndex(j => !j.caseId && (
@@ -138,7 +143,7 @@ const Accounting = {
           !j.description || j.description.includes(catLabel)
         ));
         if (jIdx !== -1) {
-          modifiedJournals[jIdx].caseId = c.id;
+          modifiedJournals[jIdx].caseId = String(c.id);
         }
       }
       if (jIdx === -1) {
@@ -148,18 +153,18 @@ const Accounting = {
           (j.description && j.description.includes(c.title) && (!c.orderNo || j.description.includes(c.orderNo)) && (!catLabel || j.description.includes(catLabel)))
         ));
         if (jIdx !== -1) {
-          modifiedJournals[jIdx].caseId = c.id;
+          modifiedJournals[jIdx].caseId = String(c.id);
         }
       }
       if (jIdx === -1) {
         const newJ = {
-          id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + restoredCount,
+          id: deterministicId,
           date: doneDate,
           debit: '売掛金',
           credit: '売上高',
           amount: expectedAmount,
           description: desc,
-          caseId: c.id,
+          caseId: String(c.id),
           orderNo: c.orderNo || '',
           auto: true,
           createdAt: new Date().toISOString(),
@@ -170,6 +175,14 @@ const Accounting = {
       } else {
         const j = modifiedJournals[jIdx];
         let changed = false;
+        if (!j.id || !j.id.startsWith('j_case_')) {
+          j.id = deterministicId;
+          changed = true;
+        }
+        if (!j.caseId || String(j.caseId) !== String(c.id)) {
+          j.caseId = String(c.id);
+          changed = true;
+        }
         if (j.amount !== expectedAmount || j.amount > 10000000) { j.amount = expectedAmount; changed = true; }
         if (j.date !== doneDate) { j.date = doneDate; changed = true; }
         if (j.description !== desc) { j.description = desc; changed = true; }
