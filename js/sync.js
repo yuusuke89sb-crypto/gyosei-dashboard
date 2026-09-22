@@ -561,11 +561,16 @@ const SpreadsheetSync = {
           <div id="syncTestResult" style="margin-top:12px;display:none"></div>
 
           ${config.lastSync ? `
-            <div class="sync-status-info" style="margin-bottom:12px">
+            <div class="sync-status-info" style="margin-bottom:8px">
               <span class="detail-icon">⏱️</span>
               最終同期: ${new Date(config.lastSync).toLocaleString('ja-JP')}
             </div>
           ` : ''}
+
+          <div class="sync-status-info" id="idbModalStorageStatus" style="margin-bottom:12px; font-size:0.75rem; color:var(--text-muted);">
+            <span class="detail-icon">💾</span>
+            ストレージ: 取得中...
+          </div>
 
           <!-- 本番移行用メンテナンスツール -->
           <div style="border-top:1px solid var(--border-color);margin-top:16px;padding-top:16px">
@@ -582,6 +587,16 @@ const SpreadsheetSync = {
       </div>
     `;
         document.body.appendChild(modal);
+
+        // IndexedDB ストレージ容量の非同期表示
+        if (typeof IdbStore !== 'undefined' && typeof IdbStore.getStorageEstimate === 'function') {
+          IdbStore.getStorageEstimate().then(function(est) {
+            var el = document.getElementById('idbModalStorageStatus');
+            if (el) {
+              el.innerHTML = '<span class="detail-icon">💾</span> ストレージ (IndexedDB): <strong>' + est.usageMB + ' MB</strong> / 上限 <strong>' + est.quotaMB + ' MB</strong> <span style="color:var(--accent-green, #10b981); margin-left:6px; font-weight:600;">● 正常稼働中 (5MB制限解除済)</span>';
+            }
+          }).catch(function() {});
+        }
     },
 
     async onTestConnection() {

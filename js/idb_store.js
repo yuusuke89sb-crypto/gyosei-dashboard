@@ -296,3 +296,8 @@ const IdbStore = {
     }
   }
 };
+
+// スクリプト読み込みと同時にバックグラウンドで高速初期化・インメモリロードを開始
+if (typeof window !== 'undefined' && window.indexedDB) {
+  IdbStore.init().catch(e => console.warn('[IdbStore auto-init error]', e));
+}

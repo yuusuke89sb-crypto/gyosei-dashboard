@@ -54,7 +54,8 @@
 
   <!-- JS読み込み -->
   <script src="js/auth.js?v=20260906_2150"></script>
-  <script src="js/sync.js?v=20260923_0005"></script>
+  <script src="js/idb_store.js?v=20260923_0138"></script>
+  <script src="js/sync.js?v=20260923_0140"></script>
   <script src="js/store.js?v=20260922_2325"></script>
   <script src="js/dashboard.js?v=20260923_0035"></script>
   <script src="js/clients.js?v=20260922_2135"></script>
@@ -110,6 +111,28 @@
   <script src="js/formats.js?v=20260906_2020"></script>
   <script src="js/analytics.js?v=20260906_2020"></script>
   <script src="js/app.js?v=20260922_1520"></script>
+
+  <!-- App.init の実行直前に IndexedDB の完了を待機する安全フック -->
+  <script>
+    (function() {
+      if (typeof App !== 'undefined' && typeof IdbStore !== 'undefined') {
+        const originalInit = App.init.bind(App);
+        App.init = async function() {
+          try {
+            console.log('⏳ [Gyosei App] IndexedDB 初期化・データロード中...');
+            await IdbStore.init();
+            if (typeof IdbStore.patchEnvironment === 'function') {
+              IdbStore.patchEnvironment();
+            }
+            console.log('🚀 [Gyosei App] IndexedDB ロード完了。画面描画を開始します');
+          } catch (e) {
+            console.warn('[Gyosei App] IndexedDB 初期化待機フォールバック:', e);
+          }
+          originalInit();
+        };
+      }
+    })();
+  </script>
 </body>
 
 </html>
