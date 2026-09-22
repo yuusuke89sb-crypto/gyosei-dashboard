@@ -1496,7 +1496,9 @@ const GoalTracker = {
     const caseYPct = goals.annualCases > 0 ? Math.min(100, Math.round(yearlyCases / goals.annualCases * 100)) : 0;
     const caseMPct = goals.monthlyCases > 0 ? Math.min(100, Math.round(monthlyCases / goals.monthlyCases * 100)) : 0;
 
-    const periodLabel = period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/20' : `${month === 1 ? 12 : month - 1}/21〜${month}/20`) : '';
+    const periodLabel = period && period.startDate && period.endDate
+      ? `${period.startDate.slice(5).replace('-', '/')}〜${period.endDate.slice(5).replace('-', '/')}`
+      : (period ? `${period.month}月` : '');
 
     return `
       <div class="goal-tracker">
@@ -2213,7 +2215,9 @@ const RevenueWidget = {
     const diffLabel = diff > 0 ? `↑ +¥${diff.toLocaleString()}` : diff < 0 ? `↓ ¥${diff.toLocaleString()}` : '→ 変動なし';
     const diffColor = diff > 0 ? '#2dd4a8' : diff < 0 ? '#ff6b6b' : '#888';
 
-    const periodLabel = period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/20' : `${month === 1 ? 12 : month - 1}/21〜${month}/20`) : '';
+    const periodLabel = period && period.startDate && period.endDate
+      ? `${period.startDate.slice(5).replace('-', '/')}〜${period.endDate.slice(5).replace('-', '/')}`
+      : (period ? `${period.month}月` : '');
 
     return `
       <div class="goal-tracker" style="cursor:pointer" onclick="MonthlyReport.show()" title="クリックで月次レポートを表示">

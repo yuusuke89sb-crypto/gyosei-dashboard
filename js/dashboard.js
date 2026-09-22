@@ -15,6 +15,9 @@ function renderDashboard() {
   const period = typeof Store !== 'undefined' && Store.getCurrentBillingPeriod
     ? Store.getCurrentBillingPeriod(now)
     : null;
+  const periodLabel = period && period.startDate && period.endDate
+    ? `${period.startDate.slice(5).replace('-', '/')}〜${period.endDate.slice(5).replace('-', '/')}`
+    : (period ? `${period.month}月` : '');
   const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const allCases = Store.getCases();
   const thisMonthCompleted = allCases.filter(c => {
@@ -202,7 +205,7 @@ function renderDashboard() {
           <div class="stat-icon">💰</div>
           <div class="stat-info">
             <div class="stat-number">¥${monthlyRevenue.toLocaleString()}</div>
-            <div class="stat-label">${period ? `${period.month}月売上` : '今月売上'} <span style="font-size:0.72rem;font-weight:normal;opacity:0.85">(${period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/25' : `${period.month === 1 ? 12 : period.month - 1}/26〜${period.month}/25`) : ''})</span></div>
+            <div class="stat-label">${period ? `${period.month}月売上` : '今月売上'} <span style="font-size:0.72rem;font-weight:normal;opacity:0.85">(${periodLabel})</span></div>
           </div>
         </div>
         ${typeof Payments !== 'undefined' && Payments.getUnpaid().length > 0 ? `
@@ -259,7 +262,7 @@ function renderDashboard() {
         <!-- 今月の収支ウィジェット -->
         <div class="dashboard-section">
           ${typeof RevenueWidget !== 'undefined' ? RevenueWidget.renderWidget() : `
-          <h2 class="section-title">💰 ${period ? `${period.month}月の収支` : '今月の収支'} <span style="font-size:0.8rem;font-weight:normal;color:var(--text-muted)">(${period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/20' : `${period.month === 1 ? 12 : period.month - 1}/21〜${period.month}/20`) : ''})</span></h2>
+          <h2 class="section-title">💰 ${period ? `${period.month}月の収支` : '今月の収支'} <span style="font-size:0.8rem;font-weight:normal;color:var(--text-muted)">(${periodLabel})</span></h2>
           <div class="revenue-summary">
             <div class="revenue-row">
               <span>売上（完了案件）</span>

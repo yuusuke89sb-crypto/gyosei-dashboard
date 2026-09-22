@@ -120,12 +120,23 @@ const Accounting = {
       const client = Store.getClient(c.clientId);
       const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
       const desc = `[${CATS[c.category] || c.category}] ${c.title}${client ? ' / ' + client.name : ''}${orderStr}`;
-      const doneDate = c.completedAt ? c.completedAt.slice(0, 10) : (c.registrationDate || c.policeDeliveryDate || Store.getLocalDateStr());
+      const doneDate = (c.completedAt ? c.completedAt.slice(0, 10) : '') ||
+        c.registrationDate ||
+        c.policeDeliveryDate ||
+        (c.updatedAt ? c.updatedAt.slice(0, 10) : '') ||
+        (c.createdAt ? c.createdAt.slice(0, 10) : '') ||
+        Store.getLocalDateStr();
       const expectedAmount = Number(c.fee);
+      const catLabel = CATS[c.category] || c.category;
 
       let jIdx = modifiedJournals.findIndex(j => j.caseId === c.id);
       if (jIdx === -1 && c.orderNo) {
-        jIdx = modifiedJournals.findIndex(j => (j.orderNo && j.orderNo === c.orderNo) || (j.description && j.description.includes(c.orderNo)));
+        // 同じ注文書Noでも、既に別案件のcaseIdが紐づいている仕訳や別カテゴリの仕訳は誤マッチさせない
+        jIdx = modifiedJournals.findIndex(j => !j.caseId && (
+          (j.orderNo && j.orderNo === c.orderNo) || (j.description && j.description.includes(c.orderNo))
+        ) && (
+          !j.description || j.description.includes(catLabel)
+        ));
         if (jIdx !== -1) {
           modifiedJournals[jIdx].caseId = c.id;
         }
@@ -134,7 +145,7 @@ const Accounting = {
         // 注文書番号がない場合でも、摘要または案件名が一致する未紐付け仕訳を探索
         jIdx = modifiedJournals.findIndex(j => !j.caseId && (
           (j.description && j.description === desc) ||
-          (j.description && j.description.includes(c.title) && (!c.orderNo || j.description.includes(c.orderNo)))
+          (j.description && j.description.includes(c.title) && (!c.orderNo || j.description.includes(c.orderNo)) && (!catLabel || j.description.includes(catLabel)))
         ));
         if (jIdx !== -1) {
           modifiedJournals[jIdx].caseId = c.id;
