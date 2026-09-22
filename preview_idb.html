@@ -12,16 +12,11 @@
 </head>
 
 <body>
-  <!-- IndexedDB 検証モード告知バナー -->
-  <div style="background: linear-gradient(90deg, #059669, #10b981); color: #fff; padding: 6px 16px; font-size: 0.8rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100000; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
-    <div style="display:flex; align-items:center; gap:8px;">
-      <span>🧪 IndexedDB 大容量ストレージ検証モード</span>
-      <span style="font-size:0.7rem; background:rgba(0,0,0,0.25); padding:2px 8px; border-radius:10px; font-weight:normal;">5MB制限解除・実質無制限</span>
-    </div>
-    <div style="display:flex; align-items:center; gap:12px;">
-      <span id="idbCapacityInfo" style="font-size:0.75rem; font-weight:normal; opacity:0.95;">容量測定中...</span>
-      <a href="index.html" style="color:#fff; background:rgba(0,0,0,0.3); text-decoration:none; padding:3px 10px; border-radius:4px; font-size:0.72rem;">🔙 本番通常版へ</a>
-    </div>
+  <!-- IndexedDB 検証モード フローティングバッジ (右下に固定配置してサイドバーレイアウトを維持) -->
+  <div style="position: fixed; bottom: 20px; right: 24px; z-index: 999999; background: #059669; color: #fff; padding: 8px 16px; border-radius: 30px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2);">
+    <span>🧪 IndexedDB 検証中</span>
+    <span id="idbCapacityInfo" style="font-size:0.75rem; opacity:0.9;">容量測定中...</span>
+    <a href="index.html" style="color:#fff; background:rgba(0,0,0,0.3); text-decoration:none; padding:3px 10px; border-radius:12px; font-size:0.72rem;">🔙 本番へ</a>
   </div>
 
   <!-- サイドバー (PC) -->
