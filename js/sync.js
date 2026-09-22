@@ -7,7 +7,7 @@ const SpreadsheetSync = {
     INBOX_QUEUE_KEY: 'gyosei_inbox_pending_queue',
 
     // デフォルトGAS URL（全デバイスで自動接続）
-    DEFAULT_GAS_URL: 'https://script.google.com/macros/s/AKfycbyBUWa-drACXoXxhwsQOek_eXGbe8hBZKOkSriZbIhlb4HAmhAGDeDTak-zh27YzVTw/exec',
+    DEFAULT_GAS_URL: 'https://script.google.com/macros/s/AKfycbzCXTuW3RirKhn29PiAZe_VtmGXj22LrBAmO_ztCpmiKuQ_YU8pE2JqoZDoSWEbgm0g/exec',
 
     // ---- 設定管理 ----
     getConfig() {
@@ -24,6 +24,16 @@ const SpreadsheetSync = {
 
     getGasUrl() {
         const conf = this.getConfig();
+        // 古い無効なURLがローカルストレージに残っている場合は自動で最新デフォルトに切り替える
+        if (conf.gasUrl && (
+            conf.gasUrl.includes('AKfycbxDLp223') ||
+            conf.gasUrl.includes('AKfycbzdDtMh') ||
+            conf.gasUrl.includes('AKfycbyBUWa')
+        )) {
+            conf.gasUrl = this.DEFAULT_GAS_URL;
+            this.saveConfig(conf);
+            return this.DEFAULT_GAS_URL;
+        }
         return (conf.gasUrl && conf.gasUrl.trim()) ? conf.gasUrl.trim() : this.DEFAULT_GAS_URL;
     },
 
@@ -43,12 +53,35 @@ const SpreadsheetSync = {
             console.warn('[SpreadsheetSync.pull] キュー自動フラッシュ警告:', e);
         }
 
+        let data;
+        const sep = url.includes('?') ? '&' : '?';
         try {
-            const response = await fetch(url + '?type=all&t=' + Date.now());
+            const response = await fetch(url + sep + 'type=all&t=' + Date.now());
             if (!response.ok) throw new Error('通信エラー: ' + response.status);
 
-            const data = await response.json();
+            data = await response.json();
             if (data.error) throw new Error(data.error);
+        } catch (allErr) {
+            console.warn('[SpreadsheetSync.pull] type=all 通信エラーまたはタイムアウト。個別並行取得へフォールバックします...', allErr);
+            // 分割並行取得にフォールバック（Google 30秒タイムアウト対策）
+            const chunkTypes = ['customers', 'staff', 'locations', 'clientContacts', 'cases', 'journals', 'inbox', 'events'];
+            const chunkResults = await Promise.allSettled(chunkTypes.map(async (t) => {
+                const r = await fetch(url + sep + 'type=' + t + '&t=' + Date.now());
+                if (!r.ok) return null;
+                return r.json();
+            }));
+            data = { syncedAt: new Date().toISOString() };
+            chunkResults.forEach((res, i) => {
+                if (res.status === 'fulfilled' && res.value && !res.value.error) {
+                    const key = chunkTypes[i];
+                    if (res.value[key]) data[key] = res.value[key];
+                    if (res.value.syncedAt) data.syncedAt = res.value.syncedAt;
+                }
+            });
+            if (!data.customers && !data.cases && !data.journals) {
+                throw allErr;
+            }
+        }
 
             // 顧客データを localStorage に保存
             if (data.customers) {
@@ -408,7 +441,8 @@ const SpreadsheetSync = {
     // ---- 接続テスト ----
     async testConnection(url) {
         try {
-            const response = await fetch(url + '?type=all');
+            const sep = url.includes('?') ? '&' : '?';
+            const response = await fetch(url + sep + 'type=customers&t=' + Date.now());
             if (!response.ok) throw new Error('HTTP ' + response.status);
 
             const data = await response.json();
