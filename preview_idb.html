@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="行政書士事務所の案件・顧客管理ダッシュボード（IndexedDB検証プレビュー版）">
+  <title>【検証版】行政書士 案件管理ダッシュボード (IndexedDB)</title>
+  <link rel="stylesheet" href="css/style.css?v=20260906_2020">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
+</head>
+
+<body>
+  <!-- IndexedDB 検証モード告知バナー -->
+  <div style="background: linear-gradient(90deg, #059669, #10b981); color: #fff; padding: 6px 16px; font-size: 0.8rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100000; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span>🧪 IndexedDB 大容量ストレージ検証モード</span>
+      <span style="font-size:0.7rem; background:rgba(0,0,0,0.25); padding:2px 8px; border-radius:10px; font-weight:normal;">5MB制限解除・実質無制限</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span id="idbCapacityInfo" style="font-size:0.75rem; font-weight:normal; opacity:0.95;">容量測定中...</span>
+      <a href="index.html" style="color:#fff; background:rgba(0,0,0,0.3); text-decoration:none; padding:3px 10px; border-radius:4px; font-size:0.72rem;">🔙 本番通常版へ</a>
+    </div>
+  </div>
+
+  <!-- サイドバー (PC) -->
+  <aside id="sidebar" class="sidebar"></aside>
+
+  <!-- モバイルヘッダー -->
+  <header class="mobile-header">
+    <button class="hamburger" onclick="App.toggleSidebar()" aria-label="メニュー">☰</button>
+    <div class="mobile-logo"><span>🧪</span> 案件管理(IDB)</div>
+    <div style="display:flex;gap:4px">
+      <button class="hamburger" onclick="SpreadsheetSync.syncNow()" aria-label="同期" style="margin-right:4px">🔄</button>
+      <button class="hamburger" onclick="GlobalSearch.show()" aria-label="検索">🔍</button>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main id="content" class="main-content"></main>
+
+  <!-- 案件登録・詳細モーダル ホルダー (どの画面からでも案件詳細を開けるように永続配置) -->
+  <div id="caseModalHolder"></div>
+
+  <!-- ボトムナビ (モバイル) -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <button class="bottom-nav-item active" onclick="App.navigate('dashboard')">
+        <span class="nav-icon">📊</span><span>ホーム</span>
+      </button>
+      <button class="bottom-nav-item" onclick="App.navigate('cases')">
+        <span class="nav-icon">📋</span><span>案件</span>
+      </button>
+      <button class="bottom-nav-item" onclick="App.navigate('progress')">
+        <span class="nav-icon">📈</span><span>進捗</span>
+      </button>
+      <button class="bottom-nav-item" onclick="App.navigate('calendar')">
+        <span class="nav-icon">📅</span><span>予定</span>
+      </button>
+      <button class="bottom-nav-item" onclick="App.navigate('accounting')">
+        <span class="nav-icon">💹</span><span>帳簿</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- JS読み込み -->
+  <script src="js/auth.js?v=20260906_2150"></script>
+  <script src="js/idb_store.js?v=20260923_0115"></script>
+  <script src="js/sync.js?v=20260923_0005"></script>
+  <script src="js/store.js?v=20260922_2325"></script>
+  <script src="js/dashboard.js?v=20260923_0035"></script>
+  <script src="js/clients.js?v=20260922_2135"></script>
+  <script src="js/utif.min.js?v=20260906_2150"></script>
+  <script src="js/pdf-lib.min.js"></script>
+  <script src="js/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/pdf.worker.min.js';
+    }
+  </script>
+  <script src="js/correction_tape.js?v=20260907_0041"></script>
+  <script src="js/xlsx.full.min.js"></script>
+  <script src="js/exceljs.min.js"></script>
+  <script src="js/oss_docuworks.js?v=20260911_1845"></script>
+  <script src="js/dealer_parser.js?v=20260906_2150"></script>
+  <script src="js/cases.js?v=20260918_0105"></script>
+  <script src="js/progress.js?v=20260906_2150"></script>
+  <script src="js/calendar.js?v=20260906_2150"></script>
+  <script src="js/invoice.js?v=20260922_2135"></script>
+  <script src="js/ocr.js?v=20260906_2150"></script>
+  <script src="js/accounting.js?v=20260923_0040"></script>
+  <script src="js/advances.js?v=20260906_2150"></script>
+  <script src="js/extensions.js?v=20260923_0035"></script>
+  <script src="js/inbox.js?v=20260922_1520"></script>
+  <script src="js/documents.js?v=20260906_2150"></script>
+  <script src="js/briefing.js?v=20260922_1520"></script>
+  <script src="js/inheritance-casefile.js?v=20260906_2150"></script>
+  <script src="js/locations.js?v=20260906_2150"></script>
+  <script src="js/seal_report.js?v=20260914_2230"></script>
+  <script src="js/salary_simulator.js?v=20260906_2020"></script>
+  <script src="js/formats.js?v=20260906_2020"></script>
+  <script src="js/analytics.js?v=20260906_2020"></script>
+
+  <script src="js/app.js?v=20260922_1520"></script>
+
+  <!-- App.init の実行直前に IndexedDB の完了を待機する安全フック -->
+  <script>
+    (function() {
+      if (typeof App !== 'undefined' && typeof IdbStore !== 'undefined') {
+        const originalInit = App.init.bind(App);
+        App.init = async function() {
+          try {
+            console.log('⏳ [Preview IDB] IndexedDB 初期化・データロード中...');
+            await IdbStore.init();
+            IdbStore.getStorageEstimate().then(est => {
+              const el = document.getElementById('idbCapacityInfo');
+              if (el) el.textContent = `💾 使用量: ${est.usageMB} MB / 上限: ${est.quotaMB} MB`;
+            });
+            console.log('🚀 [Preview IDB] IndexedDB ロード完了。画面描画を開始します');
+          } catch (e) {
+            console.warn('[Preview IDB] 初期化待機フォールバック:', e);
+          }
+          originalInit();
+        };
+      }
+    })();
+  </script>
+</body>
+
+</html>
