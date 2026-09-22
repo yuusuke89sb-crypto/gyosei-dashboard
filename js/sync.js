@@ -7,7 +7,7 @@ const SpreadsheetSync = {
     INBOX_QUEUE_KEY: 'gyosei_inbox_pending_queue',
 
     // デフォルトGAS URL（全デバイスで自動接続）
-    DEFAULT_GAS_URL: 'https://script.google.com/macros/s/AKfycbzdDtMhSmy5tqSWNtNnbnCQ-68PY7emgDhdR_abTCuvxv--WgCjIMO0qTgysE2864MA/exec',
+    DEFAULT_GAS_URL: 'https://script.google.com/macros/s/AKfycbyBUWa-drACXoXxhwsQOek_eXGbe8hBZKOkSriZbIhlb4HAmhAGDeDTak-zh27YzVTw/exec',
 
     // ---- 設定管理 ----
     getConfig() {
