@@ -112,7 +112,31 @@ const Store = {
   },
 
   _set(key, data) {
-    localStorage.setItem(key, JSON.stringify(data));
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      if (e && (e.name === 'QuotaExceededError' || (e.message && e.message.includes('quota')))) {
+        console.warn(`[Store._set] Quota exceeded on key: ${key}. Cleaning up non-essential caches...`);
+        try { localStorage.removeItem('gyosei_archived_cases'); } catch(err){}
+        try { localStorage.removeItem('gyosei_temp_doc'); } catch(err){}
+        try {
+          localStorage.setItem(key, JSON.stringify(data));
+        } catch (e2) {
+          console.warn(`[Store._set] Retry failed on key: ${key}`, e2);
+          if (key === 'gyosei_journals' && Array.isArray(data)) {
+            try {
+              localStorage.setItem(key, JSON.stringify(data.slice(-600)));
+            } catch(e3) {
+              try {
+                localStorage.setItem(key, JSON.stringify(data.slice(-300)));
+              } catch(e4){}
+            }
+          }
+        }
+      } else {
+        throw e;
+      }
+    }
   },
 
   // ---- 顧客 CRUD ----

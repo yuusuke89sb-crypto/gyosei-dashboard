@@ -91,7 +91,15 @@ const Accounting = {
   },
 
   saveJournals(data) {
-    localStorage.setItem('gyosei_journals', JSON.stringify(data));
+    if (typeof Store !== 'undefined' && typeof Store._set === 'function') {
+      Store._set('gyosei_journals', data);
+    } else {
+      try {
+        localStorage.setItem('gyosei_journals', JSON.stringify(data));
+      } catch(e) {
+        console.warn('Accounting.saveJournals quota error', e);
+      }
+    }
   },
 
   // 完了案件と帳簿の売上仕訳を自動照合・同期（不足分の復元＋単価・完了日変更の連動更新）

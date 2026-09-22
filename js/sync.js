@@ -297,7 +297,32 @@ const SpreadsheetSync = {
                     return !remoteKeys[key];
                 });
                 var merged = data.journals.concat(localOnly);
-                localStorage.setItem('gyosei_journals', JSON.stringify(merged));
+                // 重複排除を保存前に実行
+                var seenKeys = new Map();
+                var deduplicated = [];
+                merged.forEach(function(j) {
+                    var key = (j.id ? 'id_' + j.id : '') + '_' + (j.date || '') + '_' + (j.debit || '') + '_' + (j.credit || '') + '_' + (j.amount || 0) + '_' + (j.orderNo || '') + '_' + (j.caseId || '');
+                    if (!seenKeys.has(key)) {
+                        seenKeys.set(key, true);
+                        deduplicated.push(j);
+                    }
+                });
+
+                // 容量オーバーセーフセーブ
+                try {
+                    localStorage.setItem('gyosei_journals', JSON.stringify(deduplicated));
+                } catch (quotaErr) {
+                    console.warn('[Sync] Quota exceeded on gyosei_journals. Pruning and saving recent journals.');
+                    try { localStorage.removeItem('gyosei_archived_cases'); } catch(e){}
+                    try { localStorage.removeItem('gyosei_temp_doc'); } catch(e){}
+                    // 直近600件にスリム化して安全保存
+                    var recent = deduplicated.slice(-600);
+                    try {
+                        localStorage.setItem('gyosei_journals', JSON.stringify(recent));
+                    } catch(e2) {
+                        localStorage.setItem('gyosei_journals', JSON.stringify(recent.slice(-300)));
+                    }
+                }
                 if (typeof Accounting !== 'undefined' && typeof Accounting.cleanDuplicates === 'function') {
                     Accounting.cleanDuplicates(true); // 自動同期時はトースト通知を出さずにサイレント実行
                 }
@@ -788,9 +813,16 @@ const SpreadsheetSync = {
             } else {
                 // リモートが真実のマスター
                 const localItem = localInbox.find(l => String(l.id) === sId);
+                const sStatus = String(remoteItem.status || '未対応').trim();
+                let body = remoteItem.body || '';
+                // 容量節約: 対応済や除外済みの過去データは本文が長大な場合に100文字に軽量化
+                if ((sStatus === '対応済' || sStatus === '除外') && body.length > 100) {
+                    body = body.slice(0, 100) + '...';
+                }
                 mergedMap.set(sId, {
                     ...remoteItem,
-                    status: String(remoteItem.status || '未対応').trim(),
+                    body: body,
+                    status: sStatus,
                     caseId: remoteItem.caseId || (localItem && localItem.caseId) || '',
                     // 添付ファイルがリモートでパース前文字列や空配列でもローカルに原本があれば保護
                     attachments: remoteItem.attachments || (localItem && localItem.attachments) || []
