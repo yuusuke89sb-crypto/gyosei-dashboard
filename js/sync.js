@@ -53,8 +53,9 @@ const SpreadsheetSync = {
             console.warn('[SpreadsheetSync.pull] キュー自動フラッシュ警告:', e);
         }
 
-        let data;
-        const sep = url.includes('?') ? '&' : '?';
+        try {
+            let data;
+            const sep = url.includes('?') ? '&' : '?';
         try {
             const response = await fetch(url + sep + 'type=all&t=' + Date.now());
             if (!response.ok) throw new Error('通信エラー: ' + response.status);
