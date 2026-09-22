@@ -49,7 +49,7 @@ const Clients = {
     `;
   },
 
-  // 請求対象期間（20日締め・翌月25日払、9月分は8/26〜9/20）完了分の請求額を計算
+  // 請求対象期間（25日締め・翌月25日払、9月分は8/26〜9/25）完了分の請求額を計算
   getMonthlyBilling(clientId) {
     const period = (typeof Store !== 'undefined' && Store.getCurrentBillingPeriod)
       ? Store.getCurrentBillingPeriod()
@@ -386,7 +386,7 @@ const Clients = {
                 </div>
               `).join('')}
             </div>
-            <div class="billing-note">※ 完了案件のみ・20日締め（翌月25日払）</div>
+            <div class="billing-note">※ 完了案件のみ・25日締め（翌月25日払）</div>
           ` : '<p class="empty-message">この期間の請求案件はありません</p>'}
         </div>
         <div class="detail-section">

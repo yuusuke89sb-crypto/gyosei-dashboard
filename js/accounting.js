@@ -4,7 +4,7 @@
 const Accounting = {
   filterYear: new Date().getFullYear(),
   filterMonth: new Date().getMonth() + 1,
-  periodMode: 'billing', // 'billing' (20日締め・9月度は8/26〜9/20) または 'calendar' (1日〜末日)
+  periodMode: 'billing', // 'billing' (25日締め・9月度は8/26〜9/25) または 'calendar' (1日〜末日)
   editingId: null,
   activeTab: 'journals',
   trialBalancePeriod: 'cumulative',
@@ -320,7 +320,7 @@ const Accounting = {
     const ym = `${this.filterYear}-${String(this.filterMonth).padStart(2, '0')}`;
     const bp = typeof Store !== 'undefined' && Store.getBillingPeriod ? Store.getBillingPeriod(this.filterYear, this.filterMonth) : null;
 
-    // 期間モードに応じたフィルタリング（billing: 20日締め・9月度は8/26〜9/20、calendar: 1日〜末日）
+    // 期間モードに応じたフィルタリング（billing: 25日締め・9月度は8/26〜9/25、calendar: 1日〜末日）
     let filtered = journals.filter(j => {
       if (!j.date) return false;
       if (this.periodMode === 'billing' && bp && bp.startDate && bp.endDate) {
@@ -397,7 +397,7 @@ const Accounting = {
               ${months.join('')}
             </select>
             <div class="period-mode-toggle" style="display:inline-flex; border-radius:6px; overflow:hidden; border:1px solid var(--border-color); background:rgba(0,0,0,0.25);">
-              <button type="button" class="btn btn-small" style="font-size:0.78rem; padding:4px 10px; border:none; border-radius:0; ${this.periodMode === 'billing' ? 'background:#2563eb; color:#fff; font-weight:700;' : 'background:transparent; color:var(--text-muted); cursor:pointer;'}" onclick="Accounting.setPeriodMode('billing')" title="ディーラー請求締め期間で集計（9月度は8/26〜9/20）">🏢 請求締め基準 ${bp ? `(${bp.startDate.slice(5).replace('-','/')}〜${bp.endDate.slice(5).replace('-','/')})` : ''}</button>
+              <button type="button" class="btn btn-small" style="font-size:0.78rem; padding:4px 10px; border:none; border-radius:0; ${this.periodMode === 'billing' ? 'background:#2563eb; color:#fff; font-weight:700;' : 'background:transparent; color:var(--text-muted); cursor:pointer;'}" onclick="Accounting.setPeriodMode('billing')" title="ディーラー請求締め期間で集計（9月度は8/26〜9/25）">🏢 請求締め基準 ${bp ? `(${bp.startDate.slice(5).replace('-','/')}〜${bp.endDate.slice(5).replace('-','/')})` : ''}</button>
               <button type="button" class="btn btn-small" style="font-size:0.78rem; padding:4px 10px; border:none; border-radius:0; ${this.periodMode === 'calendar' ? 'background:#2563eb; color:#fff; font-weight:700;' : 'background:transparent; color:var(--text-muted); cursor:pointer;'}" onclick="Accounting.setPeriodMode('calendar')" title="カレンダー月（1日〜末日）で集計">📅 暦月基準 (1日〜末日)</button>
             </div>
           </div>

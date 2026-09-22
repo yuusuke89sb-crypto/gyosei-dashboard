@@ -10,7 +10,7 @@ function renderDashboard() {
   const maxStatus = Math.max(...Object.values(stats.statusCounts), 1);
   const maxCategory = Math.max(...Object.values(stats.categoryCounts), 1);
 
-  // 今期の売上（20日締め・翌月25日払、9月分は8/26〜9/20、以降は前月21日〜当月20日）
+  // 今期の売上（25日締め・翌月25日払、9月分は8/26〜9/25、以降は前月26日〜当月25日）
   const now = new Date();
   const period = typeof Store !== 'undefined' && Store.getCurrentBillingPeriod
     ? Store.getCurrentBillingPeriod(now)
@@ -202,7 +202,7 @@ function renderDashboard() {
           <div class="stat-icon">💰</div>
           <div class="stat-info">
             <div class="stat-number">¥${monthlyRevenue.toLocaleString()}</div>
-            <div class="stat-label">${period ? `${period.month}月売上` : '今月売上'} <span style="font-size:0.72rem;font-weight:normal;opacity:0.85">(${period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/20' : `${period.month === 1 ? 12 : period.month - 1}/21〜${period.month}/20`) : ''})</span></div>
+            <div class="stat-label">${period ? `${period.month}月売上` : '今月売上'} <span style="font-size:0.72rem;font-weight:normal;opacity:0.85">(${period ? (period.year === 2026 && period.month === 9 ? '8/26〜9/25' : `${period.month === 1 ? 12 : period.month - 1}/26〜${period.month}/25`) : ''})</span></div>
           </div>
         </div>
         ${typeof Payments !== 'undefined' && Payments.getUnpaid().length > 0 ? `

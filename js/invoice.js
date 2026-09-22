@@ -222,11 +222,12 @@ const Invoice = {
           <div id="areaNew">
             <div class="form-row" style="margin-bottom:12px; gap:12px;">
               <div class="form-group" style="flex:1;">
-                <label>🗓️ 請求対象月（20日締め・翌月25日払）</label>
+                <label>🗓️ 請求対象月（25日締め・翌月25日払）</label>
                 <select id="invoiceBillingPeriod" class="form-select" style="font-weight:600;" onchange="Invoice.onPeriodChange('${clientId}', '${docType}', this.value)">
-                  <option value="2026-09" ${currentPeriod.year === 2026 && currentPeriod.month === 9 ? 'selected' : ''}>令和8年 9月分 (2026/08/26 〜 09/20 締 / 10/25 払)</option>
-                  <option value="2026-10" ${currentPeriod.year === 2026 && currentPeriod.month === 10 ? 'selected' : ''}>令和8年 10月分 (2026/09/21 〜 10/20 締 / 11/25 払)</option>
-                  <option value="2026-11" ${currentPeriod.year === 2026 && currentPeriod.month === 11 ? 'selected' : ''}>令和8年 11月分 (2026/10/21 〜 11/20 締 / 12/25 払)</option>
+                  <option value="2026-09" ${currentPeriod.year === 2026 && currentPeriod.month === 9 ? 'selected' : ''}>令和8年 9月分 (2026/08/26 〜 09/25 締 / 10/25 払)</option>
+                  <option value="2026-10" ${currentPeriod.year === 2026 && currentPeriod.month === 10 ? 'selected' : ''}>令和8年 10月分 (2026/09/26 〜 10/25 締 / 11/25 払)</option>
+                  <option value="2026-11" ${currentPeriod.year === 2026 && currentPeriod.month === 11 ? 'selected' : ''}>令和8年 11月分 (2026/10/26 〜 11/25 締 / 12/25 払)</option>
+                  <option value="2026-12" ${currentPeriod.year === 2026 && currentPeriod.month === 12 ? 'selected' : ''}>令和8年 12月分 (2026/11/26 〜 12/25 締 / 2027/01/25 払)</option>
                   <option value="all">全未請求案件（期間指定なし）</option>
                 </select>
               </div>

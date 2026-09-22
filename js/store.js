@@ -895,24 +895,24 @@ const Store = {
   },
 
   // ─── 締め日・請求期間・支払期日の計算ヘルパー ─────────────────────
-  // 9月分: 2026-08-26 〜 2026-09-20 (支払期日: 2026-10-25)
-  // 10月分: 2026-09-21 〜 2026-10-20 (支払期日: 2026-11-25)
-  // 11月分以降: 前月21日 〜 当月20日 (支払期日: 翌月25日)
+  // 9月分: 2026-08-26 〜 2026-09-25 (支払期日: 2026-10-25)
+  // 10月分: 2026-09-26 〜 2026-10-25 (支払期日: 2026-11-25)
+  // 11月分以降: 前月26日 〜 当月25日 (支払期日: 翌月25日)
   getBillingPeriod(year, month) {
     const y = parseInt(year);
     const m = parseInt(month);
     
-    // 2026年9月（移行月）の特別ルール: 8/26 〜 9/20、翌月10/25払
+    // 2026年9月（移行月）の特別ルール: 8/26 〜 9/25、翌月10/25払
     if (y === 2026 && m === 9) {
       return {
         year: 2026,
         month: 9,
         startDate: '2026-08-26',
-        endDate: '2026-09-20',
+        endDate: '2026-09-25',
         dueDate: '2026-10-25',
-        cutoffDay: 20,
-        label: '令和8年9月分 (2026/08/26 〜 09/20 締 / 10/25 払)',
-        shortLabel: '9月分 (8/26〜9/20)'
+        cutoffDay: 25,
+        label: '令和8年9月分 (2026/08/26 〜 09/25 締 / 10/25 払)',
+        shortLabel: '9月分 (8/26〜9/25)'
       };
     }
     
@@ -932,14 +932,14 @@ const Store = {
       };
     }
     
-    // 2026年10月以降: 前月21日 〜 当月20日、支払期日は翌月25日
+    // 2026年10月以降: 前月26日 〜 当月25日、支払期日は翌月25日
     const prevYear = m === 1 ? y - 1 : y;
     const prevMonth = m === 1 ? 12 : m - 1;
     const nextYear = m === 12 ? y + 1 : y;
     const nextMonth = m === 12 ? 1 : m + 1;
     
-    const startDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-21`;
-    const endDate = `${y}-${String(m).padStart(2, '0')}-20`;
+    const startDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-26`;
+    const endDate = `${y}-${String(m).padStart(2, '0')}-25`;
     const dueDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-25`;
     const reiwaYear = y - 2018;
     
@@ -949,9 +949,9 @@ const Store = {
       startDate,
       endDate,
       dueDate,
-      cutoffDay: 20,
-      label: `令和${reiwaYear}年${m}月分 (${prevMonth}/21〜${m}/20 締 / ${nextMonth}/25 払)`,
-      shortLabel: `${m}月分 (${prevMonth}/21〜${m}/20)`
+      cutoffDay: 25,
+      label: `令和${reiwaYear}年${m}月分 (${prevMonth}/26〜${m}/25 締 / ${nextMonth}/25 払)`,
+      shortLabel: `${m}月分 (${prevMonth}/26〜${m}/25)`
     };
   },
 
@@ -967,16 +967,16 @@ const Store = {
       if (m < 8 || (m === 8 && day <= 25)) {
         return this.getBillingPeriod(2026, 8);
       }
-      if ((m === 8 && day >= 26) || (m === 9 && day <= 20)) {
+      if ((m === 8 && day >= 26) || (m === 9 && day <= 25)) {
         return this.getBillingPeriod(2026, 9);
       }
-      if ((m === 9 && day >= 21) || (m === 10 && day <= 20)) {
+      if ((m === 9 && day >= 26) || (m === 10 && day <= 25)) {
         return this.getBillingPeriod(2026, 10);
       }
     }
     
-    // 21日以降は翌月分、20日までは当月分
-    if (day >= 21) {
+    // 26日以降は翌月分、25日までは当月分
+    if (day >= 26) {
       const nextY = m === 12 ? y + 1 : y;
       const nextM = m === 12 ? 1 : m + 1;
       return this.getBillingPeriod(nextY, nextM);
