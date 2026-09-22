@@ -4,6 +4,7 @@
  */
 const SpreadsheetSync = {
     CONFIG_KEY: 'gyosei_sync_settings',
+    INBOX_QUEUE_KEY: 'gyosei_inbox_pending_queue',
 
     // デフォルトGAS URL（全デバイスで自動接続）
     DEFAULT_GAS_URL: 'https://script.google.com/macros/s/AKfycbzdDtMhSmy5tqSWNtNnbnCQ-68PY7emgDhdR_abTCuvxv--WgCjIMO0qTgysE2864MA/exec',
@@ -35,8 +36,15 @@ const SpreadsheetSync = {
         const url = this.getGasUrl();
         if (!url) throw new Error('GAS URL が設定されていません');
 
+        // 未送信キューがあれば事前に再送試行
         try {
-            const response = await fetch(url + '?type=all');
+            await this.flushPendingInboxQueue();
+        } catch (e) {
+            console.warn('[SpreadsheetSync.pull] キュー自動フラッシュ警告:', e);
+        }
+
+        try {
+            const response = await fetch(url + '?type=all&t=' + Date.now());
             if (!response.ok) throw new Error('通信エラー: ' + response.status);
 
             const data = await response.json();
@@ -159,9 +167,61 @@ const SpreadsheetSync = {
                 this.mergeInboxData(data.inbox);
             }
 
-            // 場所マスタデータを localStorage に保存
-            if (data.locations) {
-                Store._set(Store.KEYS.LOCATIONS, data.locations);
+            // 場所マスタデータをマージ（リモートの単価が未設定でもローカル単価や既定単価を保護・維持）
+            if (data.locations && Array.isArray(data.locations)) {
+                var localLocations = Store.getLocations() || [];
+                var policeFees = (typeof CaseTemplates !== 'undefined' && CaseTemplates.POLICE_FEES) ? CaseTemplates.POLICE_FEES : {};
+
+                var mergedLocations = data.locations.map(function(remoteLoc) {
+                    var cleanRemoteName = (remoteLoc.name || '').replace(/\s+/g, '');
+                    var localLoc = localLocations.find(function(l) {
+                        return l && (l.id === remoteLoc.id || (l.name && l.name.replace(/\s+/g, '') === cleanRemoteName));
+                    });
+
+                    var fee = remoteLoc.syakoFee;
+                    // 数値として不正、または未設定(null, undefined, '')、または0以下の場合
+                    if (fee === undefined || fee === null || fee === '' || isNaN(Number(fee)) || Number(fee) <= 0) {
+                        if (localLoc && localLoc.syakoFee && !isNaN(Number(localLoc.syakoFee)) && Number(localLoc.syakoFee) > 0) {
+                            fee = Number(localLoc.syakoFee);
+                        } else {
+                            var defaultInfo = policeFees[remoteLoc.name];
+                            if (!defaultInfo) {
+                                for (var pName in policeFees) {
+                                    if (pName.replace(/\s+/g, '') === cleanRemoteName) {
+                                        defaultInfo = policeFees[pName];
+                                        break;
+                                    }
+                                }
+                            }
+                            if (defaultInfo && defaultInfo.fee) {
+                                fee = defaultInfo.fee;
+                            } else {
+                                fee = null;
+                            }
+                        }
+                    } else {
+                        fee = Number(fee);
+                    }
+
+                    return Object.assign({}, remoteLoc, {
+                        syakoFee: fee,
+                        address: remoteLoc.address || (localLoc && localLoc.address) || '',
+                        memo: remoteLoc.memo || (localLoc && localLoc.memo) || ''
+                    });
+                });
+
+                // ローカルにしか存在しない場所があれば残す
+                localLocations.forEach(function(localLoc) {
+                    if (localLoc && localLoc.id && !mergedLocations.some(function(m) { return m.id === localLoc.id; })) {
+                        mergedLocations.push(localLoc);
+                    }
+                });
+
+                Store._set(Store.KEYS.LOCATIONS, mergedLocations);
+
+                if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.seedPoliceFees === 'function') {
+                    CaseTemplates.seedPoliceFees();
+                }
             }
 
             // 顧客担当者データをマージ（ローカル既存データを保持 + ローカルのみのデータをSSへPush）
@@ -531,6 +591,9 @@ const SpreadsheetSync = {
 
         try {
             const result = await this.pull();
+            if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.seedPoliceFees === 'function') {
+                CaseTemplates.seedPoliceFees();
+            }
             App.refreshView();
             App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 顧客担当者${result.clientContacts || 0}件 / 場所${result.locations}件 / 案件${result.cases}件 / 予定${result.events || 0}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`);
         } catch (err) {
@@ -614,27 +677,141 @@ const SpreadsheetSync = {
         }
     },
 
-    // インボックスデータのマージ処理（ローカルのステータス変更・追加を優先保護）
+    // ---- インボックス未送信キュー管理（オフライン・通信断でもステータス変更を絶対に失わない）----
+    getPendingInboxQueue() {
+        try {
+            return JSON.parse(localStorage.getItem(this.INBOX_QUEUE_KEY)) || {};
+        } catch (e) {
+            return {};
+        }
+    },
+
+    savePendingInboxQueue(queue) {
+        try {
+            localStorage.setItem(this.INBOX_QUEUE_KEY, JSON.stringify(queue || {}));
+        } catch (e) {}
+    },
+
+    recordPendingInboxUpdate(item) {
+        if (!item || !item.id) return;
+        const queue = this.getPendingInboxQueue();
+        queue[String(item.id)] = {
+            item: { ...item, status: String(item.status || '未対応').trim() },
+            updatedAt: Date.now()
+        };
+        this.savePendingInboxQueue(queue);
+    },
+
+    removePendingInboxUpdate(itemId) {
+        if (!itemId) return;
+        const queue = this.getPendingInboxQueue();
+        const sId = String(itemId);
+        if (queue[sId]) {
+            delete queue[sId];
+            this.savePendingInboxQueue(queue);
+        }
+    },
+
+    // インボックスのステータス変更を即座にプッシュ（失敗時はキューに保持して次回自動再送）
+    async pushInboxUpdate(item) {
+        if (!item || !item.id) return null;
+        this.recordPendingInboxUpdate(item);
+
+        if (!this.isConfigured()) return null;
+
+        try {
+            const result = await this.push('upsertInboxItem', item);
+            if (result && result.success) {
+                this.removePendingInboxUpdate(item.id);
+                return result;
+            } else {
+                console.warn('[pushInboxUpdate] GAS応答で失敗（キューに保持）:', result);
+                return null;
+            }
+        } catch (err) {
+            console.warn('[pushInboxUpdate] 通信エラー（キューに保持し次回同期時に再送）:', err);
+            return null;
+        }
+    },
+
+    // 未送信のインボックス更新をスプレッドシートへ一括再送
+    async flushPendingInboxQueue() {
+        if (!this.isConfigured()) return;
+        const queue = this.getPendingInboxQueue();
+        const ids = Object.keys(queue);
+        if (ids.length === 0) return;
+
+        console.log(`[SpreadsheetSync] 未送信インボックス更新を再送中: ${ids.length}件`);
+        for (const id of ids) {
+            const entry = queue[id];
+            if (!entry || !entry.item) {
+                delete queue[id];
+                continue;
+            }
+            try {
+                const res = await this.push('upsertInboxItem', entry.item);
+                if (res && res.success) {
+                    delete queue[id];
+                }
+            } catch (e) {
+                console.warn(`[SpreadsheetSync] 再送一時失敗 (${id}):`, e);
+                break; // 通信不通時は無理にループせず次回に持ち越す
+            }
+        }
+        this.savePendingInboxQueue(queue);
+    },
+
+    // インボックスデータの確定マージ（スプレッドシートを正とするSSOT + ゾンビデータ自動消去）
     mergeInboxData(remoteInbox) {
-        if (!remoteInbox || !Array.isArray(remoteInbox)) return [];
+        if (!remoteInbox || !Array.isArray(remoteInbox)) {
+            return (typeof Store !== 'undefined' && Store.getInbox) ? Store.getInbox() : [];
+        }
+
         const localInbox = (typeof Store !== 'undefined' && Store.getInbox) ? Store.getInbox() : [];
-        const mergedInbox = remoteInbox.map(remoteItem => {
-            const localItem = localInbox.find(l => String(l.id) === String(remoteItem.id));
-            return {
-                ...remoteItem,
-                // ローカルで保留・除外・対応済に変更されていればローカルのステータスを優先
-                status: (localItem && localItem.status && localItem.status !== '未対応')
-                    ? localItem.status
-                    : (remoteItem.status || '未対応'),
-                caseId: (localItem && localItem.caseId) || remoteItem.caseId || ''
-            };
-        });
-        // ローカルにしか存在しないアイテムも保持
-        localInbox.forEach(l => {
-            if (!mergedInbox.some(m => String(m.id) === String(l.id))) {
-                mergedInbox.push(l);
+        const pendingQueue = this.getPendingInboxQueue();
+        const mergedMap = new Map();
+
+        // 1. スプレッドシート（リモート）にあるアイテムをベースに構築
+        remoteInbox.forEach(remoteItem => {
+            if (!remoteItem || !remoteItem.id) return;
+            const sId = String(remoteItem.id);
+            const pending = pendingQueue[sId];
+
+            if (pending && pending.item) {
+                // ローカルで変更済みかつ未プッシュの最新ステータスを一時的に優先保護
+                mergedMap.set(sId, {
+                    ...remoteItem,
+                    ...pending.item,
+                    status: String(pending.item.status || remoteItem.status || '未対応').trim(),
+                    caseId: pending.item.caseId !== undefined ? pending.item.caseId : (remoteItem.caseId || '')
+                });
+            } else {
+                // リモートが真実のマスター
+                const localItem = localInbox.find(l => String(l.id) === sId);
+                mergedMap.set(sId, {
+                    ...remoteItem,
+                    status: String(remoteItem.status || '未対応').trim(),
+                    caseId: remoteItem.caseId || (localItem && localItem.caseId) || '',
+                    // 添付ファイルがリモートでパース前文字列や空配列でもローカルに原本があれば保護
+                    attachments: remoteItem.attachments || (localItem && localItem.attachments) || []
+                });
             }
         });
+
+        // 2. ローカルにしか存在しないアイテムの扱い:
+        // 「未送信キューにあるもの（ローカルで新規作成されたばかりのアイテム）」のみ保持。
+        // スプレッドシート側で削除・整理されたゾンビデータはここで完全に消滅します。
+        Object.keys(pendingQueue).forEach(pId => {
+            if (!mergedMap.has(pId)) {
+                const pEntry = pendingQueue[pId];
+                if (pEntry && pEntry.item) {
+                    mergedMap.set(pId, pEntry.item);
+                }
+            }
+        });
+
+        const mergedInbox = Array.from(mergedMap.values());
+
         if (typeof Store !== 'undefined' && Store._set && Store.KEYS && Store.KEYS.INBOX) {
             Store._set(Store.KEYS.INBOX, mergedInbox);
         } else {
@@ -649,7 +826,8 @@ const SpreadsheetSync = {
         if (!url) throw new Error('GAS URL が設定されていません');
 
         try {
-            const response = await fetch(url + '?type=inbox');
+            await this.flushPendingInboxQueue();
+            const response = await fetch(url + '?type=inbox&t=' + Date.now());
             if (!response.ok) throw new Error('通信エラー: ' + response.status);
 
             const data = await response.json();
@@ -661,4 +839,48 @@ const SpreadsheetSync = {
             throw err;
         }
     },
+
+    // スプレッドシートと強制完全一致（キャッシュ再構築・ゾンビ完全パージ）
+    async forceResyncInbox() {
+        const url = this.getGasUrl();
+        if (!url) throw new Error('GAS URL が設定されていません');
+
+        // 1. 先に保留中の変更があれば送信試行
+        try {
+            await this.flushPendingInboxQueue();
+        } catch (e) {}
+
+        // 2. キャッシュ完全回避でスプレッドシートから直接取得
+        const response = await fetch(url + '?type=inbox&t=' + Date.now());
+        if (!response.ok) throw new Error('通信エラー: ' + response.status);
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        const remoteInbox = data.inbox || [];
+        // 3. マージ処理（スプレッドシートをマスターとし、ゾンビデータを全削除）
+        const result = this.mergeInboxData(remoteInbox);
+
+        if (data.faxLog && Array.isArray(data.faxLog)) {
+            localStorage.setItem('gyosei_fax_logs', JSON.stringify(data.faxLog));
+        }
+
+        return result;
+    }
 };
+
+// ネットワーク復帰時に保留キューを自動フラッシュ
+if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => {
+        if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+            SpreadsheetSync.flushPendingInboxQueue().then(() => {
+                SpreadsheetSync.pullInbox().then(() => {
+                    if (typeof App !== 'undefined' && typeof App.refreshView === 'function') {
+                        App.refreshView();
+                    }
+                }).catch(() => {});
+            }).catch(() => {});
+        }
+    });
+}
+

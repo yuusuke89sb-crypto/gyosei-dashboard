@@ -98,7 +98,12 @@ const App = {
         // モーダルが開いている時は同期をスキップ（入力中のデータが消えるのを防止）
         const openModal = document.querySelector('.modal[style*="flex"]');
         if (openModal) return;
-        SpreadsheetSync.pull().then(() => this.refreshView()).catch(() => { });
+        SpreadsheetSync.pull().then(() => {
+          if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.seedPoliceFees === 'function') {
+            CaseTemplates.seedPoliceFees();
+          }
+          this.refreshView();
+        }).catch(() => { });
       }, 3 * 60 * 1000);
 
       // タブ復帰時（別タブや別端末操作後に画面へ戻った時）の自動差分取得
@@ -109,7 +114,12 @@ const App = {
           const conf = SpreadsheetSync.getConfig();
           const lastSync = conf && conf.lastSync ? new Date(conf.lastSync).getTime() : 0;
           if (Date.now() - lastSync > 30 * 1000) {
-            SpreadsheetSync.pull().then(() => this.refreshView()).catch(() => { });
+            SpreadsheetSync.pull().then(() => {
+              if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.seedPoliceFees === 'function') {
+                CaseTemplates.seedPoliceFees();
+              }
+              this.refreshView();
+            }).catch(() => { });
           }
         }
       });
@@ -152,6 +162,23 @@ const App = {
     this.updateNav();
     // モバイルでサイドバーが開いていたら閉じる
     document.getElementById('sidebar').classList.remove('open');
+
+    // 登録前BOXを開いた時はバックグラウンドで高速最新同期（前回から10秒以上経過時）
+    if (page === 'inbox' && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      const now = Date.now();
+      if (!this._lastInboxAutoSync || (now - this._lastInboxAutoSync > 10000)) {
+        this._lastInboxAutoSync = now;
+        SpreadsheetSync.pullInbox().then(() => {
+          if (this.currentPage === 'inbox') {
+            const content = document.getElementById('content');
+            if (content && typeof InboxManager !== 'undefined') {
+              content.innerHTML = InboxManager.render();
+            }
+            this.renderSidebar();
+          }
+        }).catch(e => console.warn('[AutoSync inbox] error:', e));
+      }
+    }
   },
 
   isAnyModalOpen() {
@@ -320,7 +347,7 @@ const App = {
   getInboxBadgeHtml() {
     if (typeof Store === 'undefined' || !Store.getInbox) return '';
     const inbox = Store.getInbox();
-    const count = inbox.filter(item => item.status === '未対応').length;
+    const count = inbox.filter(item => String(item.status || '').trim() === '未対応').length;
     if (count > 0) {
       return `<span class="badge badge-danger sidebar-badge" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:#ef4444;color:white;font-size:0.7rem;padding:2px 6px;border-radius:10px;font-weight:bold;line-height:1">${count}</span>`;
     }

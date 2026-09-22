@@ -2288,7 +2288,8 @@ function upsertInboxItem_(data, lineToken, lineUserId, lineNotifyInbox) {
     const lastRow = sheet.getLastRow();
     if (lastRow >= 2) {
       const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
-      const rowIdx = ids.indexOf(data.id);
+      const sTargetId = String(data.id).trim();
+      const rowIdx = ids.findIndex(id => String(id).trim() === sTargetId);
       if (rowIdx !== -1) {
         const row = rowIdx + 2;
         INBOX_HEADERS.forEach((header, col) => {

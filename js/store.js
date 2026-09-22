@@ -669,13 +669,14 @@ const Store = {
   },
 
   updateInboxStatus(id, status, caseId = '') {
+    const cleanStatus = String(status || '未対応').trim();
     const inbox = this.getInbox();
     const idx = inbox.findIndex(item => item.id === id);
     if (idx === -1) {
       const faxLogs = JSON.parse(localStorage.getItem('gyosei_fax_logs') || '[]');
       const fIdx = faxLogs.findIndex(l => l.id === id || l.faxId === id);
       if (fIdx !== -1) {
-        faxLogs[fIdx].status = status;
+        faxLogs[fIdx].status = cleanStatus;
         if (caseId) faxLogs[fIdx].caseId = caseId;
         localStorage.setItem('gyosei_fax_logs', JSON.stringify(faxLogs));
         
@@ -688,14 +689,18 @@ const Store = {
           body: faxLogs[fIdx].body || '',
           date: faxLogs[fIdx].date || faxLogs[fIdx].createdAt || new Date().toISOString(),
           attachments: faxLogs[fIdx].attachments || (faxLogs[fIdx].pdfUrl ? [{ name: 'FAX.pdf', url: faxLogs[fIdx].pdfUrl }] : []),
-          status: status,
+          status: cleanStatus,
           caseId: caseId || ''
         };
         inbox.push(createdItem);
         this._set(this.KEYS.INBOX, inbox);
-        // スプレッドシートへ自動プッシュ
+        // スプレッドシートへ自動プッシュ（未送信キュー保護付き）
         if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-          SpreadsheetSync.push('upsertInboxItem', createdItem);
+          if (typeof SpreadsheetSync.pushInboxUpdate === 'function') {
+            SpreadsheetSync.pushInboxUpdate(createdItem);
+          } else {
+            SpreadsheetSync.push('upsertInboxItem', createdItem);
+          }
         }
         return createdItem;
       }
@@ -704,13 +709,17 @@ const Store = {
     const current = inbox[idx];
     inbox[idx] = { 
       ...current, 
-      status, 
-      caseId: caseId ? caseId : (status === '未対応' ? '' : current.caseId || '') 
+      status: cleanStatus, 
+      caseId: caseId ? caseId : (cleanStatus === '未対応' ? '' : current.caseId || '') 
     };
     this._set(this.KEYS.INBOX, inbox);
-    // スプレッドシートへ自動プッシュ
+    // スプレッドシートへ自動プッシュ（未送信キュー保護付き）
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-      SpreadsheetSync.push('upsertInboxItem', inbox[idx]);
+      if (typeof SpreadsheetSync.pushInboxUpdate === 'function') {
+        SpreadsheetSync.pushInboxUpdate(inbox[idx]);
+      } else {
+        SpreadsheetSync.push('upsertInboxItem', inbox[idx]);
+      }
     }
     return inbox[idx];
   },

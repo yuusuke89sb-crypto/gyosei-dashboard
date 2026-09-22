@@ -2817,8 +2817,8 @@ const Cases = {
   onAddressInput(value, fieldType) {
     const catEl = document.getElementById('csf_category');
     const cat = catEl ? catEl.value : '';
-    // 一般車庫証明（未選択状態含む）のみ対象
-    if (cat && cat !== 'garage_paper') return;
+    // 車庫証明（一般・OSS）または自動車登録関連案件を対象（相続・その他除外）
+    if (cat && cat !== 'garage_paper' && cat !== 'garage_oss' && cat !== 'seal' && !cat.startsWith('car_reg')) return;
 
     // 保管場所住所を優先、なければ自宅住所
     const parkAddrEl = document.getElementById('csf_parkingAddress');

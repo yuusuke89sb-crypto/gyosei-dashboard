@@ -185,7 +185,7 @@ const Briefing = {
 
     // インボックスの未対応件数を取得
     const inbox = (typeof Store !== 'undefined' && Store.getInbox) ? Store.getInbox() : [];
-    const unprocessedInbox = inbox.filter(item => item.status === '未対応');
+    const unprocessedInbox = inbox.filter(item => String(item.status || '').trim() === '未対応');
     const inboxAlertHtml = unprocessedInbox.length > 0
       ? `
         <div class="briefing-alert-banner" style="background:#fff3cd;border:1px solid #ffeeba;border-radius:6px;padding:12px;margin-bottom:20px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="document.getElementById('briefingModal').remove(); App.navigate('inbox')">
@@ -894,7 +894,7 @@ const Briefing = {
     
     // 3. 登録前BOX
     const inbox = (typeof Store !== 'undefined' && Store.getInbox) ? Store.getInbox() : [];
-    const unprocessedInbox = inbox.filter(item => item.status === '未対応');
+    const unprocessedInbox = inbox.filter(item => String(item.status || '').trim() === '未対応');
     if (unprocessedInbox.length > 0) {
       msg += `\n📥 登録前BOX (未対応): ${unprocessedInbox.length}件あります。\n`;
     }

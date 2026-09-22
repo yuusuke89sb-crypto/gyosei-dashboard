@@ -18,6 +18,9 @@ const InboxManager = {
             <h1 style="margin:0">登録前BOX</h1>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="InboxManager.forceResync()" id="inboxForceSyncBtn" title="Googleスプレッドシートの最新実態と100%完全同期し、端末間の件数ズレを即時解消します" style="font-size:0.82rem; border-color:var(--primary-color, #3b82f6); color:var(--primary-color, #2563eb); font-weight:600">
+              ⚡ 全端末同期 (再取得)
+            </button>
             <button class="btn btn-secondary" onclick="InboxManager.checkIncomingInbox()" id="inboxCheckBtn">
               🔄 受信チェック
             </button>
@@ -64,21 +67,21 @@ const InboxManager = {
   renderInboxTab() {
     const inbox = Store.getInbox ? Store.getInbox() : [];
     
-    // カウントの集計
-    const allActiveCount = inbox.filter(i => i.status === '未対応' || i.status === '保留').length;
-    const unhandledCount = inbox.filter(i => i.status === '未対応').length;
-    const holdCount = inbox.filter(i => i.status === '保留').length;
-    const faxCount = inbox.filter(i => (i.status === '未対応' || i.status === '保留') && i.type === 'FAX').length;
-    const mailCount = inbox.filter(i => (i.status === '未対応' || i.status === '保留') && i.type === 'メール').length;
+    // カウントの集計（前後の空白トリムで確実判定）
+    const allActiveCount = inbox.filter(i => { const s = String(i.status || '').trim(); return s === '未対応' || s === '保留'; }).length;
+    const unhandledCount = inbox.filter(i => String(i.status || '').trim() === '未対応').length;
+    const holdCount = inbox.filter(i => String(i.status || '').trim() === '保留').length;
+    const faxCount = inbox.filter(i => { const s = String(i.status || '').trim(); return (s === '未対応' || s === '保留') && i.type === 'FAX'; }).length;
+    const mailCount = inbox.filter(i => { const s = String(i.status || '').trim(); return (s === '未対応' || s === '保留') && i.type === 'メール'; }).length;
 
     // ステータス絞り込み
     let filtered = [];
     if (this.statusFilter === 'unhandled') {
-      filtered = inbox.filter(item => item.status === '未対応');
+      filtered = inbox.filter(item => String(item.status || '').trim() === '未対応');
     } else if (this.statusFilter === 'hold') {
-      filtered = inbox.filter(item => item.status === '保留');
+      filtered = inbox.filter(item => String(item.status || '').trim() === '保留');
     } else {
-      filtered = inbox.filter(item => item.status === '未対応' || item.status === '保留');
+      filtered = inbox.filter(item => { const s = String(item.status || '').trim(); return s === '未対応' || s === '保留'; });
     }
 
     // フィルタ種別
@@ -528,6 +531,37 @@ const InboxManager = {
       if (btn) {
         btn.disabled = false;
         btn.textContent = isDeep ? '📅 過去14日分を再取得' : '🔄 受信チェック';
+      }
+    }
+  },
+
+  // 1-B. スプレッドシート完全再同期（端末間の未対応数ズレ・ゾンビデータを即時解消）
+  async forceResync() {
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
+      App.showToast('⚙️ スプレッドシート連携を設定してください');
+      return;
+    }
+
+    const btn = document.getElementById('inboxForceSyncBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ 完全同期中...';
+    }
+
+    App.showToast('🔄 スプレッドシートと強制再同期中...');
+
+    try {
+      const synced = await SpreadsheetSync.forceResyncInbox();
+      App.refreshView();
+      const unhandled = (synced || []).filter(i => String(i.status || '').trim() === '未対応').length;
+      const hold = (synced || []).filter(i => String(i.status || '').trim() === '保留').length;
+      App.showToast(`✅ 全端末同期完了！ 未対応: ${unhandled}件 / 保留: ${hold}件（スプレッドシートと完全一致）`);
+    } catch (err) {
+      App.showToast('❌ 同期エラー: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⚡ 全端末同期 (再取得)';
       }
     }
   },

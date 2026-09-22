@@ -563,8 +563,8 @@ const CaseTemplates = {
         const cleanName = name.replace(/\s+/g, '');
         const existing = locations.find(l => l && l.name && typeof l.name === 'string' && l.name.replace(/\s+/g, '') === cleanName);
         if (existing) {
-          // スプレッドシートやユーザー手動修正の単価を最優先として保持（未設定の場合のみ初期値を補完）
-          if (existing.syakoFee === undefined || existing.syakoFee === null || existing.syakoFee === '') {
+          // スプレッドシートやユーザー手動修正の単価を最優先として保持（未設定・不正値の場合のみ初期値を補完）
+          if (existing.syakoFee === undefined || existing.syakoFee === null || existing.syakoFee === '' || isNaN(Number(existing.syakoFee)) || Number(existing.syakoFee) <= 0) {
             existing.syakoFee = info.fee;
             updated++;
           }
