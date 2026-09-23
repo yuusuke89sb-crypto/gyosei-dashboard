@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>固定費計算 & ライフプランニング | 個人事業主ツール</title>
+<meta name="description" content="個人事業主向けの月次固定費計算・年間ライフプランニングシミュレーションツール">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1117;
+  --bg-card: #1a1d2e;
+  --bg-card-alt: #222640;
+  --bg-input: #151827;
+  --accent: #6c63ff;
+  --accent-light: #8b83ff;
+  --accent-glow: rgba(108, 99, 255, 0.25);
+  --success: #2dd4a8;
+  --warning: #f5a623;
+  --danger: #ff6b6b;
+  --text: #e8eaf0;
+  --text-dim: #8892a8;
+  --text-muted: #5a6178;
+  --border: #2a2f45;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.3);
+  --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ===== HEADER ===== */
+.header {
+  background: linear-gradient(135deg, #1a1d2e 0%, #2a2050 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+
+.header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent-light), var(--success));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header h1 span {
+  font-size: 0.8rem;
+  font-weight: 400;
+  display: block;
+  -webkit-text-fill-color: var(--text-dim);
+}
+
+/* ===== TABS ===== */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 4px;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.tab-btn:hover { color: var(--text); background: var(--bg-card); }
+.tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 12px var(--accent-glow);
+}
+
+/* ===== MAIN ===== */
+.main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.tab-content { display: none; animation: fadeIn 0.3s ease; }
+.tab-content.active { display: block; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===== SUMMARY CARDS ===== */
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+}
+
+.summary-card.green::before { background: linear-gradient(90deg, var(--success), #34e8c0); }
+.summary-card.orange::before { background: linear-gradient(90deg, var(--warning), #ffc857); }
+.summary-card.red::before { background: linear-gradient(90deg, var(--danger), #ff8e8e); }
+
+.summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+
+.summary-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.summary-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.summary-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ===== CATEGORY SECTION ===== */
+.category {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.category:hover { border-color: var(--accent-glow); }
+
+.category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: var(--transition);
+}
+
+.category-header:hover { background: var(--bg-card-alt); }
+
+.category-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.category-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.category-subtotal {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent-light);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chevron {
+  transition: var(--transition);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.category.open .chevron { transform: rotate(180deg); }
+
+.category-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+
+.category.open .category-body { max-height: 2000px; }
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.items-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.items-table td {
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(42,47,69,0.5);
+  vertical-align: middle;
+}
+
+.items-table tr:last-child td { border-bottom: none; }
+
+.items-table tr:hover td { background: rgba(108,99,255,0.04); }
+
+.item-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.9rem;
+  width: 100%;
+  transition: var(--transition);
+  outline: none;
+}
+
+.item-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.item-input.amount {
+  text-align: right;
+  max-width: 160px;
+  font-weight: 600;
+}
+
+.item-note {
+  max-width: 200px;
+}
+
+.btn-icon {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  font-size: 1rem;
+}
+
+.btn-icon:hover { border-color: var(--danger); color: var(--danger); background: rgba(255,107,107,0.1); }
+
+.btn-icon.add { color: var(--success); border-color: var(--success); }
+.btn-icon.add:hover { background: rgba(45,212,168,0.1); }
+
+.add-row {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.btn-add {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-dim);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  width: 100%;
+  transition: var(--transition);
+}
+
+.btn-add:hover {
+  border-color: var(--accent);
+  color: var(--accent-light);
+  background: rgba(108,99,255,0.05);
+}
+
+/* ===== TOOLBAR ===== */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:hover { border-color: var(--accent); background: var(--bg-card-alt); }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover { background: var(--accent-light); }
+
+.btn-danger {
+  color: var(--danger);
+  border-color: rgba(255,107,107,0.3);
+}
+
+.btn-danger:hover { background: rgba(255,107,107,0.1); border-color: var(--danger); }
+
+/* ===== LIFEPLAN TAB ===== */
+.lifeplan-settings {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.setting-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.setting-group input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 1rem;
+  width: 100%;
+  transition: var(--transition);
+  outline: none;
+}
+
+.setting-group input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.lifeplan-table-wrap {
+  overflow-x: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.lifeplan-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.lifeplan-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card-alt);
+  padding: 14px 16px;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+
+.lifeplan-table th:first-child { text-align: center; }
+
+.lifeplan-table td {
+  padding: 12px 16px;
+  text-align: right;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(42,47,69,0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+.lifeplan-table td:first-child {
+  text-align: center;
+  font-weight: 600;
+  color: var(--accent-light);
+}
+
+.lifeplan-table tbody tr:hover td { background: rgba(108,99,255,0.04); }
+
+.positive { color: var(--success); }
+.negative { color: var(--danger); }
+
+/* ===== CHART ===== */
+.chart-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.chart-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-dim);
+}
+
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 200px;
+  padding: 0 8px;
+}
+
+.chart-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.chart-bar {
+  width: 100%;
+  max-width: 50px;
+  border-radius: 4px 4px 0 0;
+  transition: var(--transition);
+  position: relative;
+  min-height: 2px;
+}
+
+.chart-bar.income { background: linear-gradient(180deg, var(--accent-light), var(--accent)); }
+.chart-bar.expense { background: linear-gradient(180deg, var(--danger), #cc4444); }
+.chart-bar.savings { background: linear-gradient(180deg, var(--success), #1faa88); }
+
+.chart-bar:hover { opacity: 0.8; }
+
+.chart-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ===== GUIDE TAB ===== */
+.guide-content {
+  max-width: 800px;
+}
+
+.guide-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.guide-section h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.guide-section li {
+  padding: 8px 0;
+  padding-left: 20px;
+  position: relative;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.guide-section li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+.guide-tip {
+  background: linear-gradient(135deg, rgba(108,99,255,0.1), rgba(45,212,168,0.1));
+  border: 1px solid rgba(108,99,255,0.2);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+.guide-tip strong { color: var(--accent-light); }
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--success);
+  color: var(--success);
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  transform: translateY(100px);
+  opacity: 0;
+  transition: var(--transition);
+  z-index: 1000;
+}
+
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .header-inner { flex-direction: column; align-items: flex-start; }
+  .tabs { width: 100%; overflow-x: auto; }
+  .tab-btn { padding: 8px 14px; font-size: 0.8rem; }
+  .summary-row { grid-template-columns: 1fr 1fr; }
+  .summary-value { font-size: 1.3rem; }
+  .items-table th:nth-child(3), .items-table td:nth-child(3) { display: none; }
+  .main { padding: 16px; }
+}
+
+@media (max-width: 480px) {
+  .summary-row { grid-template-columns: 1fr; }
+}
+
+/* ===== PRINT ===== */
+@media print {
+  body { background: #fff; color: #222; }
+  .header { position: static; background: #fff; border: none; }
+  .header h1 { -webkit-text-fill-color: #333; background: none; color: #333; }
+  .tabs, .toolbar, .btn-add, .btn-icon, .add-row { display: none !important; }
+  .tab-content { display: block !important; page-break-inside: avoid; }
+  .category { break-inside: avoid; border-color: #ddd; background: #fff; }
+  .category-body { max-height: none !important; }
+  .summary-card { background: #f9f9f9; border-color: #ddd; }
+  .summary-card::before { background: #666; }
+  .item-input { border: none; background: transparent; padding: 4px 0; }
+  .lifeplan-table-wrap { background: #fff; border-color: #ddd; }
+  .guide-section { background: #f9f9f9; }
+  .toast { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <h1>💰 固定費計算 & ライフプランニング<span>個人事業主向け経営管理ツール</span></h1>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="expenses">📋 固定費入力</button>
+        <button class="tab-btn" data-tab="lifeplan">📊 ライフプラン</button>
+        <button class="tab-btn" data-tab="guide">📖 運用ガイド</button>
+      </nav>
+      <a href="index.html" class="dash-back-btn" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; color:var(--text); background:rgba(255,255,255,0.08); border:1px solid var(--border); border-radius:var(--radius-sm); padding:9px 14px; font-size:0.85rem; font-weight:600; transition:var(--transition); white-space:nowrap;" title="業務ダッシュボードへ戻る">⚖️ ダッシュボードへ戻る</a>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+  <!-- ======== 固定費入力タブ ======== -->
+  <div id="tab-expenses" class="tab-content active">
+    <div class="summary-row">
+      <div class="summary-card">
+        <div class="summary-label">月間固定費 合計</div>
+        <div class="summary-value" id="total-monthly">¥0</div>
+        <div class="summary-sub">全カテゴリの月間合計</div>
+      </div>
+      <div class="summary-card green">
+        <div class="summary-label">年間固定費 合計</div>
+        <div class="summary-value" id="total-yearly">¥0</div>
+        <div class="summary-sub">月間合計 × 12ヶ月</div>
+      </div>
+      <div class="summary-card orange">
+        <div class="summary-label">1日あたり</div>
+        <div class="summary-value" id="total-daily">¥0</div>
+        <div class="summary-sub">月間合計 ÷ 30日</div>
+      </div>
+      <div class="summary-card red">
+        <div class="summary-label">必要売上目標</div>
+        <div class="summary-value" id="target-revenue">¥0</div>
+        <div class="summary-sub">固定費の1.3倍（利益確保）</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="exportCSV()">📥 CSV出力</button>
+      <button class="btn" onclick="expandAll()">📂 すべて開く</button>
+      <button class="btn" onclick="collapseAll()">📁 すべて閉じる</button>
+      <button class="btn btn-danger" onclick="resetAll()">🗑 リセット</button>
+    </div>
+
+    <div id="categories-container"></div>
+  </div>
+
+  <!-- ======== ライフプランタブ ======== -->
+  <div id="tab-lifeplan" class="tab-content">
+    <div class="lifeplan-settings">
+      <h2 style="font-size:1.1rem;margin-bottom:16px;font-weight:600;">⚙ シミュレーション設定</h2>
+      <div class="settings-grid">
+        <div class="setting-group">
+          <label>年間売上目標（1年目）</label>
+          <input type="text" id="lp-revenue" value="3,000,000" oninput="updateLifeplan()">
+        </div>
+        <div class="setting-group">
+          <label>売上成長率（年率 %）</label>
+          <input type="number" id="lp-growth" value="10" oninput="updateLifeplan()">
+        </div>
+        <div class="setting-group">
+          <label>固定費上昇率（年率 %）</label>
+          <input type="number" id="lp-inflation" value="2" oninput="updateLifeplan()">
+        </div>
+        <div class="setting-group">
+          <label>現在の貯蓄額</label>
+          <input type="text" id="lp-savings" value="1,000,000" oninput="updateLifeplan()">
+        </div>
+        <div class="setting-group">
+          <label>毎月の貯蓄目標額</label>
+          <input type="text" id="lp-savings-goal" value="50,000" oninput="updateLifeplan()">
+        </div>
+        <div class="setting-group">
+          <label>変動費率（売上に対する %）</label>
+          <input type="number" id="lp-variable" value="15" oninput="updateLifeplan()">
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <div class="chart-title">📈 10年間の収支推移</div>
+      <div class="chart-bars" id="chart-bars"></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>売上</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div>支出</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--success)"></div>累計貯蓄</div>
+      </div>
+    </div>
+
+    <div class="lifeplan-table-wrap">
+      <table class="lifeplan-table">
+        <thead>
+          <tr>
+            <th>年度</th>
+            <th>年間売上</th>
+            <th>固定費</th>
+            <th>変動費</th>
+            <th>支出合計</th>
+            <th>収支</th>
+            <th>累計貯蓄</th>
+            <th>月間必要売上</th>
+          </tr>
+        </thead>
+        <tbody id="lifeplan-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ======== 運用ガイドタブ ======== -->
+  <div id="tab-guide" class="tab-content">
+    <div class="guide-content">
+      <div class="guide-section">
+        <h3>📌 このツールの使い方</h3>
+        <ul>
+          <li>「固定費入力」タブで、各カテゴリの項目名・金額・備考を入力します</li>
+          <li>項目は自由に追加・削除でき、カテゴリごとの小計が自動計算されます</li>
+          <li>入力データは自動でブラウザに保存されます（同じPCで再度開けばデータが残ります）</li>
+          <li>「ライフプラン」タブで、10年間の収支シミュレーションを確認できます</li>
+          <li>CSVボタンでデータをExcelやGoogleスプレッドシートに取り込めます</li>
+        </ul>
+      </div>
+
+      <div class="guide-section">
+        <h3>📅 運用のコツ ー 毎月のルーティン</h3>
+        <ul>
+          <li><strong>毎月1日</strong>：前月の実績を確認し、固定費に変動がないかチェック</li>
+          <li><strong>毎月5日</strong>：売上の進捗を確認（ライフプランの月間目標と比較）</li>
+          <li><strong>3ヶ月ごと</strong>：不要なサブスクや経費がないか見直し</li>
+          <li><strong>年1回（確定申告前）</strong>：年間の固定費合計を経費計上資料として整理</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>💡 ポイント：</strong>固定費は「どれだけ仕事がなくても出ていく費用」です。この金額を正確に把握しておくことで、最低限必要な売上（損益分岐点）が見えてきます。
+        </div>
+      </div>
+
+      <div class="guide-section">
+        <h3>🏢 行政書士事務所でよくある固定費</h3>
+        <ul>
+          <li><strong>行政書士会費</strong>：月額 5,000〜7,000円程度（都道府県により異なる）</li>
+          <li><strong>政治連盟会費</strong>：任意加入、月額 500〜1,000円程度</li>
+          <li><strong>賠償責任保険</strong>：年間 10,000〜30,000円（月換算 約1,000〜2,500円）</li>
+          <li><strong>ドメイン・サーバー代</strong>：月額 1,000〜3,000円（HP運用費）</li>
+          <li><strong>業務ソフト</strong>：月額 1,000〜5,000円（会計ソフト、電子申請ソフト等）</li>
+          <li><strong>電話・FAX</strong>：月額 2,000〜5,000円（IP電話やクラウドFAX利用）</li>
+          <li><strong>事務用品・消耗品</strong>：月額 2,000〜5,000円</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>💡 ポイント：</strong>自宅兼事務所の場合、家賃・光熱費・通信費の一部を「家事按分」で経費にできます。一般的には事業使用割合（30〜50%程度）を按分率とします。確定申告時に重要なので、按分率の根拠を備考欄にメモしておきましょう。
+        </div>
+      </div>
+
+      <div class="guide-section">
+        <h3>💡 固定費削減のヒント</h3>
+        <ul>
+          <li><strong>通信費</strong>：格安SIMへの変更で月3,000〜5,000円削減可能</li>
+          <li><strong>サブスク</strong>：使用頻度の低いサービスは年払いに切替 or 解約</li>
+          <li><strong>保険</strong>：年1回の見直しで最適なプランに（ネット保険の活用も）</li>
+          <li><strong>事務所</strong>：自宅開業・シェアオフィスで家賃を大幅削減</li>
+          <li><strong>ソフトウェア</strong>：無料ツール（Google Workspace等）の活用を検討</li>
+          <li><strong>交通費</strong>：オンライン面談の導入でガソリン代・駐車場代を削減</li>
+        </ul>
+      </div>
+
+      <div class="guide-section">
+        <h3>📊 確定申告に向けた記録のポイント</h3>
+        <ul>
+          <li>毎月のCSV出力データを保存しておくと、確定申告時の集計が楽になります</li>
+          <li>備考欄に「事業/私用」の区分や按分率をメモしておくと安心です</li>
+          <li>領収書・レシートは月ごとに封筒管理し、CSVと照合できるようにしましょう</li>
+          <li>口座引落しの固定費は、通帳記帳で月1回チェックしましょう</li>
+        </ul>
+        <div class="guide-tip">
+          <strong>💡 ポイント：</strong>このツールは簡易的な管理ツールです。正式な会計処理には、freee・マネーフォワード・弥生会計などのクラウド会計ソフトと併用することをおすすめします。
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== データ定義 =====
+const CATEGORIES = [
+  {
+    id: 'office', name: '🏠 事務所関連', color: '#6c63ff',
+    defaults: [
+      { name: '家賃（按分）', amount: 0, note: '按分率：___%' },
+      { name: '電気代（按分）', amount: 0, note: '' },
+      { name: 'ガス代（按分）', amount: 0, note: '' },
+      { name: '水道代（按分）', amount: 0, note: '' },
+      { name: 'インターネット回線', amount: 0, note: '' },
+      { name: '固定電話・FAX', amount: 0, note: '' },
+    ]
+  },
+  {
+    id: 'insurance', name: '🛡 保険・年金', color: '#2dd4a8',
+    defaults: [
+      { name: '国民健康保険', amount: 0, note: '' },
+      { name: '国民年金', amount: 16980, note: '令和7年度' },
+      { name: '生命保険', amount: 0, note: '' },
+      { name: '賠償責任保険', amount: 0, note: '年額÷12' },
+    ]
+  },
+  {
+    id: 'vehicle', name: '🚗 車両関連', color: '#f5a623',
+    defaults: [
+      { name: '車両ローン', amount: 0, note: '' },
+      { name: '自動車保険', amount: 0, note: '年額÷12' },
+      { name: '駐車場代', amount: 0, note: '' },
+      { name: 'ガソリン代', amount: 0, note: '概算' },
+    ]
+  },
+  {
+    id: 'business', name: '💼 事業経費', color: '#e06cff',
+    defaults: [
+      { name: '行政書士会費', amount: 0, note: '' },
+      { name: '政治連盟会費', amount: 0, note: '任意' },
+      { name: '会計ソフト', amount: 0, note: '' },
+      { name: 'HP・ドメイン維持費', amount: 0, note: '' },
+      { name: '名刺・チラシ印刷', amount: 0, note: '概算' },
+      { name: '事務用品・消耗品', amount: 0, note: '' },
+    ]
+  },
+  {
+    id: 'living', name: '🍽 生活費', color: '#ff6b9d',
+    defaults: [
+      { name: '食費', amount: 0, note: '' },
+      { name: '日用品', amount: 0, note: '' },
+      { name: '携帯電話', amount: 0, note: '' },
+      { name: 'サブスクリプション', amount: 0, note: 'Netflix等' },
+    ]
+  },
+  {
+    id: 'tax', name: '🏦 税金・社会保険', color: '#5bc0eb',
+    defaults: [
+      { name: '住民税', amount: 0, note: '年額÷12' },
+      { name: '所得税（予定納税）', amount: 0, note: '年額÷12' },
+      { name: '個人事業税', amount: 0, note: '年額÷12' },
+      { name: '消費税', amount: 0, note: '課税事業者の場合' },
+    ]
+  },
+  {
+    id: 'other', name: '📦 その他', color: '#a0a0a0',
+    defaults: [
+      { name: '交際費', amount: 0, note: '概算' },
+      { name: '書籍・研修費', amount: 0, note: '' },
+      { name: '予備費', amount: 0, note: '臨時出費用' },
+    ]
+  }
+];
+
+const STORAGE_KEY = 'koteihi_data';
+const STORAGE_LP_KEY = 'koteihi_lifeplan';
+
+// ===== State =====
+let data = {};
+
+function loadData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      data = JSON.parse(saved);
+      return;
+    }
+  } catch(e) {}
+  // Initialize defaults
+  data = {};
+  CATEGORIES.forEach(cat => {
+    data[cat.id] = cat.defaults.map(d => ({ ...d }));
+  });
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadLifeplanSettings() {
+  try {
+    const saved = localStorage.getItem(STORAGE_LP_KEY);
+    if (saved) {
+      const s = JSON.parse(saved);
+      document.getElementById('lp-revenue').value = s.revenue || '3,000,000';
+      document.getElementById('lp-growth').value = s.growth ?? 10;
+      document.getElementById('lp-inflation').value = s.inflation ?? 2;
+      document.getElementById('lp-savings').value = s.savings || '1,000,000';
+      document.getElementById('lp-savings-goal').value = s.savingsGoal || '50,000';
+      document.getElementById('lp-variable').value = s.variable ?? 15;
+    }
+  } catch(e) {}
+}
+
+function saveLifeplanSettings() {
+  const s = {
+    revenue: document.getElementById('lp-revenue').value,
+    growth: document.getElementById('lp-growth').value,
+    inflation: document.getElementById('lp-inflation').value,
+    savings: document.getElementById('lp-savings').value,
+    savingsGoal: document.getElementById('lp-savings-goal').value,
+    variable: document.getElementById('lp-variable').value,
+  };
+  localStorage.setItem(STORAGE_LP_KEY, JSON.stringify(s));
+}
+
+// ===== Formatting =====
+function fmtNum(n) {
+  return '¥' + Math.round(n).toLocaleString('ja-JP');
+}
+
+function parseNum(s) {
+  if (typeof s === 'number') return s;
+  return parseInt(String(s).replace(/[¥,、\s]/g, ''), 10) || 0;
+}
+
+// ===== Render Categories =====
+function renderCategories() {
+  const container = document.getElementById('categories-container');
+  container.innerHTML = '';
+
+  CATEGORIES.forEach(cat => {
+    const items = data[cat.id] || [];
+    const subtotal = items.reduce((sum, it) => sum + parseNum(it.amount), 0);
+
+    const section = document.createElement('div');
+    section.className = 'category open';
+    section.innerHTML = `
+      <div class="category-header" onclick="this.parentElement.classList.toggle('open')">
+        <div class="category-title">
+          <div class="category-icon" style="background:${cat.color}22;color:${cat.color}">${cat.name.split(' ')[0]}</div>
+          ${cat.name.split(' ').slice(1).join(' ')}
+        </div>
+        <div class="category-subtotal">
+          ${fmtNum(subtotal)}
+          <span class="chevron">▼</span>
+        </div>
+      </div>
+      <div class="category-body">
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th style="width:35%">項目名</th>
+              <th style="width:25%">月額（円）</th>
+              <th style="width:30%">備考</th>
+              <th style="width:10%"></th>
+            </tr>
+          </thead>
+          <tbody id="items-${cat.id}">
+            ${items.map((item, i) => `
+              <tr>
+                <td><input class="item-input" value="${escHtml(item.name)}" onchange="updateItem('${cat.id}',${i},'name',this.value)"></td>
+                <td><input class="item-input amount" type="text" value="${item.amount ? Number(item.amount).toLocaleString() : ''}" 
+                  onfocus="this.value=this.value.replace(/,/g,'')" 
+                  onblur="formatAmountField(this,'${cat.id}',${i})"
+                  onchange="updateItem('${cat.id}',${i},'amount',parseNum(this.value))"></td>
+                <td><input class="item-input item-note" value="${escHtml(item.note)}" onchange="updateItem('${cat.id}',${i},'note',this.value)" placeholder="メモ"></td>
+                <td><button class="btn-icon" onclick="deleteItem('${cat.id}',${i})" title="削除">✕</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="add-row">
+          <button class="btn-add" onclick="addItem('${cat.id}')">＋ 項目を追加</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(section);
+  });
+
+  updateTotals();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatAmountField(el, catId, idx) {
+  const v = parseNum(el.value);
+  el.value = v ? v.toLocaleString() : '';
+  updateItem(catId, idx, 'amount', v);
+}
+
+function updateItem(catId, idx, field, value) {
+  if (!data[catId]) data[catId] = [];
+  if (!data[catId][idx]) data[catId][idx] = { name:'', amount:0, note:'' };
+  data[catId][idx][field] = value;
+  saveData();
+  updateSubtotal(catId);
+  updateTotals();
+}
+
+function addItem(catId) {
+  if (!data[catId]) data[catId] = [];
+  data[catId].push({ name: '', amount: 0, note: '' });
+  saveData();
+  renderCategories();
+  // Focus the new name input
+  const tbody = document.getElementById(`items-${catId}`);
+  if (tbody) {
+    const rows = tbody.querySelectorAll('tr');
+    const last = rows[rows.length - 1];
+    if (last) last.querySelector('input').focus();
+  }
+}
+
+function deleteItem(catId, idx) {
+  data[catId].splice(idx, 1);
+  saveData();
+  renderCategories();
+}
+
+function updateSubtotal(catId) {
+  const items = data[catId] || [];
+  const subtotal = items.reduce((sum, it) => sum + parseNum(it.amount), 0);
+  // Update the category header subtotal
+  const categories = document.querySelectorAll('.category');
+  categories.forEach(cat => {
+    const tbody = cat.querySelector(`#items-${catId}`);
+    if (tbody) {
+      const sub = cat.querySelector('.category-subtotal');
+      sub.innerHTML = fmtNum(subtotal) + ' <span class="chevron">▼</span>';
+    }
+  });
+}
+
+function updateTotals() {
+  let total = 0;
+  CATEGORIES.forEach(cat => {
+    const items = data[cat.id] || [];
+    total += items.reduce((sum, it) => sum + parseNum(it.amount), 0);
+  });
+
+  document.getElementById('total-monthly').textContent = fmtNum(total);
+  document.getElementById('total-yearly').textContent = fmtNum(total * 12);
+  document.getElementById('total-daily').textContent = fmtNum(Math.round(total / 30));
+  document.getElementById('target-revenue').textContent = fmtNum(Math.round(total * 1.3));
+}
+
+// ===== Toolbar Actions =====
+function expandAll() {
+  document.querySelectorAll('.category').forEach(c => c.classList.add('open'));
+}
+
+function collapseAll() {
+  document.querySelectorAll('.category').forEach(c => c.classList.remove('open'));
+}
+
+function resetAll() {
+  if (!confirm('すべてのデータをリセットしますか？\nこの操作は取り消せません。')) return;
+  data = {};
+  CATEGORIES.forEach(cat => {
+    data[cat.id] = cat.defaults.map(d => ({ ...d }));
+  });
+  saveData();
+  renderCategories();
+  showToast('データをリセットしました');
+}
+
+function exportCSV() {
+  let csv = '\uFEFF'; // BOM for Excel
+  csv += '分類,項目名,月額（円）,年額（円）,備考\n';
+  
+  CATEGORIES.forEach(cat => {
+    const catName = cat.name.replace(/^[^\s]+\s/, '');
+    const items = data[cat.id] || [];
+    items.forEach(item => {
+      const amt = parseNum(item.amount);
+      csv += `"${catName}","${item.name}",${amt},${amt * 12},"${item.note}"\n`;
+    });
+  });
+
+  // Add totals
+  let total = 0;
+  CATEGORIES.forEach(cat => {
+    total += (data[cat.id] || []).reduce((s, it) => s + parseNum(it.amount), 0);
+  });
+  csv += `\n"合計","",${total},${total * 12},""\n`;
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `固定費一覧_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSVファイルをダウンロードしました');
+}
+
+// ===== Lifeplan =====
+function getMonthlyTotal() {
+  let total = 0;
+  CATEGORIES.forEach(cat => {
+    total += (data[cat.id] || []).reduce((s, it) => s + parseNum(it.amount), 0);
+  });
+  return total;
+}
+
+function updateLifeplan() {
+  saveLifeplanSettings();
+
+  const revenue1 = parseNum(document.getElementById('lp-revenue').value);
+  const growth = parseFloat(document.getElementById('lp-growth').value) / 100;
+  const inflation = parseFloat(document.getElementById('lp-inflation').value) / 100;
+  const initialSavings = parseNum(document.getElementById('lp-savings').value);
+  const variableRate = parseFloat(document.getElementById('lp-variable').value) / 100;
+
+  const monthlyFixed = getMonthlyTotal();
+  const yearlyFixed = monthlyFixed * 12;
+
+  const tbody = document.getElementById('lifeplan-body');
+  tbody.innerHTML = '';
+
+  let cumSavings = initialSavings;
+  let maxVal = 0;
+  const chartData = [];
+
+  for (let y = 1; y <= 10; y++) {
+    const rev = Math.round(revenue1 * Math.pow(1 + growth, y - 1));
+    const fixed = Math.round(yearlyFixed * Math.pow(1 + inflation, y - 1));
+    const variable = Math.round(rev * variableRate);
+    const totalExp = fixed + variable;
+    const balance = rev - totalExp;
+    cumSavings += balance;
+
+    maxVal = Math.max(maxVal, rev, totalExp, Math.abs(cumSavings));
+    chartData.push({ year: y, rev, totalExp, cumSavings, balance });
+
+    const balClass = balance >= 0 ? 'positive' : 'negative';
+    const savClass = cumSavings >= 0 ? 'positive' : 'negative';
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${y}年目</td>
+        <td>${fmtNum(rev)}</td>
+        <td>${fmtNum(fixed)}</td>
+        <td>${fmtNum(variable)}</td>
+        <td>${fmtNum(totalExp)}</td>
+        <td class="${balClass}">${balance >= 0 ? '+' : ''}${fmtNum(balance)}</td>
+        <td class="${savClass}">${fmtNum(cumSavings)}</td>
+        <td>${fmtNum(Math.round(totalExp / 12))}</td>
+      </tr>
+    `;
+  }
+
+  // Chart
+  renderChart(chartData, maxVal);
+}
+
+function renderChart(chartData, maxVal) {
+  const container = document.getElementById('chart-bars');
+  container.innerHTML = '';
+
+  if (maxVal === 0) maxVal = 1;
+
+  chartData.forEach(d => {
+    const group = document.createElement('div');
+    group.className = 'chart-bar-group';
+
+    const incH = Math.max(2, (d.rev / maxVal) * 180);
+    const expH = Math.max(2, (d.totalExp / maxVal) * 180);
+    const savH = Math.max(2, (Math.abs(d.cumSavings) / maxVal) * 180);
+
+    group.innerHTML = `
+      <div style="display:flex;gap:2px;align-items:flex-end;width:100%;height:100%;justify-content:center;">
+        <div class="chart-bar income" style="height:${incH}px" title="売上: ${fmtNum(d.rev)}"></div>
+        <div class="chart-bar expense" style="height:${expH}px" title="支出: ${fmtNum(d.totalExp)}"></div>
+        <div class="chart-bar savings" style="height:${savH}px" title="貯蓄: ${fmtNum(d.cumSavings)}"></div>
+      </div>
+      <div class="chart-label">${d.year}年</div>
+    `;
+    container.appendChild(group);
+  });
+}
+
+// ===== Tabs =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'lifeplan') updateLifeplan();
+  });
+});
+
+// ===== Toast =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== Init =====
+loadData();
+renderCategories();
+loadLifeplanSettings();
+updateLifeplan();
+</script>
+</body>
+</html>

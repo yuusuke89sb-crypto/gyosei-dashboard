@@ -1302,7 +1302,7 @@ const RecurringExpenses = {
   },
 
   openKoteihiTool() {
-    window.open('../../固定費/index.html', '_blank');
+    window.open('koteihi.html', '_blank');
   },
 
   show() {
