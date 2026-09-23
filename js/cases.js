@@ -2117,7 +2117,10 @@ const Cases = {
       let curFee = c.fee;
       const isGaragePaper = c.category === 'garage_paper';
       const isGarageOss = c.category === 'garage_oss';
-      if (isGaragePaper && resolvedPolId && typeof Store !== 'undefined') {
+      // 愛知トヨタの場合のみ警察署マスタ単価を自動補完（他の得意先は手動入力）
+      const editClient = c.clientId ? Store.getClient(c.clientId) : null;
+      const isAichiToyota = !!(editClient && editClient.name && editClient.name.includes('愛知トヨタ'));
+      if (isGaragePaper && resolvedPolId && typeof Store !== 'undefined' && isAichiToyota) {
         const loc = Store.getLocation(resolvedPolId);
         if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
           if (!curFee || Number(curFee) === 0 || Number(curFee) === 3500) {
@@ -2853,6 +2856,14 @@ const Cases = {
     }
   },
 
+  // 現在選択中の顧客が「愛知トヨタ」系列かどうかを判定するヘルパー
+  _isAichiToyotaSelected() {
+    const clientEl = document.getElementById('csf_clientId');
+    if (!clientEl || !clientEl.value || typeof Store === 'undefined') return false;
+    const client = Store.getClient(clientEl.value);
+    return !!(client && client.name && client.name.includes('愛知トヨタ'));
+  },
+
   // 所轄警察署（csf_carPolice）セレクトボックス変更時ハンドラ
   onCarPoliceChange(policeName) {
     if (!policeName || typeof Store === 'undefined') return;
@@ -2891,7 +2902,7 @@ const Cases = {
         this.updateFeeHint('');
         return;
       }
-      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && this._isAichiToyotaSelected()) {
         const feeEl = document.getElementById('csf_fee');
         if (feeEl) {
           feeEl.value = loc.syakoFee;
@@ -2989,11 +3000,14 @@ const Cases = {
 
     // 車庫証明（一般）に切り替えた場合、警察署が選択済みならその警察署の単価を反映
     if (category === 'garage_paper') {
-      const polEl = document.getElementById('csf_policeLocationId');
-      if (polEl && polEl.value) {
-        this.onPoliceLocationChange(polEl.value);
-      } else {
-        this.onAddressInput('', 'parkingAddress');
+      // 愛知トヨタの場合のみ警察署マスタ単価を自動反映
+      if (this._isAichiToyotaSelected()) {
+        const polEl = document.getElementById('csf_policeLocationId');
+        if (polEl && polEl.value) {
+          this.onPoliceLocationChange(polEl.value);
+        } else {
+          this.onAddressInput('', 'parkingAddress');
+        }
       }
     } else if (category === 'garage_oss') {
       // 車庫証明（OSS）新規時または未設定時のみ初期値3,500円をセット（既存案件の手動設定単価は保護）
