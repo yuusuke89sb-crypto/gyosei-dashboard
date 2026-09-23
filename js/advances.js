@@ -156,8 +156,8 @@ const Advances = {
       const advanceSum = (c.advances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
       const feeSum = Number(c.fee || 0);
 
-      const isPaid = c.isPaid || c.status === 'done';
-      const isAdvancePaid = c.isAdvancePaid || isPaid;
+      const isPaid = !!c.isPaid;
+      const isAdvancePaid = !!c.isAdvancePaid;
 
       if (!isPaid || !isAdvancePaid) {
         map[clientId].unpaidCount++;
@@ -191,8 +191,8 @@ const Advances = {
       const advanceSum = (c.advances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
       const feeSum = Number(c.fee || 0);
 
-      const isPaid = c.isPaid || c.status === 'done';
-      const isAdvancePaid = c.isAdvancePaid || isPaid;
+      const isPaid = !!c.isPaid;
+      const isAdvancePaid = !!c.isAdvancePaid;
 
       if (!isPaid) totalUnpaidFee += feeSum;
       if (!isAdvancePaid) totalUnpaidAdvance += advanceSum;
@@ -368,10 +368,10 @@ const Advances = {
     const fee = Number(c.fee || 0);
     const grandTotal = fee + advanceSum;
 
-    // 個別フラグの判定（status==='done' は従来互換で全額済み扱い）
+    // 個別フラグの判定（入金消し込みフラグに基づく）
     const isFeePaid = !!(c.isPaid);
     const isAdvPaid = !!(c.isAdvancePaid);
-    const isAllDone = (isFeePaid && isAdvPaid) || c.status === 'done';
+    const isAllDone = isFeePaid && isAdvPaid;
 
     // ステータスバッジの4段階表示
     let statusBadge;
@@ -445,13 +445,7 @@ const Advances = {
     const c = Store.getCase(caseId);
     if (!c) return;
     const newVal = !c.isAdvancePaid;
-    const updates = { isAdvancePaid: newVal };
-    // 両方済みになったら自動的に完了ステータスにする
-    if (newVal && c.isPaid) {
-      updates.status = 'done';
-      updates.completedAt = new Date().toISOString();
-    }
-    Store.updateCase(caseId, updates);
+    Store.updateCase(caseId, { isAdvancePaid: newVal });
     App.showToast(newVal ? '💰 立替金を消し込みました' : '🔄 立替金を未回収に戻しました');
     App.refreshView();
   },
@@ -460,13 +454,7 @@ const Advances = {
     const c = Store.getCase(caseId);
     if (!c) return;
     const newVal = !c.isPaid;
-    const updates = { isPaid: newVal };
-    // 両方済みになったら自動的に完了ステータスにする
-    if (newVal && c.isAdvancePaid) {
-      updates.status = 'done';
-      updates.completedAt = new Date().toISOString();
-    }
-    Store.updateCase(caseId, updates);
+    Store.updateCase(caseId, { isPaid: newVal });
     App.showToast(newVal ? '📋 報酬を消し込みました' : '🔄 報酬を未回収に戻しました');
     App.refreshView();
   },
@@ -477,8 +465,7 @@ const Advances = {
     Store.updateCase(caseId, {
       isPaid: true,
       isAdvancePaid: true,
-      status: 'done',
-      completedAt: new Date().toISOString(),
+      paidAt: new Date().toISOString(),
     });
     App.showToast('✅ 報酬＋立替金を全額消し込みました');
     App.refreshView();
@@ -490,8 +477,6 @@ const Advances = {
     Store.updateCase(caseId, {
       isPaid: false,
       isAdvancePaid: false,
-      status: 'delivery',
-      completedAt: null,
     });
     App.showToast('🔄 未回収ステータスに戻しました');
     App.refreshView();
@@ -565,9 +550,9 @@ const Advances = {
     const listArea = document.getElementById('bpm_casesList');
     if (!listArea) return;
 
-    // 全額済み（isPaid && isAdvancePaid 両方true、またはstatus===done）以外を表示
+    // 全額済み（isPaid && isAdvancePaid 両方true）以外を表示
     const cases = Store.getCasesByClient(clientId).filter(c => {
-      const allDone = (c.isPaid && c.isAdvancePaid) || c.status === 'done';
+      const allDone = c.isPaid && c.isAdvancePaid;
       return !allDone;
     });
 
@@ -668,27 +653,16 @@ const Advances = {
 
       if (payType === 'advance_only') {
         // 立替金のみ消し込み
-        const updates = { isAdvancePaid: true };
-        if (existing.isPaid) {
-          updates.status = 'done';
-          updates.completedAt = `${date}T12:00:00.000Z`;
-        }
-        Store.updateCase(caseId, updates);
+        Store.updateCase(caseId, { isAdvancePaid: true });
       } else if (payType === 'fee_only') {
         // 報酬のみ消し込み
-        const updates = { isPaid: true };
-        if (existing.isAdvancePaid) {
-          updates.status = 'done';
-          updates.completedAt = `${date}T12:00:00.000Z`;
-        }
-        Store.updateCase(caseId, updates);
+        Store.updateCase(caseId, { isPaid: true });
       } else {
         // 全額消し込み
         Store.updateCase(caseId, {
           isPaid: true,
           isAdvancePaid: true,
-          status: 'done',
-          completedAt: `${date}T12:00:00.000Z`,
+          paidAt: `${date}T12:00:00.000Z`,
         });
       }
       count++;
