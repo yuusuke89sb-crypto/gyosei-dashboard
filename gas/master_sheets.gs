@@ -2256,6 +2256,30 @@ function logFax_(direction, number, subject, clientName) {
   sheet.appendRow([new Date(), direction, number, subject, clientName]);
 }
 
+function logFaxBatch_(entries) {
+  if (!entries || entries.length === 0) return;
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('FAXログ');
+    if (!sheet) {
+      sheet = ss.insertSheet('FAXログ');
+      sheet.appendRow(['日時', '種別', '番号/送信元', '件名', '顧客名']);
+      sheet.getRange('1:1').setFontWeight('bold');
+    }
+    const startRow = sheet.getLastRow() + 1;
+    const rows = entries.map(e => [
+      e.date || new Date(),
+      e.direction || '受信',
+      e.number || '',
+      e.subject || '',
+      e.clientName || ''
+    ]);
+    sheet.getRange(startRow, 1, rows.length, 5).setValues(rows);
+  } catch (err) {
+    Logger.log('logFaxBatch_ エラー: ' + err.message);
+  }
+}
+
 function getFaxLog_(count) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('FAXログ');
@@ -2426,9 +2450,15 @@ function checkIncomingInbox_(options) {
       });
     }
 
-    // ドライブフォルダをループ外で1度だけ事前取得（高速化）
+    // ドライブフォルダをループ外で1度だけ事前取得＆共有権限を一括設定（高速化）
     const faxFolder = getInboxDriveFolder_('FAX受信');
     const mailFolder = getInboxDriveFolder_('メール添付');
+    try {
+      if (faxFolder) faxFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) {}
+    try {
+      if (mailFolder) mailFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) {}
     const rowsToInsert = [];
 
     // A. FAX通知メールスキャン（Apeos複合機、bihoku@, yoshimura@felis-car.jp, 【FAX】など）
@@ -2479,7 +2509,6 @@ function checkIncomingInbox_(options) {
             msg.getAttachments().forEach(att => {
               if (faxFolder) {
                 const file = faxFolder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
-                try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
                 attachments.push({ name: att.getName(), url: file.getUrl() });
               }
             });
@@ -2555,7 +2584,6 @@ function checkIncomingInbox_(options) {
               msg.getAttachments().forEach(att => {
                 if (mailFolder) {
                   const file = mailFolder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
-                  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
                   attachments.push({ name: att.getName(), url: file.getUrl() });
                 }
               });
@@ -2592,16 +2620,28 @@ function checkIncomingInbox_(options) {
       sheet.getRange(startRow, 1, rowsToInsert.length, INBOX_HEADERS.length).setValues(rowsToInsert);
     }
 
-    // C. 後方互換用のFAXログへの書き込み (FAXのみ)
+    // C. 後方互換用のFAXログへの書き込み (FAXのみ・一括バッチ書き込みで超高速化)
     try {
       if (rowsToInsert.length > 0) {
+        const faxEntries = [];
         rowsToInsert.forEach(row => {
           if (row[2] === 'FAX') {
-            logFax_('受信', row[3], row[4], '');
+            faxEntries.push({
+              date: row[1] || now,
+              direction: '受信',
+              number: row[3],
+              subject: row[4],
+              clientName: ''
+            });
           }
         });
+        if (faxEntries.length > 0) {
+          logFaxBatch_(faxEntries);
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      Logger.log('FAXログ書き込みエラー: ' + e.message);
+    }
 
     // まとめて最新のインボックスデータとFAXログを取得してレスポンスに同梱（フロントエンドの追加通信を完全排除）
     let updatedInbox = [];
@@ -2622,6 +2662,7 @@ function checkIncomingInbox_(options) {
       success: true,
       saved: savedCount,
       timedOut: timedOut,
+      hasMore: timedOut,
       inbox: updatedInbox,
       faxLog: updatedFaxLog
     };

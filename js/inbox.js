@@ -482,7 +482,7 @@ const InboxManager = {
     App.refreshView();
   },
 
-  // 1. メール・FAX受信チェック（通常チェック / 過去14日分深層スキャン両対応）
+  // 1. メール・FAX受信チェック（通常チェック / 過去14日分深層スキャン両対応・タイムアウト時自動完走ループ対応）
   async checkIncomingInbox(options = {}) {
     if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
       App.showToast('⚙️ スプレッドシート連携を設定してください');
@@ -503,11 +503,43 @@ const InboxManager = {
       ? { days: 14, maxThreads: 80, ...options }
       : { days: 3, maxThreads: 25, ...options };
 
-    try {
-      // GAS側でGmail検索とインボックス書込を実行
-      const result = await SpreadsheetSync.pushCalendarEvent('checkInbox', scanOptions);
+    let totalSaved = 0;
+    let loopCount = 0;
+    const maxLoops = 5; // 安全のため最大5回まで自動継続
+    let hasMore = true;
+    let consecutiveZeroSaves = 0;
 
-      if (result && result.success) {
+    try {
+      while (hasMore && loopCount < maxLoops) {
+        loopCount++;
+        if (btn) {
+          btn.textContent = loopCount === 1
+            ? '⏳ スキャン中...'
+            : `⏳ 続きを取得中 (${loopCount}巡目)...`;
+        }
+        if (loopCount > 1) {
+          App.showToast(`📥 溜まっている分を続けて取得中 (${loopCount}巡目)...`);
+        }
+
+        // GAS側でGmail検索とインボックス書込を実行
+        const result = await SpreadsheetSync.pushCalendarEvent('checkInbox', scanOptions);
+
+        if (!result || !result.success) {
+          if (result && result.error) {
+            App.showToast('❌ 取り込みエラー: ' + result.error);
+          }
+          break;
+        }
+
+        const savedThisRound = Number(result.saved) || 0;
+        totalSaved += savedThisRound;
+
+        if (savedThisRound === 0) {
+          consecutiveZeroSaves++;
+        } else {
+          consecutiveZeroSaves = 0;
+        }
+
         // 1. GASから直接最新インボックスデータが返ってきた場合は即座にマージ（追加通信ゼロ）
         if (result.inbox && Array.isArray(result.inbox)) {
           SpreadsheetSync.mergeInboxData(result.inbox);
@@ -520,11 +552,27 @@ const InboxManager = {
         }
 
         App.refreshView();
-        const timedOutNote = result.timedOut ? '（※実行制限時間のため一部を取得しました。もう一度押すと続きを取得します）' : '';
-        App.showToast(`✅ スキャン完了！ 新規に ${result.saved} 件を取り込みました${timedOutNote}`);
-      } else if (result && result.error) {
-        App.showToast('❌ 取り込みエラー: ' + result.error);
+
+        // タイムアウトしたか（未取得があるか）判定
+        const timedOut = !!(result.timedOut || result.hasMore);
+        if (timedOut && consecutiveZeroSaves < 2) {
+          hasMore = true;
+          // GASサーバーの負担を平滑化するため500ms待機
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+          hasMore = false;
+        }
       }
+
+      // ループ終了後の最終結果通知
+      if (totalSaved > 0) {
+        const loopNote = loopCount > 1 ? `（${loopCount}巡で全件取得）` : '';
+        const incompleteNote = (hasMore && loopCount >= maxLoops) ? ' ※件数が多いため続きがあります。もう一度押してください' : '';
+        App.showToast(`✅ スキャン完了！ 新規に ${totalSaved} 件を取り込みました${loopNote}${incompleteNote}`);
+      } else {
+        App.showToast('✅ 新着のメール・FAXはありませんでした（最新の状態です）');
+      }
+
     } catch (err) {
       App.showToast('❌ 通信エラー: ' + err.message);
     } finally {
