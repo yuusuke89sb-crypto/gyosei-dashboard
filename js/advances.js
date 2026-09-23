@@ -4,7 +4,46 @@
 const Advances = {
   selectedClientId: '',
   filterCycle: 'all', // all | current | month1 | month2 | overdue
+  filterDealer: 'all', // all | toyota | fuso | nissan | other
   searchQuery: '',
+
+  setDealerFilter(groupKey) {
+    this.filterDealer = groupKey;
+    if (typeof App !== 'undefined') App.refreshView();
+  },
+
+  getDealerGroup(cs) {
+    const combined = ((cs.companyName || '') + ' ' + (cs.name || '')).toUpperCase();
+    if (combined.includes('トヨタ') || combined.includes('WEST') || combined.includes('キャラット')) {
+      return 'toyota';
+    }
+    if (combined.includes('三菱') || combined.includes('ふそう') || combined.includes('FUSO')) {
+      return 'fuso';
+    }
+    if (combined.includes('日産') || combined.includes('NISSAN')) {
+      return 'nissan';
+    }
+    return 'other';
+  },
+
+  calcDealerGroups(clientSummaries) {
+    const groups = {
+      toyota: { key: 'toyota', name: '愛知トヨタWEST', icon: '🏢', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
+      fuso:   { key: 'fuso',   name: '三菱ふそう',     icon: '🚚', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
+      nissan: { key: 'nissan', name: '日産愛知',       icon: '🚗', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
+      other:  { key: 'other',  name: 'その他・一般',   icon: '💼', count: 0, cases: 0, fee: 0, adv: 0, total: 0 }
+    };
+    (clientSummaries || []).forEach(cs => {
+      const gKey = this.getDealerGroup(cs);
+      const g = groups[gKey] || groups.other;
+      g.count++;
+      g.cases += (cs.unpaidCount || 0);
+      g.fee += (cs.totalUnpaidFee || 0);
+      g.adv += (cs.totalUnpaidAdvance || 0);
+      g.total += ((cs.totalUnpaidFee || 0) + (cs.totalUnpaidAdvance || 0));
+    });
+    return groups;
+  },
 
   render() {
     const cases = Store.getCases();
@@ -54,24 +93,30 @@ const Advances = {
           </div>
         </div>
 
-        <!-- 全体サマリーメーター -->
-        ${this.renderMetrics(cases)}
+        <!-- 全体サマリーメーター ＆ ディーラーグループ別合算 -->
+        ${this.renderMetrics(cases, clientSummaries)}
 
         <div style="display:grid; grid-template-columns: 320px 1fr; gap:16px; margin-top:20px;">
           <!-- 左カラム：取引先リスト＆未回収残高 -->
           <div class="card" style="padding:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
               <h3 style="margin:0; font-size:0.95rem;">🏢 取引先別 未回収残高</h3>
-              <span class="badge" style="background:var(--bg-gray); color:var(--text-muted);">${clientSummaries.length}社</span>
+              <span class="badge" style="background:var(--bg-gray); color:var(--text-muted);">${(() => {
+                const filtered = this.filterDealer !== 'all' ? clientSummaries.filter(cs => this.getDealerGroup(cs) === this.filterDealer) : clientSummaries;
+                return `${filtered.length}社${this.filterDealer !== 'all' ? ' (絞込)' : ''}`;
+              })()}</span>
             </div>
             <input type="text" class="search-input" placeholder="🔍 取引先名で検索..." 
               value="${this.searchQuery}" oninput="Advances.onSearchClient(this.value)" style="margin-bottom:12px; font-size:0.85rem;">
             
             <div style="max-height:550px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-              ${clientSummaries.length === 0 
-                ? '<p style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:20px 0;">該当する取引先はありません</p>'
-                : clientSummaries.map(cs => this.renderClientRow(cs)).join('')
-              }
+              ${(() => {
+                const list = this.filterDealer !== 'all' ? clientSummaries.filter(cs => this.getDealerGroup(cs) === this.filterDealer) : clientSummaries;
+                if (list.length === 0) {
+                  return '<p style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:20px 0;">該当する取引先はありません</p>';
+                }
+                return list.map(cs => this.renderClientRow(cs)).join('');
+              })()}
             </div>
           </div>
 
@@ -134,7 +179,7 @@ const Advances = {
     return list;
   },
 
-  renderMetrics(cases) {
+  renderMetrics(cases, clientSummaries) {
     let totalUnpaidFee = 0;
     let totalUnpaidAdvance = 0;
     let overdueCount = 0;
@@ -160,6 +205,37 @@ const Advances = {
       }
     });
 
+    const groups = this.calcDealerGroups(clientSummaries || []);
+
+    const renderGroupCard = (g) => {
+      const isCurrent = this.filterDealer === g.key;
+      return `
+        <div onclick="Advances.setDealerFilter('${isCurrent ? 'all' : g.key}')" style="
+          background: ${isCurrent ? 'rgba(56,189,248,0.14)' : 'var(--card-bg, #1e293b)'};
+          border: 1.5px solid ${isCurrent ? 'var(--accent-blue, #38bdf8)' : 'var(--border-color, #334155)'};
+          border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: all 0.15s ease;
+          box-shadow: ${isCurrent ? '0 0 10px rgba(56,189,248,0.25)' : 'none'};
+        " title="クリックで左の店舗一覧をこのグループのみに絞り込み（再クリックで解除）">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-weight:700; font-size:0.85rem; color:${isCurrent ? 'var(--accent-blue, #38bdf8)' : 'var(--text-primary)'};">
+              ${g.icon} ${g.name}
+            </span>
+            <span style="font-size:0.72rem; color:var(--text-muted);">${g.count}店舗 / 未回収${g.cases}件</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
+            <span style="font-size:0.75rem; color:var(--text-muted);">合算未回収計</span>
+            <span style="font-size:1.15rem; font-weight:800; color:var(--accent-gold, #f59e0b);">
+              ¥${g.total.toLocaleString()}
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.72rem; color:var(--text-muted); border-top:1px dashed var(--border-color, #334155); padding-top:4px; margin-top:4px;">
+            <span>報酬(売掛): ¥${g.fee.toLocaleString()}</span>
+            <span>立替実費: ¥${g.adv.toLocaleString()}</span>
+          </div>
+        </div>
+      `;
+    };
+
     return `
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:16px;">
         <div class="stat-card" style="border-left:4px solid var(--accent-gold);">
@@ -170,12 +246,31 @@ const Advances = {
         <div class="stat-card" style="border-left:4px solid var(--primary-color);">
           <div class="stat-label">未回収 報酬額 総額</div>
           <div class="stat-number">¥${totalUnpaidFee.toLocaleString()}</div>
-          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">事務所の未回収報酬</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">事務所の未回収報酬（売掛金計）</div>
         </div>
         <div class="stat-card" style="border-left:4px solid #ef4444;">
           <div class="stat-label">滞留（回収遅延）案件</div>
           <div class="stat-number" style="color:#ef4444;">${overdueCount} <span style="font-size:0.9rem;">件</span></div>
           <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">45日以上未回収の注意案件</div>
+        </div>
+      </div>
+
+      <!-- ディーラーグループ別 未回収合算サマリー（9月決算・売掛金仕訳用） -->
+      <div class="card" style="margin-top:14px; padding:14px 16px; background:var(--card-bg); border:1px solid var(--border-color);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:0.9rem; font-weight:700; color:var(--accent-gold); display:flex; align-items:center; gap:6px;">
+            <span>🏢 ディーラーグループ別 未回収合算サマリー（トヨタ・三菱・日産）</span>
+          </div>
+          ${this.filterDealer !== 'all' ? `
+            <button class="btn btn-secondary btn-small" style="font-size:0.75rem; padding:2px 10px; border-color:var(--accent-blue, #38bdf8); color:var(--accent-blue, #38bdf8); font-weight:bold;" onclick="Advances.setDealerFilter('all')">
+              ✕ 絞り込み解除（全店舗表示に戻す）
+            </button>` : ''}
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:12px;">
+          ${renderGroupCard(groups.toyota)}
+          ${renderGroupCard(groups.fuso)}
+          ${renderGroupCard(groups.nissan)}
+          ${renderGroupCard(groups.other)}
         </div>
       </div>
     `;

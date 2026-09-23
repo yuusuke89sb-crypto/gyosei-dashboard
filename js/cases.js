@@ -656,7 +656,7 @@ const Cases = {
                 <div class="form-row">
                   <div class="form-group">
                     <label>カテゴリ <span class="required">*</span></label>
-                    <select name="category" id="csf_category" required class="form-select" onchange="Cases.toggleCategoryFields(this.value); if(!Cases.editingId) CaseTemplates.applyTemplate(this.value)">
+                    <select name="category" id="csf_category" required class="form-select" onchange="Cases.toggleCategoryFields(this.value); if(!Cases.editingId) CaseTemplates.applyTemplate(this.value); Cases.updateSuggestedTitle();">
                       ${this.CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('')}
                     </select>
                   </div>
@@ -692,7 +692,7 @@ const Cases = {
                 <div class="form-row">
                   <div class="form-group" style="flex:2">
                     <label>案件名 <span class="required">*</span></label>
-                    <input type="text" name="title" id="csf_title" required placeholder="例：愛知トヨタWEST 一宮開明店 - 横田 清 様 (車庫証明)">
+                    <input type="text" name="title" id="csf_title" required placeholder="例：ATW開明 OSS 横田 清" oninput="Cases.onTitleManualInput(this.value)">
                   </div>
                   <div class="form-group" style="flex:1">
                     <label>注文書№</label>
@@ -802,7 +802,7 @@ const Cases = {
                   <div class="form-row">
                     <div class="form-group">
                       <label>名前（申請者・使用者）</label>
-                      <input type="text" name="carName" id="csf_carName" placeholder="例：横田 清">
+                      <input type="text" name="carName" id="csf_carName" placeholder="例：横田 清" oninput="Cases.updateSuggestedTitle()" onchange="Cases.updateSuggestedTitle()">
                     </div>
                     <div class="form-group">
                       <label>使用の本拠の位置（自宅住所）</label>
@@ -1831,6 +1831,102 @@ const Cases = {
       }
       this.updateFeeHint();
     }
+
+    // 顧客店舗変更時の案件名テンプレート自動連動
+    this.updateSuggestedTitle();
+  },
+
+  // ─── 案件名テンプレート自動生成ロジック（ATW[店名] [カテゴリ] [顧客名]） ───
+  isTitleManuallyEdited: false,
+
+  onTitleManualInput(val) {
+    const suggested = this.generateSuggestedTitle();
+    // 入力内容が空なら自動連動を再開、提案と異なる入力なら手動入力を固定
+    this.isTitleManuallyEdited = (val.trim() !== '' && val !== suggested);
+  },
+
+  generateSuggestedTitle() {
+    const clientSelect = document.getElementById('csf_clientId');
+    const clientId = clientSelect ? clientSelect.value : '';
+    const catEl = document.getElementById('csf_category');
+    const category = catEl ? catEl.value : '';
+    const carNameEl = document.getElementById('csf_carName');
+    const carName = carNameEl ? carNameEl.value.trim() : '';
+
+    if (!clientId && !carName) return '';
+
+    let storePart = '';
+    if (clientId && typeof Store !== 'undefined' && Store.getClient) {
+      const client = Store.getClient(clientId);
+      if (client) {
+        const rawName = (client.name || client.companyName || '').trim();
+        if (rawName.includes('トヨタ') || rawName.includes('WEST') || rawName.includes('ATW')) {
+          let st = rawName.replace(/愛知トヨタ(WEST)?/gi, '').trim();
+          if (st.endsWith('店') && !st.endsWith('支店')) {
+            st = st.slice(0, -1).trim();
+          }
+          // 短縮表記マッピング（一宮開明 -> 開明、一宮三条 -> 三条 等の実績ルール）
+          const SHORT_MAP = {
+            '一宮開明': '開明',
+            '一宮三条': '三条',
+            '稲沢おりづマイカーセンター': 'おりづマイカー',
+          };
+          const cleanSt = SHORT_MAP[st] || st;
+          storePart = cleanSt.startsWith('キャラット') ? cleanSt : `ATW${cleanSt}`;
+        } else if (rawName.includes('三菱') || rawName.includes('ふそう')) {
+          let st = rawName.replace(/三菱ふそう(トラック・バス)?/gi, '').trim();
+          storePart = `三菱ふそう ${st}`;
+        } else if (rawName.includes('日産')) {
+          let st = rawName.replace(/日産(愛知)?/gi, '').trim();
+          storePart = `日産 ${st}`;
+        } else {
+          storePart = rawName;
+        }
+      }
+    }
+
+    // カテゴリ略称（OSS、封印、車庫、登録、軽登録 等）
+    let catPart = '';
+    if (category === 'garage_oss') {
+      catPart = 'OSS';
+    } else if (category === 'seal') {
+      catPart = '封印';
+    } else if (category === 'garage_paper') {
+      catPart = '車庫';
+    } else if (category === 'car_reg_standard') {
+      catPart = '登録';
+    } else if (category === 'car_reg_light') {
+      catPart = '軽登録';
+    } else if (category === 'inheritance') {
+      catPart = '相続';
+    }
+
+    // 顧客名（個人なら名字優先、法人なら法人名）
+    let custPart = '';
+    if (carName) {
+      const isCompany = /[(（](株|有|名|合|財|社)[)）]|株式会社|有限会社|合同会社/.test(carName);
+      if (isCompany) {
+        custPart = carName;
+      } else {
+        const parts = carName.split(/[\s　]+/);
+        custPart = parts[0] || carName;
+      }
+    }
+
+    const parts = [storePart, catPart, custPart].filter(Boolean);
+    return parts.join(' ');
+  },
+
+  updateSuggestedTitle() {
+    if (this.editingId) return; // 既存案件の編集時は自動上書きしない
+    const titleInput = document.getElementById('csf_title');
+    if (!titleInput) return;
+    if (this.isTitleManuallyEdited && titleInput.value.trim() !== '') return;
+
+    const suggested = this.generateSuggestedTitle();
+    if (suggested) {
+      titleInput.value = suggested;
+    }
   },
 
   quickAddContact() {
@@ -1919,14 +2015,15 @@ const Cases = {
     this.renderAdvanceRows();
     this.onClientChange('');
 
-    // 注文書№ 自動連番付与 (PO-YYYYMMDD-XXX)
+    // 注文書№ 初期値（依頼書・注文書実物を見て手入力するため、自動PO連番は廃止し空欄をデフォルト化）
     const compEl = document.getElementById('csf_completedAt');
     if (compEl) compEl.value = '';
-    const nextNum = Store.getCases().length + 1;
-    const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
-    const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
     const orderNoEl = document.getElementById('csf_orderNo');
-    if (orderNoEl) orderNoEl.value = (prefills && prefills.orderNo) ? prefills.orderNo : autoOrderNo;
+    if (orderNoEl) {
+      const rawOrderNo = (prefills && prefills.orderNo) ? String(prefills.orderNo).trim() : '';
+      orderNoEl.value = (rawOrderNo && !rawOrderNo.startsWith('PO-')) ? rawOrderNo : '';
+    }
+    this.isTitleManuallyEdited = false;
 
     // 添付ファイルプレビューワーの初期化（横並び表示）
     if (prefills && prefills.attachments && prefills.attachments.length > 0) {
@@ -1951,10 +2048,6 @@ const Cases = {
     }
 
     if (prefills) {
-      if (prefills.title) {
-        const tEl = document.getElementById('csf_title');
-        if (tEl) tEl.value = prefills.title;
-      }
       if (prefills.clientId) {
         const cEl = document.getElementById('csf_clientId');
         if (cEl) cEl.value = prefills.clientId;
@@ -2076,11 +2169,19 @@ const Cases = {
     }
     const wrap = document.getElementById('csf_milestone_stepper_wrap');
     if (wrap) wrap.style.display = 'none';
-    const catEl = document.getElementById('csf_category');
     const catVal = catEl ? catEl.value : 'garage_oss';
     Cases.toggleCategoryFields(catVal);
     if (typeof CaseTemplates !== 'undefined' && CaseTemplates.applyTemplate) {
       CaseTemplates.applyTemplate(catVal);
+    }
+    // 案件名: カスタムタイトルが指定されていれば尊重、それ以外（またはFAX/メール初期値）はテンプレートから自動生成
+    const tEl = document.getElementById('csf_title');
+    if (prefills && prefills.title && !prefills.title.startsWith('FAX依頼:') && !prefills.title.startsWith('メール依頼:')) {
+      if (tEl) tEl.value = prefills.title;
+      this.isTitleManuallyEdited = true;
+    } else {
+      this.isTitleManuallyEdited = false;
+      this.updateSuggestedTitle();
     }
   },
 
@@ -2108,6 +2209,7 @@ const Cases = {
       : '';
     document.getElementById('caseModalTitle').innerHTML = '案件編集' + invBadge;
       document.getElementById('csf_title').value = c.title || '';
+      this.isTitleManuallyEdited = true;
       const isUsedCarEl = document.getElementById('csf_isUsedCar');
       if (isUsedCarEl) isUsedCarEl.checked = !!c.isUsedCar;
       document.getElementById('csf_orderNo').value = c.orderNo || c['注文書№'] || c['注文書No'] || c['注文番号'] || '';
@@ -2526,12 +2628,9 @@ const Cases = {
       const client = Store.getClient(data.clientId);
       const clientName = client ? (client.companyName || client.name) : '';
 
-      const nextNum = Store.getCases().length + 1;
-      const yyyymmdd = Store.getLocalDateStr().replace(/-/g, '');
-      const autoOrderNo = `PO-${yyyymmdd}-${String(nextNum).padStart(3, '0')}`;
-
-      document.getElementById('csf_title').value = clientName ? `${clientName} - ` : '';
-      document.getElementById('csf_orderNo').value = autoOrderNo;
+      this.isTitleManuallyEdited = false;
+      document.getElementById('csf_orderNo').value = '';
+      this.updateSuggestedTitle();
       document.getElementById('csf_carName').value = '';
       document.getElementById('csf_carAddress').value = '';
       document.getElementById('csf_parkingAddress').value = '';
