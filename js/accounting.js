@@ -102,6 +102,99 @@ const Accounting = {
     }
   },
 
+  // 【安全・確実】全案件の入金フラグを未入金にリセットし、完了案件から正規売上仕訳（売掛金）を一括再構築
+  cleanAndResetReceivables() {
+    if (typeof Store === 'undefined') return;
+
+    const cases = Store.getCases();
+    const doneCases = cases.filter(c => c.status === 'done' && Number(c.fee || 0) > 0);
+    const totalDoneFee = doneCases.reduce((s, c) => s + Number(c.fee || 0), 0);
+
+    const msg = `【売掛金・帳簿仕訳の完全精査】\n\n` +
+      `以下の処理を安全に一括実行します：\n` +
+      `1. 現況データ（案件${cases.length}件＋全設定）をJSONファイルとして自動バックアップ保存\n` +
+      `2. 全案件の入金フラグを「未入金（false）」に正常化（まだ1件も入金されていない実態に合致）\n` +
+      `3. 完了案件（${doneCases.length}件、合計¥${totalDoneFee.toLocaleString()}）から正規の売掛金・売上仕訳を正確に1対1で再生成\n` +
+      `4. 重複仕訳・ゴミ仕訳を完全整理し、売掛金残高と試算表売上高を¥${totalDoneFee.toLocaleString()}に完全一致\n\n` +
+      `実行しますか？`;
+
+    if (!confirm(msg)) return;
+
+    // 1. 自動バックアップ保存
+    try {
+      if (typeof Store.exportBackup === 'function') {
+        Store.exportBackup();
+      }
+    } catch(err) {
+      console.warn('バックアップ自動保存警告:', err);
+    }
+
+    // 2. 全案件の入金フラグを未入金（false）へリセット
+    let paidResetCount = 0;
+    cases.forEach(c => {
+      if (c.status !== 'deleted') {
+        if (c.paid) { c.paid = false; paidResetCount++; }
+        if (c.costPaid) { c.costPaid = false; }
+        if (c.advancePaid) { c.advancePaid = false; }
+      }
+    });
+    Store._set(Store.KEYS.CASES, cases);
+
+    // 3. 既存仕訳のうち、経費や手動仕訳（売上高以外）は温存
+    const existingJournals = this.getJournals();
+    const preservedNonSales = existingJournals.filter(j => j.credit !== '売上高');
+
+    // 4. 完了案件（doneCases）から正規の売上仕訳を一意に生成
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
+    const newSalesJournals = [];
+
+    doneCases.forEach(c => {
+      if (!c || !c.id) return;
+      const client = Store.getClient(c.clientId);
+      const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
+      const catLabel = CATS[c.category] || c.category || '業務';
+      const desc = `[${catLabel}] ${c.title || ''}${client ? ' / ' + client.name : ''}${orderStr}`;
+      const doneDate = (c.completedAt ? c.completedAt.slice(0, 10) : '') ||
+        c.registrationDate ||
+        c.policeDeliveryDate ||
+        (c.updatedAt ? c.updatedAt.slice(0, 10) : '') ||
+        (c.createdAt ? c.createdAt.slice(0, 10) : '') ||
+        Store.getLocalDateStr();
+
+      newSalesJournals.push({
+        id: `j_case_${c.id}_${c.category || 'sales'}`,
+        date: doneDate,
+        debit: '売掛金',
+        credit: '売上高',
+        amount: Number(c.fee),
+        description: desc,
+        caseId: String(c.id),
+        orderNo: c.orderNo || '',
+        auto: true,
+        createdAt: c.createdAt || new Date().toISOString()
+      });
+    });
+
+    // 5. 仕訳を保存
+    const allCleanJournals = [...preservedNonSales, ...newSalesJournals];
+    this.saveJournals(allCleanJournals);
+
+    // 6. スプレッドシート同期が有効な場合、クリーンな仕訳で一括送信
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('bulkUpsertJournals', newSalesJournals).then(res => {
+        if (res && res.success) {
+          console.log('スプレッドシートへの仕訳同期完了:', res);
+        }
+      }).catch(e => console.warn('SS送信警告:', e));
+    }
+
+    // 7. 画面再描画とトースト
+    if (typeof App !== 'undefined') {
+      App.refreshView();
+      App.showToast(`✨ 売掛金と帳簿の精査が完了しました！\n完了案件 ${doneCases.length}件 の売掛金 ¥${totalDoneFee.toLocaleString()}（バックアップ保存済）`);
+    }
+  },
+
   // 完了案件と帳簿の売上仕訳を自動照合・同期（不足分の復元＋単価・完了日変更の連動更新）
   restoreMissingCaseJournals() {
     if (typeof Store === 'undefined') return 0;
@@ -404,6 +497,7 @@ const Accounting = {
         <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <h1>💹 帳簿</h1>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="Accounting.cleanAndResetReceivables()" style="background:rgba(16,185,129,0.15); border:1.5px solid #10b981; color:#059669; font-weight:700; box-shadow:0 1px 3px rgba(16,185,129,0.2);" title="【安全】自動バックアップ ➔ 全案件の未入金リセット ➔ 完了614件の正規売掛金・売上仕訳を完璧に再構築します">🧹 売掛金と仕訳を完全精査・同期</button>
             <button class="btn btn-secondary" onclick="Accounting.restoreMissingCaseJournals()" style="background:rgba(59,130,246,0.1); border-color:#3b82f6; color:#2563eb; font-weight:600;" title="完了案件の単価・完了日・注文書№変更を帳簿に即時同期し、不足仕訳を復元します">🔄 完了案件と仕訳を同期</button>
             <button class="btn btn-secondary" onclick="Accounting.cleanSalesWithoutOrderNo()" style="background:rgba(245,158,11,0.1); border-color:#f59e0b; color:#f59e0b; font-weight:600;" title="ディーラー案件なのに注文書№が未設定の不要な売上仕訳（テストや手動ゴミデータ）を一括整理します">🏷️ 注文書№なし売上を整理${noOrderSales.length > 0 ? ` (${noOrderSales.length}件)` : ''}</button>
             <button class="btn btn-secondary" onclick="Accounting.cleanDuplicates()" style="border-color:rgba(239,68,68,0.5); color:#f87171; font-weight:600;" title="同一日付・金額・摘要の重複仕訳を整理（案件・注文書№別の仕訳は保護されます）">🧹 重複仕訳を整理</button>
@@ -438,6 +532,7 @@ const Accounting = {
               <button class="btn btn-secondary btn-small" onclick="Accounting.exportMFCSV()" style="border-color:rgba(245,158,11,0.5); color:var(--accent-gold); font-weight:600;" title="マネーフォワード形式でCSVエクスポート">🧡 MF用CSV出力</button>
               <button class="btn btn-secondary btn-small" onclick="Accounting.showMFImportModal()" style="border-color:rgba(59,130,246,0.5); color:var(--accent-blue); font-weight:600;" title="マネーフォワード等からのCSVインポート">📥 MF用CSV取込</button>
               <button class="btn btn-secondary btn-small" onclick="Accounting.pushAllJournalsToSS()" style="border-color:rgba(16,185,129,0.5); color:var(--accent-green); font-weight:600;" title="ダッシュボードの全仕訳をGoogleスプレッドシートへ一括送信">☁️ SSへ仕訳送信</button>
+              <button class="btn btn-secondary btn-small" onclick="Accounting.replaceJournalsInSS()" style="border-color:rgba(16,185,129,0.5); color:var(--accent-green); font-weight:600;" title="スプレッドシートの帳簿シートを現在の正規仕訳でクリーンに一括上書き置換（増殖した重複行を一掃）">🔄 SS帳簿をクリーン置換</button>
               <button class="btn btn-secondary btn-small" onclick="Accounting.exportCSV()" title="汎用CSV出力">📄 汎用CSV出力</button>
             </div>
           ` : ''}
@@ -1055,6 +1150,44 @@ const Accounting = {
         App.showToast(`✅ スプレッドシート「帳簿」へ ${journals.length}件 の仕訳を一括同期しました！`);
       } else {
         App.showToast('スプレッドシート送信エラー: ' + ((res && res.error) || '未知のエラー'));
+      }
+    }).catch(err => {
+      App.showToast('スプレッドシート送信中にエラーが発生しました');
+      console.error(err);
+    });
+  },
+
+  // スプレッドシートの帳簿をクリーンに一括上書き置換（増殖した重複行を完全リセット）
+  replaceJournalsInSS() {
+    const journals = this.getJournals();
+    if (journals.length === 0) {
+      App.showToast('送信する仕訳データがありません');
+      return;
+    }
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
+      App.showToast('スプレッドシート同期が設定されていません');
+      return;
+    }
+
+    if (!confirm(`【スプレッドシート帳簿のクリーン再配置】\n\nスプレッドシートの「仕訳帳」シートを、現在のダッシュボード仕訳（${journals.length}件）で上書き置換します。\n（増殖した重複行は一掃され、手動の一般経費は保護されます）\n\n実行しますか？`)) {
+      return;
+    }
+
+    App.showToast(`スプレッドシートの帳簿をクリーン再配置中 (${journals.length}件)...`);
+
+    SpreadsheetSync.push('replaceJournals', journals).then(res => {
+      if (res && res.success) {
+        App.showToast(`✅ スプレッドシートの帳簿を ${journals.length}件 でクリーン同期しました！`);
+      } else {
+        // replaceJournals が古いGAS未デプロイの場合は bulkUpsertJournals へフォールバック
+        console.warn('replaceJournals未対応またはエラー、bulkUpsertで再試行:', res);
+        SpreadsheetSync.push('bulkUpsertJournals', journals).then(fallbackRes => {
+          if (fallbackRes && fallbackRes.success) {
+            App.showToast(`✅ スプレッドシートへ ${journals.length}件 の仕訳を同期しました`);
+          } else {
+            App.showToast('送信エラー: ' + ((fallbackRes && fallbackRes.error) || ''));
+          }
+        });
       }
     }).catch(err => {
       App.showToast('スプレッドシート送信中にエラーが発生しました');

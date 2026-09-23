@@ -722,6 +722,7 @@ function doPost(e) {
       case 'deleteCase': result = deleteRow_(SHEET_NAMES.CASES, data.id); break;
       case 'upsertJournal': result = upsertJournal_(data); break;
       case 'bulkUpsertJournals': result = bulkUpsertJournals_(data); break;
+      case 'replaceJournals': result = replaceJournals_(data); break;
       case 'deleteJournal': result = deleteRow_(SHEET_NAMES.JOURNALS, data.id); break;
       case 'createCaseFolder': result = createCaseFolder_(data); break;
       case 'saveGeneratedPdf': result = saveGeneratedPdf_(data); break;
@@ -1423,10 +1424,16 @@ function bulkUpsertJournals_(journals) {
 
   const lastRow = sheet.getLastRow();
   const existingRowMap = {};
+  const existingCaseIdMap = {};
   if (lastRow >= 2) {
-    const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
-    ids.forEach((id, idx) => {
-      if (id) existingRowMap[String(id)] = idx + 2;
+    const colCount = Math.min(sheet.getLastColumn(), JOURNAL_HEADERS.length);
+    const rows = sheet.getRange(2, 1, lastRow - 1, colCount).getValues();
+    rows.forEach((r, idx) => {
+      const rowNum = idx + 2;
+      const rowId = String(r[0] || '').trim();
+      const caseId = String(r[6] || '').trim(); // 案件IDは7列目(index 6)
+      if (rowId) existingRowMap[rowId] = rowNum;
+      if (caseId) existingCaseIdMap[caseId] = rowNum;
     });
   }
 
@@ -1434,17 +1441,23 @@ function bulkUpsertJournals_(journals) {
   let updatedCount = 0;
 
   journals.forEach(data => {
-    const id = data.id || ('J-' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+    const id = data.id || ('j_case_' + (data.caseId || (Date.now() + '_' + Math.random().toString(36).slice(2, 6))));
     data.id = id;
 
-    if (existingRowMap[id]) {
-      const row = existingRowMap[id];
+    // A列の伝票IDで照合、未一致でも案件ID(caseId)があれば既存行とみなして重複防止
+    let row = existingRowMap[id];
+    if (!row && data.caseId && existingCaseIdMap[String(data.caseId)]) {
+      row = existingCaseIdMap[String(data.caseId)];
+    }
+
+    if (row) {
       JOURNAL_HEADERS.forEach((header, col) => {
         const key = keyMap[header];
-        if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
+        if (key && key !== 'createdAt' && data[key] !== undefined) {
           sheet.getRange(row, col + 1).setValue(data[key]);
         }
       });
+      sheet.getRange(row, 1).setValue(id);
       updatedCount++;
     } else {
       const rowData = JOURNAL_HEADERS.map(header => {
@@ -1462,6 +1475,62 @@ function bulkUpsertJournals_(journals) {
   }
 
   return { success: true, added: newRows.length, updated: updatedCount, total: journals.length };
+}
+
+// 帳簿シートの自動仕訳をクリーンに一括上書き置換（重複を完全クリア）
+function replaceJournals_(journals) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.JOURNALS) || ss.getSheetByName('仕訳帳') || ss.getSheetByName('仕訳');
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.JOURNALS);
+  }
+
+  const keyMap = getKeyMap_(SHEET_NAMES.JOURNALS);
+  const now = new Date();
+
+  // 既存の手動仕訳（経費や手動入力）を保護
+  const preservedRows = [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const colCount = Math.min(sheet.getLastColumn(), JOURNAL_HEADERS.length);
+    const rows = sheet.getRange(2, 1, lastRow - 1, colCount).getValues();
+    rows.forEach(r => {
+      const isAuto = r[7] === true || String(r[7]).toLowerCase() === 'true';
+      const hasCaseId = Boolean(r[6]);
+      // 自動フラグや案件IDがない手動仕訳は保護
+      if (!isAuto && !hasCaseId) {
+        preservedRows.push(r);
+      }
+    });
+  }
+
+  // シート全体の内容をクリアしてヘッダーを再設置
+  sheet.clearContents();
+  sheet.appendRow(JOURNAL_HEADERS);
+  sheet.getRange('1:1').setFontWeight('bold');
+
+  const allRows = [];
+  // 1. 保護した手動仕訳を復元
+  preservedRows.forEach(r => allRows.push(r));
+
+  // 2. 正規の完了案件仕訳を配置
+  (journals || []).forEach(data => {
+    const id = data.id || ('j_case_' + (data.caseId || Date.now()));
+    data.id = id;
+    const rowData = JOURNAL_HEADERS.map(header => {
+      const key = keyMap[header];
+      if (key === 'id') return id;
+      if (key === 'createdAt') return data.createdAt || now;
+      return data[key] !== undefined ? data[key] : '';
+    });
+    allRows.push(rowData);
+  });
+
+  if (allRows.length > 0) {
+    sheet.getRange(2, 1, allRows.length, JOURNAL_HEADERS.length).setValues(allRows);
+  }
+
+  return { success: true, count: allRows.length, preservedManual: preservedRows.length };
 }
 
 
