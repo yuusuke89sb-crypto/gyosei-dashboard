@@ -4,8 +4,14 @@
 const Advances = {
   selectedClientId: '',
   filterCycle: 'all', // all | current | month1 | month2 | overdue
-  filterDealer: 'all', // all | toyota | fuso | nissan | other
+  filterDealer: 'all', // all | toyota | fuso | nissan | other | unassigned
+  filterCaseStatus: 'done', // done (完了案件のみ/請求売掛対象) | all (全案件/進行中含む見込)
   searchQuery: '',
+
+  setCaseStatusFilter(status) {
+    this.filterCaseStatus = status;
+    if (typeof App !== 'undefined') App.refreshView();
+  },
 
   setDealerFilter(groupKey) {
     this.filterDealer = groupKey;
@@ -13,6 +19,7 @@ const Advances = {
   },
 
   getDealerGroup(cs) {
+    if (cs.clientId === 'unassigned') return 'unassigned';
     const combined = ((cs.companyName || '') + ' ' + (cs.name || '')).toUpperCase();
     if (combined.includes('トヨタ') || combined.includes('WEST') || combined.includes('キャラット')) {
       return 'toyota';
@@ -28,10 +35,11 @@ const Advances = {
 
   calcDealerGroups(clientSummaries) {
     const groups = {
-      toyota: { key: 'toyota', name: '愛知トヨタWEST', icon: '🏢', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
-      fuso:   { key: 'fuso',   name: '三菱ふそう',     icon: '🚚', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
-      nissan: { key: 'nissan', name: '日産愛知',       icon: '🚗', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
-      other:  { key: 'other',  name: 'その他・一般',   icon: '💼', count: 0, cases: 0, fee: 0, adv: 0, total: 0 }
+      toyota:     { key: 'toyota',     name: '愛知トヨタWEST', icon: '🏢', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
+      fuso:       { key: 'fuso',       name: '三菱ふそう',     icon: '🚚', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
+      nissan:     { key: 'nissan',     name: '日産愛知',       icon: '🚗', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
+      other:      { key: 'other',      name: 'その他・一般',   icon: '💼', count: 0, cases: 0, fee: 0, adv: 0, total: 0 },
+      unassigned: { key: 'unassigned', name: '得意先未入力',   icon: '⚠️', count: 0, cases: 0, fee: 0, adv: 0, total: 0 }
     };
     (clientSummaries || []).forEach(cs => {
       const gKey = this.getDealerGroup(cs);
@@ -52,9 +60,16 @@ const Advances = {
     // 取引先ごとの未決済サマリー計算
     const clientSummaries = this.calcClientSummaries(cases, clients);
 
-    // 現在選択中の取引先の案件リスト
+    // 現在選択中の取引先の案件リスト（未入力案件の救済＋ステータス連動）
     const targetCases = this.selectedClientId
-      ? cases.filter(c => c.clientId == this.selectedClientId && c.status !== 'deleted')
+      ? cases.filter(c => {
+          if (c.status === 'deleted') return false;
+          if (this.filterCaseStatus === 'done' && c.status !== 'done') return false;
+          if (this.selectedClientId === 'unassigned') {
+            return !c.clientId || !clients.some(cl => String(cl.id) === String(c.clientId));
+          }
+          return String(c.clientId) === String(this.selectedClientId);
+        })
       : [];
 
     return `
@@ -131,19 +146,25 @@ const Advances = {
     `;
   },
 
-  // サマリー計算
+  // サマリー計算（完了案件のみ／全案件の切り替え対応）
   calcClientSummaries(cases, clients) {
     const map = {};
 
-    cases.forEach(c => {
-      if (c.status === 'deleted') return;
-      const clientId = c.clientId || 'unassigned';
+    const filteredCases = cases.filter(c => {
+      if (c.status === 'deleted') return false;
+      if (this.filterCaseStatus === 'done') return c.status === 'done';
+      return true;
+    });
+
+    filteredCases.forEach(c => {
+      const hasClient = c.clientId && clients.some(cl => String(cl.id) === String(c.clientId));
+      const clientId = hasClient ? String(c.clientId) : 'unassigned';
       if (!map[clientId]) {
-        const client = clients.find(cl => cl.id == clientId);
+        const client = hasClient ? clients.find(cl => String(cl.id) === String(clientId)) : null;
         map[clientId] = {
           clientId,
           name: client ? client.name : '（取引先未設定）',
-          companyName: client ? client.companyName : '',
+          companyName: client ? client.companyName : '⚠️ 得意先未入力',
           cycle: client ? (client.paymentCycle || 'month1') : 'month1', // current | month1 | month2
           totalUnpaidFee: 0,
           totalUnpaidAdvance: 0,
@@ -174,8 +195,12 @@ const Advances = {
       list = list.filter(cs => cs.name.toLowerCase().includes(q) || (cs.companyName && cs.companyName.toLowerCase().includes(q)));
     }
 
-    // 未回収合計が高い順
-    list.sort((a, b) => (b.totalUnpaidFee + b.totalUnpaidAdvance) - (a.totalUnpaidFee + a.totalUnpaidAdvance));
+    // 未回収合計が高い順（得意先未入力は注意喚起のため最上位に配置）
+    list.sort((a, b) => {
+      if (a.clientId === 'unassigned') return -1;
+      if (b.clientId === 'unassigned') return 1;
+      return (b.totalUnpaidFee + b.totalUnpaidAdvance) - (a.totalUnpaidFee + a.totalUnpaidAdvance);
+    });
     return list;
   },
 
@@ -186,8 +211,13 @@ const Advances = {
 
     const now = new Date();
 
-    cases.forEach(c => {
-      if (c.status === 'deleted') return;
+    const filteredCases = cases.filter(c => {
+      if (c.status === 'deleted') return false;
+      if (this.filterCaseStatus === 'done') return c.status === 'done';
+      return true;
+    });
+
+    filteredCases.forEach(c => {
       const advanceSum = (c.advances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
       const feeSum = Number(c.fee || 0);
 
@@ -206,21 +236,25 @@ const Advances = {
     });
 
     const groups = this.calcDealerGroups(clientSummaries || []);
+    const doneCount = cases.filter(c => c.status === 'done').length;
+    const allCount = cases.filter(c => c.status !== 'deleted').length;
 
-    const renderGroupCard = (g) => {
+    const renderGroupCard = (g, isWarning = false) => {
       const isCurrent = this.filterDealer === g.key;
+      const borderColor = isWarning ? '#ef4444' : (isCurrent ? 'var(--accent-blue, #38bdf8)' : 'var(--border-color, #334155)');
+      const bg = isWarning ? 'rgba(239,68,68,0.08)' : (isCurrent ? 'rgba(56,189,248,0.14)' : 'var(--card-bg, #1e293b)');
       return `
         <div onclick="Advances.setDealerFilter('${isCurrent ? 'all' : g.key}')" style="
-          background: ${isCurrent ? 'rgba(56,189,248,0.14)' : 'var(--card-bg, #1e293b)'};
-          border: 1.5px solid ${isCurrent ? 'var(--accent-blue, #38bdf8)' : 'var(--border-color, #334155)'};
+          background: ${bg};
+          border: 1.5px solid ${borderColor};
           border-radius: 8px; padding: 12px 14px; cursor: pointer; transition: all 0.15s ease;
           box-shadow: ${isCurrent ? '0 0 10px rgba(56,189,248,0.25)' : 'none'};
         " title="クリックで左の店舗一覧をこのグループのみに絞り込み（再クリックで解除）">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <span style="font-weight:700; font-size:0.85rem; color:${isCurrent ? 'var(--accent-blue, #38bdf8)' : 'var(--text-primary)'};">
+            <span style="font-weight:700; font-size:0.85rem; color:${isWarning ? '#f87171' : (isCurrent ? 'var(--accent-blue, #38bdf8)' : 'var(--text-primary)')};">
               ${g.icon} ${g.name}
             </span>
-            <span style="font-size:0.72rem; color:var(--text-muted);">${g.count}店舗 / 未回収${g.cases}件</span>
+            <span style="font-size:0.72rem; color:${isWarning ? '#f87171' : 'var(--text-muted)'}; font-weight:${isWarning ? '700' : 'normal'};">${g.cases}件</span>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
             <span style="font-size:0.75rem; color:var(--text-muted);">合算未回収計</span>
@@ -237,16 +271,30 @@ const Advances = {
     };
 
     return `
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:16px;">
+      <!-- 請求対象（完了案件のみ）vs 全案件（進行中含む） 切り替えスイッチ -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:14px; padding:10px 14px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <span style="font-weight:700; font-size:0.85rem; color:var(--text-color);">集計対象案件:</span>
+          <div class="period-mode-toggle" style="display:inline-flex; border-radius:6px; overflow:hidden; border:1px solid var(--border-color); background:rgba(0,0,0,0.25);">
+            <button type="button" class="btn btn-small" style="font-size:0.78rem; padding:4px 12px; border:none; border-radius:0; ${this.filterCaseStatus === 'done' ? 'background:#10b981; color:#fff; font-weight:700;' : 'background:transparent; color:var(--text-muted); cursor:pointer;'}" onclick="Advances.setCaseStatusFilter('done')" title="請求・回収対象となる完了・納品案件のみを集計（帳簿の売掛金と完全一致）">✅ 完了案件のみ（請求対象: ${doneCount}件）</button>
+            <button type="button" class="btn btn-small" style="font-size:0.78rem; padding:4px 12px; border:none; border-radius:0; ${this.filterCaseStatus === 'all' ? 'background:#2563eb; color:#fff; font-weight:700;' : 'background:transparent; color:var(--text-muted); cursor:pointer;'}" onclick="Advances.setCaseStatusFilter('all')" title="受付・申請中など進行中を含む全案件を集計（見込み含む）">📋 全案件（進行中含む見込: ${allCount}件）</button>
+          </div>
+        </div>
+        <div style="font-size:0.78rem; color:var(--text-muted);">
+          ${this.filterCaseStatus === 'done' ? '✨ 帳簿・試算表の売掛金残高と完全一致しています' : '⚠️ 進行中（未完了）の案件報酬も含まれます'}
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px;">
         <div class="stat-card" style="border-left:4px solid var(--accent-gold);">
-          <div class="stat-label">未回収 立替金 総額</div>
+          <div class="stat-label">未回収 立替金 総額 ${this.filterCaseStatus === 'done' ? '(完了分)' : '(全件)'}</div>
           <div class="stat-number" style="color:var(--accent-gold);">¥${totalUnpaidAdvance.toLocaleString()}</div>
           <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">証紙・ナンバー・税金等の未回収実費</div>
         </div>
         <div class="stat-card" style="border-left:4px solid var(--primary-color);">
-          <div class="stat-label">未回収 報酬額 総額</div>
+          <div class="stat-label">未回収 報酬額 総額 ${this.filterCaseStatus === 'done' ? '(完了売掛金)' : '(全件見込)'}</div>
           <div class="stat-number">¥${totalUnpaidFee.toLocaleString()}</div>
-          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">事務所の未回収報酬（売掛金計）</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">${this.filterCaseStatus === 'done' ? '帳簿売掛金と一致（完了・納品済）' : '進行中を含む事務所報酬計'}</div>
         </div>
         <div class="stat-card" style="border-left:4px solid #ef4444;">
           <div class="stat-label">滞留（回収遅延）案件</div>
@@ -271,6 +319,7 @@ const Advances = {
           ${renderGroupCard(groups.fuso)}
           ${renderGroupCard(groups.nissan)}
           ${renderGroupCard(groups.other)}
+          ${groups.unassigned && groups.unassigned.cases > 0 ? renderGroupCard(groups.unassigned, true) : ''}
         </div>
       </div>
     `;
@@ -317,8 +366,9 @@ const Advances = {
       `;
     }
 
-    const client = clients.find(cl => cl.id == this.selectedClientId);
-    const clientName = client ? (client.companyName || client.name) : '取引先';
+    const isUnassigned = this.selectedClientId === 'unassigned';
+    const client = !isUnassigned ? clients.find(cl => String(cl.id) === String(this.selectedClientId)) : null;
+    const clientName = isUnassigned ? '⚠️ 得意先未入力の案件' : (client ? (client.companyName || client.name) : '取引先');
 
     // 案件リスト
     const activeCases = targetCases.filter(c => c.status !== 'done');
@@ -326,17 +376,30 @@ const Advances = {
 
     return `
       <div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border-color);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border-color); flex-wrap:wrap; gap:8px;">
           <div>
-            <h2 style="margin:0; font-size:1.15rem;">🏢 ${clientName}</h2>
+            <h2 style="margin:0; font-size:1.15rem; color:${isUnassigned ? '#ef4444' : 'inherit'};">🏢 ${clientName}</h2>
             <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-              登録案件数: ${targetCases.length}件 （未処理: ${activeCases.length}件）
+              対象案件数: ${targetCases.length}件 （完了済: ${doneCases.length}件 / 未完了: ${activeCases.length}件）
             </div>
           </div>
-          <button class="btn btn-primary btn-small" onclick="Advances.showBulkPaymentModal('${this.selectedClientId}')">
-            💳 この取引先を一括消し込み
-          </button>
+          ${!isUnassigned ? `
+            <button class="btn btn-primary btn-small" onclick="Advances.showBulkPaymentModal('${this.selectedClientId}')">
+              💳 この取引先を一括消し込み
+            </button>
+          ` : `
+            <span style="font-size:0.75rem; color:#f87171; background:rgba(239,68,68,0.1); padding:4px 8px; border-radius:4px; font-weight:600;">
+              ※下の表のプルダウンから取引先（店舗）を設定できます
+            </span>
+          `}
         </div>
+
+        ${isUnassigned ? `
+          <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.25); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:0.825rem; color:#f87171;">
+            💡 <strong>得意先（店舗）が未設定の案件一覧です</strong><br>
+            各行の「取引先を設定」から店舗を選択すると、該当のディーラーグループ（愛知トヨタや三菱ふそう等）へ即時自動分類・合算されます。
+          </div>
+        ` : ''}
 
         <div class="table-container">
           <table class="data-table" style="font-size:0.825rem;">
@@ -417,6 +480,14 @@ const Advances = {
         <td>
           <div style="font-weight:600;">${c.title}</div>
           <div style="font-size:0.75rem; color:var(--text-muted);">${c.category || ''}</div>
+          ${!c.clientId || this.selectedClientId === 'unassigned' ? `
+            <div style="margin-top:6px;">
+              <select class="form-control" style="font-size:0.75rem; padding:3px 6px; height:auto; background:rgba(245,158,11,0.15); border:1.5px solid #f59e0b; color:var(--text-color); font-weight:600;" onchange="Store.updateCase('${c.id}', { clientId: this.value }); App.refreshView(); App.showToast('✅ 取引先を設定しました！');">
+                <option value="">— 店舗・取引先を設定 —</option>
+                ${Store.getClients().map(cl => `<option value="${cl.id}">${cl.companyName || cl.name}</option>`).join('')}
+              </select>
+            </div>
+          ` : ''}
         </td>
         <td style="${feeStyle}">¥${fee.toLocaleString()}</td>
         <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ${advStyle}" title="${advanceDetails}">
