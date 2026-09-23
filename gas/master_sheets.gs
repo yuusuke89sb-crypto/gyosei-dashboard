@@ -58,7 +58,7 @@ const CASE_HEADERS = [
   '登録予定日', '顧客担当者ID',
   '申請者名', '使用の本拠住所', '保管場所住所', '所轄警察署', '車台番号',
   'DriveフォルダURL', '登録種別', '立替金', '進捗ステップ', 'インボックスID', 'FAX_ID', '添付書類',
-  '自動車登録番号', '旧自動車登録番号', '封印事由'
+  '自動車登録番号', '旧自動車登録番号', '封印事由', '中古車区分'
 ];
 
 const JOURNAL_HEADERS = [
@@ -1076,7 +1076,8 @@ function getKeyMap_(sheetName) {
     '自動車登録番号': 'carNumber','新自動車登録番号': 'carNumber','登録番号': 'carNumber','新ナンバー': 'carNumber','carNumber': 'carNumber',
     '旧自動車登録番号': 'oldCarNumber','旧登録番号': 'oldCarNumber','旧ナンバー': 'oldCarNumber','oldCarNumber': 'oldCarNumber',
     '封印事由': 'regType','登録区分': 'regType','登録種別区分': 'regType','regType': 'regType',
-    'DriveフォルダURL': 'driveFolderUrl','登録種別': 'subCategory','立替金': 'advances','進捗ステップ': 'milestoneIndex','インボックスID': 'inboxId','FAX_ID': 'faxId','添付書類': 'docs'
+    'DriveフォルダURL': 'driveFolderUrl','登録種別': 'subCategory','立替金': 'advances','進捗ステップ': 'milestoneIndex','インボックスID': 'inboxId','FAX_ID': 'faxId','添付書類': 'docs',
+    '中古車区分': 'isUsedCar'
   };
   if (sheetName === SHEET_NAMES.JOURNALS) return {'伝票ID': 'id','日付': 'date','借方': 'debit','貸方': 'credit','金額': 'amount','摘要': 'description','案件ID': 'caseId','自動': 'auto','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.INBOX) return {'インボックスID': 'id','日時': 'date','種別': 'type','送信元': 'sender','件名': 'subject','本文': 'body','添付ファイル': 'attachments','ステータス': 'status','案件ID': 'caseId','登録日': 'createdAt'};

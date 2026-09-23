@@ -189,6 +189,9 @@ const SpreadsheetSync = {
                             : (localCase && localCase.milestoneIndex) !== undefined && (localCase && localCase.milestoneIndex) !== ''
                                 ? Number(localCase.milestoneIndex)
                                 : 0,
+                        isUsedCar: remoteCase.isUsedCar !== undefined
+                            ? (remoteCase.isUsedCar === true || remoteCase.isUsedCar === 'true' || remoteCase.isUsedCar === '○')
+                            : !!(localCase && localCase.isUsedCar),
                         familyTreeData: parsedFamilyTree || null,
                     };
                 });

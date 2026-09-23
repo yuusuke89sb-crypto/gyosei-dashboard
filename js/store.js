@@ -274,6 +274,7 @@ const Store = {
       carNumber: data.carNumber || '',           // 自動車登録番号（新ナンバー）
       oldCarNumber: data.oldCarNumber || '',     // 旧登録番号（旧ナンバー / 返納対象）
       carPolice: data.carPolice || '',           // 所轄警察署
+      isUsedCar: !!data.isUsedCar,              // 中古車フラグ
       driveFolderUrl: data.driveFolderUrl || '', // Google DriveフォルダURL
       subCategory: data.subCategory || '',       // 登録種別
       regType: data.regType || '',               // 登録種別/封印事由（new | transfer | change | reseal | plate_change）
