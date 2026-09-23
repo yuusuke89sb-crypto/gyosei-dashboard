@@ -2362,6 +2362,9 @@ const Cases = {
     if (this.editingId) {
       const existing = Store.getCase(this.editingId);
       initialDocs = (existing && Array.isArray(existing.docs)) ? [...existing.docs] : [];
+      if (existing && existing.detachedDocIds) {
+        data.detachedDocIds = existing.detachedDocIds;
+      }
     }
     const incomingAtts = this.getSelectedAttachments();
     if (incomingAtts.length > 0) {

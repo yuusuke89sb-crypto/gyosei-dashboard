@@ -110,21 +110,50 @@ const CaseDocs = {
     });
   },
 
-  // ─── Drive からファイルを削除 ─────────────────────────────
+  // ─── Drive からファイルを削除 / 案件から添付を解除 ─────────────────────────────
   async delete(caseId, docId) {
     const c = Store.getCase(caseId);
     if (!c) return;
-    const doc = (c.docs || []).find(d => d.id === docId);
+
+    // c.docs または inbox 添付から対象を検索
+    let doc = (c.docs || []).find(d => d.id === docId);
+    if (!doc && c.inboxId && typeof Store.getInbox === 'function') {
+      const inb = Store.getInbox().find(i => i.id === c.inboxId);
+      if (inb && Array.isArray(inb.attachments)) {
+        const att = inb.attachments.find((a, idx) => ('inb_' + (a.id || idx)) === docId || a.id === docId);
+        if (att) {
+          doc = {
+            id: docId,
+            name: att.name || '受信添付書類',
+            driveUrl: att.url || '',
+            source: 'inbox'
+          };
+        }
+      }
+    }
+    if (!doc) {
+      doc = (c.docs || []).find(d => d.name === docId || d.driveUrl === docId);
+    }
     if (!doc) return;
 
-    if (!confirm(`「${doc.name}」を削除しますか？\nDriveからも削除されます。`)) return;
+    const isInbox = doc.source === 'inbox' || String(docId).startsWith('inb_');
+    const confirmMsg = isInbox
+      ? `「${doc.name}」をこの案件から解除・削除しますか？\n（※受信インボックスの元データは保護されます）`
+      : `「${doc.name}」を削除しますか？\nDriveからも削除されます。`;
+
+    if (!confirm(confirmMsg)) return;
 
     // ローカルから削除
-    const docs = (c.docs || []).filter(d => d.id !== docId);
-    Store.updateCase(caseId, { docs });
+    const docs = (c.docs || []).filter(d => d.id !== docId && d.name !== doc.name);
+    const detachedDocIds = Array.isArray(c.detachedDocIds) ? [...c.detachedDocIds] : [];
+    if (!detachedDocIds.includes(docId)) detachedDocIds.push(docId);
+    if (doc.name && !detachedDocIds.includes(doc.name)) detachedDocIds.push(doc.name);
+    if (doc.driveUrl && !detachedDocIds.includes(doc.driveUrl)) detachedDocIds.push(doc.driveUrl);
 
-    // Drive からも削除（失敗しても継続）
-    if (doc.driveId && SpreadsheetSync.isConfigured()) {
+    Store.updateCase(caseId, { docs, detachedDocIds });
+
+    // Drive からも削除（通常アップロード書類でdriveIdがある場合のみ）
+    if (!isInbox && doc.driveId && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('deleteCaseDocument', { fileId: doc.driveId }).catch(() => {});
     }
 
@@ -133,40 +162,46 @@ const CaseDocs = {
     if (el) el.remove();
     const listEl = document.getElementById(`docsList_${caseId}`);
     if (listEl && !listEl.querySelector('.doc-item')) {
-      listEl.innerHTML = '<div class="docs-empty">書類が添付されていません</div>';
+      listEl.innerHTML = '<div class="docs-empty" style="text-align:center; padding:12px; color:var(--text-muted); font-size:0.8rem;">まだ書類・画像は添付されていません</div>';
     }
     // カウント更新
     const countEl = document.getElementById(`docsCount_${caseId}`);
-    if (countEl) countEl.textContent = (docs.length) + '件';
+    if (countEl) {
+      const currentItems = listEl ? listEl.querySelectorAll('.doc-item').length : docs.length;
+      countEl.textContent = currentItems + '件';
+    }
 
-    App.showToast(`🗑️ ${doc.name} を削除しました`);
+    App.showToast(`🗑️ ${doc.name} を削除・解除しました`);
   },
 
   // ─── 書類パネルを描画（案件編集モーダル内） ───────────────
   renderPanel(caseId) {
     const c = Store.getCase(caseId);
-    let docs = Array.isArray(c?.docs) ? [...c.docs] : [];
+    const detached = Array.isArray(c?.detachedDocIds) ? c.detachedDocIds : [];
+    let docs = Array.isArray(c?.docs) ? c.docs.filter(d => !detached.includes(d.id) && !detached.includes(d.name) && !detached.includes(d.driveUrl)) : [];
 
-    // インボックスやFAX由来の添付ファイルがあれば自動マージして一覧に含める
-    if (c) {
-      if (c.inboxId && typeof Store.getInbox === 'function') {
-        const inb = Store.getInbox().find(i => i.id === c.inboxId);
-        if (inb && Array.isArray(inb.attachments)) {
-          inb.attachments.forEach((att, idx) => {
-            const attName = att.name || '受信添付書類';
-            if (!docs.some(d => d.name === attName || (d.driveUrl && att.url && d.driveUrl === att.url))) {
-              docs.push({
-                id: 'inb_' + (att.id || idx),
-                name: attName,
-                driveUrl: att.url || '',
-                mimeType: att.mimeType || (attName.toLowerCase().endsWith('.tif') ? 'image/tiff' : (attName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')),
-                size: att.size || 0,
-                uploadedAt: inb.date || new Date().toISOString(),
-                source: 'inbox'
-              });
-            }
-          });
-        }
+    // インボックスやFAX由来の添付ファイルがあれば自動マージして一覧に含める（ただし解除済みのものは除外）
+    if (c && c.inboxId && typeof Store.getInbox === 'function') {
+      const inb = Store.getInbox().find(i => i.id === c.inboxId);
+      if (inb && Array.isArray(inb.attachments)) {
+        inb.attachments.forEach((att, idx) => {
+          const attId = 'inb_' + (att.id || idx);
+          const attName = att.name || '受信添付書類';
+          if (detached.includes(attId) || detached.includes(att.id) || detached.includes(attName) || (att.url && detached.includes(att.url))) {
+            return; // 解除済みはスキップ
+          }
+          if (!docs.some(d => d.name === attName || (d.driveUrl && att.url && d.driveUrl === att.url))) {
+            docs.push({
+              id: attId,
+              name: attName,
+              driveUrl: att.url || '',
+              mimeType: att.mimeType || (attName.toLowerCase().endsWith('.tif') ? 'image/tiff' : (attName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')),
+              size: att.size || 0,
+              uploadedAt: inb.date || new Date().toISOString(),
+              source: 'inbox'
+            });
+          }
+        });
       }
     }
     const hasGas = SpreadsheetSync.isConfigured();
@@ -258,7 +293,7 @@ const CaseDocs = {
             ? `<a class="btn btn-secondary btn-small" href="${doc.driveUrl}" target="_blank" style="font-size:0.75rem; padding:2px 8px; text-decoration:none;" title="Driveで開く / 閲覧">🔗 閲覧</a>`
             : ''
           }
-          ${!isInbox ? `<button type="button" class="btn btn-small" style="color:#ef4444; border:1px solid rgba(239,68,68,0.3); background:none; padding:2px 6px;" onclick="CaseDocs.delete('${caseId}', '${doc.id}')" title="削除">🗑️</button>` : ''}
+          <button type="button" class="btn btn-small" style="color:#ef4444; border:1px solid rgba(239,68,68,0.3); background:none; padding:2px 6px; cursor:pointer;" onclick="CaseDocs.delete('${caseId}', '${doc.id}')" title="${isInbox ? 'この案件から添付を解除・削除' : '削除'}">🗑️</button>
         </div>
       </div>
     `;
