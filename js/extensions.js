@@ -450,17 +450,37 @@ const CaseTemplates = {
       return;
     }
 
-    // ★所轄で単価が変わるのは「車庫証明（一般）」のみ！警察署が選択済みの場合は警察署単価を適用
+    // ★所轄で単価が変わるのは「車庫証明（一般）」のみ！かつ「愛知トヨタ」のみ自動適用
     if (category === 'garage_paper') {
-      const polSel = document.getElementById('csf_policeLocationId');
-      const polId = polSel ? polSel.value : '';
-      if (polId && typeof Store !== 'undefined' && Store.getLocation) {
-        const loc = Store.getLocation(polId);
-        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
-          feeEl.value = loc.syakoFee;
-          this._lastAppliedCategory = category;
-          return;
+      const clientEl = document.getElementById('csf_clientId');
+      const curClientId = clientEl ? clientEl.value : '';
+      const isAichiToyota = (typeof Store !== 'undefined' && Store.isAichiToyotaClient)
+        ? Store.isAichiToyotaClient(curClientId)
+        : (typeof Cases !== 'undefined' && Cases._isAichiToyotaSelected ? Cases._isAichiToyotaSelected() : false);
+
+      if (isAichiToyota) {
+        const polSel = document.getElementById('csf_policeLocationId');
+        const polId = polSel ? polSel.value : '';
+        if (polId && typeof Store !== 'undefined' && Store.getLocation) {
+          const loc = Store.getLocation(polId);
+          if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+            feeEl.value = loc.syakoFee;
+            this._lastAppliedCategory = category;
+            return;
+          }
         }
+      } else {
+        // 愛知トヨタ以外（日産・三菱など他ディーラー）は手動入力前提のため、自動入力を行わない
+        if (typeof Cases !== 'undefined' && !Cases.editingId) {
+          const currentFee = feeEl ? feeEl.value : '';
+          const isTemplateFee = Object.values(this.TEMPLATES).some(t => String(t.fee) === currentFee) ||
+                                (typeof Store !== 'undefined' && Store.getLocations && Store.getLocations().some(l => String(l.syakoFee) === currentFee));
+          if (isTemplateFee) {
+            feeEl.value = '';
+          }
+        }
+        this._lastAppliedCategory = category;
+        return;
       }
     }
 
@@ -632,6 +652,10 @@ const CaseTemplates = {
         const isGaragePaper = cat === 'garage_paper' ||
                               ((title.includes('車庫') || memo.includes('車庫')) && !isOss);
         if (!isGaragePaper) return;
+
+        // ★一般車庫証明の警察署単価自動反映は愛知トヨタのみ！他ディーラー（日産・三菱等）は対象外として保護
+        const isToyota = (typeof Store.isToyotaCase === 'function') ? Store.isToyotaCase(c) : (title + memo).includes('トヨタ');
+        if (!isToyota) return;
 
         const regDate = c.registeredAt || (c.createdAt ? String(c.createdAt).slice(0, 10) : '');
         // 9月請求対象（2026-08-26以降）または未完了案件、またはforceAll時

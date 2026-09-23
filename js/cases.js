@@ -1802,6 +1802,35 @@ const Cases = {
         if (opt) sel.value = opt.value;
       }
     }
+
+    // 顧客切り替え時の車庫証明報酬（一般）の連動制御
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+    if (cat === 'garage_paper' && !this.editingId) {
+      const isToyota = this._isAichiToyotaSelected();
+      const feeEl = document.getElementById('csf_fee');
+      if (isToyota) {
+        // 愛知トヨタの場合、警察署が選択済みならマスタ単価を自動反映
+        const polEl = document.getElementById('csf_policeLocationId');
+        if (polEl && polEl.value && typeof Store !== 'undefined' && Store.getLocation) {
+          const loc = Store.getLocation(polEl.value);
+          if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && feeEl) {
+            feeEl.value = loc.syakoFee;
+          }
+        }
+      } else {
+        // 愛知トヨタ以外（日産・三菱など）の場合、トヨタ由来の単価が入っていたらクリアして手動入力可能にする
+        if (feeEl && feeEl.value) {
+          const val = feeEl.value;
+          const locs = (typeof Store !== 'undefined' && Store.getLocations) ? Store.getLocations() : [];
+          const isToyotaFee = val === '3500' || locs.some(l => String(l.syakoFee) === String(val));
+          if (isToyotaFee) {
+            feeEl.value = '';
+          }
+        }
+      }
+      this.updateFeeHint();
+    }
   },
 
   quickAddContact() {
@@ -2118,8 +2147,9 @@ const Cases = {
       const isGaragePaper = c.category === 'garage_paper';
       const isGarageOss = c.category === 'garage_oss';
       // 愛知トヨタの場合のみ警察署マスタ単価を自動補完（他の得意先は手動入力）
-      const editClient = c.clientId ? Store.getClient(c.clientId) : null;
-      const isAichiToyota = !!(editClient && editClient.name && editClient.name.includes('愛知トヨタ'));
+      const isAichiToyota = (typeof Store !== 'undefined' && Store.isAichiToyotaClient)
+        ? Store.isAichiToyotaClient(c.clientId)
+        : !!(c.clientId && Store.getClient(c.clientId)?.name?.includes('愛知トヨタ'));
       if (isGaragePaper && resolvedPolId && typeof Store !== 'undefined' && isAichiToyota) {
         const loc = Store.getLocation(resolvedPolId);
         if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
@@ -2860,8 +2890,12 @@ const Cases = {
   _isAichiToyotaSelected() {
     const clientEl = document.getElementById('csf_clientId');
     if (!clientEl || !clientEl.value || typeof Store === 'undefined') return false;
+    if (typeof Store.isAichiToyotaClient === 'function') {
+      return Store.isAichiToyotaClient(clientEl.value);
+    }
     const client = Store.getClient(clientEl.value);
-    return !!(client && client.name && client.name.includes('愛知トヨタ'));
+    const name = client ? ((client.companyName || '') + ' ' + (client.name || '') + ' ' + (client.tradeName || '')) : '';
+    return name.includes('愛知トヨタ');
   },
 
   // 所轄警察署（csf_carPolice）セレクトボックス変更時ハンドラ
@@ -2946,14 +2980,23 @@ const Cases = {
     }
     const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
     if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && cat === 'garage_paper') {
-      const currentFee = document.getElementById('csf_fee')?.value;
-      const isDiff = Number(currentFee) !== Number(loc.syakoFee);
-      hintEl.innerHTML = `
-        <span style="color:var(--text-secondary); font-size:0.75rem;">
-          📍 警察署マスタ: <strong style="color:var(--accent-primary, #4f46e5)">¥${Number(loc.syakoFee).toLocaleString()}</strong>
-        </span>
-        ${isDiff ? `<button type="button" class="btn btn-secondary btn-small" style="font-size:0.68rem; padding:1px 6px; margin-left:4px;" onclick="Cases.applyPoliceFeeToForm(${loc.syakoFee})">最新単価を適用</button>` : ' <span style="color:#10b981; font-size:0.72rem;">✓ 反映済</span>'}
-      `;
+      const isToyota = this._isAichiToyotaSelected();
+      if (isToyota) {
+        const currentFee = document.getElementById('csf_fee')?.value;
+        const isDiff = Number(currentFee) !== Number(loc.syakoFee);
+        hintEl.innerHTML = `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            📍 警察署マスタ: <strong style="color:var(--accent-primary, #4f46e5)">¥${Number(loc.syakoFee).toLocaleString()}</strong>
+          </span>
+          ${isDiff ? `<button type="button" class="btn btn-secondary btn-small" style="font-size:0.68rem; padding:1px 6px; margin-left:4px;" onclick="Cases.applyPoliceFeeToForm(${loc.syakoFee})">最新単価を適用</button>` : ' <span style="color:#10b981; font-size:0.72rem;">✓ 反映済</span>'}
+        `;
+      } else {
+        hintEl.innerHTML = `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            🏷️ 愛知トヨタ外（店舗別個別単価のため手動入力）
+          </span>
+        `;
+      }
     } else {
       hintEl.innerHTML = '';
     }
@@ -2965,6 +3008,12 @@ const Cases = {
     if (cat === 'garage_oss') {
       if (typeof App !== 'undefined' && App.showToast) {
         App.showToast('ℹ️ 車庫証明（OSS）は警察署出頭がないため、所轄単価ではなく一律3,500円が適用されます');
+      }
+      return;
+    }
+    if (!this._isAichiToyotaSelected()) {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('ℹ️ 警察署単価の自動反映は愛知トヨタ専用です（他の得意先は手動入力してください）');
       }
       return;
     }
@@ -3007,6 +3056,16 @@ const Cases = {
           this.onPoliceLocationChange(polEl.value);
         } else {
           this.onAddressInput('', 'parkingAddress');
+        }
+      } else {
+        // 愛知トヨタ以外（日産等）に切り替えた場合、もしテンプレート単価が入っていればクリア
+        if (!this.editingId) {
+          const feeEl = document.getElementById('csf_fee');
+          if (feeEl && feeEl.value) {
+            const locs = (typeof Store !== 'undefined' && Store.getLocations) ? Store.getLocations() : [];
+            const isToyotaFee = feeEl.value === '3500' || locs.some(l => String(l.syakoFee) === String(feeEl.value));
+            if (isToyotaFee) feeEl.value = '';
+          }
         }
       }
     } else if (category === 'garage_oss') {

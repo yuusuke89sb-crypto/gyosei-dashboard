@@ -1019,6 +1019,15 @@ const Store = {
     return name.includes('トヨタ') || name.includes('TOYOTA') || name.includes('WEST') || name.includes('キャラット');
   },
 
+  // 愛知トヨタ系列顧客判定（車庫証明一般の警察署単価自動反映用）
+  isAichiToyotaClient(clientId) {
+    if (!clientId) return false;
+    const client = this.getClient(clientId);
+    if (!client) return false;
+    const name = ((client.companyName || '') + ' ' + (client.name || '') + ' ' + (client.tradeName || ''));
+    return name.includes('愛知トヨタ');
+  },
+
   // トヨタ関連案件判定
   isToyotaCase(c) {
     if (!c) return false;
