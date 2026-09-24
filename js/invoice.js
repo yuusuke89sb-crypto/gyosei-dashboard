@@ -299,9 +299,16 @@ const Invoice = {
             </div>
             <div id="invoicePreviewInfoNew" style="margin:12px 0;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.85rem"></div>
             
-            <div class="form-actions">
-              <button class="btn btn-secondary" onclick="Invoice.showOfficeSettings()">🏢 事務所情報</button>
-              <button class="btn btn-primary" id="generateInvoiceBtn" onclick="Invoice.generateNew('${clientId}', '${docType}')" ${unbilledCases.length === 0 ? 'disabled' : ''}>📄 印刷プレビュー・発行</button>
+            <div class="form-actions" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+              <label style="font-size:0.85rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:600; color:var(--text-primary);">
+                <input type="checkbox" id="invoiceExportExcel" checked style="width:16px;height:16px;cursor:pointer;">
+                📊 発行時にExcel（.xlsx）も同時に出力
+              </label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button type="button" class="btn btn-secondary" onclick="Invoice.showOfficeSettings()">🏢 事務所情報</button>
+                <button type="button" class="btn btn-secondary" id="exportExcelOnlyBtn" onclick="Invoice.generateNewExcelOnly('${clientId}', '${docType}')" ${unbilledCases.length === 0 ? 'disabled' : ''} title="印刷画面を開かずExcelファイルのみ出力します">📊 Excelのみ出力</button>
+                <button type="button" class="btn btn-primary" id="generateInvoiceBtn" onclick="Invoice.generateNew('${clientId}', '${docType}')" ${unbilledCases.length === 0 ? 'disabled' : ''}>📄 印刷プレビュー・発行</button>
+              </div>
             </div>
           </div>
 
@@ -324,10 +331,11 @@ const Invoice = {
                 ${hasPastInvoices ? pastInvoicesHtml : '<option value="">過去の請求書はありません</option>'}
               </select>
             </div>
-            <div class="form-actions" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div class="form-actions" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
               <button type="button" class="btn btn-danger" id="cancelInvoiceBtn" onclick="Invoice.cancelInvoice('${clientId}')" disabled style="background:#dc2626; color:#fff; font-weight:bold;">🗑️ この請求書を取り消す（未請求に戻す）</button>
-              <div style="display:flex; gap:8px;">
+              <div style="display:flex; gap:8px; align-items:center;">
                 <button type="button" class="btn btn-secondary" onclick="Invoice.showOfficeSettings()">🏢 事務所情報</button>
+                <button type="button" class="btn btn-secondary" id="reprintExcelBtn" onclick="Invoice.generateReprintExcel('${clientId}')" disabled title="過去の請求書をExcel形式でダウンロードします">📊 Excelで出力</button>
                 <button type="button" class="btn btn-primary" id="reprintInvoiceBtn" onclick="Invoice.generateReprint('${clientId}')" disabled>📄 再印刷する</button>
               </div>
             </div>
@@ -504,6 +512,7 @@ const Invoice = {
   updatePreview(clientId) {
     const info = document.getElementById('invoicePreviewInfoNew');
     const btn = document.getElementById('generateInvoiceBtn');
+    const excelBtn = document.getElementById('exportExcelOnlyBtn');
     if (!info) return;
 
     const checkboxes = document.querySelectorAll('.case-checkbox:checked');
@@ -512,9 +521,11 @@ const Invoice = {
     if (selectedIds.length === 0) {
       info.innerHTML = '<span style="color:var(--text-muted)">案件が選択されていません</span>';
       if (btn) btn.disabled = true;
+      if (excelBtn) excelBtn.disabled = true;
       return;
     }
     if (btn) btn.disabled = false;
+    if (excelBtn) excelBtn.disabled = false;
 
     const allCases = Store.getCasesByClient(clientId);
     const cases = allCases.filter(c => selectedIds.includes(c.id));
@@ -547,16 +558,19 @@ const Invoice = {
   updateReprintPreview(clientId) {
     const info = document.getElementById('invoicePreviewInfoReprint');
     const btn = document.getElementById('reprintInvoiceBtn');
+    const excelBtn = document.getElementById('reprintExcelBtn');
     const cancelBtn = document.getElementById('cancelInvoiceBtn');
     const invoiceNo = document.getElementById('reprintInvoiceNo') ? document.getElementById('reprintInvoiceNo').value : '';
     
     if (!invoiceNo) {
       if (info) info.innerHTML = '';
       if (btn) btn.disabled = true;
+      if (excelBtn) excelBtn.disabled = true;
       if (cancelBtn) cancelBtn.disabled = true;
       return;
     }
     if (btn) btn.disabled = false;
+    if (excelBtn) excelBtn.disabled = false;
     if (cancelBtn) cancelBtn.disabled = false;
 
     const cases = this.getBilledCases(clientId, invoiceNo);
@@ -604,7 +618,7 @@ const Invoice = {
   },
 
   // 新規に請求書・見積書を発行する
-  generateNew(clientId, docType = 'invoice') {
+  async generateNew(clientId, docType = 'invoice') {
     const checkboxes = document.querySelectorAll('.case-checkbox:checked');
     const selectedIds = Array.from(checkboxes).map(cb => cb.value);
     
@@ -673,13 +687,16 @@ const Invoice = {
         .filter(Boolean)
     )];
 
-    const html = this.buildInvoiceHTML({
+    const invoiceParams = {
       invoiceNo, issueDate, dueDate, year, month,
       client, office, cases, CATS,
       feeSubtotal, tax, taxRate, advanceTotal, total, note,
       docType, contactNames, templateType
-    });
+    };
 
+    const html = this.buildInvoiceHTML(invoiceParams);
+
+    // 1. ポップアップブロック防止のため、印刷プレビュー画面を同期的にオープン
     try {
       const win = window.open('', '_blank');
       if (win) {
@@ -704,6 +721,16 @@ const Invoice = {
       alert('印刷画面を開けませんでした: ' + err.message);
     }
 
+    // 2. チェックされている場合、Excel形式の請求書も同時に自動ダウンロード
+    const exportExcelCb = document.getElementById('invoiceExportExcel');
+    if (!exportExcelCb || exportExcelCb.checked) {
+      try {
+        await this.exportToExcel(invoiceParams);
+      } catch (excelErr) {
+        console.error('Excel生成エラー:', excelErr);
+      }
+    }
+
     const modal = document.getElementById('invoiceSelectModal');
     if (modal) modal.remove();
     
@@ -715,9 +742,108 @@ const Invoice = {
       if (typeof Payments !== 'undefined') {
         Payments.createFromInvoice(invoiceNo, clientId, total, dueDate, taxRate);
       }
-      App.showToast(`請求書 ${invoiceNo} を発行しました`);
+      App.showToast(`請求書 ${invoiceNo} を発行しました（Excelも出力済）`);
     } else {
       App.showToast(`見積書 ${invoiceNo} を作成しました`);
+    }
+  },
+
+  // Excelのみ新規出力（印刷プレビューを開かない）
+  async generateNewExcelOnly(clientId, docType = 'invoice') {
+    const checkboxes = document.querySelectorAll('.case-checkbox:checked');
+    const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (selectedIds.length === 0) {
+      App.showToast('対象の案件が選択されていません');
+      return;
+    }
+
+    const allCases = Store.getCasesByClient(clientId);
+    const cases = allCases.filter(c => selectedIds.includes(c.id));
+    const client = Store.getClient(clientId);
+    const office = this.getOfficeInfo();
+    const issueDate = document.getElementById('invoiceDate').value;
+    const dueDate = docType === 'estimate' ? '' : document.getElementById('invoiceDueDate').value;
+    const taxRate = parseInt(document.getElementById('invoiceTaxRate').value) || 10;
+    let note = (document.getElementById('invoiceNote').value || '').trim();
+    const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
+    if (isAllUsed && !note.includes('中古車分')) {
+      note = note ? `${note}（中古車分）` : '（中古車分）';
+    }
+    const templateType = document.getElementById('invoiceTemplateType')
+      ? document.getElementById('invoiceTemplateType').value
+      : (this.detectTemplate(client) || 'standard');
+    const periodKey = document.getElementById('invoiceBillingPeriod') ? document.getElementById('invoiceBillingPeriod').value : '';
+    let year, month;
+    if (periodKey && periodKey !== 'all') {
+      const parts = periodKey.split('-');
+      year = parseInt(parts[0]);
+      month = parseInt(parts[1]);
+    } else {
+      const curP = this.getCurrentBillingPeriod();
+      year = curP.year;
+      month = curP.month;
+    }
+    let invoiceNo = this.generateInvoiceNumber(clientId, year, month);
+    if (docType === 'estimate') {
+      invoiceNo = invoiceNo.replace('INV-', 'EST-');
+    }
+
+    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
+    const tax = Math.floor(feeSubtotal * taxRate / 100);
+    const advanceTotal = cases.reduce((sum, c) =>
+      sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
+    const total = feeSubtotal + tax + advanceTotal;
+
+    const CATS = { 
+      garage_oss: '車庫証明(OSS)', 
+      garage_paper: '車庫証明(一般)', 
+      seal: '出張封印', 
+      car_reg_standard: '普通車登録', 
+      car_reg_light: '軽自動車登録',
+      inheritance: '相続・遺言',
+      permit: '許認可'
+    };
+
+    const contactNames = [...new Set(
+      cases
+        .filter(c => c.clientContactId)
+        .map(c => {
+          const ct = Store.getClientContact(c.clientContactId);
+          return ct ? ct.name : null;
+        })
+        .filter(Boolean)
+    )];
+
+    const markBilled = confirm(`📊 Excelファイルを出力します。\n\n対象の案件(${cases.length}件)を「請求済み（売掛金計上）」として処理しますか？\n・[OK]：請求書番号（${invoiceNo}）を付番して請求済みに登録し、Excelを出力\n・[キャンセル]：未請求のまま、確認用下書きExcelのみ出力`);
+
+    if (markBilled) {
+      if (docType === 'invoice') {
+        cases.forEach(c => {
+          Store.updateCase(c.id, { invoiceNo: invoiceNo });
+        });
+
+        if (typeof Payments !== 'undefined') {
+          Payments.createFromInvoice(invoiceNo, clientId, total, dueDate, taxRate);
+        }
+      }
+      const modal = document.getElementById('invoiceSelectModal');
+      if (modal) modal.remove();
+      App.refreshView();
+    }
+
+    try {
+      await this.exportToExcel({
+        invoiceNo: markBilled ? invoiceNo : `${invoiceNo}(下書)`,
+        issueDate, dueDate, year, month,
+        client, office, cases, CATS,
+        feeSubtotal, tax, taxRate, advanceTotal, total, note,
+        docType, contactNames, templateType
+      });
+      App.showToast(`📊 ${docType === 'estimate' ? '御見積書' : '請求書'} ${invoiceNo} のExcelファイルを出力しました`);
+    } catch (excelErr) {
+      console.error('Excel生成エラー:', excelErr);
+      alert('Excel生成でエラーが発生しました: ' + excelErr.message);
     }
   },
 
@@ -812,6 +938,77 @@ const Invoice = {
     const modal = document.getElementById('invoiceSelectModal');
     if (modal) modal.remove();
     App.showToast(`請求書 ${invoiceNo} を再印刷しました`);
+  },
+
+  // 過去の請求書をExcelで出力（再印刷タブ）
+  async generateReprintExcel(clientId) {
+    const invoiceNo = document.getElementById('reprintInvoiceNo').value;
+    if (!invoiceNo) return;
+
+    const cases = this.getBilledCases(clientId, invoiceNo);
+    if (cases.length === 0) {
+      App.showToast('対象の案件が見つかりません');
+      return;
+    }
+
+    const client = Store.getClient(clientId);
+    const office = this.getOfficeInfo();
+    const templateType = document.getElementById('reprintTemplateType') ? document.getElementById('reprintTemplateType').value : 'standard';
+    
+    let dueDate = '';
+    let taxRate = 10;
+    let issueDate = Store.getLocalDateStr();
+    if (typeof Payments !== 'undefined') {
+      const p = Payments.getByClient(clientId).find(x => x.invoiceNo === invoiceNo);
+      if (p) {
+        if (p.dueDate) dueDate = p.dueDate;
+        if (p.taxRate !== undefined) taxRate = p.taxRate;
+      }
+    }
+
+    const match = invoiceNo.match(/INV-(\d{4})(\d{2})-/);
+    const year = match ? parseInt(match[1]) : new Date().getFullYear();
+    const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
+
+    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
+    const tax = Math.floor(feeSubtotal * taxRate / 100);
+    const advanceTotal = cases.reduce((sum, c) =>
+      sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
+    const total = feeSubtotal + tax + advanceTotal;
+
+    const CATS = { 
+      garage_oss: '車庫証明(OSS)', 
+      garage_paper: '車庫証明(一般)', 
+      seal: '出張封印', 
+      car_reg_standard: '普通車登録', 
+      car_reg_light: '軽自動車登録',
+      inheritance: '相続・遺言',
+      permit: '許認可'
+    };
+
+    const contactNames = [...new Set(
+      cases
+        .filter(c => c.clientContactId)
+        .map(c => {
+          const ct = Store.getClientContact(c.clientContactId);
+          return ct ? ct.name : null;
+        })
+        .filter(Boolean)
+    )];
+
+    try {
+      await this.exportToExcel({
+        invoiceNo, issueDate, dueDate, year, month,
+        client, office, cases, CATS,
+        feeSubtotal, tax, taxRate, advanceTotal, total, note: '（再発行）',
+        docType: invoiceNo.startsWith('EST-') ? 'estimate' : 'invoice',
+        contactNames, templateType
+      });
+      App.showToast(`📊 請求書 ${invoiceNo} のExcelファイルを出力しました`);
+    } catch (excelErr) {
+      console.error('Excel出力失敗:', excelErr);
+      alert('Excel出力に失敗しました: ' + excelErr.message);
+    }
   },
 
   // 請求書HTMLビルダー（様式に応じた分岐）
@@ -2654,6 +2851,1358 @@ window.NissanPrint = {
   ${note ? `<div style="font-size:12px; color:#475569; border-top:1px solid #e2e8f0; padding-top:8px;"><strong>備考：</strong> ${note}</div>` : ''}
 </body>
 </html>`;
+  },
+
+  // =========================================================================
+  // Excel出力機能（ExcelJS使用・計算式自動連動）
+  // =========================================================================
+  async exportToExcel(params) {
+    if (typeof ExcelJS === 'undefined') {
+      alert('Excel生成ライブラリ（ExcelJS）が読み込まれていません。');
+      return;
+    }
+
+    const wb = new ExcelJS.Workbook();
+    const office = params.office || this.getOfficeInfo();
+    wb.creator = office.name || '行政書士法人フェリス';
+    wb.lastModifiedBy = office.representative || '代表行政書士 日栄 政敏';
+    wb.created = new Date();
+    wb.modified = new Date();
+
+    const templateType = params.templateType || 'standard';
+    if (templateType === 'toyota') {
+      this.buildToyotaExcel(wb, params);
+    } else if (templateType === 'mitsubishi') {
+      this.buildMitsubishiExcel(wb, params);
+    } else if (templateType === 'nissan') {
+      this.buildNissanExcel(wb, params);
+    } else {
+      this.buildStandardExcel(wb, params);
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const client = params.client || {};
+    const clientName = (client.companyName || client.name || '御中').replace(/[\\/:*?"<>|]/g, '_');
+    const docLabel = params.docType === 'estimate' ? '御見積書' : '請求書';
+    const filename = `${docLabel}_${clientName}_${params.invoiceNo}.xlsx`;
+    this.downloadBlob(blob, filename);
+  },
+
+  downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1500);
+  },
+
+  _getExcelStyles() {
+    return {
+      fontTitle: { name: 'Yu Gothic', size: 16, bold: true, color: { argb: 'FF0F172A' } },
+      fontSec: { name: 'Yu Gothic', size: 11, bold: true, color: { argb: 'FF0F172A' } },
+      fontTh: { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+      fontCell: { name: 'Yu Gothic', size: 10, color: { argb: 'FF0F172A' } },
+      fontBold: { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FF0F172A' } },
+      fontSmall: { name: 'Yu Gothic', size: 9, color: { argb: 'FF64748B' } },
+      fillThNavy: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } },
+      fillThSlate: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } },
+      fillSubtotal: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } },
+      fillTotal: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } },
+      borderThin: {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      },
+      borderTotal: {
+        top: { style: 'thin', color: { argb: 'FF0F172A' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'double', color: { argb: 'FF0F172A' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      }
+    };
+  },
+
+  _autoFitColumns(ws, minWidth = 10, maxWidth = 50) {
+    ws.columns.forEach(column => {
+      let maxLen = 0;
+      column.eachCell({ includeEmpty: false }, cell => {
+        let val = cell.value;
+        if (val && typeof val === 'object') {
+          val = val.result !== undefined ? val.result : (val.text || '');
+        }
+        const str = String(val || '');
+        let len = 0;
+        for (let i = 0; i < str.length; i++) {
+          len += str.charCodeAt(i) > 255 ? 2 : 1;
+        }
+        if (len > maxLen) maxLen = len;
+      });
+      column.width = Math.min(Math.max(maxLen + 3, minWidth), maxWidth);
+    });
+  },
+
+  // 1. 愛知トヨタWEST様式 Excelビルダー
+  buildToyotaExcel(wb, { invoiceNo, issueDate, dueDate, client, office, cases, feeSubtotal, tax, advanceTotal, total, docType = 'invoice', note }) {
+    const S = this._getExcelStyles();
+    const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
+    const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
+    const reiwaYear = issueY ? parseInt(issueY, 10) - 2018 : 8;
+    const dateStr = `令和 ${reiwaYear} 年 ${parseInt(issueM || '1', 10)} 月 ${parseInt(issueD || '1', 10)} 日`;
+
+    // 業務集計
+    let garageCount = 0, garageFee = 0;
+    let sealCount = 0, sealFee = 0;
+    let otherCount = 0, otherFee = 0;
+    cases.forEach(c => {
+      const cat = c.category || '';
+      const title = c.title || '';
+      if (cat.includes('garage') || title.includes('車庫')) {
+        garageCount++; garageFee += Number(c.fee || 0);
+      } else if (cat.includes('seal') || title.includes('封印')) {
+        sealCount++; sealFee += Number(c.fee || 0);
+      } else {
+        otherCount++; otherFee += Number(c.fee || 0);
+      }
+    });
+
+    // 立替金集計
+    const advMap = {};
+    cases.forEach(c => {
+      (c.advances || []).forEach(a => {
+        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : 'その他実費'))));
+        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
+        const amt = Number(a.amount || 0);
+        if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
+        advMap[lbl].count++;
+        advMap[lbl].amount += amt;
+      });
+    });
+
+    // --- Sheet 1: 請求書(表紙) ---
+    const ws1 = wb.addWorksheet('請求書(表紙)');
+    ws1.views = [{ showGridLines: true }];
+    ws1.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    ws1.mergeCells('A1:E1');
+    const titleCell = ws1.getCell('A1');
+    titleCell.value = docType === 'estimate' ? '御　見　積　書' : '御　請　求　書';
+    titleCell.font = S.fontTitle;
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws1.getRow(1).height = 32;
+
+    ws1.mergeCells('A3:C3');
+    const recCell = ws1.getCell('A3');
+    recCell.value = `${clientName} 御中`;
+    recCell.font = { name: 'Yu Gothic', size: 14, bold: true };
+    recCell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+
+    ws1.getCell('D3').value = '請求番号:';
+    ws1.getCell('D3').alignment = { horizontal: 'right' };
+    ws1.getCell('E3').value = invoiceNo;
+    ws1.getCell('E3').font = S.fontBold;
+
+    ws1.getCell('D4').value = '発行日:';
+    ws1.getCell('D4').alignment = { horizontal: 'right' };
+    ws1.getCell('E4').value = dateStr;
+
+    if (dueDate && docType !== 'estimate') {
+      ws1.getCell('D5').value = 'お支払期日:';
+      ws1.getCell('D5').alignment = { horizontal: 'right' };
+      ws1.getCell('E5').value = `${dueDate.replace(/-/g, '/')} (翌月25日)`;
+      ws1.getCell('E5').font = { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+    }
+
+    // ご請求総額
+    ws1.mergeCells('A6:E6');
+    const claimHeader = ws1.getCell('A6');
+    claimHeader.value = docType === 'estimate' ? '御見積金額（税込）' : 'ご請求総額（税込）';
+    claimHeader.font = S.fontSec;
+    claimHeader.fill = S.fillSubtotal;
+    claimHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws1.getRow(6).height = 20;
+
+    // 後述の総合計セル(D23以降)を参照
+    const advKeys = Object.keys(advMap);
+    const advRowCount = advKeys.length > 0 ? advKeys.length : 1;
+    const subtotalRow = 14;
+    const taxRow = 15;
+    const feeTotalRow = 16;
+    const advStartRow = 17;
+    const advEndRow = advStartRow + advRowCount - 1;
+    const advTotalRow = advEndRow + 1;
+    const grandTotalRow = advTotalRow + 1;
+
+    ws1.mergeCells('A7:E8');
+    const claimVal = ws1.getCell('A7');
+    claimVal.value = { formula: `D${grandTotalRow}`, result: total };
+    claimVal.font = { name: 'Yu Gothic', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
+    claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
+    claimVal.fill = S.fillTotal;
+    claimVal.numFmt = '¥#,##0';
+    claimVal.border = S.borderTotal;
+
+    // サマリーテーブル
+    const headers1 = ['区分', '業務内容・項目', '件数', '金額（税抜）', '備考'];
+    ws1.getRow(10).height = 22;
+    headers1.forEach((h, idx) => {
+      const col = String.fromCharCode(65 + idx);
+      const c = ws1.getCell(`${col}10`);
+      c.value = h;
+      c.font = S.fontTh;
+      c.fill = S.fillThNavy;
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+      c.border = S.borderThin;
+    });
+
+    const summaryRows = [
+      ['書類作成業務', '車庫証明申請', garageCount, garageFee, ''],
+      ['', '出張封印', sealCount, sealFee, ''],
+      ['', '移転登録・その他', otherCount, otherFee, ''],
+    ];
+
+    summaryRows.forEach((r, idx) => {
+      const rNum = 11 + idx;
+      ws1.getCell(`A${rNum}`).value = r[0];
+      ws1.getCell(`B${rNum}`).value = r[1];
+      ws1.getCell(`C${rNum}`).value = r[2];
+      ws1.getCell(`C${rNum}`).alignment = { horizontal: 'center' };
+      ws1.getCell(`D${rNum}`).value = r[3];
+      ws1.getCell(`D${rNum}`).numFmt = '#,##0';
+      ws1.getCell(`D${rNum}`).alignment = { horizontal: 'right' };
+      ws1.getCell(`E${rNum}`).value = r[4];
+      ['A','B','C','D','E'].forEach(col => {
+        ws1.getCell(`${col}${rNum}`).border = S.borderThin;
+        ws1.getCell(`${col}${rNum}`).font = S.fontCell;
+      });
+    });
+
+    // 報酬小計
+    ws1.getCell(`A${subtotalRow}`).value = '';
+    ws1.getCell(`B${subtotalRow}`).value = '報酬小計';
+    ws1.getCell(`B${subtotalRow}`).font = S.fontBold;
+    ws1.getCell(`C${subtotalRow}`).value = { formula: 'SUM(C11:C13)', result: cases.length };
+    ws1.getCell(`C${subtotalRow}`).alignment = { horizontal: 'center' };
+    ws1.getCell(`C${subtotalRow}`).font = S.fontBold;
+    ws1.getCell(`D${subtotalRow}`).value = { formula: 'SUM(D11:D13)', result: feeSubtotal };
+    ws1.getCell(`D${subtotalRow}`).numFmt = '#,##0';
+    ws1.getCell(`D${subtotalRow}`).font = S.fontBold;
+    ws1.getCell(`D${subtotalRow}`).alignment = { horizontal: 'right' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}${subtotalRow}`).border = S.borderThin;
+      ws1.getCell(`${col}${subtotalRow}`).fill = S.fillSubtotal;
+    });
+
+    // 消費税
+    ws1.getCell(`B${taxRow}`).value = '消費税等（10%）';
+    ws1.getCell(`C${taxRow}`).value = '-';
+    ws1.getCell(`C${taxRow}`).alignment = { horizontal: 'center' };
+    ws1.getCell(`D${taxRow}`).value = { formula: `INT(D${subtotalRow}*0.1)`, result: tax };
+    ws1.getCell(`D${taxRow}`).numFmt = '#,##0';
+    ws1.getCell(`D${taxRow}`).alignment = { horizontal: 'right' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}${taxRow}`).border = S.borderThin;
+      ws1.getCell(`${col}${taxRow}`).font = S.fontCell;
+    });
+
+    // 報酬計（税込）
+    ws1.getCell(`B${feeTotalRow}`).value = '報酬計（税込）';
+    ws1.getCell(`B${feeTotalRow}`).font = S.fontBold;
+    ws1.getCell(`C${feeTotalRow}`).value = '-';
+    ws1.getCell(`C${feeTotalRow}`).alignment = { horizontal: 'center' };
+    ws1.getCell(`D${feeTotalRow}`).value = { formula: `D${subtotalRow}+D${taxRow}`, result: feeSubtotal + tax };
+    ws1.getCell(`D${feeTotalRow}`).numFmt = '#,##0';
+    ws1.getCell(`D${feeTotalRow}`).font = S.fontBold;
+    ws1.getCell(`D${feeTotalRow}`).alignment = { horizontal: 'right' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}${feeTotalRow}`).border = S.borderThin;
+      ws1.getCell(`${col}${feeTotalRow}`).fill = S.fillSubtotal;
+    });
+
+    // 立替金明細
+    let curR = advStartRow;
+    if (advKeys.length > 0) {
+      advKeys.forEach((lbl, kIdx) => {
+        const item = advMap[lbl];
+        ws1.getCell(`A${curR}`).value = kIdx === 0 ? '立替金その他' : '';
+        ws1.getCell(`B${curR}`).value = lbl;
+        ws1.getCell(`C${curR}`).value = item.count;
+        ws1.getCell(`C${curR}`).alignment = { horizontal: 'center' };
+        ws1.getCell(`D${curR}`).value = item.amount;
+        ws1.getCell(`D${curR}`).numFmt = '#,##0';
+        ws1.getCell(`D${curR}`).alignment = { horizontal: 'right' };
+        ['A','B','C','D','E'].forEach(col => {
+          ws1.getCell(`${col}${curR}`).border = S.borderThin;
+          ws1.getCell(`${col}${curR}`).font = S.fontCell;
+        });
+        curR++;
+      });
+    } else {
+      ws1.getCell(`A${curR}`).value = '立替金その他';
+      ws1.getCell(`B${curR}`).value = '立替金なし';
+      ws1.getCell(`C${curR}`).value = 0;
+      ws1.getCell(`C${curR}`).alignment = { horizontal: 'center' };
+      ws1.getCell(`D${curR}`).value = 0;
+      ws1.getCell(`D${curR}`).numFmt = '#,##0';
+      ws1.getCell(`D${curR}`).alignment = { horizontal: 'right' };
+      ['A','B','C','D','E'].forEach(col => {
+        ws1.getCell(`${col}${curR}`).border = S.borderThin;
+        ws1.getCell(`${col}${curR}`).font = S.fontCell;
+      });
+      curR++;
+    }
+
+    // 立替金計
+    ws1.getCell(`B${advTotalRow}`).value = '立替金計';
+    ws1.getCell(`B${advTotalRow}`).font = S.fontBold;
+    ws1.getCell(`C${advTotalRow}`).value = { formula: `SUM(C${advStartRow}:C${advEndRow})`, result: advKeys.reduce((s,k)=>s+advMap[k].count,0) };
+    ws1.getCell(`C${advTotalRow}`).alignment = { horizontal: 'center' };
+    ws1.getCell(`C${advTotalRow}`).font = S.fontBold;
+    ws1.getCell(`D${advTotalRow}`).value = { formula: `SUM(D${advStartRow}:D${advEndRow})`, result: advanceTotal };
+    ws1.getCell(`D${advTotalRow}`).numFmt = '#,##0';
+    ws1.getCell(`D${advTotalRow}`).font = S.fontBold;
+    ws1.getCell(`D${advTotalRow}`).alignment = { horizontal: 'right' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}${advTotalRow}`).border = S.borderThin;
+      ws1.getCell(`${col}${advTotalRow}`).fill = S.fillSubtotal;
+    });
+
+    // 総合計
+    ws1.mergeCells(`A${grandTotalRow}:C${grandTotalRow}`);
+    const gtLabel = ws1.getCell(`A${grandTotalRow}`);
+    gtLabel.value = '総　合　計';
+    gtLabel.font = { name: 'Yu Gothic', size: 12, bold: true };
+    gtLabel.alignment = { horizontal: 'center', vertical: 'middle' };
+    const gtVal = ws1.getCell(`D${grandTotalRow}`);
+    gtVal.value = { formula: `D${feeTotalRow}+D${advTotalRow}`, result: total };
+    gtVal.font = { name: 'Yu Gothic', size: 12, bold: true, color: { argb: 'FF1E3A8A' } };
+    gtVal.alignment = { horizontal: 'right', vertical: 'middle' };
+    gtVal.numFmt = '¥#,##0';
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}${grandTotalRow}`).border = S.borderTotal;
+      ws1.getCell(`${col}${grandTotalRow}`).fill = S.fillTotal;
+    });
+    ws1.getRow(grandTotalRow).height = 24;
+
+    // 振込先・事務所情報
+    curR = grandTotalRow + 2;
+    ws1.getCell(`A${curR}`).value = '《 お振込先 》';
+    ws1.getCell(`A${curR}`).font = S.fontBold;
+    ws1.getCell(`D${curR}`).value = office.name || '行政書士法人フェリス';
+    ws1.getCell(`D${curR}`).font = S.fontBold;
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `${office.bankName || '三菱UFJ銀行'} ${office.bankBranch || '西春支店'}`;
+    ws1.getCell(`D${curR}`).value = office.representative || '代表行政書士 日栄 政敏';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `${office.accountType || '普通'} ${office.accountNumber || '0129129'}`;
+    ws1.getCell(`D${curR}`).value = office.registrationNumber ? `登録番号: ${office.registrationNumber}` : '';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `口座名義：${office.accountHolder || '行政書士法人フェリス'}`;
+    ws1.getCell(`D${curR}`).value = office.address || '北名古屋市六ツ師道毛74番地1';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = '※お振込手数料は貴社にてご負担願います。';
+    ws1.getCell(`A${curR}`).font = S.fontSmall;
+    ws1.getCell(`D${curR}`).value = `TEL: ${office.tel || '0586-50-2896'} / FAX: ${office.fax || '0568-26-3714'}`;
+    ws1.getCell(`D${curR}`).font = S.fontSmall;
+
+    this._autoFitColumns(ws1, 12, 38);
+
+    // --- Sheet 2: 明細票 ---
+    const ws2 = wb.addWorksheet('明細票');
+    ws2.views = [{ showGridLines: true }];
+    ws2.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    ws2.mergeCells('A1:I1');
+    const detailTitle = ws2.getCell('A1');
+    detailTitle.value = `請求明細票（${clientName} 御中） - ${invoiceNo}`;
+    detailTitle.font = S.fontSec;
+    detailTitle.alignment = { horizontal: 'left', vertical: 'middle' };
+    ws2.getRow(1).height = 24;
+
+    const headers2 = ['No.', '完了日', '注文書No.', '申請者名・車名', '管轄警察署', '業務区分', '報酬額（税抜）', '立替金合計', '立替金内訳'];
+    ws2.getRow(3).height = 20;
+    headers2.forEach((h, idx) => {
+      const col = String.fromCharCode(65 + idx);
+      const c = ws2.getCell(`${col}3`);
+      c.value = h;
+      c.font = S.fontTh;
+      c.fill = S.fillThSlate;
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+      c.border = S.borderThin;
+    });
+
+    const getSortDate = (c) => c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+    const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印');
+    const sortedCases = [
+      ...cases.filter(c => !isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b))),
+      ...cases.filter(c => isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)))
+    ];
+
+    let rowIdx = 4;
+    sortedCases.forEach((c, idx) => {
+      const rawDate = getSortDate(c);
+      let dateStr = '-';
+      if (rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+        else dateStr = String(rawDate).slice(5, 10);
+      }
+      const orderNo = c.orderNo || c.caseNo || '-';
+      const applicant = c.carName || c.applicantName || c.title || '-';
+
+      let policeName = '';
+      if (c.category !== 'garage_oss') {
+        policeName = (c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+          const loc = Store.getLocation(c.policeLocationId);
+          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+        }
+      }
+
+      let categoryShort = '';
+      if (c.category === 'garage_oss') categoryShort = 'OSS';
+      else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) categoryShort = '一般';
+      else if (c.subCategory) categoryShort = c.subCategory;
+      else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
+      else if (c.category === 'car_reg_light') categoryShort = '軽登録';
+      else if (c.category === 'seal') categoryShort = '封印';
+      if (c.isUsedCar) categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
+
+      const fee = Number(c.fee || 0);
+      const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+      const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
+        const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
+        return `${displayLabel}:${Number(a.amount).toLocaleString()}`;
+      }).join(' ');
+
+      ws2.getCell(`A${rowIdx}`).value = idx + 1;
+      ws2.getCell(`A${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`B${rowIdx}`).value = dateStr;
+      ws2.getCell(`B${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`C${rowIdx}`).value = orderNo;
+      ws2.getCell(`C${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`D${rowIdx}`).value = applicant;
+      ws2.getCell(`E${rowIdx}`).value = policeName;
+      ws2.getCell(`E${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`F${rowIdx}`).value = categoryShort;
+      ws2.getCell(`F${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`G${rowIdx}`).value = fee;
+      ws2.getCell(`G${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`G${rowIdx}`).alignment = { horizontal: 'right' };
+      ws2.getCell(`H${rowIdx}`).value = advSum;
+      ws2.getCell(`H${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`H${rowIdx}`).alignment = { horizontal: 'right' };
+      ws2.getCell(`I${rowIdx}`).value = advDetails;
+
+      ['A','B','C','D','E','F','G','H','I'].forEach(col => {
+        ws2.getCell(`${col}${rowIdx}`).border = S.borderThin;
+        ws2.getCell(`${col}${rowIdx}`).font = S.fontCell;
+      });
+      rowIdx++;
+    });
+
+    // 明細票の合計行
+    const detailLastR = rowIdx - 1;
+    ws2.mergeCells(`A${rowIdx}:F${rowIdx}`);
+    const dTotLabel = ws2.getCell(`A${rowIdx}`);
+    dTotLabel.value = '合　計';
+    dTotLabel.font = S.fontBold;
+    dTotLabel.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const dFeeTot = ws2.getCell(`G${rowIdx}`);
+    dFeeTot.value = { formula: `SUM(G4:G${detailLastR})`, result: feeSubtotal };
+    dFeeTot.font = S.fontBold;
+    dFeeTot.numFmt = '¥#,##0';
+    dFeeTot.alignment = { horizontal: 'right' };
+
+    const dAdvTot = ws2.getCell(`H${rowIdx}`);
+    dAdvTot.value = { formula: `SUM(H4:H${detailLastR})`, result: advanceTotal };
+    dAdvTot.font = S.fontBold;
+    dAdvTot.numFmt = '¥#,##0';
+    dAdvTot.alignment = { horizontal: 'right' };
+
+    const dGrandTot = ws2.getCell(`I${rowIdx}`);
+    dGrandTot.value = { formula: `G${rowIdx}+H${rowIdx}`, result: feeSubtotal + advanceTotal };
+    dGrandTot.font = S.fontBold;
+    dGrandTot.numFmt = '¥#,##0';
+    dGrandTot.alignment = { horizontal: 'right' };
+
+    ['A','B','C','D','E','F','G','H','I'].forEach(col => {
+      ws2.getCell(`${col}${rowIdx}`).border = S.borderTotal;
+      ws2.getCell(`${col}${rowIdx}`).fill = S.fillSubtotal;
+    });
+
+    this._autoFitColumns(ws2, 10, 40);
+  },
+
+  // 2. 三菱ふそう様式 Excelビルダー
+  buildMitsubishiExcel(wb, { invoiceNo, issueDate, dueDate, client, office, cases, feeSubtotal, tax, advanceTotal, total, docType = 'invoice', note }) {
+    const S = this._getExcelStyles();
+    const clientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
+    const reiwaYear = issueY ? parseInt(issueY, 10) - 2018 : 8;
+    const dateStr = `令和 ${reiwaYear} 年 ${parseInt(issueM || '1', 10)} 月 ${parseInt(issueD || '1', 10)} 日`;
+
+    let garageCases = [], docCases = [], regCases = [];
+    cases.forEach(c => {
+      const t = (c.title || '') + (c.category || '') + (c.subCategory || '');
+      if (t.includes('車庫')) garageCases.push(c);
+      else if (t.includes('書類') || t.includes('作成')) docCases.push(c);
+      else regCases.push(c);
+    });
+    const garageFee = garageCases.reduce((s,c)=>s+Number(c.fee||0),0);
+    const otherFee = (docCases.concat(regCases)).reduce((s,c)=>s+Number(c.fee||0),0);
+
+    let fusoSyoshiAmt = 0, fusoSyoshiCount = 0;
+    let fusoPostAmt = 0, fusoPostCount = 0;
+    let fusoOtherAmt = 0, fusoOtherCount = 0;
+    cases.forEach(c => {
+      (c.advances || []).forEach(a => {
+        const amt = Number(a.amount || 0);
+        const cat = a.category || '';
+        const lbl = a.label || '';
+        if (cat === '証紙代' || lbl.includes('証紙')) {
+          fusoSyoshiAmt += amt; fusoSyoshiCount++;
+        } else if (cat === '送料' || lbl.includes('送') || lbl.includes('郵送') || lbl.includes('レターパック')) {
+          fusoPostAmt += amt; fusoPostCount++;
+        } else {
+          fusoOtherAmt += amt; fusoOtherCount++;
+        }
+      });
+    });
+
+    // --- Sheet 1: 請求書(表紙) ---
+    const ws1 = wb.addWorksheet('請求書(表紙)');
+    ws1.views = [{ showGridLines: true }];
+    ws1.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    ws1.mergeCells('A1:E1');
+    const titleCell = ws1.getCell('A1');
+    titleCell.value = docType === 'estimate' ? '御　見　積　書' : '請　求　書';
+    titleCell.font = S.fontTitle;
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws1.getRow(1).height = 32;
+
+    ws1.mergeCells('A3:C3');
+    const recCell = ws1.getCell('A3');
+    recCell.value = `${clientName} 御中`;
+    recCell.font = { name: 'Yu Gothic', size: 14, bold: true };
+    recCell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+
+    ws1.getCell('D3').value = '請求番号:';
+    ws1.getCell('D3').alignment = { horizontal: 'right' };
+    ws1.getCell('E3').value = invoiceNo;
+    ws1.getCell('E3').font = S.fontBold;
+
+    ws1.getCell('D4').value = '発行日:';
+    ws1.getCell('D4').alignment = { horizontal: 'right' };
+    ws1.getCell('E4').value = dateStr;
+
+    if (dueDate && docType !== 'estimate') {
+      ws1.getCell('D5').value = 'お支払期日:';
+      ws1.getCell('D5').alignment = { horizontal: 'right' };
+      ws1.getCell('E5').value = `${dueDate.replace(/-/g, '/')} (翌月25日)`;
+      ws1.getCell('E5').font = { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+    }
+
+    // ご請求総額
+    ws1.mergeCells('A6:E6');
+    const claimHeader = ws1.getCell('A6');
+    claimHeader.value = docType === 'estimate' ? '御見積金額（税込）' : 'ご請求総額（税込）';
+    claimHeader.font = S.fontSec;
+    claimHeader.fill = S.fillSubtotal;
+    claimHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws1.getRow(6).height = 20;
+
+    ws1.mergeCells('A7:E8');
+    const claimVal = ws1.getCell('A7');
+    claimVal.value = { formula: 'D21', result: total };
+    claimVal.font = { name: 'Yu Gothic', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
+    claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
+    claimVal.fill = S.fillTotal;
+    claimVal.numFmt = '¥#,##0';
+    claimVal.border = S.borderTotal;
+
+    // テーブルヘッダ
+    const headers1 = ['業務分類', '業務内容・実費内訳', '数量', '金額（円）', '備考'];
+    ws1.getRow(10).height = 22;
+    headers1.forEach((h, idx) => {
+      const col = String.fromCharCode(65 + idx);
+      const c = ws1.getCell(`${col}10`);
+      c.value = h;
+      c.font = S.fontTh;
+      c.fill = S.fillThNavy;
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+      c.border = S.borderThin;
+    });
+
+    const mRows = [
+      ['書類作成業務', '車庫証明申請', garageCases.length, garageFee, ''],
+      ['', '登録業務・その他', (docCases.length + regCases.length), otherFee, ''],
+    ];
+    mRows.forEach((r, idx) => {
+      const rNum = 11 + idx;
+      ws1.getCell(`A${rNum}`).value = r[0];
+      ws1.getCell(`B${rNum}`).value = r[1];
+      ws1.getCell(`C${rNum}`).value = r[2];
+      ws1.getCell(`C${rNum}`).alignment = { horizontal: 'center' };
+      ws1.getCell(`D${rNum}`).value = r[3];
+      ws1.getCell(`D${rNum}`).numFmt = '#,##0';
+      ws1.getCell(`D${rNum}`).alignment = { horizontal: 'right' };
+      ws1.getCell(`E${rNum}`).value = r[4];
+      ['A','B','C','D','E'].forEach(col => {
+        ws1.getCell(`${col}${rNum}`).border = S.borderThin;
+        ws1.getCell(`${col}${rNum}`).font = S.fontCell;
+      });
+    });
+
+    // 計
+    ws1.getCell('B13').value = '計';
+    ws1.getCell('B13').font = S.fontBold;
+    ws1.getCell('C13').value = { formula: 'SUM(C11:C12)', result: cases.length };
+    ws1.getCell('C13').alignment = { horizontal: 'center' };
+    ws1.getCell('C13').font = S.fontBold;
+    ws1.getCell('D13').value = { formula: 'SUM(D11:D12)', result: feeSubtotal };
+    ws1.getCell('D13').numFmt = '#,##0';
+    ws1.getCell('D13').font = S.fontBold;
+    ws1.getCell('D13').alignment = { horizontal: 'right' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}13`).border = S.borderThin;
+      ws1.getCell(`${col}13`).fill = S.fillSubtotal;
+    });
+
+    // 消費税
+    ws1.getCell('B14').value = '消費税 (10%)';
+    ws1.getCell('C14').value = '-';
+    ws1.getCell('C14').alignment = { horizontal: 'center' };
+    ws1.getCell('D14').value = { formula: 'INT(D13*0.1)', result: tax };
+    ws1.getCell('D14').numFmt = '#,##0';
+    ws1.getCell('D14').alignment = { horizontal: 'right' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}14`).border = S.borderThin;
+      ws1.getCell(`${col}14`).font = S.fontCell;
+    });
+
+    // 合計（報酬税込）
+    ws1.getCell('B15').value = '合　計';
+    ws1.getCell('B15').font = S.fontBold;
+    ws1.getCell('C15').value = '-';
+    ws1.getCell('C15').alignment = { horizontal: 'center' };
+    ws1.getCell('D15').value = { formula: 'D13+D14', result: feeSubtotal + tax };
+    ws1.getCell('D15').numFmt = '#,##0';
+    ws1.getCell('D15').font = S.fontBold;
+    ws1.getCell('D15').alignment = { horizontal: 'right' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}15`).border = S.borderThin;
+      ws1.getCell(`${col}15`).fill = S.fillSubtotal;
+    });
+
+    // 立替金明細
+    const advList = [
+      ['立替金その他', '証紙代（愛知・岐阜・警察手数料）', fusoSyoshiCount, fusoSyoshiAmt],
+      ['', '送料・郵送依頼分', fusoPostCount, fusoPostAmt],
+      ['', '印紙代・プレート代・その他実費', fusoOtherCount, fusoOtherAmt],
+    ];
+    advList.forEach((r, idx) => {
+      const rNum = 16 + idx;
+      ws1.getCell(`A${rNum}`).value = r[0];
+      ws1.getCell(`B${rNum}`).value = r[1];
+      ws1.getCell(`C${rNum}`).value = r[2] > 0 ? r[2] : '-';
+      ws1.getCell(`C${rNum}`).alignment = { horizontal: 'center' };
+      ws1.getCell(`D${rNum}`).value = r[3];
+      ws1.getCell(`D${rNum}`).numFmt = '#,##0';
+      ws1.getCell(`D${rNum}`).alignment = { horizontal: 'right' };
+      ['A','B','C','D','E'].forEach(col => {
+        ws1.getCell(`${col}${rNum}`).border = S.borderThin;
+        ws1.getCell(`${col}${rNum}`).font = S.fontCell;
+      });
+    });
+
+    // 立替金計
+    ws1.getCell('B19').value = '立替金計';
+    ws1.getCell('B19').font = S.fontBold;
+    ws1.getCell('C19').value = '-';
+    ws1.getCell('C19').alignment = { horizontal: 'center' };
+    ws1.getCell('D19').value = { formula: 'SUM(D16:D18)', result: advanceTotal };
+    ws1.getCell('D19').numFmt = '#,##0';
+    ws1.getCell('D19').font = S.fontBold;
+    ws1.getCell('D19').alignment = { horizontal: 'right' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}19`).border = S.borderThin;
+      ws1.getCell(`${col}19`).fill = S.fillSubtotal;
+    });
+
+    // 総合計
+    ws1.mergeCells('A21:C21');
+    const gtL = ws1.getCell('A21');
+    gtL.value = '総　合　計';
+    gtL.font = { name: 'Yu Gothic', size: 12, bold: true };
+    gtL.alignment = { horizontal: 'center', vertical: 'middle' };
+    const gtV = ws1.getCell('D21');
+    gtV.value = { formula: 'D15+D19', result: total };
+    gtV.font = { name: 'Yu Gothic', size: 12, bold: true, color: { argb: 'FF1E3A8A' } };
+    gtV.numFmt = '¥#,##0';
+    gtV.alignment = { horizontal: 'right', vertical: 'middle' };
+    ['A','B','C','D','E'].forEach(col => {
+      ws1.getCell(`${col}21`).border = S.borderTotal;
+      ws1.getCell(`${col}21`).fill = S.fillTotal;
+    });
+    ws1.getRow(21).height = 24;
+
+    // 振込先・事務所
+    let curR = 23;
+    ws1.getCell(`A${curR}`).value = '《 お振込先 》';
+    ws1.getCell(`A${curR}`).font = S.fontBold;
+    ws1.getCell(`D${curR}`).value = office.name || '行政書士法人フェリス';
+    ws1.getCell(`D${curR}`).font = S.fontBold;
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `${office.bankName || '三菱UFJ銀行'} ${office.bankBranch || '西春支店'}`;
+    ws1.getCell(`D${curR}`).value = office.representative || '代表行政書士 日栄 政敏';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `${office.accountType || '普通'} ${office.accountNumber || '0129129'}`;
+    ws1.getCell(`D${curR}`).value = office.registrationNumber ? `登録番号: ${office.registrationNumber}` : '';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `口座名義：${office.accountHolder || '行政書士法人フェリス'}`;
+    ws1.getCell(`D${curR}`).value = office.address || '北名古屋市六ツ師道毛74番地1';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = '※お振込手数料は貴社にてご負担願います。';
+    ws1.getCell(`A${curR}`).font = S.fontSmall;
+    ws1.getCell(`D${curR}`).value = `TEL: ${office.tel || '0586-50-2896'} / FAX: ${office.fax || '0568-26-3714'}`;
+    ws1.getCell(`D${curR}`).font = S.fontSmall;
+
+    this._autoFitColumns(ws1, 12, 38);
+
+    // --- Sheet 2: 明細票 ---
+    const ws2 = wb.addWorksheet('明細票');
+    ws2.views = [{ showGridLines: true }];
+    ws2.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    ws2.mergeCells('A1:J1');
+    ws2.getCell('A1').value = `請求明細票（${clientName} 御中） - ${invoiceNo}`;
+    ws2.getCell('A1').font = S.fontSec;
+    ws2.getRow(1).height = 24;
+
+    const headers2 = ['No.', '受付日/完了日', '管理番号', '申請者名・車名', '業務区分', '報酬額（税抜）', '立替金(証紙)', '立替金(送料)', '立替金(その他)', '立替金合計'];
+    ws2.getRow(3).height = 20;
+    headers2.forEach((h, idx) => {
+      const col = String.fromCharCode(65 + idx);
+      const c = ws2.getCell(`${col}3`);
+      c.value = h;
+      c.font = S.fontTh;
+      c.fill = S.fillThSlate;
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+      c.border = S.borderThin;
+    });
+
+    let rowIdx = 4;
+    cases.forEach((c, idx) => {
+      const rawDate = c.completedAt || c.registrationDate || c.createdAt || '';
+      let dateStr = '-';
+      if (rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+        else dateStr = String(rawDate).slice(5, 10);
+      }
+      const orderNo = c.orderNo || c.caseNo || '-';
+      const applicant = c.carName || c.applicantName || c.title || '-';
+      const cat = c.subCategory || c.category || '書類作成';
+
+      let syoshi = 0, post = 0, other = 0;
+      (c.advances || []).forEach(a => {
+        const amt = Number(a.amount || 0);
+        const l = a.label || a.category || '';
+        if (l.includes('証紙')) syoshi += amt;
+        else if (l.includes('送') || l.includes('郵送') || l.includes('レターパック')) post += amt;
+        else other += amt;
+      });
+
+      ws2.getCell(`A${rowIdx}`).value = idx + 1;
+      ws2.getCell(`A${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`B${rowIdx}`).value = dateStr;
+      ws2.getCell(`B${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`C${rowIdx}`).value = orderNo;
+      ws2.getCell(`C${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`D${rowIdx}`).value = applicant;
+      ws2.getCell(`E${rowIdx}`).value = cat;
+      ws2.getCell(`E${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`F${rowIdx}`).value = Number(c.fee || 0);
+      ws2.getCell(`F${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`F${rowIdx}`).alignment = { horizontal: 'right' };
+      ws2.getCell(`G${rowIdx}`).value = syoshi;
+      ws2.getCell(`G${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`G${rowIdx}`).alignment = { horizontal: 'right' };
+      ws2.getCell(`H${rowIdx}`).value = post;
+      ws2.getCell(`H${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`H${rowIdx}`).alignment = { horizontal: 'right' };
+      ws2.getCell(`I${rowIdx}`).value = other;
+      ws2.getCell(`I${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`I${rowIdx}`).alignment = { horizontal: 'right' };
+      ws2.getCell(`J${rowIdx}`).value = { formula: `SUM(G${rowIdx}:I${rowIdx})`, result: syoshi + post + other };
+      ws2.getCell(`J${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`J${rowIdx}`).alignment = { horizontal: 'right' };
+
+      ['A','B','C','D','E','F','G','H','I','J'].forEach(col => {
+        ws2.getCell(`${col}${rowIdx}`).border = S.borderThin;
+        ws2.getCell(`${col}${rowIdx}`).font = S.fontCell;
+      });
+      rowIdx++;
+    });
+
+    // 合計行
+    const lastR = rowIdx - 1;
+    ws2.mergeCells(`A${rowIdx}:E${rowIdx}`);
+    ws2.getCell(`A${rowIdx}`).value = '合　計';
+    ws2.getCell(`A${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`A${rowIdx}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws2.getCell(`F${rowIdx}`).value = { formula: `SUM(F4:F${lastR})`, result: feeSubtotal };
+    ws2.getCell(`F${rowIdx}`).numFmt = '¥#,##0';
+    ws2.getCell(`F${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`F${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ws2.getCell(`G${rowIdx}`).value = { formula: `SUM(G4:G${lastR})`, result: fusoSyoshiAmt };
+    ws2.getCell(`G${rowIdx}`).numFmt = '¥#,##0';
+    ws2.getCell(`G${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`G${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ws2.getCell(`H${rowIdx}`).value = { formula: `SUM(H4:H${lastR})`, result: fusoPostAmt };
+    ws2.getCell(`H${rowIdx}`).numFmt = '¥#,##0';
+    ws2.getCell(`H${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`H${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ws2.getCell(`I${rowIdx}`).value = { formula: `SUM(I4:I${lastR})`, result: fusoOtherAmt };
+    ws2.getCell(`I${rowIdx}`).numFmt = '¥#,##0';
+    ws2.getCell(`I${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`I${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ws2.getCell(`J${rowIdx}`).value = { formula: `SUM(J4:J${lastR})`, result: advanceTotal };
+    ws2.getCell(`J${rowIdx}`).numFmt = '¥#,##0';
+    ws2.getCell(`J${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`J${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ['A','B','C','D','E','F','G','H','I','J'].forEach(col => {
+      ws2.getCell(`${col}${rowIdx}`).border = S.borderTotal;
+      ws2.getCell(`${col}${rowIdx}`).fill = S.fillSubtotal;
+    });
+
+    this._autoFitColumns(ws2, 10, 40);
+  },
+
+  // 3. 日産愛知販売様式 Excelビルダー
+  buildNissanExcel(wb, { invoiceNo, issueDate, dueDate, client, office, cases, feeSubtotal, tax, advanceTotal, total, docType = 'invoice', note }) {
+    const S = this._getExcelStyles();
+    let clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
+    if (!clientName) clientName = '日産愛知販売株式会社 御中';
+    else if (!clientName.includes('御中') && !clientName.includes('様')) clientName += ' 御中';
+
+    const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
+    const reiwaYear = issueY ? parseInt(issueY, 10) - 2018 : 8;
+    const dateStr = `令和 ${reiwaYear} 年 ${parseInt(issueM || '1', 10)} 月 ${parseInt(issueD || '1', 10)} 日`;
+
+    // --- Sheet 1: 請求書(表紙) ---
+    const ws1 = wb.addWorksheet('請求書(表紙)');
+    ws1.views = [{ showGridLines: true }];
+    ws1.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    ws1.mergeCells('A1:D1');
+    const titleCell = ws1.getCell('A1');
+    titleCell.value = docType === 'estimate' ? '御　見　積　書' : '請　求　書';
+    titleCell.font = S.fontTitle;
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws1.getRow(1).height = 32;
+
+    ws1.mergeCells('A3:B3');
+    ws1.getCell('A3').value = clientName;
+    ws1.getCell('A3').font = { name: 'Yu Gothic', size: 14, bold: true };
+    ws1.getCell('A3').border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+
+    ws1.getCell('C3').value = '請求番号:';
+    ws1.getCell('C3').alignment = { horizontal: 'right' };
+    ws1.getCell('D3').value = invoiceNo;
+    ws1.getCell('D3').font = S.fontBold;
+
+    ws1.getCell('C4').value = '発行日:';
+    ws1.getCell('C4').alignment = { horizontal: 'right' };
+    ws1.getCell('D4').value = dateStr;
+
+    if (dueDate && docType !== 'estimate') {
+      ws1.getCell('C5').value = 'お支払期日:';
+      ws1.getCell('C5').alignment = { horizontal: 'right' };
+      ws1.getCell('D5').value = `${dueDate.replace(/-/g, '/')} (翌月25日)`;
+      ws1.getCell('D5').font = { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+    }
+
+    // ご請求額サマリー枠
+    ws1.mergeCells('A6:D6');
+    ws1.getCell('A6').value = docType === 'estimate' ? '御 見 積 額' : 'ご 請 求 額';
+    ws1.getCell('A6').font = S.fontSec;
+    ws1.getCell('A6').fill = S.fillSubtotal;
+    ws1.getCell('A6').alignment = { horizontal: 'center', vertical: 'middle' };
+    ws1.getRow(6).height = 20;
+
+    ws1.mergeCells('A7:D8');
+    const claimVal = ws1.getCell('A7');
+    claimVal.value = { formula: 'B14', result: total };
+    claimVal.font = { name: 'Yu Gothic', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
+    claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
+    claimVal.fill = S.fillTotal;
+    claimVal.numFmt = '¥#,##0';
+    claimVal.border = S.borderTotal;
+
+    // 摘要テーブル
+    const headers1 = ['摘　　要', '金　　額', '備　考'];
+    ws1.getRow(10).height = 22;
+    ['A10','B10','C10'].forEach((cellRef, idx) => {
+      const c = ws1.getCell(cellRef);
+      c.value = headers1[idx];
+      c.font = S.fontTh;
+      c.fill = S.fillThNavy;
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+      c.border = S.borderThin;
+    });
+
+    const nSummary = [
+      ['別紙明細報酬', feeSubtotal, '（税抜）'],
+      ['消費税等（10%）', tax, ''],
+      ['立　替　金', advanceTotal, '（実費）'],
+    ];
+    nSummary.forEach((r, idx) => {
+      const rNum = 11 + idx;
+      ws1.getCell(`A${rNum}`).value = r[0];
+      if (idx === 1) {
+        ws1.getCell(`B${rNum}`).value = { formula: 'INT(B11*0.1)', result: tax };
+      } else {
+        ws1.getCell(`B${rNum}`).value = r[1];
+      }
+      ws1.getCell(`B${rNum}`).numFmt = '¥#,##0';
+      ws1.getCell(`B${rNum}`).alignment = { horizontal: 'right' };
+      ws1.getCell(`C${rNum}`).value = r[2];
+      ws1.getCell(`C${rNum}`).alignment = { horizontal: 'center' };
+      ['A','B','C'].forEach(col => {
+        ws1.getCell(`${col}${rNum}`).border = S.borderThin;
+        ws1.getCell(`${col}${rNum}`).font = S.fontCell;
+      });
+    });
+
+    // 合計
+    ws1.getCell('A14').value = '合　　計';
+    ws1.getCell('A14').font = S.fontBold;
+    ws1.getCell('A14').alignment = { horizontal: 'center' };
+    ws1.getCell('B14').value = { formula: 'SUM(B11:B13)', result: total };
+    ws1.getCell('B14').numFmt = '¥#,##0';
+    ws1.getCell('B14').font = S.fontBold;
+    ws1.getCell('B14').alignment = { horizontal: 'right' };
+    ws1.getCell('C14').value = '';
+    ['A','B','C'].forEach(col => {
+      ws1.getCell(`${col}14`).border = S.borderTotal;
+      ws1.getCell(`${col}14`).fill = S.fillTotal;
+    });
+
+    // 振込先・事務所
+    let curR = 17;
+    ws1.getCell(`A${curR}`).value = '≪ 振込先 ≫';
+    ws1.getCell(`A${curR}`).font = S.fontBold;
+    ws1.getCell(`C${curR}`).value = office.name || '行政書士法人フェリス';
+    ws1.getCell(`C${curR}`).font = S.fontBold;
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `${office.bankName || '三菱UFJ銀行'} ${office.bankBranch || '西春支店'}`;
+    ws1.getCell(`C${curR}`).value = office.representative || '代表行政書士 日栄 政敏';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `(${office.accountType || '普通'}) ${office.accountNumber || '0129129'}`;
+    ws1.getCell(`C${curR}`).value = office.registrationNumber ? `登録番号: ${office.registrationNumber}` : '';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = `口座名義：${office.accountHolder || '行政書士法人フェリス'}`;
+    ws1.getCell(`C${curR}`).value = office.address || '北名古屋市六ツ師道毛74番地1';
+    curR++;
+
+    ws1.getCell(`A${curR}`).value = '※お振込手数料は貴社にてご負担願います。';
+    ws1.getCell(`A${curR}`).font = S.fontSmall;
+    ws1.getCell(`C${curR}`).value = `TEL: ${office.tel || '0586-50-2896'} / FAX: ${office.fax || '0568-26-3714'}`;
+    ws1.getCell(`C${curR}`).font = S.fontSmall;
+
+    this._autoFitColumns(ws1, 14, 38);
+
+    // --- Sheet 2: 納品・請求明細書 ---
+    const ws2 = wb.addWorksheet('納品・請求明細書');
+    ws2.views = [{ showGridLines: true }];
+    ws2.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    ws2.mergeCells('A1:J1');
+    ws2.getCell('A1').value = `納品・請求明細書（${clientName}） - ${invoiceNo}`;
+    ws2.getCell('A1').font = S.fontSec;
+    ws2.getRow(1).height = 24;
+
+    const headers2 = ['No.', '完了日', '受注No.', '申請者名・車名', '登録区分', '管轄警察署', '報酬額（税抜）', '立替金（実費）', '立替金内訳', '備考'];
+    ws2.getRow(3).height = 20;
+    headers2.forEach((h, idx) => {
+      const col = String.fromCharCode(65 + idx);
+      const c = ws2.getCell(`${col}3`);
+      c.value = h;
+      c.font = S.fontTh;
+      c.fill = S.fillThSlate;
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+      c.border = S.borderThin;
+    });
+
+    let rowIdx = 4;
+    cases.forEach((c, idx) => {
+      const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || '';
+      let dateStr = '-';
+      if (rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+        else dateStr = String(rawDate).slice(5, 10);
+      }
+      const orderNo = c.orderNo || c.caseNo || '-';
+      const applicant = c.carName || c.applicantName || c.title || '-';
+      const police = (c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+      const fee = Number(c.fee || 0);
+      const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+      const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => `${a.label||a.category||'実費'}:${Number(a.amount).toLocaleString()}`).join(' ');
+
+      ws2.getCell(`A${rowIdx}`).value = idx + 1;
+      ws2.getCell(`A${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`B${rowIdx}`).value = dateStr;
+      ws2.getCell(`B${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`C${rowIdx}`).value = orderNo;
+      ws2.getCell(`C${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`D${rowIdx}`).value = applicant;
+      ws2.getCell(`E${rowIdx}`).value = c.subCategory || c.category || '登録';
+      ws2.getCell(`E${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`F${rowIdx}`).value = police;
+      ws2.getCell(`F${rowIdx}`).alignment = { horizontal: 'center' };
+      ws2.getCell(`G${rowIdx}`).value = fee;
+      ws2.getCell(`G${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`G${rowIdx}`).alignment = { horizontal: 'right' };
+      ws2.getCell(`H${rowIdx}`).value = advSum;
+      ws2.getCell(`H${rowIdx}`).numFmt = '#,##0';
+      ws2.getCell(`H${rowIdx}`).alignment = { horizontal: 'right' };
+      ws2.getCell(`I${rowIdx}`).value = advDetails;
+      ws2.getCell(`J${rowIdx}`).value = c.isUsedCar ? '中古車' : '';
+
+      ['A','B','C','D','E','F','G','H','I','J'].forEach(col => {
+        ws2.getCell(`${col}${rowIdx}`).border = S.borderThin;
+        ws2.getCell(`${col}${rowIdx}`).font = S.fontCell;
+      });
+      rowIdx++;
+    });
+
+    // 合計行
+    const lastR = rowIdx - 1;
+    ws2.mergeCells(`A${rowIdx}:F${rowIdx}`);
+    ws2.getCell(`A${rowIdx}`).value = '合　計';
+    ws2.getCell(`A${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`A${rowIdx}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws2.getCell(`G${rowIdx}`).value = { formula: `SUM(G4:G${lastR})`, result: feeSubtotal };
+    ws2.getCell(`G${rowIdx}`).numFmt = '¥#,##0';
+    ws2.getCell(`G${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`G${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ws2.getCell(`H${rowIdx}`).value = { formula: `SUM(H4:H${lastR})`, result: advanceTotal };
+    ws2.getCell(`H${rowIdx}`).numFmt = '¥#,##0';
+    ws2.getCell(`H${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`H${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ws2.getCell(`I${rowIdx}`).value = { formula: `G${rowIdx}+H${rowIdx}`, result: feeSubtotal + advanceTotal };
+    ws2.getCell(`I${rowIdx}`).numFmt = '¥#,##0';
+    ws2.getCell(`I${rowIdx}`).font = S.fontBold;
+    ws2.getCell(`I${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ['A','B','C','D','E','F','G','H','I','J'].forEach(col => {
+      ws2.getCell(`${col}${rowIdx}`).border = S.borderTotal;
+      ws2.getCell(`${col}${rowIdx}`).fill = S.fillSubtotal;
+    });
+
+    this._autoFitColumns(ws2, 10, 40);
+
+    // --- Sheet 3: OSS作成明細 (OSS案件がある場合) ---
+    const ossCases = cases.filter(c => c.category === 'garage_oss' || (c.title || '').includes('OSS'));
+    if (ossCases.length > 0) {
+      const ws3 = wb.addWorksheet('OSS作成明細');
+      ws3.views = [{ showGridLines: true }];
+      ws3.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+      ws3.mergeCells('A1:E1');
+      ws3.getCell('A1').value = 'ＯＳＳ所在図・配置図作成明細';
+      ws3.getCell('A1').font = S.fontTitle;
+      ws3.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+      ws3.getRow(1).height = 28;
+
+      ws3.getCell('A3').value = clientName;
+      ws3.getCell('A3').font = S.fontBold;
+      ws3.getCell('D3').value = dateStr;
+
+      const ossHeaders = ['No.', '日　付', '受注No.', '申　請　者　名', '備　考'];
+      ws3.getRow(5).height = 20;
+      ossHeaders.forEach((h, idx) => {
+        const col = String.fromCharCode(65 + idx);
+        const c = ws3.getCell(`${col}5`);
+        c.value = h;
+        c.font = S.fontTh;
+        c.fill = S.fillThSlate;
+        c.alignment = { horizontal: 'center', vertical: 'middle' };
+        c.border = S.borderThin;
+      });
+
+      let ossR = 6;
+      ossCases.forEach((c, idx) => {
+        const rawDate = c.completedAt || c.registrationDate || c.createdAt || '';
+        let dStr = '-';
+        if (rawDate) {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) dStr = `${d.getMonth() + 1}/${d.getDate()}`;
+        }
+        ws3.getCell(`A${ossR}`).value = idx + 1;
+        ws3.getCell(`A${ossR}`).alignment = { horizontal: 'center' };
+        ws3.getCell(`B${ossR}`).value = dStr;
+        ws3.getCell(`B${ossR}`).alignment = { horizontal: 'center' };
+        ws3.getCell(`C${ossR}`).value = c.orderNo || c.caseNo || '-';
+        ws3.getCell(`C${ossR}`).alignment = { horizontal: 'center' };
+        ws3.getCell(`D${ossR}`).value = c.carName || c.applicantName || c.title || '-';
+        ws3.getCell(`E${ossR}`).value = '所在図・配置図作成';
+
+        ['A','B','C','D','E'].forEach(col => {
+          ws3.getCell(`${col}${ossR}`).border = S.borderThin;
+          ws3.getCell(`${col}${ossR}`).font = S.fontCell;
+        });
+        ossR++;
+      });
+      this._autoFitColumns(ws3, 10, 35);
+    }
+  },
+
+  // 4. 標準様式 Excelビルダー
+  buildStandardExcel(wb, { invoiceNo, issueDate, dueDate, client, office, cases, feeSubtotal, tax, advanceTotal, total, docType = 'invoice', note }) {
+    const S = this._getExcelStyles();
+    const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
+    const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
+    const reiwaYear = issueY ? parseInt(issueY, 10) - 2018 : 8;
+    const dateStr = `令和 ${reiwaYear} 年 ${parseInt(issueM || '1', 10)} 月 ${parseInt(issueD || '1', 10)} 日`;
+
+    const ws = wb.addWorksheet(docType === 'estimate' ? '御見積書' : '御請求書');
+    ws.views = [{ showGridLines: true }];
+    ws.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    ws.mergeCells('A1:J1');
+    const titleCell = ws.getCell('A1');
+    titleCell.value = docType === 'estimate' ? '御　見　積　書' : '御　請　求　書';
+    titleCell.font = S.fontTitle;
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 32;
+
+    ws.mergeCells('A3:E3');
+    const recCell = ws.getCell('A3');
+    recCell.value = `${clientName} 御中`;
+    recCell.font = { name: 'Yu Gothic', size: 14, bold: true };
+    recCell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+
+    // 右側：請求書メタ情報 & 事務所情報
+    ws.getCell('H3').value = '請求番号:';
+    ws.getCell('H3').alignment = { horizontal: 'right' };
+    ws.getCell('I3').value = invoiceNo;
+    ws.getCell('I3').font = S.fontBold;
+
+    ws.getCell('H4').value = '発行日:';
+    ws.getCell('H4').alignment = { horizontal: 'right' };
+    ws.getCell('I4').value = dateStr;
+
+    if (dueDate && docType !== 'estimate') {
+      ws.getCell('H5').value = 'お支払期日:';
+      ws.getCell('H5').alignment = { horizontal: 'right' };
+      ws.getCell('I5').value = dueDate.replace(/-/g, '/');
+      ws.getCell('I5').font = { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+    }
+
+    ws.getCell('H6').value = office.name || '行政書士法人フェリス';
+    ws.getCell('H6').font = S.fontBold;
+    ws.getCell('H7').value = office.representative || '代表行政書士 日栄 政敏';
+    ws.getCell('H8').value = office.registrationNumber ? `登録番号: ${office.registrationNumber}` : '';
+    ws.getCell('H9').value = `〒${office.zip || '481-0033'} ${office.address || ''}`;
+    ws.getCell('H10').value = `TEL: ${office.tel || ''} / FAX: ${office.fax || ''}`;
+    for(let r=6; r<=10; r++) {
+      ws.mergeCells(`H${r}:J${r}`);
+      ws.getCell(`H${r}`).alignment = { horizontal: 'right' };
+      ws.getCell(`H${r}`).font = r === 6 ? S.fontBold : S.fontSmall;
+    }
+
+    // 左側：ご請求金額サマリー枠
+    ws.mergeCells('A5:E5');
+    const claimHeader = ws.getCell('A5');
+    claimHeader.value = docType === 'estimate' ? '御 見 積 金 額（税込）' : 'ご 請 求 金 額（税込）';
+    claimHeader.font = S.fontSec;
+    claimHeader.fill = S.fillSubtotal;
+    claimHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.mergeCells('A6:E8');
+    const claimVal = ws.getCell('A6');
+    claimVal.value = { formula: 'E16', result: total };
+    claimVal.font = { name: 'Yu Gothic', size: 20, bold: true, color: { argb: 'FF1E3A8A' } };
+    claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
+    claimVal.fill = S.fillTotal;
+    claimVal.numFmt = '¥#,##0';
+    claimVal.border = S.borderTotal;
+
+    // 内訳サマリーテーブル (Rows 12-16)
+    const sumTable = [
+      ['報酬額小計（税抜）', feeSubtotal],
+      ['消費税等（10%）', tax],
+      ['報酬合計（税込）', feeSubtotal + tax],
+      ['立替金合計（非課税）', advanceTotal],
+      ['ご請求総額', total],
+    ];
+
+    ws.mergeCells('B11:E11');
+    ws.getCell('B11').value = '《 ご請求金額内訳 》';
+    ws.getCell('B11').font = S.fontBold;
+
+    sumTable.forEach((item, idx) => {
+      const rNum = 12 + idx;
+      ws.mergeCells(`B${rNum}:D${rNum}`);
+      const lCell = ws.getCell(`B${rNum}`);
+      lCell.value = item[0];
+      lCell.font = idx === 4 ? S.fontBold : S.fontCell;
+      lCell.border = idx === 4 ? S.borderTotal : S.borderThin;
+
+      const vCell = ws.getCell(`E${rNum}`);
+      vCell.numFmt = '¥#,##0';
+      vCell.alignment = { horizontal: 'right' };
+      vCell.font = idx === 4 ? { name: 'Yu Gothic', size: 11, bold: true, color: { argb: 'FF1E3A8A' } } : S.fontCell;
+      vCell.border = idx === 4 ? S.borderTotal : S.borderThin;
+      if (idx === 4) {
+        lCell.fill = S.fillTotal;
+        vCell.fill = S.fillTotal;
+      }
+    });
+
+    // 明細テーブル (Row 18+)
+    const headers = ['No.', '完了日', '業務・案件名', '申請者・車両名', '管轄・警察署', '業務区分', '報酬額（税抜）', '立替金（実費）', '立替金内訳', '備考'];
+    ws.getRow(18).height = 22;
+    headers.forEach((h, idx) => {
+      const col = String.fromCharCode(65 + idx);
+      const c = ws.getCell(`${col}18`);
+      c.value = h;
+      c.font = S.fontTh;
+      c.fill = S.fillThNavy;
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+      c.border = S.borderThin;
+    });
+
+    let rowIdx = 19;
+    cases.forEach((c, idx) => {
+      const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || '';
+      let dateStr = '-';
+      if (rawDate) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+        else dateStr = String(rawDate).slice(5, 10);
+      }
+      const title = c.title || '-';
+      const applicant = c.carName || c.applicantName || '-';
+      const police = (c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+      const cat = c.subCategory || c.category || '';
+      const fee = Number(c.fee || 0);
+      const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+      const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => `${a.label||a.category||'実費'}:${Number(a.amount).toLocaleString()}`).join(' ');
+
+      ws.getCell(`A${rowIdx}`).value = idx + 1;
+      ws.getCell(`A${rowIdx}`).alignment = { horizontal: 'center' };
+      ws.getCell(`B${rowIdx}`).value = dateStr;
+      ws.getCell(`B${rowIdx}`).alignment = { horizontal: 'center' };
+      ws.getCell(`C${rowIdx}`).value = title;
+      ws.getCell(`D${rowIdx}`).value = applicant;
+      ws.getCell(`E${rowIdx}`).value = police;
+      ws.getCell(`E${rowIdx}`).alignment = { horizontal: 'center' };
+      ws.getCell(`F${rowIdx}`).value = cat;
+      ws.getCell(`F${rowIdx}`).alignment = { horizontal: 'center' };
+      ws.getCell(`G${rowIdx}`).value = fee;
+      ws.getCell(`G${rowIdx}`).numFmt = '#,##0';
+      ws.getCell(`G${rowIdx}`).alignment = { horizontal: 'right' };
+      ws.getCell(`H${rowIdx}`).value = advSum;
+      ws.getCell(`H${rowIdx}`).numFmt = '#,##0';
+      ws.getCell(`H${rowIdx}`).alignment = { horizontal: 'right' };
+      ws.getCell(`I${rowIdx}`).value = advDetails;
+      ws.getCell(`J${rowIdx}`).value = c.isUsedCar ? '中古車' : '';
+
+      ['A','B','C','D','E','F','G','H','I','J'].forEach(col => {
+        ws.getCell(`${col}${rowIdx}`).border = S.borderThin;
+        ws.getCell(`${col}${rowIdx}`).font = S.fontCell;
+      });
+      rowIdx++;
+    });
+
+    const dataStartR = 19;
+    const dataLastR = rowIdx - 1;
+
+    // 明細表の合計行
+    ws.mergeCells(`A${rowIdx}:F${rowIdx}`);
+    ws.getCell(`A${rowIdx}`).value = '合　計';
+    ws.getCell(`A${rowIdx}`).font = S.fontBold;
+    ws.getCell(`A${rowIdx}`).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    ws.getCell(`G${rowIdx}`).value = { formula: `SUM(G${dataStartR}:G${dataLastR})`, result: feeSubtotal };
+    ws.getCell(`G${rowIdx}`).numFmt = '¥#,##0';
+    ws.getCell(`G${rowIdx}`).font = S.fontBold;
+    ws.getCell(`G${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ws.getCell(`H${rowIdx}`).value = { formula: `SUM(H${dataStartR}:H${dataLastR})`, result: advanceTotal };
+    ws.getCell(`H${rowIdx}`).numFmt = '¥#,##0';
+    ws.getCell(`H${rowIdx}`).font = S.fontBold;
+    ws.getCell(`H${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ws.getCell(`I${rowIdx}`).value = { formula: `G${rowIdx}+H${rowIdx}`, result: feeSubtotal + advanceTotal };
+    ws.getCell(`I${rowIdx}`).numFmt = '¥#,##0';
+    ws.getCell(`I${rowIdx}`).font = S.fontBold;
+    ws.getCell(`I${rowIdx}`).alignment = { horizontal: 'right' };
+
+    ['A','B','C','D','E','F','G','H','I','J'].forEach(col => {
+      ws.getCell(`${col}${rowIdx}`).border = S.borderTotal;
+      ws.getCell(`${col}${rowIdx}`).fill = S.fillSubtotal;
+    });
+
+    // ここで内訳サマリーテーブルの計算式を確定（テーブルの合計セルを参照）
+    ws.getCell('E12').value = { formula: `G${rowIdx}`, result: feeSubtotal };
+    ws.getCell('E13').value = { formula: 'INT(E12*0.1)', result: tax };
+    ws.getCell('E14').value = { formula: 'E12+E13', result: feeSubtotal + tax };
+    ws.getCell('E15').value = { formula: `H${rowIdx}`, result: advanceTotal };
+    ws.getCell('E16').value = { formula: 'E14+E15', result: total };
+
+    // 振込先 & 備考
+    rowIdx += 2;
+    ws.getCell(`A${rowIdx}`).value = `《 お振込先 》 ${office.bankName || '三菱UFJ銀行'} ${office.bankBranch || '西春支店'} ${office.accountType || '普通'} ${office.accountNumber || '0129129'}　口座名義：${office.accountHolder || '行政書士法人フェリス'}`;
+    ws.getCell(`A${rowIdx}`).font = S.fontBold;
+    ws.mergeCells(`A${rowIdx}:J${rowIdx}`);
+    rowIdx++;
+
+    ws.getCell(`A${rowIdx}`).value = '※お振込手数料は貴社にてご負担願います。';
+    ws.getCell(`A${rowIdx}`).font = S.fontSmall;
+    ws.mergeCells(`A${rowIdx}:J${rowIdx}`);
+    rowIdx++;
+
+    if (note) {
+      ws.getCell(`A${rowIdx}`).value = `備考：${note}`;
+      ws.getCell(`A${rowIdx}`).font = S.fontCell;
+      ws.mergeCells(`A${rowIdx}:J${rowIdx}`);
+    }
+
+    this._autoFitColumns(ws, 10, 40);
   },
 
   // 事務所情報設定モーダル
