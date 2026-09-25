@@ -1076,8 +1076,8 @@ const Invoice = {
     const sealCases = cases.filter(c => isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
     const sortedCases = [...nonSealCases, ...sealCases];
 
-    // 明細ページの分割（1ページあたり22件、見出し・№1, №2...を各ページに描画）
-    const ROWS_PER_PAGE = 22;
+    // 明細ページの分割（1ページあたり18件、見出し・№1, №2...を各ページに描画）
+    const ROWS_PER_PAGE = 18;
     const totalDetailPages = Math.ceil(sortedCases.length / ROWS_PER_PAGE) || 1;
 
     let detailPagesHTML = '';
@@ -1140,8 +1140,8 @@ const Invoice = {
 
         return `
         <tr>
-          <td class="col-center">${dateStr}</td>
-          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif;">${orderNo}</td>
+          <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
+          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif; white-space:nowrap; font-size:10.5px;">${orderNo}</td>
           <td><strong>${applicant}</strong></td>
           <td class="col-center">${policeName}</td>
           <td class="col-center">${categoryShort}</td>
@@ -1153,9 +1153,9 @@ const Invoice = {
       detailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:12px;">車庫証明申請等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${note}</span>` : ''}</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">車庫証明申請等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${note}</span>` : ''}</div>
   
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; font-size:12.5px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div>
       <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block;">
         ${clientName}　御中
@@ -1170,7 +1170,7 @@ const Invoice = {
     </div>
   </div>
 
-  <table class="grid-table" style="font-size:11.5px; margin-bottom:8px;">
+  <table class="grid-table" style="font-size:11px; margin-bottom:6px;">
     <thead>
       <tr>
         <th rowspan="2" style="width:7%;">日付</th>
@@ -1179,10 +1179,10 @@ const Invoice = {
         <th rowspan="2" style="width:14%;">立替金</th>
       </tr>
       <tr>
-        <th style="width:16%;">注文No.</th>
-        <th style="width:21%;">氏　名</th>
-        <th style="width:14%;">管　轄</th>
-        <th style="width:14%;">備　考</th>
+        <th style="width:13%;">注文No.</th>
+        <th style="width:27%;">氏　名</th>
+        <th style="width:12%;">管　轄</th>
+        <th style="width:13%;">備　考</th>
       </tr>
     </thead>
     <tbody>
@@ -1196,7 +1196,7 @@ const Invoice = {
     </tbody>
   </table>
 
-  <div class="detail-footer" style="font-size:10.5px; text-align:right; color:#666; margin-top:auto; padding-top:6px;">
+  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:auto; padding-top:4px;">
     ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
   </div>
 </div>
@@ -1224,10 +1224,10 @@ const Invoice = {
     @page { size: A4 portrait; margin: 0; }
     .page {
       width: 210mm !important;
-      min-height: 297mm !important;
-      height: 297mm !important;
+      min-height: 290mm !important;
+      height: auto !important;
       margin: 0 !important;
-      padding: 12mm 15mm 10mm !important;
+      padding: 10mm 14mm 10mm !important;
       box-shadow: none !important;
       box-sizing: border-box !important;
       page-break-after: always !important;
@@ -1237,7 +1237,6 @@ const Invoice = {
       position: relative !important;
       display: flex !important;
       flex-direction: column !important;
-      overflow: hidden !important;
     }
     .page:last-child {
       page-break-after: auto !important;
@@ -1301,12 +1300,12 @@ const Invoice = {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 12px;
-    font-size: 12px;
+    font-size: 11.5px;
   }
   table.grid-table th, table.grid-table td {
     border: 1px solid #000;
-    padding: 4px 7px;
-    line-height: 1.35;
+    padding: 3.5px 6px;
+    line-height: 1.3;
   }
   table.grid-table th {
     background: #f8fafc;
@@ -1524,8 +1523,8 @@ ${detailPagesHTML}
 
     const otherFee = docCases.reduce((s,c)=>s+Number(c.fee||0),0) + regCases.reduce((s,c)=>s+Number(c.fee||0),0);
 
-    // 明細ページの分割（1ページあたり22件、見出し・№1, №2...を各ページに描画）
-    const ROWS_PER_PAGE = 22;
+    // 明細ページの分割（1ページあたり18件、見出し・№1, №2...を各ページに描画）
+    const ROWS_PER_PAGE = 18;
     const totalDetailPages = Math.ceil(cases.length / ROWS_PER_PAGE) || 1;
 
     let fusoDetailPagesHTML = '';
@@ -1580,8 +1579,8 @@ ${detailPagesHTML}
 
         return `
         <tr>
-          <td class="col-center">${dateStr}</td>
-          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif;">${orderNo}</td>
+          <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
+          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif; white-space:nowrap; font-size:10.5px;">${orderNo}</td>
           <td><strong>${applicant}</strong></td>
           <td class="col-center">${policeName}</td>
           <td class="col-center">${categoryShort}</td>
@@ -1593,9 +1592,9 @@ ${detailPagesHTML}
       fusoDetailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:12px;">車庫証明・登録申請等明細書</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">車庫証明・登録申請等明細書</div>
   
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; font-size:12.5px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div>
       <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block;">
         ${clientName}　御中
@@ -1610,7 +1609,7 @@ ${detailPagesHTML}
     </div>
   </div>
 
-  <table class="fuso-table" style="font-size:11.5px; margin-bottom:8px;">
+  <table class="fuso-table" style="font-size:11px; margin-bottom:6px;">
     <thead>
       <tr>
         <th rowspan="2" style="width:7%;">日付</th>
@@ -1619,10 +1618,10 @@ ${detailPagesHTML}
         <th rowspan="2" style="width:14%;">立替金</th>
       </tr>
       <tr>
-        <th style="width:16%;">注文No.</th>
-        <th style="width:21%;">氏　名</th>
-        <th style="width:14%;">管　轄</th>
-        <th style="width:14%;">備　考</th>
+        <th style="width:13%;">注文No.</th>
+        <th style="width:27%;">氏　名</th>
+        <th style="width:12%;">管　轄</th>
+        <th style="width:13%;">備　考</th>
       </tr>
     </thead>
     <tbody>
@@ -1636,7 +1635,7 @@ ${detailPagesHTML}
     </tbody>
   </table>
 
-  <div class="detail-footer" style="font-size:10.5px; text-align:right; color:#666; margin-top:auto; padding-top:6px;">
+  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:auto; padding-top:4px;">
     ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
   </div>
 </div>
@@ -1664,10 +1663,10 @@ ${detailPagesHTML}
     @page { size: A4 portrait; margin: 0; }
     .page {
       width: 210mm !important;
-      min-height: 297mm !important;
-      height: 297mm !important;
+      min-height: 290mm !important;
+      height: auto !important;
       margin: 0 !important;
-      padding: 12mm 15mm 10mm !important;
+      padding: 10mm 14mm 10mm !important;
       box-shadow: none !important;
       box-sizing: border-box !important;
       page-break-after: always !important;
@@ -1677,7 +1676,6 @@ ${detailPagesHTML}
       position: relative !important;
       display: flex !important;
       flex-direction: column !important;
-      overflow: hidden !important;
     }
     .page:last-child {
       page-break-after: auto !important;
@@ -1706,8 +1704,8 @@ ${detailPagesHTML}
   .btn-close { background: #cbd5e1; color: #1e293b; }
 
   .doc-title { text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 10px; margin-bottom: 18px; padding-bottom: 6px; }
-  table.fuso-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px; }
-  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 4px 7px; line-height: 1.35; }
+  table.fuso-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11.5px; }
+  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 3.5px 6px; line-height: 1.3; }
   table.fuso-table th { background: #f8fafc; text-align: center; font-weight: bold; }
   .col-num { text-align: right; font-family: 'Noto Sans JP', sans-serif; }
   .col-center { text-align: center; }
