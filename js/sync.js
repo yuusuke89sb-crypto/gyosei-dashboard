@@ -130,27 +130,60 @@ const SpreadsheetSync = {
                         parsedFamilyTree = localCase.familyTreeData;
                     }
 
-                    // 車台番号(VIN)と自動車登録番号(ナンバー)のスマート判定とフォールバック
-                    let rawCarNum = String(remoteCase.carNumber || remoteCase['自動車登録番号'] || remoteCase['新自動車登録番号'] || remoteCase['登録番号'] || remoteCase['新ナンバー'] || (localCase && localCase.carNumber) || '').trim();
+                    // 車台番号(VIN)と自動車登録番号(ナンバー)のスマート判定と完全分離
+                    let rawCarNum = String(remoteCase.carNumber || remoteCase['自動車登録番号'] || remoteCase['新自動車登録番号'] || remoteCase['登録番号'] || remoteCase['新ナンバー'] || '').trim();
                     let rawOldCarNum = String(remoteCase.oldCarNumber || remoteCase['旧自動車登録番号'] || remoteCase['旧登録番号'] || remoteCase['旧ナンバー'] || (localCase && localCase.oldCarNumber) || '').trim();
-                    let rawVin = String(remoteCase.vin || remoteCase['車台番号'] || remoteCase['VIN'] || (localCase && localCase.vin) || '').trim();
+                    let rawVin = String(remoteCase.vin || remoteCase['車台番号'] || remoteCase['VIN'] || '').trim();
                     let rawRegType = String(remoteCase.regType || remoteCase['封印事由'] || remoteCase['登録区分'] || remoteCase['登録種別区分'] || (localCase && localCase.regType) || '').trim();
 
-                    // 車台番号判定（英数字とハイフンのみ、日本語文字なし）
-                    const isChassisNum = (str) => Boolean(str && !/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(str) && /^[A-Z0-9]+-[A-Z0-9]+$/i.test(str));
-                    // ナンバー判定（日本の地域名漢字やひらがなを含む）
-                    const isPlateNum = (str) => Boolean(str && /[\u3040-\u30ff\u4e00-\u9fff]/.test(str));
+                    const localCarNum = (localCase && localCase.carNumber) ? String(localCase.carNumber).trim() : '';
+                    const localVin = (localCase && localCase.vin) ? String(localCase.vin).trim() : '';
 
-                    // 救済1: vin にナンバーが入っている場合（旧GASで車台番号列にナンバーを保存していたケース）
-                    if (!rawCarNum && isPlateNum(rawVin)) {
-                        rawCarNum = rawVin;
-                        rawVin = (localCase && localCase.vin) || '';
+                    // ナンバー判定（地域名漢字・ひらがな入り、または1〜4桁の希望ナンバー）
+                    const isPlateNum = (str) => Boolean(str && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(str) || /^\d{1,4}$/.test(str.trim())));
+                    // 車台番号判定（英数字とハイフンのみ、日本語なし、モデル番号ハイフン型または17桁VIN）
+                    const isChassisNum = (str) => Boolean(str && !/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(str) && (/^[A-Z0-9]{2,8}-[0-9A-Z]{4,10}$/i.test(str.trim()) || /^[A-Z0-9]{17}$/i.test(str.trim())));
+
+                    // 1. localCaseからの安全な補完
+                    if (!rawCarNum && localCarNum) {
+                        rawCarNum = localCarNum;
+                    }
+                    if (!rawVin && localVin && !isPlateNum(localVin)) {
+                        rawVin = localVin;
                     }
 
-                    // 救済2: carNumber に車台番号が入っている場合（旧GASで車台番号列がcarNumberにマップされていたケース）
+                    // 2. rawVin にナンバーが入っている場合の救済（旧GASで車台番号列にナンバーが保存されていたケース）
+                    if (isPlateNum(rawVin)) {
+                        if (!rawCarNum) rawCarNum = rawVin;
+                        rawVin = (localVin && !isPlateNum(localVin)) ? localVin : '';
+                    }
+
+                    // 3. rawCarNum と rawVin が同一の場合の分離解消
+                    if (rawCarNum && rawVin && rawCarNum === rawVin) {
+                        if (isPlateNum(rawCarNum)) {
+                            rawVin = '';
+                        } else if (isChassisNum(rawVin)) {
+                            rawCarNum = '';
+                        } else {
+                            rawVin = '';
+                        }
+                    }
+
+                    // 4. rawCarNum に車台番号が入っている場合の救済
                     if (!rawVin && isChassisNum(rawCarNum)) {
                         rawVin = rawCarNum;
-                        rawCarNum = (localCase && localCase.carNumber && !isChassisNum(localCase.carNumber)) ? localCase.carNumber : '';
+                        rawCarNum = (localCarNum && !isChassisNum(localCarNum)) ? localCarNum : '';
+                    }
+
+                    // 5. rawVin が空の場合、メモ欄から車台番号を抽出
+                    if (!rawVin) {
+                        const memoText = String(remoteCase.memo || (localCase && localCase.memo) || '');
+                        if (memoText) {
+                            const m = memoText.match(/車台番号\s*[:：]?\s*([0-9A-Z]+-[0-9A-Z]+)/i) || memoText.match(/\b([A-Z0-9]{2,8}-[0-9A-Z]{4,10})\b/i);
+                            if (m && !/^\d{8}-/.test(m[1])) {
+                                rawVin = m[1].toUpperCase();
+                            }
+                        }
                     }
 
                     return {

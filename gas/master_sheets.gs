@@ -99,6 +99,7 @@ function onOpen() {
     .addItem('📍 案件マスタの報酬を最新警察署単価で一括更新（一般のみ）', 'updateCaseFeesFromLocations')
     .addItem('🚗 車庫証明（OSS）の報酬を一律3,500円に復元', 'restoreAllOssFeesTo3500')
     .addItem('📥 インボックス「保留」入力規則の修復', 'fixInboxStatusValidation')
+    .addItem('🚗 登録番号・車台番号の分離修復', 'fixVehiclePlateAndChassisNumbers')
     .addSeparator()
     .addItem('✅ データ検証（顧客マスタ）', 'validateCustomerData')
     .addItem('✅ データ検証（担当者マスタ）', 'validateStaffData')
@@ -1058,7 +1059,27 @@ function getSheetDataAsJson_(sheetName, headers) {
       obj[key] = (value !== undefined && value !== null) ? value : '';
       if (value !== '' && value !== undefined && value !== null) hasData = true;
     });
-    if (hasData) jsonData.push(obj);
+    if (hasData) {
+      if (sheetName === SHEET_NAMES.CASES) {
+        // ナンバーと車台番号の混同・重複保護
+        const isPlate_ = function(s) {
+          return Boolean(s && typeof s === 'string' && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(s) || /^\d{1,4}$/.test(s.trim())));
+        };
+        const v_ = String(obj.vin || '').trim();
+        const cn_ = String(obj.carNumber || '').trim();
+        if (v_ && cn_ && v_ === cn_) {
+          if (isPlate_(v_)) {
+            obj.vin = '';
+          } else {
+            obj.carNumber = '';
+          }
+        } else if (v_ && isPlate_(v_)) {
+          if (!cn_) obj.carNumber = v_;
+          obj.vin = '';
+        }
+      }
+      jsonData.push(obj);
+    }
   });
   return jsonData;
 }
@@ -1313,6 +1334,21 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
   const now = new Date();
   const lastCol = Math.max(sheet.getLastColumn(), CASE_HEADERS.length);
   const actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+
+  // ナンバーと車台番号の混同・重複防止ガード
+  const isPlateInput_ = function(s) {
+    return Boolean(s && typeof s === 'string' && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(s) || /^\d{1,4}$/.test(s.trim())));
+  };
+  if (data.vin !== undefined && isPlateInput_(data.vin)) {
+    if (!data.carNumber) data.carNumber = data.vin;
+    data.vin = '';
+  } else if (data.vin !== undefined && data.carNumber !== undefined && data.vin && data.vin === data.carNumber) {
+    if (isPlateInput_(data.vin)) {
+      data.vin = '';
+    } else {
+      data.carNumber = '';
+    }
+  }
 
   if (data.id) {
     const lastRow = sheet.getLastRow();
@@ -3049,6 +3085,62 @@ function updateCaseHeaders_() {
   if (sheet) {
     sheet.getRange(1, 1, 1, CASE_HEADERS.length).setValues([CASE_HEADERS]);
   }
+}
+
+/**
+ * 案件マスタシート内の「新ナンバー」と「車台番号」の混同・重複データを一括自動修復
+ */
+function fixVehiclePlateAndChassisNumbers() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.CASES);
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('エラー', '案件マスタシートが見つかりません。', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow < 2) {
+    SpreadsheetApp.getUi().alert('情報', '案件データが存在しません。', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+
+  const actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+  const keyMap = getKeyMap_(SHEET_NAMES.CASES);
+  const vinColIdx = actualHeaders.findIndex(h => keyMap[h] === 'vin');
+  const carNumColIdx = actualHeaders.findIndex(h => keyMap[h] === 'carNumber');
+
+  if (vinColIdx === -1 || carNumColIdx === -1) {
+    SpreadsheetApp.getUi().alert('エラー', '車台番号列または自動車登録番号列が見つかりません。', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  const isPlate = function(s) {
+    return Boolean(s && typeof s === 'string' && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(s) || /^\d{1,4}$/.test(s.trim())));
+  };
+  let fixedCount = 0;
+
+  data.forEach((row, idx) => {
+    let vinVal = String(row[vinColIdx] || '').trim();
+    let carNumVal = String(row[carNumColIdx] || '').trim();
+    let rowChanged = false;
+
+    if (vinVal && carNumVal && vinVal === carNumVal) {
+      if (isPlate(vinVal)) {
+        sheet.getRange(idx + 2, vinColIdx + 1).setValue('');
+        rowChanged = true;
+      }
+    } else if (vinVal && isPlate(vinVal)) {
+      if (!carNumVal) {
+        sheet.getRange(idx + 2, carNumColIdx + 1).setValue(vinVal);
+      }
+      sheet.getRange(idx + 2, vinColIdx + 1).setValue('');
+      rowChanged = true;
+    }
+    if (rowChanged) fixedCount++;
+  });
+
+  SpreadsheetApp.getUi().alert('修復完了', `${fixedCount} 件の登録番号・車台番号データを修復しました。\nダッシュボード側で「同期」を実行してください。`, SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 // ── LINE Messaging API 用ヘルパー関数群 ──

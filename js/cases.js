@@ -2459,6 +2459,19 @@ const Cases = {
       memo: (form.memo && form.memo.value) ? form.memo.value.trim() : '',
     };
 
+    // ナンバーと車台番号の混同・重複防止ガード
+    const isPlateCheck = (s) => Boolean(s && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(s) || /^\d{1,4}$/.test(String(s).trim())));
+    if (data.carNumber && data.vin && data.carNumber === data.vin) {
+      if (isPlateCheck(data.vin)) {
+        data.vin = '';
+      } else {
+        data.carNumber = '';
+      }
+    } else if (data.vin && isPlateCheck(data.vin)) {
+      if (!data.carNumber) data.carNumber = data.vin;
+      data.vin = '';
+    }
+
     // 添付書類（docs）の保持とインボックス添付ファイルの自動登録
     let initialDocs = [];
     if (this.editingId) {

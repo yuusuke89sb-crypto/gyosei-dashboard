@@ -31,47 +31,73 @@ const Store = {
       const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
       if (!Array.isArray(cases) || cases.length === 0) return;
       let changed = false;
+      const modifiedCases = [];
 
-      const isChassisNum = (str) => Boolean(str && typeof str === 'string' && !/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(str) && (/^[A-Z0-9]+-[A-Z0-9]+$/i.test(str.trim()) || /^[A-Z0-9]{8,18}$/i.test(str.trim())));
-      const isPlateNum = (str) => Boolean(str && typeof str === 'string' && /[\u3040-\u30ff\u4e00-\u9fff]/.test(str));
+      const isChassisNum = (str) => Boolean(str && typeof str === 'string' && !/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(str) && (/^[A-Z0-9]{2,8}-[0-9A-Z]{4,10}$/i.test(str.trim()) || /^[A-Z0-9]{17}$/i.test(str.trim())));
+      const isPlateNum = (str) => Boolean(str && typeof str === 'string' && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(str) || /^\d{1,4}$/.test(str.trim())));
 
       cases.forEach(c => {
         let curVin = String(c.vin || '').trim();
         let curCarNum = String(c.carNumber || '').trim();
+        let rowChanged = false;
 
-        // 救済1: vin が空で、carNumber に車台番号形式（英数ハイフンで日本語なし）が入っている
+        // 1. 同一番号の重複解消（新ナンバーと車台番号が同じになっているケース）
+        if (curCarNum && curVin && curCarNum === curVin) {
+          if (isPlateNum(curVin)) {
+            c.vin = '';
+            curVin = '';
+            rowChanged = true;
+          } else if (isChassisNum(curVin)) {
+            c.carNumber = '';
+            curCarNum = '';
+            rowChanged = true;
+          } else {
+            c.vin = '';
+            curVin = '';
+            rowChanged = true;
+          }
+        }
+
+        // 2. vin にナンバープレート形式が入っている場合
+        if (curVin && isPlateNum(curVin)) {
+          if (!curCarNum) {
+            c.carNumber = curVin;
+            curCarNum = c.carNumber;
+          }
+          c.vin = '';
+          curVin = '';
+          rowChanged = true;
+        }
+
+        // 3. carNumber に車台番号形式が入っている場合
         if (!curVin && isChassisNum(curCarNum)) {
           c.vin = curCarNum;
           c.carNumber = '';
-          changed = true;
           curVin = c.vin;
           curCarNum = '';
+          rowChanged = true;
         }
 
-        // 救済2: carNumber が空で、vin にナンバープレート形式（地名漢字・かな入り）が入っている
-        if (!curCarNum && isPlateNum(curVin)) {
-          c.carNumber = curVin;
-          c.vin = '';
-          changed = true;
-          curVin = '';
-          curCarNum = c.carNumber;
-        }
-
-        // 救済3: vin が空で、メモ欄に「車台番号: XXX」または車台番号パターンがある
+        // 4. vin が空で、メモ欄に車台番号パターンがある場合の救済
         if (!curVin && typeof c.memo === 'string' && c.memo) {
           const m = c.memo.match(/車台番号\s*[:：]?\s*([0-9A-Z]+-[0-9A-Z]+)/i) || c.memo.match(/\b([A-Z0-9]{2,8}-[0-9A-Z]{4,10})\b/i);
-          if (m) {
+          if (m && !/^\d{8}-/.test(m[1])) {
             c.vin = m[1].toUpperCase();
-            changed = true;
+            rowChanged = true;
           }
+        }
+
+        if (rowChanged) {
+          changed = true;
+          modifiedCases.push(c);
         }
       });
 
       if (changed) {
         localStorage.setItem('gyosei_cases', JSON.stringify(cases));
-        console.log('✅ 車台番号(VIN)と登録番号の自動救済・マイグレーションを完了しました');
+        console.log(`✅ 車台番号(VIN)と登録番号の自動救済・分離マイグレーションを完了しました (${modifiedCases.length}件修復)`);
         if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-          cases.filter(c => c.vin).forEach(fc => {
+          modifiedCases.forEach(fc => {
             SpreadsheetSync.push('upsertCase', fc).catch(() => {});
           });
         }
