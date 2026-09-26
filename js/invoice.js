@@ -904,10 +904,14 @@ const Invoice = {
         .filter(Boolean)
     )];
 
+    const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
+    const note = isAllUsed ? '（中古車分）' : '';
+
     const html = this.buildInvoiceHTML({
       invoiceNo, issueDate, dueDate, year, month,
       client, office, cases, CATS,
-      feeSubtotal, tax, taxRate, advanceTotal, total, note: '（再印刷）',
+      feeSubtotal, tax, taxRate, advanceTotal, total, note,
+      docType: invoiceNo.startsWith('EST-') ? 'estimate' : 'invoice',
       contactNames, templateType
     });
 
@@ -996,11 +1000,14 @@ const Invoice = {
         .filter(Boolean)
     )];
 
+    const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
+    const note = isAllUsed ? '（中古車分）' : '';
+
     try {
       await this.exportToExcel({
         invoiceNo, issueDate, dueDate, year, month,
         client, office, cases, CATS,
-        feeSubtotal, tax, taxRate, advanceTotal, total, note: '（再発行）',
+        feeSubtotal, tax, taxRate, advanceTotal, total, note,
         docType: invoiceNo.startsWith('EST-') ? 'estimate' : 'invoice',
         contactNames, templateType
       });
