@@ -1514,10 +1514,15 @@ ${detailPagesHTML}
     // 業務分類
     let garageCases = [], docCases = [], regCases = [];
     cases.forEach(c => {
-      const t = (c.title || '') + (c.category || '') + (c.subCategory || '');
-      if (t.includes('車庫')) garageCases.push(c);
-      else if (t.includes('書類') || t.includes('作成')) docCases.push(c);
-      else regCases.push(c);
+      const cat = (c.category || '') + (c.categoryName || '');
+      const t = (c.title || '') + (c.subCategory || '');
+      if (cat.includes('garage') || cat.includes('車庫') || t.includes('車庫')) {
+        garageCases.push(c);
+      } else if (cat.includes('doc') || cat.includes('書類') || t.includes('書類') || t.includes('作成')) {
+        docCases.push(c);
+      } else {
+        regCases.push(c);
+      }
     });
 
     const garageFee = garageCases.reduce((s,c)=>s+Number(c.fee||0),0);
@@ -1821,13 +1826,13 @@ ${detailPagesHTML}
       <tr>
         <td rowspan="2" class="col-center" style="font-weight:bold; vertical-align:middle;">書類<br>作成<br>業務</td>
         <td>車庫証明申請</td>
-        <td class="col-center">${garageCases.length}件</td>
-        <td class="col-num">${garageFee.toLocaleString()}</td>
+        <td class="col-center">${garageCases.length > 0 ? garageCases.length + '件' : '-'}</td>
+        <td class="col-num">${garageFee > 0 ? garageFee.toLocaleString() : '-'}</td>
       </tr>
       <tr>
         <td>登録業務・その他</td>
-        <td class="col-center">${(docCases.length + regCases.length)}件</td>
-        <td class="col-num">${otherFee.toLocaleString()}</td>
+        <td class="col-center">${(docCases.length + regCases.length) > 0 ? (docCases.length + regCases.length) + '件' : '-'}</td>
+        <td class="col-num">${otherFee > 0 ? otherFee.toLocaleString() : '-'}</td>
       </tr>
       <tr style="font-weight:bold; background:#fafafa;">
         <td colspan="2" class="col-center">計</td>
@@ -3424,10 +3429,15 @@ window.NissanPrint = {
 
     let garageCases = [], docCases = [], regCases = [];
     cases.forEach(c => {
-      const t = (c.title || '') + (c.category || '') + (c.subCategory || '');
-      if (t.includes('車庫')) garageCases.push(c);
-      else if (t.includes('書類') || t.includes('作成')) docCases.push(c);
-      else regCases.push(c);
+      const cat = (c.category || '') + (c.categoryName || '');
+      const t = (c.title || '') + (c.subCategory || '');
+      if (cat.includes('garage') || cat.includes('車庫') || t.includes('車庫')) {
+        garageCases.push(c);
+      } else if (cat.includes('doc') || cat.includes('書類') || t.includes('書類') || t.includes('作成')) {
+        docCases.push(c);
+      } else {
+        regCases.push(c);
+      }
     });
     const garageFee = garageCases.reduce((s,c)=>s+Number(c.fee||0),0);
     const otherFee = (docCases.concat(regCases)).reduce((s,c)=>s+Number(c.fee||0),0);
@@ -3516,8 +3526,8 @@ window.NissanPrint = {
     });
 
     const mRows = [
-      ['書類作成業務', '車庫証明申請', garageCases.length, garageFee, ''],
-      ['', '登録業務・その他', (docCases.length + regCases.length), otherFee, ''],
+      ['書類作成業務', '車庫証明申請', garageCases.length > 0 ? garageCases.length : '-', garageFee, ''],
+      ['', '登録業務・その他', (docCases.length + regCases.length) > 0 ? (docCases.length + regCases.length) : '-', otherFee, ''],
     ];
     mRows.forEach((r, idx) => {
       const rNum = 11 + idx;
@@ -3526,7 +3536,7 @@ window.NissanPrint = {
       ws1.getCell(`C${rNum}`).value = r[2];
       ws1.getCell(`C${rNum}`).alignment = { horizontal: 'center' };
       ws1.getCell(`D${rNum}`).value = r[3];
-      ws1.getCell(`D${rNum}`).numFmt = '#,##0';
+      ws1.getCell(`D${rNum}`).numFmt = '#,##0;-#,##0;"-"';
       ws1.getCell(`D${rNum}`).alignment = { horizontal: 'right' };
       ws1.getCell(`E${rNum}`).value = r[4];
       ['A','B','C','D','E'].forEach(col => {
