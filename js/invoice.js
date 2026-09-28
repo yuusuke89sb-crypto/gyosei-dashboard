@@ -1083,15 +1083,31 @@ const Invoice = {
     const sealCases = cases.filter(c => isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
     const sortedCases = [...nonSealCases, ...sealCases];
 
-    // 明細ページの分割（1ページあたり18件、見出し・№1, №2...を各ページに描画）
-    const ROWS_PER_PAGE = 18;
-    const totalDetailPages = Math.ceil(sortedCases.length / ROWS_PER_PAGE) || 1;
+    // 明細ページの動的分割（基本20件。全体または最終ページの残りが最大22件までなら1ページに収める）
+    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
+      if (!items || items.length === 0) return [[]];
+      if (items.length <= maxLimit) return [items];
+      const pages = [];
+      let remaining = [...items];
+      while (remaining.length > 0) {
+        if (remaining.length <= maxLimit) {
+          pages.push(remaining);
+          break;
+        }
+        pages.push(remaining.slice(0, baseLimit));
+        remaining = remaining.slice(baseLimit);
+      }
+      return pages;
+    };
+
+    const detailPages = paginateCases(sortedCases, 20, 22);
+    const totalDetailPages = detailPages.length;
 
     let detailPagesHTML = '';
     for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
       const pageNum = pIdx + 1;
       const isLastPage = (pageNum === totalDetailPages);
-      const pageCases = sortedCases.slice(pIdx * ROWS_PER_PAGE, (pIdx + 1) * ROWS_PER_PAGE);
+      const pageCases = detailPages[pIdx];
 
       const rowsHTML = pageCases.map((c) => {
         const rawDate = getSortDate(c);
@@ -1530,15 +1546,31 @@ ${detailPagesHTML}
 
     const otherFee = docCases.reduce((s,c)=>s+Number(c.fee||0),0) + regCases.reduce((s,c)=>s+Number(c.fee||0),0);
 
-    // 明細ページの分割（1ページあたり18件、見出し・№1, №2...を各ページに描画）
-    const ROWS_PER_PAGE = 18;
-    const totalDetailPages = Math.ceil(cases.length / ROWS_PER_PAGE) || 1;
+    // 明細ページの動的分割（基本20件。全体または最終ページの残りが最大22件までなら1ページに収める）
+    const paginateFusoCases = (items, baseLimit = 20, maxLimit = 22) => {
+      if (!items || items.length === 0) return [[]];
+      if (items.length <= maxLimit) return [items];
+      const pages = [];
+      let remaining = [...items];
+      while (remaining.length > 0) {
+        if (remaining.length <= maxLimit) {
+          pages.push(remaining);
+          break;
+        }
+        pages.push(remaining.slice(0, baseLimit));
+        remaining = remaining.slice(baseLimit);
+      }
+      return pages;
+    };
+
+    const fusoDetailPages = paginateFusoCases(cases, 20, 22);
+    const totalDetailPages = fusoDetailPages.length;
 
     let fusoDetailPagesHTML = '';
     for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
       const pageNum = pIdx + 1;
       const isLastPage = (pageNum === totalDetailPages);
-      const pageCases = cases.slice(pIdx * ROWS_PER_PAGE, (pIdx + 1) * ROWS_PER_PAGE);
+      const pageCases = fusoDetailPages[pIdx];
 
       const rowsHTML = pageCases.map((c) => {
         const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
