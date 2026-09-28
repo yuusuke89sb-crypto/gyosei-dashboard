@@ -1583,8 +1583,8 @@ ${detailPagesHTML}
       return oa.localeCompare(ob);
     });
 
-    // 明細ページの動的分割（基本20件。全体または最終ページの残りが最大22件までなら1ページに収める）
-    const paginateFusoCases = (items, baseLimit = 20, maxLimit = 22) => {
+    // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
+    const paginateFusoCases = (items, baseLimit = 18, maxLimit = 20) => {
       if (!items || items.length === 0) return [[]];
       if (items.length <= maxLimit) return [items];
       const pages = [];
@@ -1600,7 +1600,7 @@ ${detailPagesHTML}
       return pages;
     };
 
-    const fusoDetailPages = paginateFusoCases(sortedFusoCases, 20, 22);
+    const fusoDetailPages = paginateFusoCases(sortedFusoCases, 18, 20);
     const totalDetailPages = fusoDetailPages.length;
 
     let fusoDetailPagesHTML = '';
@@ -1711,7 +1711,7 @@ ${detailPagesHTML}
     </tbody>
   </table>
 
-  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:auto; padding-top:4px;">
+  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:16px; padding-top:4px;">
     ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
   </div>
 </div>
@@ -1734,32 +1734,33 @@ ${detailPagesHTML}
     -webkit-print-color-adjust: exact;
   }
   @media print {
-    body { background: #fff; padding: 0; margin: 0; }
+    body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
     .no-print { display: none !important; }
-    @page { size: A4 portrait; margin: 0; }
+    @page { size: A4 portrait; margin: 8mm 10mm; }
     .page {
-      width: 210mm !important;
-      min-height: 290mm !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: auto !important;
       height: auto !important;
       margin: 0 !important;
-      padding: 10mm 14mm 10mm !important;
+      padding: 0 !important;
       box-shadow: none !important;
       box-sizing: border-box !important;
-      page-break-after: always !important;
-      break-after: page !important;
+      page-break-after: auto !important;
+      break-after: auto !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       position: relative !important;
       display: flex !important;
       flex-direction: column !important;
     }
+    .page.page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
     .page:last-child {
       page-break-after: auto !important;
       break-after: auto !important;
-    }
-    .page-break {
-      page-break-after: always !important;
-      break-after: page !important;
     }
   }
   .page {
