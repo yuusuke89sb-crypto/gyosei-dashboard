@@ -1546,6 +1546,38 @@ ${detailPagesHTML}
 
     const otherFee = docCases.reduce((s,c)=>s+Number(c.fee||0),0) + regCases.reduce((s,c)=>s+Number(c.fee||0),0);
 
+    // 日付順（昇順：古い日 → 新しい日）ソートキー取得関数
+    const getFusoSortDate = (c) => {
+      const raw = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+      if (!raw) return '9999-99-99';
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      const parts = String(raw).split(/[-/T\s]/);
+      if (parts.length >= 3) {
+        const y = parts[0].padStart(4, '20');
+        const m = parts[1].padStart(2, '0');
+        const day = parts[2].padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      return String(raw);
+    };
+
+    // 日付順（昇順：古い日 → 新しい日）にソート。同一日の場合は注文No.または管理番号順
+    const sortedFusoCases = [...cases].sort((a, b) => {
+      const da = getFusoSortDate(a);
+      const db = getFusoSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = String(a.orderNo || a.caseNo || '');
+      const ob = String(b.orderNo || b.caseNo || '');
+      return oa.localeCompare(ob);
+    });
+
     // 明細ページの動的分割（基本20件。全体または最終ページの残りが最大22件までなら1ページに収める）
     const paginateFusoCases = (items, baseLimit = 20, maxLimit = 22) => {
       if (!items || items.length === 0) return [[]];
@@ -1563,7 +1595,7 @@ ${detailPagesHTML}
       return pages;
     };
 
-    const fusoDetailPages = paginateFusoCases(cases, 20, 22);
+    const fusoDetailPages = paginateFusoCases(sortedFusoCases, 20, 22);
     const totalDetailPages = fusoDetailPages.length;
 
     let fusoDetailPagesHTML = '';
@@ -3626,7 +3658,40 @@ window.NissanPrint = {
     // --- Sheet 2: 明細票 ---
     const ws2 = wb.addWorksheet('明細票');
     ws2.views = [{ showGridLines: true }];
-    ws2.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: Math.max(1, Math.ceil(cases.length / 22)), margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5 } };
+
+    // 日付順（昇順：古い日 → 新しい日）ソートキー取得関数
+    const getFusoSortDate = (c) => {
+      const raw = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+      if (!raw) return '9999-99-99';
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      const parts = String(raw).split(/[-/T\s]/);
+      if (parts.length >= 3) {
+        const y = parts[0].padStart(4, '20');
+        const m = parts[1].padStart(2, '0');
+        const day = parts[2].padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      return String(raw);
+    };
+
+    // 日付順（昇順：古い日 → 新しい日）にソート。同一日の場合は注文No.または管理番号順
+    const sortedFusoCases = [...cases].sort((a, b) => {
+      const da = getFusoSortDate(a);
+      const db = getFusoSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = String(a.orderNo || a.caseNo || '');
+      const ob = String(b.orderNo || b.caseNo || '');
+      return oa.localeCompare(ob);
+    });
+
+    ws2.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: Math.max(1, Math.ceil(sortedFusoCases.length / 22)), margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5 } };
 
     ws2.mergeCells('A1:J1');
     ws2.getCell('A1').value = `請求明細票（${clientName} 御中） - ${invoiceNo}`;
@@ -3646,13 +3711,17 @@ window.NissanPrint = {
     });
 
     let rowIdx = 4;
-    cases.forEach((c, idx) => {
-      const rawDate = c.completedAt || c.registrationDate || c.createdAt || '';
+    sortedFusoCases.forEach((c, idx) => {
+      const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
       let dateStr = '-';
       if (rawDate) {
         const d = new Date(rawDate);
         if (!isNaN(d.getTime())) dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
-        else dateStr = String(rawDate).slice(5, 10);
+        else {
+          const parts = String(rawDate).split(/[-/T]/);
+          if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+          else dateStr = String(rawDate).slice(5);
+        }
       }
       const orderNo = c.orderNo || c.caseNo || '-';
       const applicant = c.carName || c.applicantName || c.title || '-';
