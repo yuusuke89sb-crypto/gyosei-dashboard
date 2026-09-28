@@ -1034,7 +1034,7 @@ const Invoice = {
   // =========================================================================
   // 1. 愛知トヨタWEST様式（表紙サマリー＋明細票）
   // =========================================================================
-  buildToyotaInvoiceHTML({ invoiceNo, issueDate, dueDate, year, month, client, office, cases, feeSubtotal, tax, taxRate, advanceTotal, total, note, docType = 'invoice' }) {
+  buildToyotaInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice' }) {
     // 案件を集計（車庫証明、封印、移転登録、その他）
     let garageCount = 0, garageFee = 0;
     let sealCount = 0, sealFee = 0;
@@ -1068,23 +1068,48 @@ const Invoice = {
       });
     });
 
-    const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
-    const [issueY, issueM, issueD] = issueDate.split('-');
+    const clientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const [issueY, issueM, issueD] = (issueDate || (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-28')).split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
 
     // ソートキー取得関数
     const getSortDate = (c) => {
-      return c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+      const raw = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+      if (!raw) return '9999-99-99';
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      const parts = String(raw).split(/[-/T\s]/);
+      if (parts.length >= 3) {
+        const y = parts[0].padStart(4, '20');
+        const m = parts[1].padStart(2, '0');
+        const day = parts[2].padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      return String(raw);
     };
     // 封印判定
     const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印');
-    // 車庫・その他（封印以外）と封印を分離し、それぞれ完了日順でソート
-    const nonSealCases = cases.filter(c => !isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
-    const sealCases = cases.filter(c => isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)));
+    // 車庫・その他（封印以外）と封印を分離し、それぞれ完了日順でソート（同一日は注文No.順）
+    const sortCases = (arr) => arr.sort((a, b) => {
+      const da = getSortDate(a);
+      const db = getSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = String(a.orderNo || a.caseNo || '');
+      const ob = String(b.orderNo || b.caseNo || '');
+      return oa.localeCompare(ob);
+    });
+    const nonSealCases = sortCases(cases.filter(c => !isSeal(c)));
+    const sealCases = sortCases(cases.filter(c => isSeal(c)));
     const sortedCases = [...nonSealCases, ...sealCases];
 
-    // 明細ページの動的分割（基本20件。全体または最終ページの残りが最大22件までなら1ページに収める）
-    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
+    // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
+    const paginateCases = (items, baseLimit = 18, maxLimit = 20) => {
       if (!items || items.length === 0) return [[]];
       if (items.length <= maxLimit) return [items];
       const pages = [];
@@ -1100,7 +1125,7 @@ const Invoice = {
       return pages;
     };
 
-    const detailPages = paginateCases(sortedCases, 20, 22);
+    const detailPages = paginateCases(sortedCases, 18, 20);
     const totalDetailPages = detailPages.length;
 
     let detailPagesHTML = '';
@@ -1219,7 +1244,7 @@ const Invoice = {
     </tbody>
   </table>
 
-  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:auto; padding-top:4px;">
+  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:16px; padding-top:4px;">
     ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
   </div>
 </div>
@@ -1242,32 +1267,33 @@ const Invoice = {
     -webkit-print-color-adjust: exact;
   }
   @media print {
-    body { background: #fff; padding: 0; margin: 0; }
+    body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
     .no-print { display: none !important; }
-    @page { size: A4 portrait; margin: 0; }
+    @page { size: A4 portrait; margin: 8mm 10mm; }
     .page {
-      width: 210mm !important;
-      min-height: 290mm !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: auto !important;
       height: auto !important;
       margin: 0 !important;
-      padding: 10mm 14mm 10mm !important;
+      padding: 0 !important;
       box-shadow: none !important;
       box-sizing: border-box !important;
-      page-break-after: always !important;
-      break-after: page !important;
+      page-break-after: auto !important;
+      break-after: auto !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       position: relative !important;
       display: flex !important;
       flex-direction: column !important;
     }
+    .page.page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
     .page:last-child {
       page-break-after: auto !important;
       break-after: auto !important;
-    }
-    .page-break {
-      page-break-after: always !important;
-      break-after: page !important;
     }
   }
   .page {
