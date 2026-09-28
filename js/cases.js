@@ -818,9 +818,13 @@ const Cases = {
                       <label>所轄警察署</label>
                       <select name="carPolice" id="csf_carPolice" class="form-select" onchange="Cases.onCarPoliceChange(this.value)">
                         <option value="">— 選択（任意） —</option>
-                        ${typeof Briefing !== 'undefined' 
-                          ? Briefing.PRESETS.filter(p => p.group === '警察署').map(p => `<option value="${p.label}">${p.label}</option>`).join('') 
-                          : ''}
+                        ${(() => {
+                          const pLocs = (typeof Store !== 'undefined' && Store.getLocations) ? Store.getLocations().filter(l => l && l.name && l.name.includes('警察署')) : [];
+                          if (pLocs.length > 0) {
+                            return pLocs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+                          }
+                          return typeof Briefing !== 'undefined' ? Briefing.PRESETS.filter(p => p.group === '警察署').map(p => `<option value="${p.label}">${p.label}</option>`).join('') : '';
+                        })()}
                       </select>
                     </div>
                   </div>
@@ -2854,31 +2858,29 @@ const Cases = {
     // 2. 市区町村・行政区から警察署への高精度マッピングルール（最長一致）
     const jurisdictionRules = [
       // 愛知県 尾張・海部・知多・三河
-      { keywords: ['一宮市'], police: '一宮' },
-      { keywords: ['江南市', '岩倉市', '大口町', '丹羽郡大口町'], police: '江南' },
-      { keywords: ['稲沢市'], police: '稲沢' },
-      { keywords: ['小牧市'], police: '小牧' },
-      { keywords: ['犬山市', '扶桑町', '丹羽郡扶桑町'], police: '犬山' },
-      { keywords: ['清須市', '北名古屋市', '豊山町', '西春日井郡', '西枇杷島'], police: '西枇杷島' },
-      { keywords: ['津島市', '愛西市', 'あま市', '大治町', '海部郡大治町'], police: '津島' },
-      { keywords: ['蟹江町', '海部郡蟹江町', '弥富市', '飛島村', '海部郡飛島村'], police: '蟹江' },
-      { keywords: ['春日井市'], police: '春日井' },
-      { keywords: ['瀬戸市', '尾張旭市'], police: '瀬戸' },
-      { keywords: ['東郷町', '愛知郡東郷町', '日進市', 'みよし市', '豊明市'], police: '愛知' },
-      { keywords: ['東海市', '大府市'], police: '東海' },
-      { keywords: ['刈谷市', '知立市'], police: '刈谷' },
-      { keywords: ['豊田市'], police: '豊田' },
-      { keywords: ['知多市'], police: '知多' },
-      { keywords: ['岡崎市', '幸田町', '額田郡'], police: '岡崎' },
-      { keywords: ['安城市'], police: '安城' },
-      { keywords: ['西尾市'], police: '西尾' },
-      { keywords: ['常滑市'], police: '常滑' },
-      { keywords: ['半田市', '阿久比町', '武豊町', '東浦町', '南知多町', '美浜町', '知多郡'], police: '半田' },
-      { keywords: ['碧南市', '高浜市'], police: '碧南' },
-      { keywords: ['豊川市'], police: '豊川' },
-      { keywords: ['豊橋市'], police: '豊橋' },
-      { keywords: ['新城市'], police: '新城' },
-      { keywords: ['田原市'], police: '田原' },
+      { keywords: ['一宮市', '一宮', '木曽川町', '木曽川', '尾西'], police: '一宮' },
+      { keywords: ['江南市', '江南', '岩倉市', '岩倉', '大口町', '丹羽郡大口町', '大口'], police: '江南' },
+      { keywords: ['稲沢市', '稲沢', '祖父江町', '祖父江', '平和町'], police: '稲沢' },
+      { keywords: ['小牧市', '小牧'], police: '小牧' },
+      { keywords: ['犬山市', '犬山', '扶桑町', '丹羽郡扶桑町', '扶桑'], police: '犬山' },
+      { keywords: ['清須市', '清須', '北名古屋市', '北名古屋', '豊山町', '西春日井郡', '西枇杷島'], police: '西枇杷島' },
+      { keywords: ['津島市', '津島', '愛西市', '愛西', 'あま市', 'あま', '大治町', '海部郡大治町', '大治', '甚目寺', '七宝', '美和'], police: '津島' },
+      { keywords: ['海部郡蟹江町', '蟹江町', '蟹江', '弥富市', '弥富', '飛島村', '海部郡飛島村', '飛島'], police: '蟹江' },
+      { keywords: ['春日井市', '春日井'], police: '春日井' },
+      { keywords: ['瀬戸市', '瀬戸', '尾張旭市', '尾張旭'], police: '瀬戸' },
+      { keywords: ['東郷町', '愛知郡東郷町', '東郷', '日進市', '日進', 'みよし市', 'みよし', '豊明市', '豊明'], police: '愛知' },
+      { keywords: ['東海市', '東海', '大府市', '大府'], police: '東海' },
+      { keywords: ['刈谷市', '刈谷', '知立市', '知立'], police: '刈谷' },
+      { keywords: ['豊田市', '豊田'], police: '豊田' },
+      { keywords: ['知多市', '知多'], police: '知多' },
+      { keywords: ['岡崎市', '岡崎', '幸田町', '額田郡'], police: '岡崎' },
+      { keywords: ['安城市', '安城'], police: '安城' },
+      { keywords: ['西尾市', '西尾'], police: '西尾' },
+      { keywords: ['常滑市', '常滑'], police: '常滑' },
+      { keywords: ['半田市', '半田', '阿久比町', '阿久比', '武豊町', '武豊', '東浦町', '東浦', '南知多町', '南知多', '美浜町', '知多郡'], police: '半田' },
+      { keywords: ['碧南市', '碧南', '高浜市', '高浜'], police: '碧南' },
+      { keywords: ['豊川市', '豊川'], police: '豊川' },
+      { keywords: ['豊橋市', '豊橋'], police: '豊橋' },
 
       // 名古屋市内（区名）
       { keywords: ['名古屋市中区', '中区'], police: '中警察署' },
@@ -2899,28 +2901,24 @@ const Cases = {
       { keywords: ['名古屋市緑区', '緑区'], police: '緑警察署' },
 
       // 岐阜県
-      { keywords: ['羽島市', '笠松町', '岐南町', '羽島郡'], police: '岐阜羽島' },
-      { keywords: ['各務原市'], police: '各務原' },
-      { keywords: ['北方町', '本巣市', '瑞穂市', '本巣郡'], police: '北方' },
-      { keywords: ['山県市'], police: '山県' },
-      { keywords: ['大垣市', '安八町', '輪之内町', '神戸町', '安八郡'], police: '大垣' },
+      { keywords: ['羽島市', '羽島', '笠松町', '笠松', '岐南町', '岐南', '羽島郡'], police: '岐阜羽島' },
+      { keywords: ['各務原市', '各務原'], police: '各務原' },
+      { keywords: ['北方町', '北方', '本巣市', '本巣', '瑞穂市', '瑞穂', '本巣郡'], police: '北方' },
+      { keywords: ['山県市', '山県'], police: '山県' },
+      { keywords: ['大垣市', '大垣', '安八町', '安八', '輪之内町', '輪之内', '神戸町', '安八郡'], police: '大垣' },
       { keywords: ['関市', '美濃市'], police: '関警察署' },
-      { keywords: ['海津市'], police: '海津' },
-      { keywords: ['養老町', '養老郡', '上石津町'], police: '養老' },
-      { keywords: ['垂井町', '関ケ原町', '不破郡'], police: '垂井' },
-      { keywords: ['美濃加茂市', '坂祝町', '富加町', '川辺町', '七宗町', '八百津町', '白川町', '東白川村', '加茂郡'], police: '加茂' },
-      { keywords: ['揖斐川町', '大野町', '池田町', '揖斐郡'], police: '揖斐' },
-      { keywords: ['可児市', '御嵩町', '可児郡'], police: '可児' },
-      { keywords: ['多治見市', '土岐市', '瑞浪市'], police: '多治見' },
-      { keywords: ['郡上市'], police: '郡上' },
-      { keywords: ['中津川市'], police: '中津川' },
-      { keywords: ['岐阜市'], police: '岐阜中' },
+      { keywords: ['海津市', '海津'], police: '海津' },
+      { keywords: ['養老町', '養老', '養老郡', '上石津町'], police: '養老' },
+      { keywords: ['垂井町', '垂井', '関ケ原町', '関ヶ原', '不破郡'], police: '垂井' },
+      { keywords: ['美濃加茂市', '美濃加茂', '坂祝町', '富加町', '川辺町', '七宗町', '八百津町', '白川町', '加茂郡'], police: '加茂' },
+      { keywords: ['揖斐川町', '揖斐川', '大野町', '池田町', '揖斐郡'], police: '揖斐' },
+      { keywords: ['可児市', '可児', '御嵩町', '可児郡'], police: '可児' },
+      { keywords: ['多治見市', '多治見', '土岐市', '土岐', '瑞浪市', '瑞浪'], police: '多治見' },
+      { keywords: ['岐阜市', '岐阜'], police: '岐阜中' },
 
-      // 三重県・滋賀県
-      { keywords: ['四日市市', '川越町', '朝日町', '三重郡'], police: '四日市北' },
-      { keywords: ['桑名市', '木曽岬町', 'いなべ市', '東員町', '桑名郡', '員弁郡'], police: '桑名' },
-      { keywords: ['鳥羽市', '志摩市'], police: '鳥羽' },
-      { keywords: ['甲賀市', '湖南市'], police: '甲賀' }
+      // 三重県（近隣）
+      { keywords: ['桑名市', '桑名', '木曽岬町', '木曽岬', 'いなべ市', 'いなべ', '東員町', '東員', '桑名郡', '員弁郡'], police: '桑名' },
+      { keywords: ['四日市市', '四日市', '川越町', '朝日町', '三重郡'], police: '四日市北' }
     ];
 
     // 長いキーワードから順にマッチング
@@ -2934,10 +2932,15 @@ const Cases = {
 
     for (const item of flattened) {
       if (cleanAddr.includes(item.kw)) {
+        // 完全一致・警察署名一致を優先、なければ包含照合
         const found = locations.find(l => {
           if (!l || !l.name) return false;
-          const pureL = l.name.replace(/\s+/g, '');
-          return pureL.includes(item.target) || item.target.includes(pureL.replace('警察署', ''));
+          const pureL = l.name.replace(/\s+/g, '').replace('警察署', '');
+          return pureL === item.target || l.name.replace(/\s+/g, '') === (item.target + '警察署');
+        }) || locations.find(l => {
+          if (!l || !l.name) return false;
+          const pureL = l.name.replace(/\s+/g, '').replace('警察署', '');
+          return item.target.length >= 2 && (pureL.includes(item.target) || item.target.includes(pureL));
         });
         if (found) return found;
       }
@@ -2986,9 +2989,20 @@ const Cases = {
     const matchedLoc = this.autoDetectPoliceFromAddress(effectiveAddr);
     if (matchedLoc) {
       const polLocSelect = document.getElementById('csf_policeLocationId');
-      if (polLocSelect && polLocSelect.value !== matchedLoc.id) {
-        polLocSelect.value = matchedLoc.id;
-        this.onPoliceLocationChange(matchedLoc.id);
+      if (polLocSelect) {
+        // ID一致、または名前一致で安全にoptionを選択（ID不整合による誤選択を完全防止）
+        let targetOpt = Array.from(polLocSelect.options).find(o => o.value === matchedLoc.id);
+        if (!targetOpt) {
+          const pureMatchName = matchedLoc.name.replace(/\s+/g, '').replace('警察署', '');
+          targetOpt = Array.from(polLocSelect.options).find(o => {
+            const pureText = o.text.replace(/\s+/g, '').replace(/（.*）|\(.*\)/, '');
+            return pureText.includes(pureMatchName) || pureMatchName.includes(pureText.replace('警察署', ''));
+          });
+        }
+        if (targetOpt && polLocSelect.value !== targetOpt.value) {
+          polLocSelect.value = targetOpt.value;
+          this.onPoliceLocationChange(targetOpt.value);
+        }
       }
       const carPoliceSelect = document.getElementById('csf_carPolice');
       if (carPoliceSelect) {
@@ -3018,12 +3032,19 @@ const Cases = {
     if (!policeName || typeof Store === 'undefined') return;
     const locations = Store.getLocations() || [];
     const pClean = policeName.replace(/\s+/g, '').replace('警察署', '');
-    const matched = locations.find(l => l && l.name && (l.name.includes(pClean) || pClean.includes(l.name.replace('警察署', ''))));
+    const matched = locations.find(l => l && l.name && (l.name.replace(/\s+/g, '').replace('警察署', '') === pClean || l.name.includes(pClean)));
     if (matched) {
       const polLocSelect = document.getElementById('csf_policeLocationId');
-      if (polLocSelect && polLocSelect.value !== matched.id) {
-        polLocSelect.value = matched.id;
-        this.onPoliceLocationChange(matched.id);
+      if (polLocSelect) {
+        let targetOpt = Array.from(polLocSelect.options).find(o => o.value === matched.id);
+        if (!targetOpt) {
+          targetOpt = Array.from(polLocSelect.options).find(o => o.text.includes(matched.name));
+        }
+        const targetVal = targetOpt ? targetOpt.value : matched.id;
+        if (polLocSelect.value !== targetVal) {
+          polLocSelect.value = targetVal;
+          this.onPoliceLocationChange(targetVal);
+        }
       }
     }
   },

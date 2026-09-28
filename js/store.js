@@ -656,8 +656,20 @@ const Store = {
   },
 
   deleteLocation(id) {
+    const loc = this.getLocation(id);
     const locations = this.getLocations().filter(l => l.id !== id);
     this._set(this.KEYS.LOCATIONS, locations);
+    // 削除履歴を記録し、初期化シード（seedPoliceFees）で自動復活しないようにする
+    if (loc && loc.name) {
+      try {
+        const deleted = JSON.parse(localStorage.getItem('gyosei_deleted_locations') || '[]');
+        const cleanName = loc.name.replace(/\s+/g, '');
+        if (!deleted.includes(cleanName)) {
+          deleted.push(cleanName);
+          localStorage.setItem('gyosei_deleted_locations', JSON.stringify(deleted));
+        }
+      } catch (e) {}
+    }
     // スプレッドシートへ自動プッシュ
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('deleteLocation', { id });

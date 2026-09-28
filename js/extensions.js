@@ -561,26 +561,53 @@ const CaseTemplates = {
     '揖斐警察署': { fee: 11000, address: '岐阜県揖斐郡揖斐川町極楽寺71-1', memo: '岐阜県警' },
     '可児警察署': { fee: 10000, address: '岐阜県可児市中恵土2313-2', memo: '交通費別' },
     '多治見警察署': { fee: 12000, address: '岐阜県多治見市宝町1-65', memo: '瑞浪市・土岐市管轄' },
-    '郡上警察署': { fee: 15000, address: '岐阜県郡上市八幡町五町282', memo: '交通費別' },
-    '中津川警察署': { fee: 35000, address: '岐阜県中津川市かやの木町1-30', memo: '岐阜県警' },
 
-    // 三重県・滋賀県
+    // 三重県（近隣）
     '四日市北警察署': { fee: 22000, address: '三重県四日市市松原町4-3', memo: '三重県警' },
     '桑名警察署': { fee: 12000, address: '三重県桑名市大字江場626-2', memo: '三重県警' },
-    '鳥羽警察署': { fee: 33000, address: '三重県鳥羽市松尾町270-1', memo: '三重県警' },
-    '甲賀警察署': { fee: 25000, address: '滋賀県甲賀市水口町水口6026', memo: '滋賀県警' },
   },
 
   // 場所マスタに車庫証明代行料マスターを一括適用・反映
   seedPoliceFees() {
     try {
       if (typeof Store === 'undefined' || typeof Store.getLocations !== 'function') return;
-      const locations = Store.getLocations();
+      let locations = Store.getLocations();
       let updated = 0;
       let added = 0;
 
+      // 遠方・除外対象警察署の自動整理リスト
+      const EXCLUDED_POLICE = ['鳥羽警察署', '甲賀警察署', '中津川警察署', '郡上警察署', '新城警察署', '田原警察署'];
+      let deletedList = [];
+      try {
+        deletedList = JSON.parse(localStorage.getItem('gyosei_deleted_locations') || '[]');
+      } catch (e) {}
+
+      // 除外対象を削除済みリストにも記録
+      EXCLUDED_POLICE.forEach(ex => {
+        const c = ex.replace(/\s+/g, '');
+        if (!deletedList.includes(c)) deletedList.push(c);
+      });
+      try {
+        localStorage.setItem('gyosei_deleted_locations', JSON.stringify(deletedList));
+      } catch (e) {}
+
+      // 既存locationsから遠方・除外警察署を自動削除（マスタクリーンアップ）
+      const initialCount = locations.length;
+      locations = locations.filter(l => {
+        if (!l || !l.name) return true;
+        const clean = l.name.replace(/\s+/g, '');
+        return !EXCLUDED_POLICE.some(ex => clean === ex || clean.includes(ex.replace('警察署', '')));
+      });
+      if (locations.length !== initialCount) {
+        Store._set(Store.KEYS.LOCATIONS, locations);
+        console.log(`[CaseTemplates] 遠方警察署（${initialCount - locations.length}件）をマスタから自動整理しました`);
+      }
+
       Object.entries(this.POLICE_FEES).forEach(([name, info]) => {
         const cleanName = name.replace(/\s+/g, '');
+        // ユーザーが手動削除した場所または除外対象は再追加しない
+        if (deletedList.includes(cleanName)) return;
+
         const existing = locations.find(l => l && l.name && typeof l.name === 'string' && l.name.replace(/\s+/g, '') === cleanName);
         if (existing) {
           // スプレッドシートやユーザー手動修正の単価を最優先として保持（未設定・不正値の場合のみ初期値を補完）
