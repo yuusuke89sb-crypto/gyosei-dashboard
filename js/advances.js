@@ -121,17 +121,11 @@ const Advances = {
                 return `${filtered.length}社${this.filterDealer !== 'all' ? ' (絞込)' : ''}`;
               })()}</span>
             </div>
-            <input type="text" class="search-input" placeholder="🔍 取引先名で検索..." 
-              value="${this.searchQuery}" oninput="Advances.onSearchClient(this.value)" style="margin-bottom:12px; font-size:0.85rem;">
+            <input type="text" id="advancesClientSearch" class="search-input" placeholder="🔍 取引先名で検索..." 
+              value="${this.searchQuery}" oninput="Advances.onSearchClient(this.value)" autocomplete="off" spellcheck="false" style="margin-bottom:12px; font-size:0.85rem;">
             
-            <div style="max-height:550px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-              ${(() => {
-                const list = this.filterDealer !== 'all' ? clientSummaries.filter(cs => this.getDealerGroup(cs) === this.filterDealer) : clientSummaries;
-                if (list.length === 0) {
-                  return '<p style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:20px 0;">該当する取引先はありません</p>';
-                }
-                return list.map(cs => this.renderClientRow(cs)).join('');
-              })()}
+            <div id="advancesClientListContainer" style="max-height:550px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+              ${this.renderClientListItems(clientSummaries)}
             </div>
           </div>
 
@@ -507,9 +501,25 @@ const Advances = {
     App.refreshView();
   },
 
+  renderClientListItems(clientSummaries) {
+    const list = this.filterDealer !== 'all' ? clientSummaries.filter(cs => this.getDealerGroup(cs) === this.filterDealer) : clientSummaries;
+    if (list.length === 0) {
+      return '<p style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:20px 0;">該当する取引先はありません</p>';
+    }
+    return list.map(cs => this.renderClientRow(cs)).join('');
+  },
+
   onSearchClient(query) {
     this.searchQuery = query;
-    App.refreshView();
+    const container = document.getElementById('advancesClientListContainer');
+    if (container) {
+      const cases = Store.getCases();
+      const clients = Store.getClients();
+      const clientSummaries = this.calcClientSummaries(cases, clients);
+      container.innerHTML = this.renderClientListItems(clientSummaries);
+    } else {
+      App.refreshView();
+    }
   },
 
   toggleAdvancePaid(caseId) {

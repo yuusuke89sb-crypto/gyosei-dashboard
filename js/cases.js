@@ -77,30 +77,61 @@ const Cases = {
   onSearchInput(val) {
     this.searchQuery = val;
     try { sessionStorage.setItem('gyosei_cases_search', val); } catch(e) {}
-    const container = document.getElementById('casesMainContainer');
-    if (container) {
-      const filtered = this.getFilteredCases();
-      const isMobile = window.innerWidth < 768;
-      container.innerHTML = isMobile ? this.renderList(filtered) : this.renderKanban(filtered);
-    } else {
-      App.refreshView();
+
+    // クリアボタン表示切替（DOM直接制御）
+    const clearBtn = document.getElementById('caseSearchClearBtn');
+    if (clearBtn) {
+      clearBtn.style.display = val ? 'block' : 'none';
     }
+
+    // デバウンス処理：入力中（特に日本語IME変換中）の大量DOM書き換えによるフォーカス喪失やチラつきを完全防止
+    if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      const container = document.getElementById('casesMainContainer');
+      if (!container) return;
+      try {
+        const filtered = this.getFilteredCases();
+        const isMobile = window.innerWidth < 768;
+        container.innerHTML = isMobile ? this.renderList(filtered) : this.renderKanban(filtered);
+      } catch (err) {
+        console.error('[Cases.onSearchInput] filter error:', err);
+      }
+    }, 120);
   },
 
   clearSearch() {
     this.searchQuery = '';
     try { sessionStorage.removeItem('gyosei_cases_search'); } catch(e) {}
+    if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+
     const input = document.getElementById('caseSearchInput');
-    if (input) input.value = '';
-    App.refreshView();
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    const clearBtn = document.getElementById('caseSearchClearBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    const container = document.getElementById('casesMainContainer');
+    if (container) {
+      try {
+        const filtered = this.getFilteredCases();
+        const isMobile = window.innerWidth < 768;
+        container.innerHTML = isMobile ? this.renderList(filtered) : this.renderKanban(filtered);
+      } catch (err) {
+        console.error('[Cases.clearSearch] error:', err);
+      }
+    }
+    if (input) input.focus();
   },
 
-  // 全角半角・スペース・ハイフンを正規化するヘルパー
+  // 全角半角・カナかな・英数字・記号を正規化するヘルパー
   normalizeText(str) {
-    if (!str || typeof str !== 'string') return '';
-    return str
+    if (!str) return '';
+    return String(str)
       .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-      .replace(/[\s\u3000\-_－ー]/g, '')
+      .replace(/[\u30A1-\u30F6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60))
+      .replace(/[\s\u3000\-_－ー・/／()（）]/g, '')
       .toLowerCase();
   },
 
@@ -140,7 +171,8 @@ const Cases = {
 
       filtered = filtered.filter(c => {
         const client = Store.getClient(c.clientId);
-        const clientName = client ? client.name : '';
+        const clientName = client ? (client.name || '') : '';
+        const clientCompany = client ? (client.companyName || '') : '';
         const staffName = c.staffId ? Store.getStaffName(c.staffId) : '';
         const memoStr = typeof c.memo === 'string' ? c.memo : '';
 
@@ -148,7 +180,7 @@ const Cases = {
         const rawFullText = [
           c.title, c.carName, c.applicantName, c.orderNo, c.caseNo,
           c.carNumber, c.oldCarNumber, c.vin, c.carAddress, c.parkingAddress,
-          c.carPolice, memoStr, c.subCategory, clientName, staffName
+          c.carPolice, memoStr, c.subCategory, clientName, clientCompany, staffName
         ].filter(Boolean).join(' ').toLowerCase();
 
         const normFullText = [
@@ -166,13 +198,14 @@ const Cases = {
           this.normalizeText(memoStr),
           this.normalizeText(c.subCategory),
           this.normalizeText(clientName),
+          this.normalizeText(clientCompany),
           this.normalizeText(staffName)
         ].join('');
 
         // すべての検索単語が含まれているかチェック (AND検索)
         return rawWords.every((rw, idx) => {
           const nw = normalizedWords[idx];
-          return rawFullText.includes(rw.toLowerCase()) || normFullText.includes(nw);
+          return rawFullText.includes(rw.toLowerCase()) || (nw && normFullText.includes(nw));
         });
       });
     }
@@ -214,7 +247,7 @@ const Cases = {
             <input type="text" id="caseSearchInput" class="filter-input" autocomplete="off" spellcheck="false" placeholder="🔍 申請者名・車台・ナンバー・注文書No等..."
               value="${this.searchQuery}" oninput="Cases.onSearchInput(this.value)"
               style="width:100%; padding:9px 32px 9px 14px; border-radius:8px; border:2px solid #3b82f6; background:#1e293b; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; font-size:1.0rem; font-weight:600; caret-color:#38bdf8;">
-            ${this.searchQuery ? `<button type="button" onclick="Cases.clearSearch()" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.85rem;" title="検索クリア">✕</button>` : ''}
+            <button type="button" id="caseSearchClearBtn" onclick="Cases.clearSearch()" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.85rem; display:${this.searchQuery ? 'block' : 'none'};" title="検索クリア">✕</button>
           </div>
 
           <div class="filter-group">

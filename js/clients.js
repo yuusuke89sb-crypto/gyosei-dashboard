@@ -5,18 +5,95 @@ const Clients = {
   searchQuery: sessionStorage.getItem('gyosei_clients_search') || '',
   editingId: null,
 
-  render() {
-    const clients = Store.getClients();
-    const filtered = this.searchQuery
-      ? clients.filter(c =>
-        c.name.includes(this.searchQuery) ||
-        c.nameKana.includes(this.searchQuery) ||
-        c.phone.includes(this.searchQuery) ||
-        c.email.includes(this.searchQuery)
-      )
-      : clients;
+  // 全角半角・カナかな・英数字・記号を正規化するヘルパー
+  normalizeText(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/[\u30A1-\u30F6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60))
+      .replace(/[\s\u3000\-_－ー・/／()（）]/g, '')
+      .toLowerCase();
+  },
 
-    const sorted = filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  getFilteredClients() {
+    const clients = Store.getClients();
+    if (!this.searchQuery || !this.searchQuery.trim()) {
+      return [...clients].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }
+
+    const rawWords = this.searchQuery.trim().split(/\s+/).filter(Boolean);
+    const normWords = rawWords.map(w => this.normalizeText(w));
+
+    const filtered = clients.filter(c => {
+      // 顧客担当者の情報も結合
+      let contactTexts = '';
+      if (typeof Store.getClientContacts === 'function') {
+        const contacts = Store.getClientContacts(c.id) || [];
+        contactTexts = contacts.map(ct => [ct.name, ct.phone, ct.email, ct.memo].filter(Boolean).join(' ')).join(' ');
+      }
+      const staffName = c.staffId ? Store.getStaffName(c.staffId) : '';
+
+      // 検索対象の全テキスト（生テキスト）
+      const rawFullText = [
+        c.name, c.nameKana, c.companyName, c.tradeName, c.type,
+        c.phone, c.fax, c.email, c.zip, c.address, c.memo, c.referral,
+        staffName, contactTexts
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      // 正規化テキスト（全角半角・カナかな・記号・英数大文字小文字を吸収）
+      const normFullText = [
+        this.normalizeText(c.name),
+        this.normalizeText(c.nameKana),
+        this.normalizeText(c.companyName),
+        this.normalizeText(c.tradeName),
+        this.normalizeText(c.type),
+        this.normalizeText(c.phone),
+        this.normalizeText(c.fax),
+        this.normalizeText(c.email),
+        this.normalizeText(c.zip),
+        this.normalizeText(c.address),
+        this.normalizeText(c.memo),
+        this.normalizeText(c.referral),
+        this.normalizeText(staffName),
+        this.normalizeText(contactTexts)
+      ].join('');
+
+      // すべての検索単語が含まれているかチェック (AND検索)
+      return rawWords.every((rw, idx) => {
+        const nw = normWords[idx];
+        return rawFullText.includes(rw.toLowerCase()) || (nw && normFullText.includes(nw));
+      });
+    });
+
+    return filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  },
+
+  renderClientListHtml(sorted) {
+    if (!sorted || sorted.length === 0) {
+      if (this.searchQuery) {
+        return `
+          <div class="empty-state" style="grid-column: 1 / -1; padding: 40px 20px; text-align: center;">
+            <div class="empty-icon">🔍</div>
+            <p>「${this.searchQuery}」に一致する顧客・店舗は見つかりませんでした</p>
+            <button class="btn btn-secondary btn-small" onclick="Clients.clearSearch()" style="margin-top: 10px;">
+              ✕ 検索をクリア
+            </button>
+          </div>
+        `;
+      }
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <p>顧客がまだ登録されていません</p>
+          <button class="btn btn-primary" onclick="Clients.openMasterSheet()">スプレッドシートで店舗を追加</button>
+        </div>
+      `;
+    }
+    return sorted.map(c => this.renderCard(c)).join('');
+  },
+
+  render() {
+    const sorted = this.getFilteredClients();
 
     return `
       <div class="clients-page">
@@ -33,16 +110,17 @@ const Clients = {
           </div>
         </div>
 
-        <div class="search-bar">
-          <input type="text" id="clientSearch" class="search-input" placeholder="🔍 名前・電話・メールで検索..."
-            value="${this.searchQuery}" oninput="Clients.onSearch(this.value)">
+        <div class="search-bar" style="position:relative; max-width:480px;">
+          <input type="text" id="clientSearch" class="search-input" placeholder="🔍 店舗名・会社名・氏名・電話・住所等で検索..."
+            value="${this.searchQuery}" oninput="Clients.onSearch(this.value)" autocomplete="off" spellcheck="false"
+            style="width:100%; padding:10px 36px 10px 14px; border-radius:8px; border:2px solid #3b82f6; background:#1e293b; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; font-size:1.0rem; font-weight:600; caret-color:#38bdf8;">
+          <button type="button" id="clientSearchClearBtn" onclick="Clients.clearSearch()"
+            style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted, #94a3b8); cursor:pointer; font-size:0.9rem; display:${this.searchQuery ? 'block' : 'none'};"
+            title="検索クリア">✕</button>
         </div>
 
-        <div class="client-list">
-          ${sorted.length === 0
-        ? '<div class="empty-state"><div class="empty-icon">👥</div><p>顧客がまだ登録されていません</p><button class="btn btn-primary" onclick="Clients.openMasterSheet()">スプレッドシートで店舗を追加</button></div>'
-        : sorted.map(c => this.renderCard(c)).join('')
-      }
+        <div id="clientsListContainer" class="client-list">
+          ${this.renderClientListHtml(sorted)}
         </div>
       </div>
       ${this.renderModal()}
@@ -87,9 +165,9 @@ const Clients = {
     return `
       <div class="client-card" onclick="Clients.showDetail('${client.id}')">
         <div class="client-card-header">
-          <div class="client-avatar">${client.name.charAt(0)}</div>
+          <div class="client-avatar">${(client.name || '客').charAt(0)}</div>
           <div class="client-info">
-            <div class="client-name">${typeBadge} ${client.name}</div>
+            <div class="client-name">${typeBadge} ${client.companyName && client.companyName !== client.name ? `<span style="font-size:0.78rem;color:var(--text-muted);display:block;font-weight:normal;">${client.companyName}</span>` : ''}${client.name}</div>
             <div class="client-kana">${client.nameKana || ''}</div>
           </div>
           <div class="client-cases-badge">
@@ -202,7 +280,49 @@ const Clients = {
   onSearch(query) {
     this.searchQuery = query;
     try { sessionStorage.setItem('gyosei_clients_search', query); } catch(e) {}
-    App.refreshView();
+
+    const clearBtn = document.getElementById('clientSearchClearBtn');
+    if (clearBtn) {
+      clearBtn.style.display = query ? 'block' : 'none';
+    }
+
+    if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      const container = document.getElementById('clientsListContainer');
+      if (container) {
+        try {
+          const sorted = this.getFilteredClients();
+          container.innerHTML = this.renderClientListHtml(sorted);
+        } catch (err) {
+          console.error('[Clients.onSearch] error:', err);
+        }
+      }
+    }, 100);
+  },
+
+  clearSearch() {
+    this.searchQuery = '';
+    try { sessionStorage.removeItem('gyosei_clients_search'); } catch(e) {}
+    if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+
+    const input = document.getElementById('clientSearch');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    const clearBtn = document.getElementById('clientSearchClearBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    const container = document.getElementById('clientsListContainer');
+    if (container) {
+      try {
+        const sorted = this.getFilteredClients();
+        container.innerHTML = this.renderClientListHtml(sorted);
+      } catch (err) {
+        console.error('[Clients.clearSearch] error:', err);
+      }
+    }
+    if (input) input.focus();
   },
 
   openMasterSheet() {
