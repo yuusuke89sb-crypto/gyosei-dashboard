@@ -1095,15 +1095,19 @@ const Invoice = {
     };
     // 封印判定
     const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印');
-    // 車庫・その他（封印以外）と封印を分離し、それぞれ完了日順でソート（同一日は注文No.順）
+    // 車庫・その他（封印以外）と封印を分離し、それぞれ完了日順でソート（同一日は受注No./注文No.順）
+    const parseOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
     const sortCases = (arr) => arr.sort((a, b) => {
       const da = getSortDate(a);
       const db = getSortDate(b);
       const cmp = da.localeCompare(db);
       if (cmp !== 0) return cmp;
-      const oa = String(a.orderNo || a.caseNo || '');
-      const ob = String(b.orderNo || b.caseNo || '');
-      return oa.localeCompare(ob);
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseOrderNum(oa);
+      const nb = parseOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
     });
     const nonSealCases = sortCases(cases.filter(c => !isSeal(c)));
     const sealCases = sortCases(cases.filter(c => isSeal(c)));
@@ -1257,7 +1261,7 @@ const Invoice = {
         <th rowspan="2" style="width:14%;">立替金</th>
       </tr>
       <tr>
-        <th style="width:13%;">注文No.</th>
+        <th style="width:13%;">${isFusoClient ? '受注No.' : '注文No.'}</th>
         <th style="width:27%;">氏　名</th>
         <th style="width:12%;">管　轄</th>
         <th style="width:13%;">備　考</th>
@@ -3397,7 +3401,7 @@ window.NissanPrint = {
         return /三菱|ふそう|FUSO|mitsubishi/i.test(text);
       });
 
-    const headers2 = ['No.', '完了日', '注文書No.', '申請者名・車名', '管轄警察署', isFusoClient ? '備考' : '業務区分', '報酬額（税抜）', '立替金合計', '立替金内訳'];
+    const headers2 = ['No.', '完了日', isFusoClient ? '受注No.' : '注文書No.', '申請者名・車名', '管轄警察署', isFusoClient ? '備考' : '業務区分', '報酬額（税抜）', '立替金合計', '立替金内訳'];
     ws2.getRow(3).height = 20;
     headers2.forEach((h, idx) => {
       const col = String.fromCharCode(65 + idx);
