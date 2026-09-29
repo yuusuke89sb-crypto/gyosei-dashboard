@@ -65,19 +65,22 @@ const Invoice = {
       const code = str.charCodeAt(i);
       visualLen += ((code >= 0x00 && code <= 0x7E) || (code >= 0xFF61 && code <= 0xFF9F)) ? 0.5 : 1.0;
     }
-    let fontSize = '11px';
+    let fontSize = '10.5px';
     let letterSpacing = 'normal';
     if (visualLen > 15) {
-      fontSize = '7.5px';
-      letterSpacing = '-0.6px';
+      fontSize = '6.8px';
+      letterSpacing = '-0.5px';
     } else if (visualLen > 12) {
-      fontSize = '8.5px';
-      letterSpacing = '-0.3px';
+      fontSize = '7.2px';
+      letterSpacing = '-0.4px';
     } else if (visualLen > 9) {
-      fontSize = '9.5px';
+      fontSize = '8.2px';
+      letterSpacing = '-0.2px';
+    } else if (visualLen > 7) {
+      fontSize = '9.2px';
       letterSpacing = '-0.1px';
     }
-    return `<span style="display:inline-block; white-space:nowrap; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:bold; line-height:1.2;">${str}</span>`;
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:bold; line-height:1.2;">${str}</span>`;
   },
 
   // 請求先（顧客店舗名等）の文字数に応じた自動縮小＆1行強制
@@ -1289,7 +1292,7 @@ const Invoice = {
         <tr>
           <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
           <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
-          <td style="white-space:nowrap; overflow:visible;">${this._formatApplicantHTML(applicant)}</td>
+          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
@@ -1791,7 +1794,7 @@ ${detailPagesHTML}
         <tr>
           <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
           <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
-          <td style="white-space:nowrap; overflow:visible;">${this._formatApplicantHTML(applicant)}</td>
+          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
@@ -1826,10 +1829,10 @@ ${detailPagesHTML}
         <th rowspan="2" style="width:17%;">立替金</th>
       </tr>
       <tr>
-        <th style="width:13%;">注文No.</th>
-        <th style="width:27%;">氏　名</th>
-        <th style="width:12%;">管　轄</th>
-        <th style="width:13%;">備　考</th>
+        <th style="width:11%;">注文No.</th>
+        <th style="width:33%;">氏　名</th>
+        <th style="width:9%;">管　轄</th>
+        <th style="width:12%;">備　考</th>
       </tr>
     </thead>
     <tbody>
@@ -2234,7 +2237,7 @@ ${fusoDetailPagesHTML}
             <td class="col-no">${lineNo}</td>
             <td class="col-center">${applyDate}</td>
             <td class="col-center col-ord">${orderNo}</td>
-            <td class="col-left col-app" style="white-space:nowrap; overflow:visible;">${applicant}</td>
+            <td class="col-left col-app" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${applicant}</td>
             <td class="col-center">${police}</td>
             <td class="col-left">${itemText}</td>
             <td class="col-right num">${feeText}</td>
