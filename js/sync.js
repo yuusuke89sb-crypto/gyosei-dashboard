@@ -352,7 +352,7 @@ const SpreadsheetSync = {
                         if (j.description) {
                             if (j.description.includes('車庫証明(OSS)')) fixed = 3500;
                             else if (j.description.includes('出張封印')) fixed = 5000;
-                            else if (j.description.includes('軽自動車登録')) fixed = 3500;
+                            else if (j.description.includes('軽自動車登録')) fixed = 2000;
                         }
                         j.amount = fixed;
                     }
