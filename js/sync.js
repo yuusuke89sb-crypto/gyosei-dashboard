@@ -188,11 +188,15 @@ const SpreadsheetSync = {
 
                     // 隲区ｱよ嶌繝ｭ繝・け菫晁ｭｷ: 繝ｭ繝ｼ繧ｫ繝ｫ縺ｧ invoiceLocked=true 縺ｮ譯井ｻｶ縺ｯ縲・                    // 蝣ｱ驟ｬ鬘阪・遶区崛驥代・繧ｹ繝・・繧ｿ繧ｹ繝ｻ螳御ｺ・律繧偵Μ繝｢繝ｼ繝医〒荳頑嶌縺阪＠縺ｪ縺・                    const isLocked = localCase && localCase.invoiceLocked;
 
+                    // Phase 1-B: updatedAt 繧ｿ繧､繝繧ｹ繧ｿ繝ｳ繝玲ｯ碑ｼ・                    // 繝ｭ繝・け縺輔ｌ縺ｦ縺・↑縺・｡井ｻｶ縺ｧ繧ゅ√Ο繝ｼ繧ｫ繝ｫ縺梧眠縺励￠繧後・繝ｭ繝ｼ繧ｫ繝ｫ縺ｮ驥崎ｦ√ヵ繧｣繝ｼ繝ｫ繝峨ｒ蜆ｪ蜈・                    const localUpdatedAt = localCase && localCase.updatedAt ? new Date(localCase.updatedAt).getTime() : 0;
+                    const remoteUpdatedAt = remoteCase.updatedAt ? new Date(remoteCase.updatedAt).getTime() : 0;
+                    const isLocalNewer = localUpdatedAt > 0 && remoteUpdatedAt > 0 && localUpdatedAt > remoteUpdatedAt;
+
                     return {
                         ...remoteCase,
                         orderNo: String(remoteCase.orderNo || remoteCase['注文書№'] || remoteCase['注文書No'] || remoteCase['注文書NO'] || remoteCase['注文番号'] || remoteCase['注文No'] || (localCase && localCase.orderNo) || ''),
                         docs: Array.isArray(parsedDocs) ? parsedDocs : [],
-                        advances: isLocked ? localCase.advances : (Array.isArray(parsedAdvances) ? parsedAdvances : []),
+                        advances: isLocked ? localCase.advances : (isLocalNewer && localCase.advances ? localCase.advances : (Array.isArray(parsedAdvances) ? parsedAdvances : [])),
                         clientContactId: remoteCase.clientContactId || (localCase && localCase.clientContactId) || '',
                         locationId: remoteCase.locationId || (localCase && localCase.locationId) || '',
                         faxId: remoteCase.faxId || (localCase && localCase.faxId) || '',
@@ -211,13 +215,13 @@ const SpreadsheetSync = {
                         deathDate: remoteCase.deathDate || (localCase && localCase.deathDate) || '',
                         surveyDate: remoteCase.surveyDate || (localCase && localCase.surveyDate) || '',
                         applyDate: remoteCase.applyDate || (localCase && localCase.applyDate) || '',
-                        policeDeliveryDate: remoteCase.policeDeliveryDate || (localCase && localCase.policeDeliveryDate) || '',
-                        storeDeliveryDate: remoteCase.storeDeliveryDate || (localCase && localCase.storeDeliveryDate) || '',
-                        storeDeliveryTime: remoteCase.storeDeliveryTime || (localCase && localCase.storeDeliveryTime) || '',
+                        policeDeliveryDate: (isLocalNewer && localCase && localCase.policeDeliveryDate) ? localCase.policeDeliveryDate : (remoteCase.policeDeliveryDate || (localCase && localCase.policeDeliveryDate) || ''),
+                        storeDeliveryDate: (isLocalNewer && localCase && localCase.storeDeliveryDate) ? localCase.storeDeliveryDate : (remoteCase.storeDeliveryDate || (localCase && localCase.storeDeliveryDate) || ''),
+                        storeDeliveryTime: (isLocalNewer && localCase && localCase.storeDeliveryTime) ? localCase.storeDeliveryTime : (remoteCase.storeDeliveryTime || (localCase && localCase.storeDeliveryTime) || ''),
                         surveyLocationId: remoteCase.surveyLocationId || (localCase && localCase.surveyLocationId) || '',
                         policeLocationId: remoteCase.policeLocationId || (localCase && localCase.policeLocationId) || '',
                         landTransportLocationId: remoteCase.landTransportLocationId || (localCase && localCase.landTransportLocationId) || '',
-                        registrationDate: remoteCase.registrationDate || (localCase && localCase.registrationDate) || '',
+                        registrationDate: (isLocalNewer && localCase && localCase.registrationDate) ? localCase.registrationDate : (remoteCase.registrationDate || (localCase && localCase.registrationDate) || ''),
                         completedAt: remoteCase.completedAt || remoteCase['螳御ｺ・律'] || (localCase && localCase.completedAt) || '',
                         milestoneIndex: remoteCase.milestoneIndex !== undefined && remoteCase.milestoneIndex !== ''
                             ? Number(remoteCase.milestoneIndex)
@@ -227,9 +231,9 @@ const SpreadsheetSync = {
                         isUsedCar: remoteCase.isUsedCar !== undefined
                             ? (remoteCase.isUsedCar === true || remoteCase.isUsedCar === 'true' || remoteCase.isUsedCar === '○')
                             : !!(localCase && localCase.isUsedCar),
-                        // 繝ｭ繝・け菫晁ｭｷ蟇ｾ雎｡繝輔ぅ繝ｼ繝ｫ繝・                        fee: isLocked ? localCase.fee : (remoteCase.fee !== undefined ? remoteCase.fee : (localCase && localCase.fee) || ''),
-                        status: isLocked ? localCase.status : (remoteCase.status || (localCase && localCase.status) || ''),
-                        completedAt: isLocked ? localCase.completedAt : (remoteCase.completedAt || (localCase && localCase.completedAt) || ''),
+                        // 繝ｭ繝・け菫晁ｭｷ蟇ｾ雎｡繝輔ぅ繝ｼ繝ｫ繝・                        fee: isLocked ? localCase.fee : (isLocalNewer && localCase.fee !== undefined ? localCase.fee : (remoteCase.fee !== undefined ? remoteCase.fee : (localCase && localCase.fee) || '')),
+                        status: isLocked ? localCase.status : (isLocalNewer && localCase.status ? localCase.status : (remoteCase.status || (localCase && localCase.status) || '')),
+                        completedAt: isLocked ? localCase.completedAt : (isLocalNewer && localCase.completedAt ? localCase.completedAt : (remoteCase.completedAt || (localCase && localCase.completedAt) || '')),
                         familyTreeData: parsedFamilyTree || null,
                         // 繝ｭ繝・け髢｢騾｣繝｡繧ｿ繝・・繧ｿ縺ｮ菫晄戟
                         invoiceLocked: isLocked ? true : ((remoteCase.invoiceLocked || (localCase && localCase.invoiceLocked)) || false),
