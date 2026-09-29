@@ -1,4 +1,4 @@
-﻿/**
+/**
  * スプレッドシート同期モジュール
  * Google Apps Script の Web API 経由でスプレッドシートとデータを同期
  */
@@ -352,7 +352,7 @@ const SpreadsheetSync = {
                         if (j.description) {
                             if (j.description.includes('車庫証明(OSS)')) fixed = 3500;
                             else if (j.description.includes('出張封印')) fixed = 5000;
-                            else if (j.description.includes('軽自動車登録')) fixed = 2000;
+                            else if (j.description.includes('軽自動車登録')) fixed = 3000;
                         }
                         j.amount = fixed;
                     }
