@@ -1068,7 +1068,8 @@ const Invoice = {
       });
     });
 
-    const clientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const rawClientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
     const [issueY, issueM, issueD] = (issueDate || (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-28')).split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
 
@@ -1128,6 +1129,27 @@ const Invoice = {
     const detailPages = paginateCases(sortedCases, 18, 20);
     const totalDetailPages = detailPages.length;
 
+    const clientFullName = [
+      client.companyName || '',
+      client.name || '',
+      client.tradeName || '',
+      client.ruby || '',
+      client.code || ''
+    ].join(' ');
+    const isFusoClient = /三菱|ふそう|FUSO|mitsubishi/i.test(clientFullName) ||
+      /三菱|ふそう|FUSO|mitsubishi/i.test(note || '') ||
+      cases.some(c => {
+        const text = [
+          c.clientName || '',
+          c.title || '',
+          c.dealer || '',
+          c.dealerBranch || '',
+          c.carMaker || '',
+          c.maker || ''
+        ].join(' ');
+        return /三菱|ふそう|FUSO|mitsubishi/i.test(text);
+      });
+
     let detailPagesHTML = '';
     for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
       const pageNum = pIdx + 1;
@@ -1179,6 +1201,14 @@ const Invoice = {
           categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
         }
 
+        let remarkDisplay = '';
+        if (isFusoClient) {
+          const rawMemo = (c.memo || c.remarks || c.note || '').trim();
+          remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : '-';
+        } else {
+          remarkDisplay = categoryShort || '-';
+        }
+
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
         const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
@@ -1192,7 +1222,7 @@ const Invoice = {
           <td class="col-center" style="font-family:'Noto Sans JP', sans-serif; white-space:nowrap; font-size:10.5px;">${orderNo}</td>
           <td><strong>${applicant}</strong></td>
           <td class="col-center">${policeName}</td>
-          <td class="col-center">${categoryShort}</td>
+          <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
         </tr>`;
@@ -1204,12 +1234,12 @@ const Invoice = {
   <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">車庫証明申請等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${note}</span>` : ''}</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
-    <div>
-      <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block;">
-        ${clientName}　御中
+    <div style="max-width:52%; flex-shrink:1;">
+      <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block; word-break:break-word; line-height:1.35;">
+        ${clientName}
       </div>
     </div>
-    <div style="text-align:right; font-size:11.5px; line-height:1.45;">
+    <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box;">
       <div>〒${office.zip || '481-0033'}</div>
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
@@ -1343,6 +1373,9 @@ const Invoice = {
     display: inline-block;
     border-bottom: 1.5px solid #000;
     padding-bottom: 3px;
+    word-break: break-word;
+    line-height: 1.35;
+    max-width: 100%;
   }
 
   table.grid-table {
@@ -1395,8 +1428,10 @@ const Invoice = {
     margin-bottom: 4px;
   }
   .office-info {
-    width: 48%;
+    width: 50%;
     text-align: right;
+    padding-right: 20mm;
+    box-sizing: border-box;
   }
   .office-info .seal-box {
     display: inline-block;
@@ -1425,7 +1460,7 @@ const Invoice = {
   <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${note}</div>` : ''}</div>
   
   <div class="recipient-box">
-    <span class="name">${clientName} 御中</span>
+    <span class="name">${clientName}</span>
   </div>
 
   <table class="grid-table">
@@ -1533,7 +1568,8 @@ ${detailPagesHTML}
   // 2. 三菱ふそう様式（業務別集計＋実費・諸費用 ＆ 2ページ目明細書）
   // =========================================================================
   buildMitsubishiInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, total = 0, advanceTotal = 0, docType = 'invoice' }) {
-    const clientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const rawClientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
     const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
 
@@ -1676,6 +1712,8 @@ ${detailPagesHTML}
           categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
         }
 
+        const rawMemo = (c.memo || c.remarks || c.note || '').trim();
+        const remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : (categoryShort || '-');
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
 
@@ -1685,7 +1723,7 @@ ${detailPagesHTML}
           <td class="col-center" style="font-family:'Noto Sans JP', sans-serif; white-space:nowrap; font-size:10.5px;">${orderNo}</td>
           <td><strong>${applicant}</strong></td>
           <td class="col-center">${policeName}</td>
-          <td class="col-center">${categoryShort}</td>
+          <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
         </tr>`;
@@ -1697,12 +1735,12 @@ ${detailPagesHTML}
   <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">車庫証明・登録申請等明細書</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
-    <div>
-      <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block;">
-        ${clientName}　御中
+    <div style="max-width:52%; flex-shrink:1;">
+      <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block; word-break:break-word; line-height:1.35;">
+        ${clientName}
       </div>
     </div>
-    <div style="text-align:right; font-size:11.5px; line-height:1.45;">
+    <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box;">
       <div>〒${office.zip || '481-0033'}</div>
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
@@ -1822,7 +1860,12 @@ ${detailPagesHTML}
   }
   .bank-info { width: 50%; }
   .bank-info h4 { font-size: 13px; margin-bottom: 4px; font-weight: bold; }
-  .office-info { width: 48%; text-align: right; }
+  .office-info {
+    width: 50%;
+    text-align: right;
+    padding-right: 20mm;
+    box-sizing: border-box;
+  }
 </style>
 </head>
 <body>
@@ -1837,7 +1880,7 @@ ${detailPagesHTML}
   <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}</div>
   
   <div style="font-size:18px; font-weight:bold; margin-bottom:20px;">
-    <span style="border-bottom:1.5px solid #000; padding-bottom:3px;">${clientName} 御中</span>
+    <span style="border-bottom:1.5px solid #000; padding-bottom:3px; word-break:break-word; line-height:1.35; display:inline-block; max-width:100%;">${clientName}</span>
   </div>
 
   <table class="fuso-table">
@@ -2511,7 +2554,8 @@ ${fusoDetailPagesHTML}
     width: 62%;
     text-align: right;
     position: relative;
-    padding-right: 5px;
+    padding-right: 20mm;
+    box-sizing: border-box;
   }
   .cover-address-line {
     white-space: nowrap;
@@ -2581,6 +2625,8 @@ ${fusoDetailPagesHTML}
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+    padding-right: 20mm;
+    box-sizing: border-box;
   }
   .office-box-inner {
     display: flex;
@@ -2839,9 +2885,9 @@ window.NissanPrint = {
   .invoice-no { font-size: 12px; color: #64748b; margin-top: 4px; }
 
   .two-col { display: flex; justify-content: space-between; margin-bottom: 25px; gap: 20px; font-size: 13px; }
-  .client-side { width: 55%; }
-  .client-name { font-size: 18px; font-weight: 700; border-bottom: 2px solid #0f172a; padding-bottom: 4px; display: inline-block; margin-bottom: 6px; }
-  .office-side { width: 45%; text-align: right; line-height: 1.6; font-size: 12px; }
+  .client-side { width: 52%; word-break: break-word; }
+  .client-name { font-size: 18px; font-weight: 700; border-bottom: 2px solid #0f172a; padding-bottom: 4px; display: inline-block; margin-bottom: 6px; word-break: break-word; line-height: 1.35; }
+  .office-side { width: 48%; text-align: right; line-height: 1.6; font-size: 12px; padding-right: 20mm; box-sizing: border-box; }
   .office-name { font-size: 15px; font-weight: 700; color: #0f172a; }
 
   .total-box { background: #f1f5f9; border: 1.5px solid #0f172a; border-radius: 8px; padding: 12px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
@@ -3330,7 +3376,28 @@ window.NissanPrint = {
     detailTitle.alignment = { horizontal: 'left', vertical: 'middle' };
     ws2.getRow(1).height = 24;
 
-    const headers2 = ['No.', '完了日', '注文書No.', '申請者名・車名', '管轄警察署', '業務区分', '報酬額（税抜）', '立替金合計', '立替金内訳'];
+    const clientFullName = [
+      client.companyName || '',
+      client.name || '',
+      client.tradeName || '',
+      client.ruby || '',
+      client.code || ''
+    ].join(' ');
+    const isFusoClient = /三菱|ふそう|FUSO|mitsubishi/i.test(clientFullName) ||
+      /三菱|ふそう|FUSO|mitsubishi/i.test(note || '') ||
+      cases.some(c => {
+        const text = [
+          c.clientName || '',
+          c.title || '',
+          c.dealer || '',
+          c.dealerBranch || '',
+          c.carMaker || '',
+          c.maker || ''
+        ].join(' ');
+        return /三菱|ふそう|FUSO|mitsubishi/i.test(text);
+      });
+
+    const headers2 = ['No.', '完了日', '注文書No.', '申請者名・車名', '管轄警察署', isFusoClient ? '備考' : '業務区分', '報酬額（税抜）', '立替金合計', '立替金内訳'];
     ws2.getRow(3).height = 20;
     headers2.forEach((h, idx) => {
       const col = String.fromCharCode(65 + idx);
@@ -3394,9 +3461,15 @@ window.NissanPrint = {
       ws2.getCell(`C${rowIdx}`).alignment = { horizontal: 'center' };
       ws2.getCell(`D${rowIdx}`).value = applicant;
       ws2.getCell(`E${rowIdx}`).value = policeName;
-      ws2.getCell(`E${rowIdx}`).alignment = { horizontal: 'center' };
-      ws2.getCell(`F${rowIdx}`).value = categoryShort;
-      ws2.getCell(`F${rowIdx}`).alignment = { horizontal: 'center' };
+      let remarkDisplay = '';
+      if (isFusoClient) {
+        const rawMemo = (c.memo || c.remarks || c.note || '').trim();
+        remarkDisplay = rawMemo || '-';
+      } else {
+        remarkDisplay = categoryShort || '-';
+      }
+      ws2.getCell(`F${rowIdx}`).value = remarkDisplay;
+      ws2.getCell(`F${rowIdx}`).alignment = { horizontal: isFusoClient && remarkDisplay.length > 6 ? 'left' : 'center', wrapText: true };
       ws2.getCell(`G${rowIdx}`).value = fee;
       ws2.getCell(`G${rowIdx}`).numFmt = '#,##0';
       ws2.getCell(`G${rowIdx}`).alignment = { horizontal: 'right' };
