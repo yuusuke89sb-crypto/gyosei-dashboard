@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 請求書発行モジュール
  * 自動車ディーラー3社（愛知トヨタWEST、三菱ふそう、日産愛知）の実務専用様式および標準様式に対応
  */
@@ -54,6 +54,53 @@ const Invoice = {
       return 'nissan';
     }
     return 'standard';
+  },
+
+  // 申請者名・顧客名の文字数に応じた自動文字縮小＆1行強制（改行防止）
+  _formatApplicantHTML(name) {
+    if (!name || name === '-') return '-';
+    const str = String(name).trim();
+    let visualLen = 0;
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      visualLen += ((code >= 0x00 && code <= 0x7E) || (code >= 0xFF61 && code <= 0xFF9F)) ? 0.5 : 1.0;
+    }
+    let fontSize = '11px';
+    let letterSpacing = 'normal';
+    if (visualLen > 15) {
+      fontSize = '7.5px';
+      letterSpacing = '-0.6px';
+    } else if (visualLen > 12) {
+      fontSize = '8.5px';
+      letterSpacing = '-0.3px';
+    } else if (visualLen > 9) {
+      fontSize = '9.5px';
+      letterSpacing = '-0.1px';
+    }
+    return `<span style="display:inline-block; white-space:nowrap; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:bold; line-height:1.2;">${str}</span>`;
+  },
+
+  // 請求先（顧客店舗名等）の文字数に応じた自動縮小＆1行強制
+  _formatClientNameHTML(name, baseSize = 15) {
+    if (!name) return '';
+    const str = String(name).trim();
+    let visualLen = 0;
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      visualLen += ((code >= 0x00 && code <= 0x7E) || (code >= 0xFF61 && code <= 0xFF9F)) ? 0.5 : 1.0;
+    }
+    let size = baseSize;
+    let letterSpacing = 'normal';
+    if (visualLen > 28) {
+      size = Math.min(baseSize, 10.5);
+      letterSpacing = '-0.5px';
+    } else if (visualLen > 23) {
+      size = Math.min(baseSize, 11.5);
+      letterSpacing = '-0.3px';
+    } else if (visualLen > 18) {
+      size = Math.min(baseSize, 13);
+    }
+    return `<span style="font-size:${size}px; letter-spacing:${letterSpacing}; font-weight:bold; display:inline-block; white-space:nowrap; line-height:1.35;">${str}</span>`;
   },
 
   // 請求書番号を生成
@@ -1242,7 +1289,7 @@ const Invoice = {
         <tr>
           <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
           <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
-          <td><strong>${applicant}</strong></td>
+          <td style="white-space:nowrap; overflow:visible;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
@@ -1257,9 +1304,7 @@ const Invoice = {
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div style="max-width:52%; flex-shrink:1;">
-      <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block; word-break:break-word; line-height:1.35;">
-        ${clientName}
-      </div>
+      ${this._formatClientNameHTML(clientName, 15)}
     </div>
     <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box;">
       <div>〒${office.zip || '481-0033'}</div>
@@ -1485,7 +1530,7 @@ const Invoice = {
   <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${note}</div>` : ''}</div>
   
   <div class="recipient-box">
-    <span class="name">${clientName}</span>
+    ${this._formatClientNameHTML(clientName, 17)}
   </div>
 
   <table class="grid-table">
@@ -1746,7 +1791,7 @@ ${detailPagesHTML}
         <tr>
           <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
           <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
-          <td><strong>${applicant}</strong></td>
+          <td style="white-space:nowrap; overflow:visible;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
@@ -1761,9 +1806,7 @@ ${detailPagesHTML}
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div style="max-width:52%; flex-shrink:1;">
-      <div style="font-size:15px; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:2px; display:inline-block; word-break:break-word; line-height:1.35;">
-        ${clientName}
-      </div>
+      ${this._formatClientNameHTML(clientName, 15)}
     </div>
     <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box;">
       <div>〒${office.zip || '481-0033'}</div>
@@ -2177,7 +2220,7 @@ ${fusoDetailPagesHTML}
 
           const applyDate = isFirst ? (it.applyDateStr || '') : '';
           const orderNo = isFirst ? (it.orderNo || '') : '';
-          const applicant = isFirst ? `<strong>${it.applicantName || ''}</strong>` : '';
+          const applicant = isFirst ? this._formatApplicantHTML(it.applicantName || '') : '';
           const police = isFirst ? (it.policeName || '') : '';
           const itemText = isFirst ? (it.item || '') : '';
           const feeText = (isFirst && it.fee > 0) ? it.fee.toLocaleString() : '';
@@ -2191,7 +2234,7 @@ ${fusoDetailPagesHTML}
             <td class="col-no">${lineNo}</td>
             <td class="col-center">${applyDate}</td>
             <td class="col-center col-ord">${orderNo}</td>
-            <td class="col-left col-app">${applicant}</td>
+            <td class="col-left col-app" style="white-space:nowrap; overflow:visible;">${applicant}</td>
             <td class="col-center">${police}</td>
             <td class="col-left">${itemText}</td>
             <td class="col-right num">${feeText}</td>
