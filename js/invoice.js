@@ -1217,8 +1217,8 @@ const Invoice = {
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
         const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
           const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
-          return `${displayLabel}:${Number(a.amount).toLocaleString()}`;
-        }).join('<br>');
+          return `<div style="white-space:nowrap">${displayLabel}:${Number(a.amount).toLocaleString()}</div>`;
+        }).join('');
 
         return `
         <tr>
@@ -1228,7 +1228,7 @@ const Invoice = {
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
+          <td class="col-num" style="overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
         </tr>`;
       }).join('');
 
