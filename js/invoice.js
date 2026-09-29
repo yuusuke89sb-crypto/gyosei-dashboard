@@ -1224,7 +1224,7 @@ const Invoice = {
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2;">(${advDetails})</div>` : ''}` : ''}</td>
+          <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2; white-space:nowrap;">(${advDetails})</div>` : ''}` : ''}</td>
         </tr>`;
       }).join('');
 
@@ -1507,7 +1507,7 @@ const Invoice = {
       ${Object.keys(advMap).length > 0 ? Object.entries(advMap).map(([lbl, data], idx) => `
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
-        <td>${lbl}</td>
+        <td style="white-space:nowrap; font-size:11px;">${lbl}</td>
         <td class="col-center">${data.count}件</td>
         <td class="col-num">${data.amount.toLocaleString()}</td>
       </tr>
@@ -2171,7 +2171,7 @@ ${fusoDetailPagesHTML}
             <td class="col-left">${itemText}</td>
             <td class="col-right num">${feeText}</td>
             <td class="col-center">${completeDate}</td>
-            <td class="col-left">${advLabel}</td>
+            <td class="col-left" style="white-space:nowrap; font-size:9.5px;">${advLabel}</td>
             <td class="col-right num">${advAmt}</td>
             <td class="col-left"></td>
           </tr>`;
@@ -2974,7 +2974,7 @@ window.NissanPrint = {
       <tr>
         <td>${i + 1}</td>
         <td><span style="display:inline-block; padding:2px 8px; background:#e2e8f0; border-radius:4px; font-size:11px; font-weight:bold; color:#0f172a;">${a.category}</span></td>
-        <td>${a.label}</td>
+        <td style="white-space:nowrap;">${a.label}</td>
         <td style="color:#64748b;">${a.caseTitle}</td>
         <td class="num">¥${a.amount.toLocaleString()}</td>
       </tr>`).join('')}
