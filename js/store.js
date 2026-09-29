@@ -1,4 +1,4 @@
-/**
+﻿/**
  * データストア - localStorage ベースの CRUD 操作
  */
 const Store = {
@@ -331,6 +331,17 @@ const Store = {
     const idx = cases.findIndex(c => c.id === id);
     if (idx === -1) return null;
     const oldStatus = cases[idx].status;
+    // 隲区ｱよ嶌繝ｭ繝・け菫晁ｭｷ: 繝ｭ繝・け貂医∩譯井ｻｶ縺ｮ蝣ｱ驟ｬ鬘阪・遶区崛驥代・繧ｹ繝・・繧ｿ繧ｹ繝ｻ螳御ｺ・律縺ｮ螟画峩繧帝亟豁｢
+    // 縺溘□縺・invoiceLocked 繝輔ぅ繝ｼ繝ｫ繝峨ｒ蜷ｫ繧譖ｴ譁ｰ・医Ο繝・け險ｭ螳・隗｣髯､謫堺ｽ懆・菴難ｼ峨・險ｱ蜿ｯ
+    if (cases[idx].invoiceLocked && !('invoiceLocked' in data)) {
+      const protectedFields = ['fee', 'status', 'completedAt', 'advances'];
+      protectedFields.forEach(f => {
+        if (f in data && data[f] !== cases[idx][f]) {
+          console.warn('[Store.updateCase] 繝ｭ繝・け貂医∩譯井ｻｶ縺ｮ繝輔ぅ繝ｼ繝ｫ繝牙､画峩繧偵ヶ繝ｭ繝・け:', f, '譯井ｻｶID:', id);
+          delete data[f];
+        }
+      });
+    }
     // 完了日記録（手動指定があれば最優先、無くて未完了→完了なら現在時刻、完了から他ステータスに戻したらクリア）
     if (data.status === 'done') {
       if (data.completedAt) {
@@ -1074,3 +1085,4 @@ const Store = {
     return text.includes('トヨタ') || text.includes('TOYOTA') || text.includes('WEST') || text.includes('キャラット');
   },
 };
+
