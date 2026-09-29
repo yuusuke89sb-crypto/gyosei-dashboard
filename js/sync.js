@@ -1,4 +1,4 @@
-/**
+﻿/**
  * スプレッドシート同期モジュール
  * Google Apps Script の Web API 経由でスプレッドシートとデータを同期
  */
@@ -186,11 +186,13 @@ const SpreadsheetSync = {
                         }
                     }
 
+                    // 隲区ｱよ嶌繝ｭ繝・け菫晁ｭｷ: 繝ｭ繝ｼ繧ｫ繝ｫ縺ｧ invoiceLocked=true 縺ｮ譯井ｻｶ縺ｯ縲・                    // 蝣ｱ驟ｬ鬘阪・遶区崛驥代・繧ｹ繝・・繧ｿ繧ｹ繝ｻ螳御ｺ・律繧偵Μ繝｢繝ｼ繝医〒荳頑嶌縺阪＠縺ｪ縺・                    const isLocked = localCase && localCase.invoiceLocked;
+
                     return {
                         ...remoteCase,
                         orderNo: String(remoteCase.orderNo || remoteCase['注文書№'] || remoteCase['注文書No'] || remoteCase['注文書NO'] || remoteCase['注文番号'] || remoteCase['注文No'] || (localCase && localCase.orderNo) || ''),
                         docs: Array.isArray(parsedDocs) ? parsedDocs : [],
-                        advances: Array.isArray(parsedAdvances) ? parsedAdvances : [],
+                        advances: isLocked ? localCase.advances : (Array.isArray(parsedAdvances) ? parsedAdvances : []),
                         clientContactId: remoteCase.clientContactId || (localCase && localCase.clientContactId) || '',
                         locationId: remoteCase.locationId || (localCase && localCase.locationId) || '',
                         faxId: remoteCase.faxId || (localCase && localCase.faxId) || '',
@@ -225,7 +227,15 @@ const SpreadsheetSync = {
                         isUsedCar: remoteCase.isUsedCar !== undefined
                             ? (remoteCase.isUsedCar === true || remoteCase.isUsedCar === 'true' || remoteCase.isUsedCar === '○')
                             : !!(localCase && localCase.isUsedCar),
+                        // 繝ｭ繝・け菫晁ｭｷ蟇ｾ雎｡繝輔ぅ繝ｼ繝ｫ繝・                        fee: isLocked ? localCase.fee : (remoteCase.fee !== undefined ? remoteCase.fee : (localCase && localCase.fee) || ''),
+                        status: isLocked ? localCase.status : (remoteCase.status || (localCase && localCase.status) || ''),
+                        completedAt: isLocked ? localCase.completedAt : (remoteCase.completedAt || (localCase && localCase.completedAt) || ''),
                         familyTreeData: parsedFamilyTree || null,
+                        // 繝ｭ繝・け髢｢騾｣繝｡繧ｿ繝・・繧ｿ縺ｮ菫晄戟
+                        invoiceLocked: isLocked ? true : ((remoteCase.invoiceLocked || (localCase && localCase.invoiceLocked)) || false),
+                        invoiceLockedAt: isLocked ? localCase.invoiceLockedAt : (remoteCase.invoiceLockedAt || (localCase && localCase.invoiceLockedAt) || ''),
+                        invoiceLockedFee: isLocked ? localCase.invoiceLockedFee : (remoteCase.invoiceLockedFee || ''),
+                        invoiceLockedAdvances: isLocked ? localCase.invoiceLockedAdvances : (remoteCase.invoiceLockedAdvances || []),
                     };
                 });
                 
@@ -1001,4 +1011,5 @@ if (typeof window !== 'undefined') {
         }
     });
 }
+
 
