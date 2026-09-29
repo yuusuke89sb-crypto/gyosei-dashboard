@@ -1218,7 +1218,7 @@ const Invoice = {
         const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
           const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
           return `${displayLabel}:${Number(a.amount).toLocaleString()}`;
-        }).join(' ');
+        }).join('<br>');
 
         return `
         <tr>
@@ -1228,7 +1228,7 @@ const Invoice = {
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.2; white-space:nowrap;">(${advDetails})</div>` : ''}` : ''}</td>
+          <td class="col-num">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
         </tr>`;
       }).join('');
 
@@ -1385,6 +1385,7 @@ const Invoice = {
   table.grid-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
     margin-bottom: 12px;
     font-size: 11.5px;
   }
@@ -1392,6 +1393,8 @@ const Invoice = {
     border: 1px solid #000;
     padding: 3.5px 6px;
     line-height: 1.3;
+    overflow: hidden;
+    word-wrap: break-word;
   }
   table.grid-table th {
     background: #f8fafc;
@@ -1511,7 +1514,7 @@ const Invoice = {
       ${Object.keys(advMap).length > 0 ? Object.entries(advMap).map(([lbl, data], idx) => `
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
-        <td style="white-space:nowrap; font-size:11px;">${lbl}</td>
+        <td style="font-size:11px;">${lbl}</td>
         <td class="col-center">${data.count}件</td>
         <td class="col-num">${data.amount.toLocaleString()}</td>
       </tr>
@@ -1849,8 +1852,8 @@ ${detailPagesHTML}
   .btn-close { background: #cbd5e1; color: #1e293b; }
 
   .doc-title { text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 10px; margin-bottom: 18px; padding-bottom: 6px; }
-  table.fuso-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11.5px; }
-  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 3.5px 6px; line-height: 1.3; }
+  table.fuso-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 12px; font-size: 11.5px; }
+  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 3.5px 6px; line-height: 1.3; overflow: hidden; word-wrap: break-word; }
   table.fuso-table th { background: #f8fafc; text-align: center; font-weight: bold; }
   .col-num { text-align: right; }
   .col-center { text-align: center; }
@@ -2175,7 +2178,7 @@ ${fusoDetailPagesHTML}
             <td class="col-left">${itemText}</td>
             <td class="col-right num">${feeText}</td>
             <td class="col-center">${completeDate}</td>
-            <td class="col-left" style="white-space:nowrap; font-size:9.5px;">${advLabel}</td>
+            <td class="col-left" style="font-size:9.5px;">${advLabel}</td>
             <td class="col-right num">${advAmt}</td>
             <td class="col-left"></td>
           </tr>`;
@@ -2509,6 +2512,7 @@ ${fusoDetailPagesHTML}
   .cover-summary-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
     margin-bottom: 24px;
   }
   .cover-summary-table th, .cover-summary-table td {
@@ -2978,7 +2982,7 @@ window.NissanPrint = {
       <tr>
         <td>${i + 1}</td>
         <td><span style="display:inline-block; padding:2px 8px; background:#e2e8f0; border-radius:4px; font-size:11px; font-weight:bold; color:#0f172a;">${a.category}</span></td>
-        <td style="white-space:nowrap;">${a.label}</td>
+        <td>${a.label}</td>
         <td style="color:#64748b;">${a.caseTitle}</td>
         <td class="num">¥${a.amount.toLocaleString()}</td>
       </tr>`).join('')}
