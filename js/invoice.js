@@ -1376,7 +1376,7 @@ const Invoice = {
       min-height: auto !important;
       height: auto !important;
       margin: 0 !important;
-      padding: 0 !important;
+      padding: 0 1.5mm !important;
       box-shadow: none !important;
       box-sizing: border-box !important;
       page-break-after: auto !important;
@@ -1449,11 +1449,12 @@ const Invoice = {
   }
 
   table.grid-table {
-    width: 100%;
+    width: calc(100% - 1px);
+    margin: 0 auto 12px;
     border-collapse: collapse;
     table-layout: fixed;
-    margin-bottom: 12px;
     font-size: 11.5px;
+    box-sizing: border-box;
   }
   table.grid-table th, table.grid-table td {
     border: 1px solid #000;
@@ -1461,6 +1462,11 @@ const Invoice = {
     line-height: 1.3;
     overflow: hidden;
     word-wrap: break-word;
+    box-sizing: border-box;
+  }
+  table.grid-table th:last-child,
+  table.grid-table td:last-child {
+    border-right: 1.2px solid #000;
   }
   table.grid-table th {
     background: #f8fafc;
@@ -1878,7 +1884,7 @@ ${detailPagesHTML}
       min-height: auto !important;
       height: auto !important;
       margin: 0 !important;
-      padding: 0 !important;
+      padding: 0 1.5mm !important;
       box-shadow: none !important;
       box-sizing: border-box !important;
       page-break-after: auto !important;
@@ -1916,8 +1922,9 @@ ${detailPagesHTML}
   .btn-close { background: #cbd5e1; color: #1e293b; }
 
   .doc-title { text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 10px; margin-bottom: 18px; padding-bottom: 6px; }
-  table.fuso-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 12px; font-size: 11.5px; }
-  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 3.5px 6px; line-height: 1.3; overflow: hidden; word-wrap: break-word; }
+  table.fuso-table { width: calc(100% - 1px); margin: 0 auto 12px; border-collapse: collapse; table-layout: fixed; font-size: 11.5px; box-sizing: border-box; }
+  table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 3.5px 6px; line-height: 1.3; overflow: hidden; word-wrap: break-word; box-sizing: border-box; }
+  table.fuso-table th:last-child, table.fuso-table td:last-child { border-right: 1.2px solid #000; }
   table.fuso-table th { background: #f8fafc; text-align: center; font-weight: bold; }
   .col-num { text-align: right; }
   .col-center { text-align: center; }
