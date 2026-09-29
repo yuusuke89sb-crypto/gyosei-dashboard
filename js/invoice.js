@@ -1219,7 +1219,7 @@ const Invoice = {
         return `
         <tr>
           <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
-          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif; white-space:nowrap; font-size:10.5px;">${orderNo}</td>
+          <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
           <td><strong>${applicant}</strong></td>
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
@@ -1287,10 +1287,10 @@ const Invoice = {
 <meta charset="UTF-8">
 <title>請求書 ${clientName} 様</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family: 'Shippori Mincho', 'Noto Sans JP', 'Hiragino Mincho ProN', serif;
+    font-family: 'Shippori Mincho', 'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
     color: #000;
     background: #e2e8f0;
     padding: 20px;
@@ -1394,7 +1394,7 @@ const Invoice = {
     text-align: center;
     font-weight: bold;
   }
-  .col-num { text-align: right; font-family: 'Noto Sans JP', sans-serif; }
+  .col-num { text-align: right; }
   .col-center { text-align: center; }
 
   .section-label {
@@ -1444,7 +1444,7 @@ const Invoice = {
     text-align: center;
     line-height: 52px;
     margin-top: 5px;
-    font-family: sans-serif;
+    font-family: inherit;
   }
 </style>
 </head>
@@ -1720,7 +1720,7 @@ ${detailPagesHTML}
         return `
         <tr>
           <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
-          <td class="col-center" style="font-family:'Noto Sans JP', sans-serif; white-space:nowrap; font-size:10.5px;">${orderNo}</td>
+          <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
           <td><strong>${applicant}</strong></td>
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
@@ -1788,10 +1788,10 @@ ${detailPagesHTML}
 <meta charset="UTF-8">
 <title>請求書 ${clientName} 様</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family: 'Shippori Mincho', 'Noto Sans JP', serif;
+    font-family: 'Shippori Mincho', 'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
     color: #000;
     background: #e2e8f0;
     padding: 20px;
@@ -1848,7 +1848,7 @@ ${detailPagesHTML}
   table.fuso-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11.5px; }
   table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 3.5px 6px; line-height: 1.3; }
   table.fuso-table th { background: #f8fafc; text-align: center; font-weight: bold; }
-  .col-num { text-align: right; font-family: 'Noto Sans JP', sans-serif; }
+  .col-num { text-align: right; }
   .col-center { text-align: center; }
 
   .sender-container {
@@ -2336,7 +2336,7 @@ ${fusoDetailPagesHTML}
 <meta charset="UTF-8">
 <title>請求書 ${clientName}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   
   @page { margin: 0; }
@@ -2344,7 +2344,7 @@ ${fusoDetailPagesHTML}
   @page landscape-sheet { size: A4 landscape; margin: 0; }
 
   body {
-    font-family: 'Shippori Mincho', 'Yu Mincho', serif;
+    font-family: 'Shippori Mincho', 'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
     color: #000;
     background: #cbd5e1;
     padding: 20px;
@@ -2457,11 +2457,11 @@ ${fusoDetailPagesHTML}
   }
 
   /* Typography and alignments */
-  .num { font-family: 'Noto Sans JP', sans-serif; font-feature-settings: 'tnum'; }
+  .num { font-feature-settings: 'tnum'; }
   .col-center { text-align: center; }
   .col-left { text-align: left; }
   .col-right { text-align: right; }
-  .col-ord { font-family: 'Noto Sans JP', sans-serif; font-size: 9.5px; letter-spacing: -0.2px; }
+  .col-ord { font-size: 9.5px; letter-spacing: -0.2px; }
   .col-app { font-weight: normal; }
 
   /* Cover Page (A4縦) */
@@ -2860,10 +2860,10 @@ window.NissanPrint = {
 <meta charset="UTF-8">
 <title>${docType === 'estimate' ? '御見積書' : '請求書'} ${invoiceNo}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family: 'Noto Sans JP', sans-serif;
+    font-family: 'Shippori Mincho', 'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', 'MS PMincho', serif;
     color: #1e293b;
     background: #f8fafc;
     padding: 30px;
@@ -3051,12 +3051,12 @@ window.NissanPrint = {
 
   _getExcelStyles() {
     return {
-      fontTitle: { name: 'Yu Gothic', size: 16, bold: true, color: { argb: 'FF0F172A' } },
-      fontSec: { name: 'Yu Gothic', size: 11, bold: true, color: { argb: 'FF0F172A' } },
-      fontTh: { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
-      fontCell: { name: 'Yu Gothic', size: 10, color: { argb: 'FF0F172A' } },
-      fontBold: { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FF0F172A' } },
-      fontSmall: { name: 'Yu Gothic', size: 9, color: { argb: 'FF64748B' } },
+      fontTitle: { name: 'Yu Mincho', size: 16, bold: true, color: { argb: 'FF0F172A' } },
+      fontSec: { name: 'Yu Mincho', size: 11, bold: true, color: { argb: 'FF0F172A' } },
+      fontTh: { name: 'Yu Mincho', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+      fontCell: { name: 'Yu Mincho', size: 10, color: { argb: 'FF0F172A' } },
+      fontBold: { name: 'Yu Mincho', size: 10, bold: true, color: { argb: 'FF0F172A' } },
+      fontSmall: { name: 'Yu Mincho', size: 9, color: { argb: 'FF64748B' } },
       fillThNavy: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } },
       fillThSlate: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } },
       fillSubtotal: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } },
@@ -3147,7 +3147,7 @@ window.NissanPrint = {
     ws1.mergeCells('A3:C3');
     const recCell = ws1.getCell('A3');
     recCell.value = `${clientName} 御中`;
-    recCell.font = { name: 'Yu Gothic', size: 14, bold: true };
+    recCell.font = { name: 'Yu Mincho', size: 14, bold: true };
     recCell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
 
     ws1.getCell('D3').value = '請求番号:';
@@ -3163,7 +3163,7 @@ window.NissanPrint = {
       ws1.getCell('D5').value = 'お支払期日:';
       ws1.getCell('D5').alignment = { horizontal: 'right' };
       ws1.getCell('E5').value = `${dueDate.replace(/-/g, '/')} (翌月25日)`;
-      ws1.getCell('E5').font = { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+      ws1.getCell('E5').font = { name: 'Yu Mincho', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
     }
 
     // ご請求総額
@@ -3189,7 +3189,7 @@ window.NissanPrint = {
     ws1.mergeCells('A7:E8');
     const claimVal = ws1.getCell('A7');
     claimVal.value = { formula: `D${grandTotalRow}`, result: total };
-    claimVal.font = { name: 'Yu Gothic', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
+    claimVal.font = { name: 'Yu Mincho', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
     claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
     claimVal.fill = S.fillTotal;
     claimVal.numFmt = '¥#,##0';
@@ -3324,11 +3324,11 @@ window.NissanPrint = {
     ws1.mergeCells(`A${grandTotalRow}:C${grandTotalRow}`);
     const gtLabel = ws1.getCell(`A${grandTotalRow}`);
     gtLabel.value = '総　合　計';
-    gtLabel.font = { name: 'Yu Gothic', size: 12, bold: true };
+    gtLabel.font = { name: 'Yu Mincho', size: 12, bold: true };
     gtLabel.alignment = { horizontal: 'center', vertical: 'middle' };
     const gtVal = ws1.getCell(`D${grandTotalRow}`);
     gtVal.value = { formula: `D${feeTotalRow}+D${advTotalRow}`, result: total };
-    gtVal.font = { name: 'Yu Gothic', size: 12, bold: true, color: { argb: 'FF1E3A8A' } };
+    gtVal.font = { name: 'Yu Mincho', size: 12, bold: true, color: { argb: 'FF1E3A8A' } };
     gtVal.alignment = { horizontal: 'right', vertical: 'middle' };
     gtVal.numFmt = '¥#,##0';
     ['A','B','C','D','E'].forEach(col => {
@@ -3575,7 +3575,7 @@ window.NissanPrint = {
     ws1.mergeCells('A3:C3');
     const recCell = ws1.getCell('A3');
     recCell.value = `${clientName} 御中`;
-    recCell.font = { name: 'Yu Gothic', size: 14, bold: true };
+    recCell.font = { name: 'Yu Mincho', size: 14, bold: true };
     recCell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
 
     ws1.getCell('D3').value = '請求番号:';
@@ -3591,7 +3591,7 @@ window.NissanPrint = {
       ws1.getCell('D5').value = 'お支払期日:';
       ws1.getCell('D5').alignment = { horizontal: 'right' };
       ws1.getCell('E5').value = `${dueDate.replace(/-/g, '/')} (翌月25日)`;
-      ws1.getCell('E5').font = { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+      ws1.getCell('E5').font = { name: 'Yu Mincho', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
     }
 
     // ご請求総額
@@ -3606,7 +3606,7 @@ window.NissanPrint = {
     ws1.mergeCells('A7:E8');
     const claimVal = ws1.getCell('A7');
     claimVal.value = { formula: 'D21', result: total };
-    claimVal.font = { name: 'Yu Gothic', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
+    claimVal.font = { name: 'Yu Mincho', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
     claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
     claimVal.fill = S.fillTotal;
     claimVal.numFmt = '¥#,##0';
@@ -3725,11 +3725,11 @@ window.NissanPrint = {
     ws1.mergeCells('A21:C21');
     const gtL = ws1.getCell('A21');
     gtL.value = '総　合　計';
-    gtL.font = { name: 'Yu Gothic', size: 12, bold: true };
+    gtL.font = { name: 'Yu Mincho', size: 12, bold: true };
     gtL.alignment = { horizontal: 'center', vertical: 'middle' };
     const gtV = ws1.getCell('D21');
     gtV.value = { formula: 'D15+D19', result: total };
-    gtV.font = { name: 'Yu Gothic', size: 12, bold: true, color: { argb: 'FF1E3A8A' } };
+    gtV.font = { name: 'Yu Mincho', size: 12, bold: true, color: { argb: 'FF1E3A8A' } };
     gtV.numFmt = '¥#,##0';
     gtV.alignment = { horizontal: 'right', vertical: 'middle' };
     ['A','B','C','D','E'].forEach(col => {
@@ -3943,7 +3943,7 @@ window.NissanPrint = {
 
     ws1.mergeCells('A3:B3');
     ws1.getCell('A3').value = clientName;
-    ws1.getCell('A3').font = { name: 'Yu Gothic', size: 14, bold: true };
+    ws1.getCell('A3').font = { name: 'Yu Mincho', size: 14, bold: true };
     ws1.getCell('A3').border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
 
     ws1.getCell('C3').value = '請求番号:';
@@ -3959,7 +3959,7 @@ window.NissanPrint = {
       ws1.getCell('C5').value = 'お支払期日:';
       ws1.getCell('C5').alignment = { horizontal: 'right' };
       ws1.getCell('D5').value = `${dueDate.replace(/-/g, '/')} (翌月25日)`;
-      ws1.getCell('D5').font = { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+      ws1.getCell('D5').font = { name: 'Yu Mincho', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
     }
 
     // ご請求額サマリー枠
@@ -3973,7 +3973,7 @@ window.NissanPrint = {
     ws1.mergeCells('A7:D8');
     const claimVal = ws1.getCell('A7');
     claimVal.value = { formula: 'B14', result: total };
-    claimVal.font = { name: 'Yu Gothic', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
+    claimVal.font = { name: 'Yu Mincho', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
     claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
     claimVal.fill = S.fillTotal;
     claimVal.numFmt = '¥#,##0';
@@ -4236,7 +4236,7 @@ window.NissanPrint = {
     ws.mergeCells('A1:F1');
     const titleCell = ws.getCell('A1');
     titleCell.value = docType === 'estimate' ? '御　見　積　書' : '御　請　求　書';
-    titleCell.font = { name: 'Yu Gothic', size: 18, bold: true, color: { argb: 'FF0F172A' } };
+    titleCell.font = { name: 'Yu Mincho', size: 18, bold: true, color: { argb: 'FF0F172A' } };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
     ws.getRow(1).height = 36;
 
@@ -4247,7 +4247,7 @@ window.NissanPrint = {
     ws.mergeCells('A3:C3');
     const recCell = ws.getCell('A3');
     recCell.value = `${clientName} 御中`;
-    recCell.font = { name: 'Yu Gothic', size: 13, bold: true };
+    recCell.font = { name: 'Yu Mincho', size: 13, bold: true };
     recCell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
     ws.getRow(3).height = 20;
 
@@ -4261,7 +4261,7 @@ window.NissanPrint = {
 
     ws.mergeCells('A4:C4');
     ws.getCell('A4').value = '下記のとおりご請求申し上げます。';
-    ws.getCell('A4').font = { name: 'Yu Gothic', size: 9, color: { argb: 'FF475569' } };
+    ws.getCell('A4').font = { name: 'Yu Mincho', size: 9, color: { argb: 'FF475569' } };
     ws.getRow(4).height = 18;
 
     ws.getCell('D4').value = '発行日:';
@@ -4279,7 +4279,7 @@ window.NissanPrint = {
       ws.getCell('D5').font = S.fontSmall;
       ws.mergeCells('E5:F5');
       ws.getCell('E5').value = `${dueDate.replace(/-/g, '/')} (翌月25日)`;
-      ws.getCell('E5').font = { name: 'Yu Gothic', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
+      ws.getCell('E5').font = { name: 'Yu Mincho', size: 10, bold: true, color: { argb: 'FFB91C1C' } };
       ws.getCell('E5').alignment = { horizontal: 'left', vertical: 'middle' };
     }
 
@@ -4302,7 +4302,7 @@ window.NissanPrint = {
     ws.mergeCells('A7:C9');
     const claimVal = ws.getCell('A7');
     claimVal.value = { formula: 'F16', result: total };
-    claimVal.font = { name: 'Yu Gothic', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
+    claimVal.font = { name: 'Yu Mincho', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
     claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
     claimVal.fill = S.fillTotal;
     claimVal.numFmt = '¥#,##0';
@@ -4359,7 +4359,7 @@ window.NissanPrint = {
       const vCell = ws.getCell(`F${rNum}`);
       vCell.numFmt = '¥#,##0';
       vCell.alignment = { horizontal: 'right', vertical: 'middle' };
-      vCell.font = idx === 4 ? { name: 'Yu Gothic', size: 11, bold: true, color: { argb: 'FF1E3A8A' } } : S.fontCell;
+      vCell.font = idx === 4 ? { name: 'Yu Mincho', size: 11, bold: true, color: { argb: 'FF1E3A8A' } } : S.fontCell;
       vCell.border = idx === 4 ? S.borderTotal : S.borderThin;
       if (idx === 4) {
         lCell.fill = S.fillTotal;
