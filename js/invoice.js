@@ -1182,7 +1182,7 @@ const Invoice = {
     const sortedCases = [...nonSealCases, ...sealCases];
 
     // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
-    const paginateCases = (items, baseLimit = 18, maxLimit = 20) => {
+    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
       if (!items || items.length === 0) return [[]];
       if (items.length <= maxLimit) return [items];
       const pages = [];
@@ -1198,7 +1198,7 @@ const Invoice = {
       return pages;
     };
 
-    const detailPages = paginateCases(sortedCases, 18, 20);
+    const detailPages = paginateCases(sortedCases, 20, 22);
     const totalDetailPages = detailPages.length;
 
     const clientFullName = [
@@ -1295,8 +1295,8 @@ const Invoice = {
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
-          <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num" style="overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#000; font-weight:normal; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
+          <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+          <td class="col-num" style="font-size:11px; font-weight:600; color:#000; overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#000; font-weight:500; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
         </tr>`;
       }).join('');
 
@@ -1336,10 +1336,10 @@ const Invoice = {
     <tbody>
       ${rowsHTML}
       ${isLastPage ? `
-      <tr style="font-weight:bold; background:#f8fafc;">
-        <td colspan="5" class="col-center">合　　計</td>
-        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
-        <td class="col-num">${advanceTotal.toLocaleString()}</td>
+      <tr style="font-weight:bold; background:#f8fafc; color:#000;">
+        <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">合　　計</td>
+        <td class="col-num" style="font-size:11.5px; font-weight:bold; color:#000;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-size:11.5px; font-weight:bold; color:#000;">${advanceTotal.toLocaleString()}</td>
       </tr>` : ''}
     </tbody>
   </table>
@@ -1473,7 +1473,7 @@ const Invoice = {
     text-align: center;
     font-weight: bold;
   }
-  .col-num { text-align: right; }
+  .col-num { text-align: right; font-weight: 600; color: #000; }
   .col-center { text-align: center; }
 
   .section-label {
@@ -1556,21 +1556,21 @@ const Invoice = {
         <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
           <div style="font-weight:bold;">車庫証明申請他</div>
-          <div style="font-size:11px; color:#475569; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>
+          <div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>
         </td>
-        <td class="col-center">${garageCount + otherCount}件</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
         <td class="col-num">${(garageFee + otherFee).toLocaleString()}</td>
       </tr>
       ${sealCount > 0 ? `<tr>
         <td>
           <div style="font-weight:bold;">出張封印</div>
         </td>
-        <td class="col-center">${sealCount}件</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${sealCount}件</td>
         <td class="col-num">${sealFee.toLocaleString()}</td>
       </tr>` : ''}
       <tr style="background:#fdfdfd;">
         <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
-        <td class="col-center">${cases.length}件</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${cases.length}件</td>
         <td class="col-num" style="font-weight:bold;">${feeSubtotal.toLocaleString()}</td>
       </tr>
       <tr>
@@ -1587,14 +1587,14 @@ const Invoice = {
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td style="font-size:11px;">${lbl}</td>
-        <td class="col-center">${data.count}件</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${data.count}件</td>
         <td class="col-num">${data.amount.toLocaleString()}</td>
       </tr>
       `).join('') : `
       <tr>
         <td class="section-label col-center">立替金</td>
         <td>立替金なし</td>
-        <td class="col-center">0件</td>
+        <td class="col-center" style="font-weight:600; color:#000;">0件</td>
         <td class="col-num">0</td>
       </tr>`}
       <tr style="background:#fdfdfd; font-weight:bold;">
@@ -1725,7 +1725,7 @@ ${detailPagesHTML}
     });
 
     // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
-    const paginateFusoCases = (items, baseLimit = 18, maxLimit = 20) => {
+    const paginateFusoCases = (items, baseLimit = 20, maxLimit = 22) => {
       if (!items || items.length === 0) return [[]];
       if (items.length <= maxLimit) return [items];
       const pages = [];
@@ -1741,7 +1741,7 @@ ${detailPagesHTML}
       return pages;
     };
 
-    const fusoDetailPages = paginateFusoCases(sortedFusoCases, 18, 20);
+    const fusoDetailPages = paginateFusoCases(sortedFusoCases, 20, 22);
     const totalDetailPages = fusoDetailPages.length;
 
     let fusoDetailPagesHTML = '';
@@ -1803,8 +1803,8 @@ ${detailPagesHTML}
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
-          <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
+          <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+          <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
         </tr>`;
       }).join('');
 
@@ -1844,10 +1844,10 @@ ${detailPagesHTML}
     <tbody>
       ${rowsHTML}
       ${isLastPage ? `
-      <tr style="font-weight:bold; background:#f8fafc;">
-        <td colspan="5" class="col-center">合　　計</td>
-        <td class="col-num">${feeSubtotal.toLocaleString()}</td>
-        <td class="col-num">${advanceTotal.toLocaleString()}</td>
+      <tr style="font-weight:bold; background:#f8fafc; color:#000;">
+        <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">合　　計</td>
+        <td class="col-num" style="font-size:11.5px; font-weight:bold; color:#000;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-size:11.5px; font-weight:bold; color:#000;">${advanceTotal.toLocaleString()}</td>
       </tr>` : ''}
     </tbody>
   </table>
@@ -1926,7 +1926,7 @@ ${detailPagesHTML}
   table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 3.5px 6px; line-height: 1.3; overflow: hidden; word-wrap: break-word; box-sizing: border-box; }
   table.fuso-table th:last-child, table.fuso-table td:last-child { border-right: 1.2px solid #000; }
   table.fuso-table th { background: #f8fafc; text-align: center; font-weight: bold; }
-  .col-num { text-align: right; }
+  .col-num { text-align: right; font-weight: 600; color: #000; }
   .col-center { text-align: center; }
 
   .sender-container {
@@ -1984,7 +1984,7 @@ ${detailPagesHTML}
       </tr>
       <tr style="font-weight:bold; background:#fafafa;">
         <td colspan="2" class="col-center">計</td>
-        <td class="col-center">${cases.length}件</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${cases.length}件</td>
         <td class="col-num">${feeSubtotal.toLocaleString()}</td>
       </tr>
       <tr>
