@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ============================================================
  *  行政書士事務所 — 顧客マスタ・担当者マスタ 管理スクリプト
  *  Google スプレッドシート用 Apps Script
@@ -1358,6 +1358,20 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
       if (rowIdx !== -1) {
         const row = rowIdx + 2;
         const oldStatus = sheet.getRange(row, 6).getValue(); // Column 6 (F) is status
+
+        // Phase 1-B: updatedAt 繧ｿ繧､繝繧ｹ繧ｿ繝ｳ繝玲ｯ碑ｼ・- 蜿､縺・ョ繝ｼ繧ｿ縺ｫ繧医ｋ荳頑嶌縺阪ｒ髦ｲ豁｢
+        if (data.updatedAt) {
+          var existingUpdatedAt = sheet.getRange(row, 13).getValue(); // Column 13 = 譖ｴ譁ｰ譌･
+          if (existingUpdatedAt) {
+            var existingTime = new Date(existingUpdatedAt).getTime();
+            var incomingTime = new Date(data.updatedAt).getTime();
+            if (!isNaN(existingTime) && !isNaN(incomingTime) && incomingTime < existingTime) {
+              // push 縺輔ｌ縺溘ョ繝ｼ繧ｿ縺後せ繝励Ξ繝・ラ繧ｷ繝ｼ繝井ｸ翫・繝・・繧ｿ繧医ｊ蜿､縺・竊・譖ｴ譁ｰ繧偵せ繧ｭ繝・・
+              return { success: true, action: 'skipped', id: data.id, reason: 'stale_data',
+                       existingUpdatedAt: existingUpdatedAt.toString(), incomingUpdatedAt: data.updatedAt };
+            }
+          }
+        }
 
         actualHeaders.forEach(function(header, col) {
           const key = keyMap[header];
