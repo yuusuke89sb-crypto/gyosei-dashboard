@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 請求書発行モジュール
  * 自動車ディーラー3社（愛知トヨタWEST、三菱ふそう、日産愛知）の実務専用様式および標準様式に対応
  */
@@ -603,7 +603,13 @@ const Invoice = {
 
     const cases = this.getBilledCases(clientId, invoiceNo);
     cases.forEach(c => {
-      Store.updateCase(c.id, { invoiceNo: '' });
+      Store.updateCase(c.id, {
+            invoiceNo: '',
+            invoiceLocked: false,
+            invoiceLockedAt: '',
+            invoiceLockedFee: '',
+            invoiceLockedAdvances: []
+          });
     });
 
     if (typeof Payments !== 'undefined') {
@@ -736,7 +742,13 @@ const Invoice = {
     
     if (docType === 'invoice') {
       cases.forEach(c => {
-        Store.updateCase(c.id, { invoiceNo: invoiceNo });
+        Store.updateCase(c.id, {
+            invoiceNo: invoiceNo,
+            invoiceLocked: true,
+            invoiceLockedAt: new Date().toISOString(),
+            invoiceLockedFee: c.fee,
+            invoiceLockedAdvances: c.advances || []
+          });
       });
 
       if (typeof Payments !== 'undefined') {
@@ -820,7 +832,13 @@ const Invoice = {
     if (markBilled) {
       if (docType === 'invoice') {
         cases.forEach(c => {
-          Store.updateCase(c.id, { invoiceNo: invoiceNo });
+          Store.updateCase(c.id, {
+            invoiceNo: invoiceNo,
+            invoiceLocked: true,
+            invoiceLockedAt: new Date().toISOString(),
+            invoiceLockedFee: c.fee,
+            invoiceLockedAdvances: c.advances || []
+          });
         });
 
         if (typeof Payments !== 'undefined') {
@@ -4653,3 +4671,4 @@ window.NissanPrint = {
     App.showToast(`領収書 ${invoiceNo} を印刷プレビューしました`);
   }
 };
+
