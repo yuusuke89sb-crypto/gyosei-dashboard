@@ -103,7 +103,7 @@ const Invoice = {
     } else if (visualLen > 18) {
       size = Math.min(baseSize, 13);
     }
-    return `<span style="font-size:${size}px; letter-spacing:${letterSpacing}; font-weight:bold; display:inline-block; white-space:nowrap; line-height:1.35;">${str}</span>`;
+    return `<span style="font-size:${size}px; letter-spacing:${letterSpacing}; font-weight:bold; display:inline-block; border-bottom:1.5px solid #000; padding-bottom:2px; white-space:nowrap; line-height:1.35; max-width:100%;">${str}</span>`;
   },
 
   // 請求書番号を生成
@@ -1294,7 +1294,7 @@ const Invoice = {
           <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center">${policeName}</td>
-          <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
+          <td class="col-center" style="font-size:11px; font-weight:600; color:#000; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num" style="overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#000; font-weight:normal; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
         </tr>`;
@@ -1796,7 +1796,7 @@ ${detailPagesHTML}
           <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center">${policeName}</td>
-          <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
+          <td class="col-center" style="font-size:11px; font-weight:600; color:#000; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
         </tr>`;
