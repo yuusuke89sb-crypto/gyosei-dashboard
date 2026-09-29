@@ -1290,10 +1290,10 @@ const Invoice = {
 
         return `
         <tr>
-          <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
-          <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
+          <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
+          <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
-          <td class="col-center">${policeName}</td>
+          <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num" style="overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#000; font-weight:normal; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
@@ -1792,10 +1792,10 @@ ${detailPagesHTML}
 
         return `
         <tr>
-          <td class="col-center" style="white-space:nowrap;">${dateStr}</td>
-          <td class="col-center" style="white-space:nowrap; font-size:10.5px;">${orderNo}</td>
+          <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
+          <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
-          <td class="col-center">${policeName}</td>
+          <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
@@ -2235,10 +2235,10 @@ ${fusoDetailPagesHTML}
           return `
           <tr>
             <td class="col-no">${lineNo}</td>
-            <td class="col-center">${applyDate}</td>
-            <td class="col-center col-ord">${orderNo}</td>
+            <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${applyDate}</td>
+            <td class="col-center col-ord" style="font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
             <td class="col-left col-app" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${applicant}</td>
-            <td class="col-center">${police}</td>
+            <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${police}</td>
             <td class="col-left">${itemText}</td>
             <td class="col-right num">${feeText}</td>
             <td class="col-center">${completeDate}</td>
