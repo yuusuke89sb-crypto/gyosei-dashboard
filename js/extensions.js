@@ -431,7 +431,7 @@ const CaseTemplates = {
     garage_paper: { fee: 3500 },
     seal: { fee: 5000 },
     car_reg_standard: { fee: 5500 },
-    car_reg_light: { fee: 2000 }, // 軽自動車登録: 管轄警察署の半額（基準4000円署の場合2000円）
+    car_reg_light: { fee: 3000 }, // 軽自動車登録: 管轄警察署の半額+1000円（基準4000円署の場合3000円）
   },
 
   _lastAppliedCategory: null,
@@ -484,23 +484,23 @@ const CaseTemplates = {
       }
     }
 
-    // ★軽自動車登録は管轄警察署の単価設定の半額（例: 4,000円署なら2,000円）
+    // ★軽自動車登録は管轄警察署の単価設定の半額＋一律1,000円（例: 4,000円署なら2,000+1,000=3,000円）
     if (category === 'car_reg_light') {
       const polSel = document.getElementById('csf_policeLocationId');
       const polId = polSel ? polSel.value : '';
       if (polId && typeof Store !== 'undefined' && Store.getLocation) {
         const loc = Store.getLocation(polId);
         if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
-          feeEl.value = Math.round(Number(loc.syakoFee) / 2);
+          feeEl.value = Math.round(Number(loc.syakoFee) / 2) + 1000;
           this._lastAppliedCategory = category;
           return;
         }
       }
-      // 警察署未選択時は初期値2,000円をセット（未入力または既存テンプレート値の場合のみ）
+      // 警察署未選択時は初期値3,000円をセット（未入力または既存テンプレート値の場合のみ）
       const currentFee = feeEl ? feeEl.value : '';
-      const isTemplateFee = !currentFee || Object.values(this.TEMPLATES).some(t => String(t.fee) === currentFee) || currentFee === '5500';
+      const isTemplateFee = !currentFee || Object.values(this.TEMPLATES).some(t => String(t.fee) === currentFee) || currentFee === '5500' || currentFee === '2000';
       if (isTemplateFee) {
-        feeEl.value = 2000;
+        feeEl.value = 3000;
       }
       this._lastAppliedCategory = category;
       return;
@@ -736,18 +736,18 @@ const CaseTemplates = {
 
         if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
           const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
-          // ★軽自動車登録は管轄警察署の単価設定の半額（4000円なら2000円）
-          const targetFee = isCarRegLight ? Math.round(Number(loc.syakoFee) / 2) : Number(loc.syakoFee);
+          // ★軽自動車登録は管轄警察署の単価設定の半額＋一律1,000円（4000円なら3000円）
+          const targetFee = isCarRegLight ? (Math.round(Number(loc.syakoFee) / 2) + 1000) : Number(loc.syakoFee);
           const needUpdate = forceAll 
             ? (currentFee !== targetFee) 
-            : (currentFee === 0 || currentFee === 3500 || currentFee === 5500 || currentFee === Number(loc.syakoFee) || (isCarRegLight && currentFee !== targetFee));
+            : (currentFee === 0 || currentFee === 3500 || currentFee === 5500 || currentFee === 2000 || currentFee === Number(loc.syakoFee) || (isCarRegLight && currentFee !== targetFee));
 
           if (needUpdate) {
             const updateData = { fee: targetFee };
             if (!c.policeLocationId) updateData.policeLocationId = loc.id;
             Store.updateCase(c.id, updateData);
             updatedCount++;
-            details.push(`${c.title || '案件'}: ¥${currentFee} → ¥${targetFee} (${loc.name}${isCarRegLight ? '・軽半額' : ''})`);
+            details.push(`${c.title || '案件'}: ¥${currentFee} → ¥${targetFee} (${loc.name}${isCarRegLight ? '・軽半額+1000' : ''})`);
           }
         }
       });
@@ -784,7 +784,7 @@ const CaseTemplates = {
               const title = (c.title || '') + ' ' + (c.subCategory || '');
               if (title.includes('車庫')) fee = 3500;
               else if (title.includes('封印')) fee = 5000;
-              else if (title.includes('軽')) fee = 2000;
+              else if (title.includes('軽')) fee = 3000;
               else if (title.includes('登録') || title.includes('名変') || title.includes('移転')) fee = 5500;
               else fee = 3500;
             }
