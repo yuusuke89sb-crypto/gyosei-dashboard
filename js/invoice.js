@@ -1228,7 +1228,7 @@ const Invoice = {
           <td class="col-center">${policeName}</td>
           <td class="col-center" style="font-size:10px; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
           <td class="col-num">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num" style="overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#64748b; font-weight:normal; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
+          <td class="col-num" style="overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#000; font-weight:normal; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
         </tr>`;
       }).join('');
 
@@ -1257,8 +1257,8 @@ const Invoice = {
       <tr>
         <th rowspan="2" style="width:7%;">日付</th>
         <th colspan="4" style="width:65%;">申　請　者</th>
-        <th rowspan="2" style="width:14%;">報酬額</th>
-        <th rowspan="2" style="width:14%;">立替金</th>
+        <th rowspan="2" style="width:11%;">報酬額</th>
+        <th rowspan="2" style="width:17%;">立替金</th>
       </tr>
       <tr>
         <th style="width:13%;">${isFusoClient ? '受注No.' : '注文No.'}</th>
@@ -1761,8 +1761,8 @@ ${detailPagesHTML}
       <tr>
         <th rowspan="2" style="width:7%;">日付</th>
         <th colspan="4" style="width:65%;">申　請　者</th>
-        <th rowspan="2" style="width:14%;">報酬額</th>
-        <th rowspan="2" style="width:14%;">立替金</th>
+        <th rowspan="2" style="width:11%;">報酬額</th>
+        <th rowspan="2" style="width:17%;">立替金</th>
       </tr>
       <tr>
         <th style="width:13%;">注文No.</th>
