@@ -180,7 +180,7 @@ const Invoice = {
 
     const now = new Date();
     const currentPeriod = this.getCurrentBillingPeriod(now);
-    const defaultIssueDate = Store.getLocalDateStr(now);
+    const defaultIssueDate = (currentPeriod && currentPeriod.endDate) ? currentPeriod.endDate : Store.getLocalDateStr(now);
     const defaultDueDate = currentPeriod.dueDate;
     const detectedTpl = this.detectTemplate(client);
 
@@ -429,8 +429,10 @@ const Invoice = {
       period = this.getBillingPeriod(parts[0], parts[1]);
     }
 
-    if (period && dueDateInput) {
-      dueDateInput.value = period.dueDate;
+    const invoiceDateInput = document.getElementById('invoiceDate');
+    if (period) {
+      if (dueDateInput && period.dueDate) dueDateInput.value = period.dueDate;
+      if (invoiceDateInput && period.endDate) invoiceDateInput.value = period.endDate;
     }
 
     // チェックボックスの自動選別
@@ -967,6 +969,10 @@ const Invoice = {
     const match = invoiceNo.match(/INV-(\d{4})(\d{2})-/);
     const year = match ? parseInt(match[1]) : new Date().getFullYear();
     const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
+    if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
+      const bp = Store.getBillingPeriod(year, month);
+      if (bp && bp.endDate) issueDate = bp.endDate;
+    }
 
     // 消し込み済みの項目は請求書から自動除外（再印刷時も同様）
     const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
@@ -1064,6 +1070,10 @@ const Invoice = {
     const match = invoiceNo.match(/INV-(\d{4})(\d{2})-/);
     const year = match ? parseInt(match[1]) : new Date().getFullYear();
     const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
+    if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
+      const bp = Store.getBillingPeriod(year, month);
+      if (bp && bp.endDate) issueDate = bp.endDate;
+    }
 
     const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
@@ -1161,7 +1171,13 @@ const Invoice = {
 
     const rawClientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
-    const [issueY, issueM, issueD] = (issueDate || (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-28')).split('-');
+    let effectiveIssueDate = issueDate;
+    if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
+      const bp = Store.getBillingPeriod(year, month);
+      if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
+    }
+    if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
+    const [issueY, issueM, issueD] = effectiveIssueDate.split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
 
     // ソートキー取得関数
@@ -1634,7 +1650,7 @@ const Invoice = {
   </table>
 
   <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
-  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
   ${dueDate && docType !== 'estimate' ? `
   <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
     お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
@@ -1672,7 +1688,13 @@ ${detailPagesHTML}
   buildMitsubishiInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, total = 0, advanceTotal = 0, docType = 'invoice' }) {
     const rawClientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
-    const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
+    let effectiveIssueDate = issueDate;
+    if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
+      const bp = Store.getBillingPeriod(year, month);
+      if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
+    }
+    if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
+    const [issueY, issueM, issueD] = effectiveIssueDate.split('-');
     const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
 
     // 業務分類
@@ -2044,7 +2066,7 @@ ${detailPagesHTML}
   </table>
 
   <div style="font-size:13px; margin: 15px 0 8px;">上記のとおりご請求申し上げます。</div>
-  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM || ''} 月 ${issueD || ''} 日</div>
+  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
   ${dueDate && docType !== 'estimate' ? `
   <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
     お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
