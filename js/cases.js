@@ -2281,10 +2281,11 @@ const Cases = {
       const policeLocationIdEl = document.getElementById('csf_policeLocationId');
       if (policeLocationIdEl) policeLocationIdEl.value = resolvedPolId;
 
-      // 報酬額の反映（一般車庫のみ警察署マスタ単価を自動補完、OSSは警察署出頭なしのため所轄単価対象外・一律3,500円）
+      // 報酬額の反映（一般車庫・軽登録の警察署マスタ単価を自動補完、OSSは所轄単価対象外・一律3,500円）
       let curFee = c.fee;
       const isGaragePaper = c.category === 'garage_paper';
       const isGarageOss = c.category === 'garage_oss';
+      const isCarRegLight = c.category === 'car_reg_light';
       // 愛知トヨタの場合のみ警察署マスタ単価を自動補完（他の得意先は手動入力）
       const isAichiToyota = (typeof Store !== 'undefined' && Store.isAichiToyotaClient)
         ? Store.isAichiToyotaClient(c.clientId)
@@ -2294,6 +2295,14 @@ const Cases = {
         if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
           if (!curFee || Number(curFee) === 0 || Number(curFee) === 3500) {
             curFee = loc.syakoFee;
+          }
+        }
+      } else if (isCarRegLight && resolvedPolId && typeof Store !== 'undefined' && isAichiToyota) {
+        const loc = Store.getLocation(resolvedPolId);
+        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+          const halfFee = Math.round(Number(loc.syakoFee) / 2);
+          if (!curFee || Number(curFee) === 0 || Number(curFee) === 5500 || Number(curFee) === Number(loc.syakoFee)) {
+            curFee = halfFee;
           }
         }
       } else if (isGarageOss) {
@@ -3122,6 +3131,23 @@ const Cases = {
         feeEl.value = 3500;
       }
       this.updateFeeHint(locationId);
+    } else if (cat === 'car_reg_light') {
+      // ★軽自動車登録: 管轄警察署単価の半額（4000円なら2000円）
+      if (!locationId) {
+        this.updateFeeHint('');
+        return;
+      }
+      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && this._isAichiToyotaSelected()) {
+        const feeEl = document.getElementById('csf_fee');
+        const halfFee = Math.round(Number(loc.syakoFee) / 2);
+        if (feeEl) {
+          feeEl.value = halfFee;
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast(`📍 ${loc.name}の軽自動車登録報酬（半額: ¥${halfFee.toLocaleString()}）を反映しました`);
+          }
+        }
+      }
+      this.updateFeeHint(locationId);
     }
   },
 
@@ -3140,6 +3166,32 @@ const Cases = {
           🚗 OSS車庫証明: ${isToyota ? '<strong style="color:var(--accent-primary, #4f46e5)">トヨタ標準¥3,500</strong>' : '<strong style="color:var(--accent-primary, #4f46e5)">ディーラー個別単価</strong>（手動設定可能）'}（警察署出頭なし）
         </span>
       `;
+      return;
+    }
+
+    if (cat === 'car_reg_light') {
+      if (!locationId && typeof Store !== 'undefined') {
+        const polEl = document.getElementById('csf_policeLocationId');
+        if (polEl && polEl.value) locationId = polEl.value;
+      }
+      const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
+      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+        const halfFee = Math.round(Number(loc.syakoFee) / 2);
+        const currentFee = document.getElementById('csf_fee')?.value;
+        const isDiff = Number(currentFee) !== halfFee;
+        hintEl.innerHTML = `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            🚗 軽登録マスタ: <strong style="color:var(--accent-primary, #4f46e5)">¥${halfFee.toLocaleString()}</strong>（所轄¥${Number(loc.syakoFee).toLocaleString()}の半額）
+          </span>
+          ${isDiff ? `<button type="button" class="btn btn-secondary btn-small" style="font-size:0.68rem; padding:1px 6px; margin-left:4px;" onclick="Cases.applyPoliceFeeToForm(${halfFee})">半額単価を適用</button>` : ' <span style="color:#10b981; font-size:0.72rem;">✓ 反映済</span>'}
+        `;
+      } else {
+        hintEl.innerHTML = `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            🚗 軽登録標準: <strong style="color:var(--accent-primary, #4f46e5)">¥2,000</strong>（管轄警察署の半額）
+          </span>
+        `;
+      }
       return;
     }
 
@@ -3191,7 +3243,8 @@ const Cases = {
       feeEl.value = fee;
       this.updateFeeHint();
       if (typeof App !== 'undefined' && App.showToast) {
-        App.showToast(`📍 報酬額をマスタ単価（¥${Number(fee).toLocaleString()}）に更新しました`);
+        const label = cat === 'car_reg_light' ? '軽自動車登録報酬（半額）' : 'マスタ単価';
+        App.showToast(`📍 報酬額を${label}（¥${Number(fee).toLocaleString()}）に更新しました`);
       }
     }
   },
@@ -3242,6 +3295,18 @@ const Cases = {
       const feeEl = document.getElementById('csf_fee');
       if (feeEl && (!this.editingId || !feeEl.value || Number(feeEl.value) === 0)) {
         feeEl.value = 3500;
+      }
+      this.updateFeeHint();
+    } else if (category === 'car_reg_light') {
+      // 軽自動車登録に切り替えた場合、警察署が選択済みならその半額単価を反映
+      const polEl = document.getElementById('csf_policeLocationId');
+      if (polEl && polEl.value) {
+        this.onPoliceLocationChange(polEl.value);
+      } else {
+        const feeEl = document.getElementById('csf_fee');
+        if (feeEl && (!this.editingId || !feeEl.value || Number(feeEl.value) === 0 || feeEl.value === '5500')) {
+          feeEl.value = 2000;
+        }
       }
       this.updateFeeHint();
     }
