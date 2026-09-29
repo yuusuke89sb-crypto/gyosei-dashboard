@@ -57,14 +57,37 @@ const Invoice = {
   },
 
   // 申請者名・顧客名の文字数に応じた自動文字縮小＆1行強制（改行防止）
+  // 文字列の視覚的な全角換算幅を算出（半角英大文字等は明朝体で幅を取るため適正に重み付け）
+  _getVisualLength(str) {
+    if (!str) return 0;
+    let len = 0;
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      if (code >= 0x41 && code <= 0x5A) {
+        // 半角英大文字 (A-Z): 明朝体では全角の約0.8倍の幅
+        len += 0.8;
+      } else if (code >= 0x61 && code <= 0x7A) {
+        // 半角英小文字 (a-z): 全角の約0.55倍
+        len += 0.55;
+      } else if (code === 0x20) {
+        // 半角スペース
+        len += 0.35;
+      } else if ((code >= 0x00 && code <= 0x7E) || (code >= 0xFF61 && code <= 0xFF9F)) {
+        // その他の半角文字・数字・記号・半角カナ
+        len += 0.6;
+      } else {
+        // 全角文字（漢字・ひらがな・カタカナ・全角記号）
+        len += 1.0;
+      }
+    }
+    return len;
+  },
+
   _formatApplicantHTML(name) {
     if (!name || name === '-') return '-';
     const str = String(name).trim();
-    let visualLen = 0;
-    for (let i = 0; i < str.length; i++) {
-      const code = str.charCodeAt(i);
-      visualLen += ((code >= 0x00 && code <= 0x7E) || (code >= 0xFF61 && code <= 0xFF9F)) ? 0.5 : 1.0;
-    }
+    const visualLen = this._getVisualLength(str);
+
     let fontSize = '10.5px';
     let letterSpacing = 'normal';
     if (visualLen > 15) {
@@ -73,25 +96,25 @@ const Invoice = {
     } else if (visualLen > 12) {
       fontSize = '7.2px';
       letterSpacing = '-0.4px';
-    } else if (visualLen > 9) {
-      fontSize = '8.2px';
+    } else if (visualLen > 10) {
+      fontSize = '7.8px';
+      letterSpacing = '-0.3px';
+    } else if (visualLen > 8) {
+      fontSize = '8.5px';
       letterSpacing = '-0.2px';
-    } else if (visualLen > 7) {
+    } else if (visualLen > 6.5) {
       fontSize = '9.2px';
       letterSpacing = '-0.1px';
     }
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:bold; line-height:1.2;">${str}</span>`;
   },
 
-  // 請求先（顧客店舗名等）の文字数に応じた自動縮小＆1行強制
+  // 鑑（顧客店舗名）の文字数に応じた縮小（1行表示）
   _formatClientNameHTML(name, baseSize = 15) {
     if (!name) return '';
     const str = String(name).trim();
-    let visualLen = 0;
-    for (let i = 0; i < str.length; i++) {
-      const code = str.charCodeAt(i);
-      visualLen += ((code >= 0x00 && code <= 0x7E) || (code >= 0xFF61 && code <= 0xFF9F)) ? 0.5 : 1.0;
-    }
+    const visualLen = this._getVisualLength(str);
+
     let size = baseSize;
     let letterSpacing = 'normal';
     if (visualLen > 28) {
