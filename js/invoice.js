@@ -110,23 +110,43 @@ const Invoice = {
   },
 
   // 鑑（顧客店舗名）の文字数に応じた縮小（1行表示）
-  _formatClientNameHTML(name, baseSize = 15) {
+  _formatClientNameHTML(name, baseSize = 15, isCover = false) {
     if (!name) return '';
     const str = String(name).trim();
     const visualLen = this._getVisualLength(str);
 
     let size = baseSize;
     let letterSpacing = 'normal';
-    if (visualLen > 28) {
-      size = Math.min(baseSize, 10.5);
-      letterSpacing = '-0.5px';
-    } else if (visualLen > 23) {
-      size = Math.min(baseSize, 11.5);
-      letterSpacing = '-0.3px';
-    } else if (visualLen > 18) {
-      size = Math.min(baseSize, 13);
+    let borderWidth = '1.5px';
+
+    if (isCover || baseSize >= 18) {
+      // 表紙用（横幅100%の広いエリア用：堂々とした大きな文字）
+      borderWidth = '2px';
+      if (visualLen > 35) {
+        size = Math.min(baseSize, 15);
+        letterSpacing = '-0.4px';
+      } else if (visualLen > 28) {
+        size = Math.min(baseSize, 17);
+        letterSpacing = '-0.2px';
+      } else if (visualLen > 24) {
+        size = Math.min(baseSize, 19);
+      } else {
+        size = baseSize;
+      }
+    } else {
+      // 明細書ヘッダー用（max-width: 52% の狭いエリア用）
+      if (visualLen > 28) {
+        size = Math.min(baseSize, 10.5);
+        letterSpacing = '-0.5px';
+      } else if (visualLen > 23) {
+        size = Math.min(baseSize, 11.5);
+        letterSpacing = '-0.3px';
+      } else if (visualLen > 18) {
+        size = Math.min(baseSize, 13);
+      }
     }
-    return `<span style="font-size:${size}px; letter-spacing:${letterSpacing}; font-weight:bold; display:inline-block; border-bottom:1.5px solid #000; padding-bottom:2px; white-space:nowrap; line-height:1.35; max-width:100%;">${str}</span>`;
+
+    return `<span style="font-size:${size}px; letter-spacing:${letterSpacing}; font-weight:bold; display:inline-block; border-bottom:${borderWidth} solid #000; padding-bottom:3px; white-space:nowrap; line-height:1.35; max-width:100%;">${str}</span>`;
   },
 
   // 請求書番号を生成
@@ -1474,8 +1494,8 @@ const Invoice = {
     padding-bottom: 6px;
   }
   .recipient-box {
-    margin-bottom: 18px;
-    font-size: 17px;
+    margin-bottom: 22px;
+    font-size: 21px;
     font-weight: bold;
   }
   .recipient-box .name {
@@ -1578,7 +1598,7 @@ const Invoice = {
   <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${note}</div>` : ''}</div>
   
   <div class="recipient-box">
-    ${this._formatClientNameHTML(clientName, 17)}
+    ${this._formatClientNameHTML(clientName, 21, true)}
   </div>
 
   <table class="grid-table">
