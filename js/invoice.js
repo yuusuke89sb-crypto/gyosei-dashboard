@@ -88,37 +88,37 @@ const Invoice = {
     const str = String(name).trim();
     const visualLen = this._getVisualLength(str);
 
-    let fontSize = 10.5;
+    let fontSize = 11.5;
     let letterSpacing = 0;
 
     if (visualLen <= 6.5) {
-      // 短い人名（3〜6文字）：大きく堂々と表示
-      fontSize = 10.5;
+      // 短い人名（3〜6文字）：セル幅37%でしっかり大きく見やすく表示
+      fontSize = 11.5;
       letterSpacing = 0;
-    } else if (visualLen <= 8.5) {
-      // 7〜8文字（会社名等）：少し縮小して読みやすく
-      fontSize = 9.8;
-      letterSpacing = -0.1;
-    } else if (visualLen <= 10.5) {
-      // 9〜10文字
+    } else if (visualLen <= 9.0) {
+      // 7〜9文字（会社名等）：大きめの10.5px
+      fontSize = 10.5;
+      letterSpacing = -0.05;
+    } else if (visualLen <= 11.5) {
+      // 10〜11文字
+      fontSize = 9.4;
+      letterSpacing = -0.15;
+    } else if (visualLen <= 14.5) {
+      // 12〜14文字（「特定非営利活動法人MA」等）：37%幅で綺麗に大きく収まるサイズ
       fontSize = 8.4;
-      letterSpacing = -0.2;
-    } else if (visualLen <= 13) {
-      // 11〜13文字（特定非営利活動法人MA等）：確実に1行に収まるサイズ
-      fontSize = 7.2;
+      letterSpacing = -0.25;
+    } else if (visualLen <= 18.0) {
+      // 15〜18文字
+      fontSize = 7.4;
       letterSpacing = -0.35;
-    } else if (visualLen <= 16) {
-      // 14〜16文字
-      fontSize = 6.4;
+    } else if (visualLen <= 22.0) {
+      // 19〜22文字
+      fontSize = 6.6;
       letterSpacing = -0.45;
-    } else if (visualLen <= 20) {
-      // 17〜20文字
-      fontSize = 5.6;
-      letterSpacing = -0.5;
     } else {
-      // 21文字以上の超長文：文字数に応じて滑らかに縮小
-      fontSize = Math.max(4.2, 5.5 - (visualLen - 20) * 0.15);
-      letterSpacing = -0.55;
+      // 23文字以上の超長文：文字数に応じて滑らかに縮小
+      fontSize = Math.max(4.8, 6.2 - (visualLen - 22) * 0.15);
+      letterSpacing = -0.5;
     }
 
     const fsStr = fontSize.toFixed(1) + 'px';
@@ -1459,18 +1459,27 @@ const Invoice = {
   </div>
 
   <table class="grid-table" style="font-size:11px; margin-bottom:6px;">
+    <colgroup>
+      <col style="width: 7%;">
+      <col style="width: 9%;">
+      <col style="width: 37%;">
+      <col style="width: 7%;">
+      <col style="width: 12%;">
+      <col style="width: 11%;">
+      <col style="width: 17%;">
+    </colgroup>
     <thead>
       <tr>
-        <th rowspan="2" style="width:7%;">日付</th>
-        <th colspan="4" style="width:65%;">申　請　者</th>
-        <th rowspan="2" style="width:11%;">報酬額</th>
-        <th rowspan="2" style="width:17%;">立替金</th>
+        <th rowspan="2">日付</th>
+        <th colspan="4">申　請　者</th>
+        <th rowspan="2">報酬額</th>
+        <th rowspan="2">立替金</th>
       </tr>
       <tr>
-        <th style="width:9%;">${isFusoClient ? '受注No.' : '注文No.'}</th>
-        <th style="width:37%;">氏　名</th>
-        <th style="width:7%;">管　轄</th>
-        <th style="width:12%;">備　考</th>
+        <th>${isFusoClient ? '受注No.' : '注文No.'}</th>
+        <th>氏　名</th>
+        <th>管　轄</th>
+        <th>備　考</th>
       </tr>
     </thead>
     <tbody>
@@ -2016,18 +2025,27 @@ ${detailPagesHTML}
   </div>
 
   <table class="fuso-table" style="font-size:11px; margin-bottom:6px;">
+    <colgroup>
+      <col style="width: 7%;">
+      <col style="width: 9%;">
+      <col style="width: 37%;">
+      <col style="width: 7%;">
+      <col style="width: 12%;">
+      <col style="width: 11%;">
+      <col style="width: 17%;">
+    </colgroup>
     <thead>
       <tr>
-        <th rowspan="2" style="width:7%;">日付</th>
-        <th colspan="4" style="width:65%;">申　請　者</th>
-        <th rowspan="2" style="width:11%;">報酬額</th>
-        <th rowspan="2" style="width:17%;">立替金</th>
+        <th rowspan="2">日付</th>
+        <th colspan="4">申　請　者</th>
+        <th rowspan="2">報酬額</th>
+        <th rowspan="2">立替金</th>
       </tr>
       <tr>
-        <th style="width:9%;">注文No.</th>
-        <th style="width:37%;">氏　名</th>
-        <th style="width:7%;">管　轄</th>
-        <th style="width:12%;">備　考</th>
+        <th>注文No.</th>
+        <th>氏　名</th>
+        <th>管　轄</th>
+        <th>備　考</th>
       </tr>
     </thead>
     <tbody>
