@@ -1334,12 +1334,13 @@ const InboxManager = {
       }
     });
 
-    // メモ欄に追送合流履歴を追記
+    // メモ欄に追送合流履歴を追記（請求書出力時には自動除外される社内ログ）
     const nowStr = new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const fileNames = newAttachments.map(a => a.name || '添付ファイル').join(', ');
-    const auditText = `\n\n【📎 追送書類合流 (${nowStr})】\n${item.type}（${item.sender || '差出人'}）より合流：\n件名: ${item.subject || '（無題）'}\n${fileNames ? `添付: ${fileNames}` : ''}`;
+    const auditText = `\n【📎 追送書類合流 (${nowStr})】\n${item.type}（${item.sender || '差出人'}）より合流：\n件名: ${item.subject || '（無題）'}\n${fileNames ? `添付: ${fileNames}` : ''}`;
     
-    const updatedMemo = (targetCase.memo || '') + auditText;
+    const baseMemo = (targetCase.memo || '').trim();
+    const updatedMemo = baseMemo ? `${baseMemo}\n${auditText}` : auditText.trim();
 
     // 案件更新
     Store.updateCase(targetCase.id, {
@@ -1433,3 +1434,4 @@ const InboxManager = {
     }
   }
 };
+
