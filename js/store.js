@@ -378,7 +378,7 @@ const Store = {
         const compDateStr = updatedCase.completedAt ? updatedCase.completedAt.slice(0, 10) : (updatedCase.registrationDate || updatedCase.policeDeliveryDate || this.getLocalDateStr());
         const expectedFee = Number(updatedCase.fee);
         const client = this.getClient(updatedCase.clientId);
-        const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
+        const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
         const orderStr = updatedCase.orderNo ? ` [注:${updatedCase.orderNo}]` : '';
         const expectedDesc = `[${CATS[updatedCase.category] || updatedCase.category}] ${updatedCase.title}${client ? ' / ' + client.name : ''}${orderStr}`;
 
@@ -425,7 +425,7 @@ const Store = {
     // 同一案件の重複チェック
     if (journals.some(j => j.caseId === c.id)) return;
     const client = this.getClient(c.clientId);
-    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
+    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
     const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
     const journalDate = (c.completedAt ? c.completedAt.slice(0, 10) : this.getLocalDateStr());
     journals.push({
