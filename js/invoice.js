@@ -1442,7 +1442,8 @@ const Invoice = {
 
         let categoryShort = '';
         const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
+        const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
+        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
 
         if (isKibo && isLight) {
           categoryShort = '軽・希望ナンバー';
@@ -1451,7 +1452,7 @@ const Invoice = {
         } else if (c.category === 'garage_oss') {
           categoryShort = 'OSS';
         } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-          categoryShort = '一般';
+          categoryShort = isLight ? '一般・軽' : '一般';
         } else if (c.subCategory) {
           categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
         } else if (c.category === 'car_reg_standard') {
@@ -1760,8 +1761,8 @@ const Invoice = {
       <tr>
         <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
-          <div style="font-weight:bold;">車庫証明申請他</div>
-          <div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>
+          <div style="font-weight:bold;">${garageCount > 0 ? (otherCount > 0 ? '車庫証明申請他' : '車庫証明申請') : '自動車登録等'}</div>
+          ${(garageCount > 0 && otherCount > 0) ? `<div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>` : ''}
         </td>
         <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
         <td class="col-num">${(garageFee + otherFee).toLocaleString()}</td>
@@ -2022,7 +2023,8 @@ ${detailPagesHTML}
 
         let categoryShort = '';
         const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
+        const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
+        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
 
         if (isKibo && isLight) {
           categoryShort = '軽・希望ナンバー';
@@ -2031,7 +2033,7 @@ ${detailPagesHTML}
         } else if (c.category === 'garage_oss') {
           categoryShort = 'OSS';
         } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-          categoryShort = '一般';
+          categoryShort = isLight ? '一般・軽' : '一般';
         } else if (c.subCategory) {
           categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
         } else if (c.category === 'car_reg_standard') {
@@ -3824,12 +3826,13 @@ window.NissanPrint = {
 
       let categoryShort = '';
       const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-      const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
+      const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
+      const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
 
       if (isKibo && isLight) categoryShort = '軽・希望ナンバー';
       else if (isKibo) categoryShort = '希望ナンバー申込';
       else if (c.category === 'garage_oss') categoryShort = 'OSS';
-      else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) categoryShort = '一般';
+      else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) categoryShort = isLight ? '一般・軽' : '一般';
       else if (c.subCategory) categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
       else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
       else if (c.category === 'car_reg_light') categoryShort = '軽登録';
@@ -5075,4 +5078,5 @@ window.NissanPrint = {
     App.showToast(`領収書 ${invoiceNo} を印刷プレビューしました`);
   }
 };
+
 
