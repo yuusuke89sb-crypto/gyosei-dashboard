@@ -555,7 +555,7 @@ const Invoice = {
       let currentNote = noteEl.value.trim();
       if (filterType === 'used') {
         if (!currentNote.includes('U-Car') && !currentNote.includes('中古車分')) {
-          noteEl.value = currentNote ? `${currentNote}（中古車分）` : '（中古車分）';
+          noteEl.value = currentNote ? `${currentNote}（U-Car）` : '（U-Car）';
         }
       } else {
         noteEl.value = currentNote.replace(/[（(]?(?:U-Car|中古車分)[）)]?/g, '').trim();
@@ -783,7 +783,7 @@ const Invoice = {
     // 全選択案件が中古車で備考に「中古車分」の指定がなければ自動付与
     const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
     if (isAllUsed && !note.includes('U-Car') && !note.includes('中古車分')) {
-      note = note ? `${note}（中古車分）` : '（中古車分）';
+      note = note ? `${note}（U-Car）` : '（U-Car）';
     }
     const templateType = document.getElementById('invoiceTemplateType')
       ? document.getElementById('invoiceTemplateType').value
@@ -918,7 +918,7 @@ const Invoice = {
     let note = (document.getElementById('invoiceNote').value || '').trim();
     const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
     if (isAllUsed && !note.includes('U-Car') && !note.includes('中古車分')) {
-      note = note ? `${note}（中古車分）` : '（中古車分）';
+      note = note ? `${note}（U-Car）` : '（U-Car）';
     }
     const templateType = document.getElementById('invoiceTemplateType')
       ? document.getElementById('invoiceTemplateType').value
@@ -1443,7 +1443,7 @@ const Invoice = {
       detailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">車庫証明申請等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${note}</span>` : ''}</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">車庫証明申請等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</span>` : ''}</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div style="max-width:52%; flex-shrink:1;">
@@ -1676,7 +1676,7 @@ const Invoice = {
 
 <!-- 1ページ目：請求書 表紙 -->
 <div class="page page-break">
-  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${note}</div>` : ''}</div>
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</div>` : ''}</div>
   
   <div class="recipient-box">
     ${this._formatClientNameHTML(clientName, 21, true)}
