@@ -88,38 +88,32 @@ const Invoice = {
     const str = String(name).trim();
     const visualLen = this._getVisualLength(str);
 
-    // 以前のサイズ(10.5px等)と直前のサイズ(11.5px等)の「ちょうど良い中間」に調整
-    let fontSize = 10.8;
+    // セル幅28%(約52mm)を活かし、一般的な氏名・会社名(10.5文字以下)は縮小せず11.2pxで大きく統一！
+    // 枠を飛び出さないよう、11文字を超える長文のみ安全に段階的縮小
+    let fontSize = 11.2;
     let letterSpacing = 0;
 
-    if (visualLen <= 6.5) {
-      // 短い人名（3〜6文字）：他の列(11px)と美しく調和する絶妙な10.8px
-      fontSize = 10.8;
+    if (visualLen <= 10.5) {
+      // 通常の人名(3〜6文字)や標準的な会社名(7〜10文字)：「山田伸治」「(株)北九ライニング」「愛知トヨタWEST(株)」など
+      // 一切縮小せず、しっかり大きくクッキリ揃えて視認性を最大化
+      fontSize = 11.2;
       letterSpacing = 0;
-    } else if (visualLen <= 9.0) {
-      // 7〜9文字（会社名等）：9.8px
-      fontSize = 9.8;
-      letterSpacing = -0.05;
-    } else if (visualLen <= 11.5) {
-      // 10〜11文字：8.8px
-      fontSize = 8.8;
+    } else if (visualLen <= 13.5) {
+      // 11〜13文字（長めの法人名など）：10.0px
+      fontSize = 10.0;
       letterSpacing = -0.10;
-    } else if (visualLen <= 14.5) {
-      // 12〜14文字（「特定非営利活動法人MA」等）：8.0px
-      fontSize = 8.0;
+    } else if (visualLen <= 16.5) {
+      // 14〜16文字：9.0px
+      fontSize = 9.0;
       letterSpacing = -0.20;
-    } else if (visualLen <= 18.0) {
-      // 15〜18文字：7.2px
-      fontSize = 7.2;
+    } else if (visualLen <= 20.0) {
+      // 17〜20文字：8.0px
+      fontSize = 8.0;
       letterSpacing = -0.30;
-    } else if (visualLen <= 22.0) {
-      // 19〜22文字：6.6px
-      fontSize = 6.6;
-      letterSpacing = -0.40;
     } else {
-      // 23文字以上の超長文：文字数に応じて滑らかに縮小
-      fontSize = Math.max(5.0, 6.2 - (visualLen - 22) * 0.15);
-      letterSpacing = -0.50;
+      // 21文字以上の超長文：文字数に応じて滑らかに縮小（枠外はみ出しを完全防止）
+      fontSize = Math.max(5.5, 7.5 - (visualLen - 20) * 0.15);
+      letterSpacing = -0.40;
     }
 
     const fsStr = fontSize.toFixed(1) + 'px';
