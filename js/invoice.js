@@ -1245,7 +1245,9 @@ const Invoice = {
       }
       return String(raw);
     };
-    // OSS / Garage priority check
+    // 封印判定
+    const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印') || (c.subCategory || '').includes('封印');
+    // 車庫証明判定（OSSまたは一般）
     const isGarageCase = (c) => {
       const cat = c.category || '';
       const sub = c.subCategory || '';
@@ -1255,13 +1257,15 @@ const Invoice = {
       if (title.includes('OSS') || title.includes('車庫証明') || title.includes('車庫')) return true;
       return false;
     };
-    // Sort: Date ASC -> Same day: OSS/Garage first (Priority 1) then others (Priority 2) -> OrderNo ASC
     const parseOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
-    const sortedCases = [...cases].sort((a, b) => {
+
+    // 非封印案件（車庫・その他登録）：日付順 → 同日はOSS/一般優先 → 注文No.順
+    const sortNonSealCases = (arr) => arr.sort((a, b) => {
       const da = getSortDate(a);
       const db = getSortDate(b);
       const cmp = da.localeCompare(db);
       if (cmp !== 0) return cmp;
+      // 同日の場合：車庫証明（OSS/一般）を優先（Priority 1）、その他登録を後（Priority 2）
       const pA = isGarageCase(a) ? 1 : 2;
       const pB = isGarageCase(b) ? 1 : 2;
       if (pA !== pB) return pA - pB;
@@ -1272,6 +1276,25 @@ const Invoice = {
       if (na !== nb) return na - nb;
       return String(oa).localeCompare(String(ob));
     });
+
+    // 封印案件：日付順 → 注文No.順
+    const sortSealCases = (arr) => arr.sort((a, b) => {
+      const da = getSortDate(a);
+      const db = getSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseOrderNum(oa);
+      const nb = parseOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
+
+    const nonSealCases = sortNonSealCases(cases.filter(c => !isSeal(c)));
+    const sealCases = sortSealCases(cases.filter(c => isSeal(c)));
+    // 封印はあくまで最後に並べる
+    const sortedCases = [...nonSealCases, ...sealCases];
 
     // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
     const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
@@ -1654,7 +1677,7 @@ const Invoice = {
       <tr>
         <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
-          <div style="font-weight:bold;">封印</div>
+          <div style="font-weight:bold;">車庫証明申請他</div>
           <div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>
         </td>
         <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
@@ -1818,7 +1841,8 @@ ${detailPagesHTML}
       return String(raw);
     };
 
-    // Fuso sort: Date ASC -> Same day: OSS/Garage first -> OrderNo ASC
+    // 封印判定
+    const isFusoSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印') || (c.subCategory || '').includes('封印');
     const isFusoGarageCase = (c) => {
       const cat = c.category || '';
       const sub = c.subCategory || '';
@@ -1829,7 +1853,8 @@ ${detailPagesHTML}
       return false;
     };
     const parseFusoOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
-    const sortedFusoCases = [...cases].sort((a, b) => {
+
+    const sortFusoNonSealCases = (arr) => arr.sort((a, b) => {
       const da = getFusoSortDate(a);
       const db = getFusoSortDate(b);
       const cmp = da.localeCompare(db);
@@ -1844,6 +1869,24 @@ ${detailPagesHTML}
       if (na !== nb) return na - nb;
       return String(oa).localeCompare(String(ob));
     });
+
+    const sortFusoSealCases = (arr) => arr.sort((a, b) => {
+      const da = getFusoSortDate(a);
+      const db = getFusoSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseFusoOrderNum(oa);
+      const nb = parseFusoOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
+
+    const fusoNonSeal = sortFusoNonSealCases(cases.filter(c => !isFusoSeal(c)));
+    const fusoSeal = sortFusoSealCases(cases.filter(c => isFusoSeal(c)));
+    // 封印はあくまで最後に並べる
+    const sortedFusoCases = [...fusoNonSeal, ...fusoSeal];
 
     // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
     const paginateFusoCases = (items, baseLimit = 20, maxLimit = 22) => {
@@ -3617,6 +3660,7 @@ window.NissanPrint = {
     });
 
     const getSortDate = (c) => c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+    const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印') || (c.subCategory || '').includes('封印');
     const isGarageCase = (c) => {
       const cat = c.category || '';
       const sub = c.subCategory || '';
@@ -3627,7 +3671,8 @@ window.NissanPrint = {
       return false;
     };
     const parseOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
-    const sortedCases = [...cases].sort((a, b) => {
+
+    const sortNonSeal = (arr) => arr.sort((a, b) => {
       const da = getSortDate(a);
       const db = getSortDate(b);
       const cmp = da.localeCompare(db);
@@ -3642,6 +3687,23 @@ window.NissanPrint = {
       if (na !== nb) return na - nb;
       return String(oa).localeCompare(String(ob));
     });
+
+    const sortSeal = (arr) => arr.sort((a, b) => {
+      const da = getSortDate(a);
+      const db = getSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseOrderNum(oa);
+      const nb = parseOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
+
+    const nonSeal = sortNonSeal(cases.filter(c => !isSeal(c)));
+    const seal = sortSeal(cases.filter(c => isSeal(c)));
+    const sortedCases = [...nonSeal, ...seal];
 
     let rowIdx = 4;
     sortedCases.forEach((c, idx) => {
@@ -4022,7 +4084,8 @@ window.NissanPrint = {
       return String(raw);
     };
 
-    // Fuso sort: Date ASC -> Same day: OSS/Garage first -> OrderNo ASC
+    // 封印判定
+    const isFusoSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印') || (c.subCategory || '').includes('封印');
     const isFusoGarageCase = (c) => {
       const cat = c.category || '';
       const sub = c.subCategory || '';
@@ -4033,7 +4096,8 @@ window.NissanPrint = {
       return false;
     };
     const parseFusoOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
-    const sortedFusoCases = [...cases].sort((a, b) => {
+
+    const sortFusoNonSealCases = (arr) => arr.sort((a, b) => {
       const da = getFusoSortDate(a);
       const db = getFusoSortDate(b);
       const cmp = da.localeCompare(db);
@@ -4048,6 +4112,24 @@ window.NissanPrint = {
       if (na !== nb) return na - nb;
       return String(oa).localeCompare(String(ob));
     });
+
+    const sortFusoSealCases = (arr) => arr.sort((a, b) => {
+      const da = getFusoSortDate(a);
+      const db = getFusoSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseFusoOrderNum(oa);
+      const nb = parseFusoOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
+
+    const fusoNonSeal = sortFusoNonSealCases(cases.filter(c => !isFusoSeal(c)));
+    const fusoSeal = sortFusoSealCases(cases.filter(c => isFusoSeal(c)));
+    // 封印はあくまで最後に並べる
+    const sortedFusoCases = [...fusoNonSeal, ...fusoSeal];
 
     ws2.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: Math.max(1, Math.ceil(sortedFusoCases.length / 22)), margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5 } };
 
