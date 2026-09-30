@@ -65,6 +65,7 @@ const Cases = {
     { key: '移転登録（名義変更）', label: '移転登録（名義変更・管轄変更なし）' },
     { key: '移転登録（封印）', label: '移転登録（管轄変更あり・封印）' },
     { key: '変更登録', label: '変更登録（住所・氏名等）' },
+    { key: '番号変更', label: '番号変更（希望番号・図柄ナンバー等）' },
     { key: '抹消登録', label: '抹消登録（一時抹消・永久抹消）' },
     { key: '希望ナンバー', label: '希望ナンバー申し込み' },
     { key: 'ナンバー再交付', label: 'ナンバー再交付（破損・汚損）' },
@@ -1810,6 +1811,13 @@ const Cases = {
       const clientSelect = document.getElementById('csf_clientId');
       const clientName = clientSelect && clientSelect.selectedIndex > 0 ? clientSelect.options[clientSelect.selectedIndex].text : '';
       titleInput.value = `【${val}】${clientName ? clientName + ' ' : ''}`;
+    }
+    const regTypeEl = document.getElementById('csf_regType');
+    if (regTypeEl && !regTypeEl.value) {
+      if (val === '番号変更') regTypeEl.value = 'plate_change';
+      else if (val === '新規登録') regTypeEl.value = 'new';
+      else if (val.includes('移転登録')) regTypeEl.value = 'transfer';
+      else if (val.includes('変更登録')) regTypeEl.value = 'change';
     }
   },
 
