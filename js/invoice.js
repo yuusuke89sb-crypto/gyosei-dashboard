@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 請求書発行モジュール
  * 自動車ディーラー3社（愛知トヨタWEST、三菱ふそう、日産愛知）の実務専用様式および標準様式に対応
  */
@@ -127,7 +127,29 @@ const Invoice = {
 
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fsStr}; letter-spacing:${lsStr}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
-  // 備考欄の文字数に応じた自動縮小＆1行表示
+  // 管轄警察署名の文字数に応じた自動縮小＆1行表示（西枇杷島、小牧陸事等も綺麗に1行表示）
+  _formatPoliceHTML(police) {
+    if (!police || police === '-') return '-';
+    const str = String(police).trim();
+    const visualLen = this._getVisualLength(str);
+
+    let fontSize = '11px';
+    let letterSpacing = 'normal';
+    if (visualLen > 6) {
+      fontSize = '8.0px';
+      letterSpacing = '-0.3px';
+    } else if (visualLen > 4.5) {
+      fontSize = '9.0px';
+      letterSpacing = '-0.2px';
+    } else if (visualLen > 3.5) {
+      // 4文字（「西枇杷島」「小牧陸事」等）
+      fontSize = '10.0px';
+      letterSpacing = '-0.1px';
+    }
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
+  },
+
+  // 備考欄の文字数に応じた自動縮小＆1行表示（文字が切れないよう最適化）
   _formatRemarkHTML(text) {
     if (!text || text === '-') return '-';
     const str = String(text).trim();
@@ -136,18 +158,28 @@ const Invoice = {
     let fontSize = '11px';
     let letterSpacing = 'normal';
     if (visualLen > 14) {
-      fontSize = '7.0px';
-      letterSpacing = '-0.5px';
-    } else if (visualLen > 11) {
-      fontSize = '7.6px';
-      letterSpacing = '-0.4px';
+      fontSize = '5.8px';
+      letterSpacing = '-0.45px';
+    } else if (visualLen > 12) {
+      // 「U-Car・一般（申請のみ）」等 (約13文字)
+      fontSize = '6.3px';
+      letterSpacing = '-0.40px';
+    } else if (visualLen > 10) {
+      // 「U-Car・希望ナンバー」等 (約11文字)
+      fontSize = '6.9px';
+      letterSpacing = '-0.35px';
     } else if (visualLen > 8) {
-      fontSize = '8.5px';
-      letterSpacing = '-0.3px';
+      // 「U-Car・新規登録」等 (約9文字)
+      fontSize = '7.6px';
+      letterSpacing = '-0.30px';
     } else if (visualLen > 6) {
-      fontSize = '9.5px';
-      letterSpacing = '-0.2px';
+      // 「U-Car・一般」「U-Car・封印」等 (約7文字)
+      fontSize = '8.8px';
+      letterSpacing = '-0.20px';
     } else if (visualLen > 4.5) {
+      fontSize = '9.8px';
+      letterSpacing = '-0.10px';
+    } else {
       fontSize = '10.5px';
     }
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
@@ -1457,8 +1489,8 @@ const Invoice = {
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatApplicantHTML(applicant)}</td>
-          <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
-          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 4px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatPoliceHTML(policeName)}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000; overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#000; font-weight:500; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
         </tr>`;
@@ -1484,13 +1516,13 @@ const Invoice = {
 
   <table class="grid-table" style="font-size:11px; margin-bottom:6px;">
     <colgroup>
-      <col style="width: 7%;">
+      <col style="width: 6.5%;">
       <col style="width: 10.5%;">
-      <col style="width: 35.5%;">
-      <col style="width: 7%;">
-      <col style="width: 12%;">
-      <col style="width: 11%;">
-      <col style="width: 17%;">
+      <col style="width: 28.0%;">
+      <col style="width: 13.5%;">
+      <col style="width: 14.5%;">
+      <col style="width: 10.0%;">
+      <col style="width: 17.0%;">
     </colgroup>
     <thead>
       <tr>
@@ -2027,8 +2059,8 @@ ${detailPagesHTML}
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatApplicantHTML(applicant)}</td>
-          <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
-          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 4px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatPoliceHTML(policeName)}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
         </tr>`;
@@ -2054,13 +2086,13 @@ ${detailPagesHTML}
 
   <table class="fuso-table" style="font-size:11px; margin-bottom:6px;">
     <colgroup>
-      <col style="width: 7%;">
+      <col style="width: 6.5%;">
       <col style="width: 10.5%;">
-      <col style="width: 35.5%;">
-      <col style="width: 7%;">
-      <col style="width: 12%;">
-      <col style="width: 11%;">
-      <col style="width: 17%;">
+      <col style="width: 28.0%;">
+      <col style="width: 13.5%;">
+      <col style="width: 14.5%;">
+      <col style="width: 10.0%;">
+      <col style="width: 17.0%;">
     </colgroup>
     <thead>
       <tr>
