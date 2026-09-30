@@ -88,25 +88,50 @@ const Invoice = {
     const str = String(name).trim();
     const visualLen = this._getVisualLength(str);
 
-    let fontSize = '10.5px';
+    let fontSize = '11px';
     let letterSpacing = 'normal';
-    if (visualLen > 15) {
-      fontSize = '6.8px';
-      letterSpacing = '-0.5px';
-    } else if (visualLen > 12) {
-      fontSize = '7.2px';
+    if (visualLen > 24) {
+      fontSize = '7.5px';
       letterSpacing = '-0.4px';
-    } else if (visualLen > 10) {
-      fontSize = '7.8px';
+    } else if (visualLen > 19) {
+      fontSize = '8.2px';
       letterSpacing = '-0.3px';
-    } else if (visualLen > 8) {
-      fontSize = '8.5px';
+    } else if (visualLen > 15) {
+      fontSize = '9.0px';
       letterSpacing = '-0.2px';
-    } else if (visualLen > 6.5) {
-      fontSize = '9.2px';
+    } else if (visualLen > 12) {
+      fontSize = '9.8px';
       letterSpacing = '-0.1px';
+    } else if (visualLen > 8.5) {
+      fontSize = '10.5px';
     }
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:bold; line-height:1.2;">${str}</span>`;
+  },
+
+  // 備考欄の文字数に応じた自動縮小＆1行表示
+  _formatRemarkHTML(text) {
+    if (!text || text === '-') return '-';
+    const str = String(text).trim();
+    const visualLen = this._getVisualLength(str);
+
+    let fontSize = '11px';
+    let letterSpacing = 'normal';
+    if (visualLen > 14) {
+      fontSize = '7.0px';
+      letterSpacing = '-0.5px';
+    } else if (visualLen > 11) {
+      fontSize = '7.6px';
+      letterSpacing = '-0.4px';
+    } else if (visualLen > 8) {
+      fontSize = '8.5px';
+      letterSpacing = '-0.3px';
+    } else if (visualLen > 6) {
+      fontSize = '9.5px';
+      letterSpacing = '-0.2px';
+    } else if (visualLen > 4.5) {
+      fontSize = '10.5px';
+    }
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
 
   // 鑑（顧客店舗名）の文字数に応じた縮小（1行表示）
@@ -388,7 +413,7 @@ const Invoice = {
             </div>
             <div class="form-group">
               <label>備考</label>
-              <textarea id="invoiceNote" rows="2" placeholder="例：中古車分、9月登録分 など"></textarea>
+              <textarea id="invoiceNote" rows="2" placeholder="例：U-Car、9月登録分 など"></textarea>
             </div>
             <div id="invoicePreviewInfoNew" style="margin:12px 0;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.85rem"></div>
             
@@ -511,11 +536,11 @@ const Invoice = {
     if (noteEl) {
       let currentNote = noteEl.value.trim();
       if (filterType === 'used') {
-        if (!currentNote.includes('中古車分')) {
+        if (!currentNote.includes('U-Car') && !currentNote.includes('中古車分')) {
           noteEl.value = currentNote ? `${currentNote}（中古車分）` : '（中古車分）';
         }
       } else {
-        noteEl.value = currentNote.replace(/[（(]?中古車分[）)]?/g, '').trim();
+        noteEl.value = currentNote.replace(/[（(]?(?:U-Car|中古車分)[）)]?/g, '').trim();
       }
     }
 
@@ -739,7 +764,7 @@ const Invoice = {
     let note = (document.getElementById('invoiceNote').value || '').trim();
     // 全選択案件が中古車で備考に「中古車分」の指定がなければ自動付与
     const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
-    if (isAllUsed && !note.includes('中古車分')) {
+    if (isAllUsed && !note.includes('U-Car') && !note.includes('中古車分')) {
       note = note ? `${note}（中古車分）` : '（中古車分）';
     }
     const templateType = document.getElementById('invoiceTemplateType')
@@ -874,7 +899,7 @@ const Invoice = {
     const taxRate = parseInt(document.getElementById('invoiceTaxRate').value) || 10;
     let note = (document.getElementById('invoiceNote').value || '').trim();
     const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
-    if (isAllUsed && !note.includes('中古車分')) {
+    if (isAllUsed && !note.includes('U-Car') && !note.includes('中古車分')) {
       note = note ? `${note}（中古車分）` : '（中古車分）';
     }
     const templateType = document.getElementById('invoiceTemplateType')
@@ -1022,7 +1047,7 @@ const Invoice = {
     )];
 
     const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
-    const note = isAllUsed ? '（中古車分）' : '';
+    const note = isAllUsed ? '（U-Car）' : '';
 
     const html = this.buildInvoiceHTML({
       invoiceNo, issueDate, dueDate, year, month,
@@ -1122,7 +1147,7 @@ const Invoice = {
     )];
 
     const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
-    const note = isAllUsed ? '（中古車分）' : '';
+    const note = isAllUsed ? '（U-Car）' : '';
 
     try {
       await this.exportToExcel({
@@ -1323,7 +1348,14 @@ const Invoice = {
         }
 
         let categoryShort = '';
-        if (c.category === 'garage_oss') {
+        const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
+        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
+
+        if (isKibo && isLight) {
+          categoryShort = '希望ナンバー（軽）';
+        } else if (isKibo) {
+          categoryShort = '希望ナンバー';
+        } else if (c.category === 'garage_oss') {
           categoryShort = 'OSS';
         } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
           categoryShort = '一般';
@@ -1361,7 +1393,7 @@ const Invoice = {
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
-          <td class="col-center" style="font-size:11px; font-weight:600; color:#000; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 4px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000; overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#000; font-weight:500; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
         </tr>`;
@@ -1863,7 +1895,14 @@ ${detailPagesHTML}
         if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
 
         let categoryShort = '';
-        if (c.category === 'garage_oss') {
+        const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
+        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
+
+        if (isKibo && isLight) {
+          categoryShort = '希望ナンバー（軽）';
+        } else if (isKibo) {
+          categoryShort = '希望ナンバー';
+        } else if (c.category === 'garage_oss') {
           categoryShort = 'OSS';
         } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
           categoryShort = '一般';
@@ -1891,7 +1930,7 @@ ${detailPagesHTML}
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
-          <td class="col-center" style="font-size:11px; font-weight:600; color:#000; line-height:1.25; word-break:break-word;">${remarkDisplay}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 4px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${advSum > 0 ? advSum.toLocaleString() : ''}</td>
         </tr>`;
@@ -3626,7 +3665,12 @@ window.NissanPrint = {
       }
 
       let categoryShort = '';
-      if (c.category === 'garage_oss') categoryShort = 'OSS';
+      const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
+      const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
+
+      if (isKibo && isLight) categoryShort = '希望ナンバー（軽）';
+      else if (isKibo) categoryShort = '希望ナンバー';
+      else if (c.category === 'garage_oss') categoryShort = 'OSS';
       else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) categoryShort = '一般';
       else if (c.subCategory) categoryShort = c.subCategory;
       else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
