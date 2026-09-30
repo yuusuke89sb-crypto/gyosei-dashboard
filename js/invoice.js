@@ -187,6 +187,12 @@ const Invoice = {
     const advLabels = Array.isArray(c.advances) ? c.advances.map(a => String(a.label || a.category || '')).join(' ') : '';
     const allText = `${memo} ${title} ${advLabels}`;
 
+    // メモ欄・特記事項に（...）で囲まれた特別な注記があればそれを最優先で採用
+    const memoBracket = memo.match(/[（(]([^）)]+)[）)]/);
+    if (memoBracket && memoBracket[1]) {
+      return `（${memoBracket[1].trim()}）`;
+    }
+
     if (allText.includes('不受理')) {
       return '（不受理）';
     }
@@ -1447,7 +1453,7 @@ const Invoice = {
         } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
           categoryShort = '一般';
         } else if (c.subCategory) {
-          categoryShort = c.subCategory;
+          categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
         } else if (c.category === 'car_reg_standard') {
           categoryShort = '新規登録';
         } else if (c.category === 'car_reg_light') {
@@ -2027,7 +2033,7 @@ ${detailPagesHTML}
         } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
           categoryShort = '一般';
         } else if (c.subCategory) {
-          categoryShort = c.subCategory;
+          categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
         } else if (c.category === 'car_reg_standard') {
           categoryShort = '新規登録';
         } else if (c.category === 'car_reg_light') {
@@ -3824,7 +3830,7 @@ window.NissanPrint = {
       else if (isKibo) categoryShort = '希望ナンバー申込';
       else if (c.category === 'garage_oss') categoryShort = 'OSS';
       else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) categoryShort = '一般';
-      else if (c.subCategory) categoryShort = c.subCategory;
+      else if (c.subCategory) categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
       else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
       else if (c.category === 'car_reg_light') categoryShort = '軽登録';
       else if (c.category === 'seal') categoryShort = '封印';
