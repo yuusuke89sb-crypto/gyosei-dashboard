@@ -88,26 +88,44 @@ const Invoice = {
     const str = String(name).trim();
     const visualLen = this._getVisualLength(str);
 
-    let fontSize = '11px';
-    let letterSpacing = 'normal';
-    if (visualLen > 24) {
-      fontSize = '7.5px';
-      letterSpacing = '-0.4px';
-    } else if (visualLen > 19) {
-      fontSize = '8.2px';
-      letterSpacing = '-0.3px';
-    } else if (visualLen > 15) {
-      fontSize = '9.0px';
-      letterSpacing = '-0.2px';
-    } else if (visualLen > 12) {
-      fontSize = '9.8px';
-      letterSpacing = '-0.1px';
-    } else if (visualLen > 8.5) {
-      fontSize = '10.5px';
-    }
-    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:bold; line-height:1.2;">${str}</span>`;
-  },
+    let fontSize = 10.5;
+    let letterSpacing = 0;
 
+    if (visualLen <= 6.5) {
+      // 短い人名（3〜6文字）：大きく堂々と表示
+      fontSize = 10.5;
+      letterSpacing = 0;
+    } else if (visualLen <= 8.5) {
+      // 7〜8文字（会社名等）：少し縮小して読みやすく
+      fontSize = 9.8;
+      letterSpacing = -0.1;
+    } else if (visualLen <= 10.5) {
+      // 9〜10文字
+      fontSize = 8.4;
+      letterSpacing = -0.2;
+    } else if (visualLen <= 13) {
+      // 11〜13文字（特定非営利活動法人MA等）：確実に1行に収まるサイズ
+      fontSize = 7.2;
+      letterSpacing = -0.35;
+    } else if (visualLen <= 16) {
+      // 14〜16文字
+      fontSize = 6.4;
+      letterSpacing = -0.45;
+    } else if (visualLen <= 20) {
+      // 17〜20文字
+      fontSize = 5.6;
+      letterSpacing = -0.5;
+    } else {
+      // 21文字以上の超長文：文字数に応じて滑らかに縮小
+      fontSize = Math.max(4.2, 5.5 - (visualLen - 20) * 0.15);
+      letterSpacing = -0.55;
+    }
+
+    const fsStr = fontSize.toFixed(1) + 'px';
+    const lsStr = letterSpacing === 0 ? 'normal' : letterSpacing.toFixed(2) + 'px';
+
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fsStr}; letter-spacing:${lsStr}; font-weight:bold; line-height:1.2;">${str}</span>`;
+  },
   // 備考欄の文字数に応じた自動縮小＆1行表示
   _formatRemarkHTML(text) {
     if (!text || text === '-') return '-';
@@ -1414,7 +1432,7 @@ const Invoice = {
         <tr>
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
-          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
+          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
           <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 4px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
@@ -1971,7 +1989,7 @@ ${detailPagesHTML}
         <tr>
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
-          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 5px;">${this._formatApplicantHTML(applicant)}</td>
+          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center" style="font-size:11px; font-weight:600; color:#000;">${policeName}</td>
           <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 4px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
