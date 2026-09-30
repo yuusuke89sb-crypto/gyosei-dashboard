@@ -1766,7 +1766,7 @@ const Invoice = {
       <tr>
         <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
-          <div style="font-weight:bold;">${garageCount > 0 ? (otherCount > 0 ? '車庫証明申請他' : '車庫証明申請') : '自動車登録等'}</div>
+          <div style="font-weight:bold;">${(garageCount > 0 && otherCount === 0) ? '車庫証明申請' : '車庫証明申請他'}</div>
           ${(garageCount > 0 && otherCount > 0) ? `<div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>` : ''}
         </td>
         <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
