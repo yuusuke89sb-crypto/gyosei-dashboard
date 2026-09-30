@@ -152,6 +152,25 @@ const Invoice = {
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
 
+  // 案件のメモ・立替金ラベル・タイトルから特別な文言（不受理、申請のみ等）を安全に自動検出
+  _getCaseSpecialNote(c) {
+    if (!c) return '';
+    const memo = String(c.memo || c.remarks || c.note || '');
+    const title = String(c.title || '');
+    const advLabels = Array.isArray(c.advances) ? c.advances.map(a => String(a.label || a.category || '')).join(' ') : '';
+    const allText = `${memo} ${title} ${advLabels}`;
+
+    if (allText.includes('不受理')) {
+      return '（不受理）';
+    }
+    if (allText.includes('申請のみ') || allText.includes('申請代行のみ')) {
+      return '（申請のみ）';
+    }
+    if (allText.includes('受取のみ') || allText.includes('受領のみ') || allText.includes('交付のみ')) {
+      return '（受取のみ）';
+    }
+    return '';
+  },
   // 鑑（顧客店舗名）の文字数に応じた縮小（1行表示）
   _formatClientNameHTML(name, baseSize = 15, isCover = false) {
     if (!name) return '';
@@ -1412,6 +1431,10 @@ const Invoice = {
         if (c.isUsedCar) {
           categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         }
+        const specialNote = this._getCaseSpecialNote(c);
+        if (specialNote && !categoryShort.includes(specialNote)) {
+          categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
+        }
 
         let remarkDisplay = '';
         if (isFusoClient) {
@@ -1987,6 +2010,10 @@ ${detailPagesHTML}
         }
         if (c.isUsedCar) {
           categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+        }
+        const specialNote = this._getCaseSpecialNote(c);
+        if (specialNote && !categoryShort.includes(specialNote)) {
+          categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
 
         const rawMemo = (c.memo || c.remarks || c.note || '').trim();
@@ -3775,6 +3802,10 @@ window.NissanPrint = {
       else if (c.category === 'car_reg_light') categoryShort = '軽登録';
       else if (c.category === 'seal') categoryShort = '封印';
       if (c.isUsedCar) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+      const specialNote = this._getCaseSpecialNote(c);
+      if (specialNote && !categoryShort.includes(specialNote)) {
+        categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
+      }
 
       const fee = Number(c.fee || 0);
       const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
