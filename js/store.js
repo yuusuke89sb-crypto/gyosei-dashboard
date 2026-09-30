@@ -1,4 +1,4 @@
-﻿/**
+/**
  * データストア - localStorage ベースの CRUD 操作
  */
 const Store = {
@@ -355,7 +355,20 @@ const Store = {
       // status変更なしで完了日だけ編集・変更された場合
       data.completedAt = data.completedAt ? (String(data.completedAt).includes('T') ? data.completedAt : `${data.completedAt}T12:00:00.000Z`) : null;
     }
-    cases[idx] = { ...cases[idx], ...data, updatedAt: new Date().toISOString() };
+    // Phase 2: フィールド別タイムスタンプの記録
+    // 変更があったフィールドのみ _fieldTs を現在時刻に更新（同期マージ用）
+    const now = new Date().toISOString();
+    const oldFieldTs = cases[idx]._fieldTs || {};
+    const newFieldTs = { ...oldFieldTs };
+    const skipTsFields = ['_fieldTs', 'updatedAt', 'createdAt', 'id', 'calendarEventIds'];
+    for (const key of Object.keys(data)) {
+      if (skipTsFields.includes(key)) continue;
+      // 値が実際に変更された場合のみタイムスタンプ更新
+      if (JSON.stringify(data[key]) !== JSON.stringify(cases[idx][key])) {
+        newFieldTs[key] = now;
+      }
+    }
+    cases[idx] = { ...cases[idx], ...data, updatedAt: now, _fieldTs: newFieldTs };
     this._set(this.KEYS.CASES, cases);
 
     // スプレッドシートへ自動プッシュ

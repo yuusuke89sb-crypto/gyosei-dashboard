@@ -186,43 +186,68 @@ const SpreadsheetSync = {
                         }
                     }
 
-                    // 隲区ｱよ嶌繝ｭ繝・け菫晁ｭｷ: 繝ｭ繝ｼ繧ｫ繝ｫ縺ｧ invoiceLocked=true 縺ｮ譯井ｻｶ縺ｯ縲・                    // 蝣ｱ驟ｬ鬘阪・遶区崛驥代・繧ｹ繝・・繧ｿ繧ｹ繝ｻ螳御ｺ・律繧偵Μ繝｢繝ｼ繝医〒荳頑嶌縺阪＠縺ｪ縺・                    const isLocked = localCase && localCase.invoiceLocked;
+                    // 隲区ｱよ嶌繝ｭ繝・け菫晁ｭｷ: 繝ｭ繝ｼ繧ｫ繝ｫ縺ｧ invoiceLocked=true 縺ｮ譯井ｻｶ縺ｯ縲・                    // 蝣ｱ驟ｬ鬘阪・遶区崛驥代・繧ｹ繝・・繧ｿ繧ｹ繝ｻ螳御ｺ・律繧偵Μ繝｢繝ｼ繝医〒荳頑嶌縺阪＠縺ｪ縺・                    // Phase 2: フィールド単位タイムスタンプによるスマートマージ
+                    const localTs = (localCase && localCase._fieldTs) || {};
+                    let remoteFieldTs = remoteCase._fieldTs || {};
+                    if (typeof remoteFieldTs === 'string') {
+                        try { remoteFieldTs = JSON.parse(remoteFieldTs); } catch(e) { remoteFieldTs = {}; }
+                    }
 
-                    // Phase 1-B: updatedAt 繧ｿ繧､繝繧ｹ繧ｿ繝ｳ繝玲ｯ碑ｼ・                    // 繝ｭ繝・け縺輔ｌ縺ｦ縺・↑縺・｡井ｻｶ縺ｧ繧ゅ√Ο繝ｼ繧ｫ繝ｫ縺梧眠縺励￠繧後・繝ｭ繝ｼ繧ｫ繝ｫ縺ｮ驥崎ｦ√ヵ繧｣繝ｼ繝ｫ繝峨ｒ蜆ｪ蜈・                    const localUpdatedAt = localCase && localCase.updatedAt ? new Date(localCase.updatedAt).getTime() : 0;
-                    const remoteUpdatedAt = remoteCase.updatedAt ? new Date(remoteCase.updatedAt).getTime() : 0;
-                    const isLocalNewer = localUpdatedAt > 0 && remoteUpdatedAt > 0 && localUpdatedAt > remoteUpdatedAt;
+                    // フィールド単位で最新値を選択するヘルパー
+                    function pickNewer(field, localVal, remoteVal) {
+                        const lt = localTs[field] ? new Date(localTs[field]).getTime() : 0;
+                        const rt = remoteFieldTs[field] ? new Date(remoteFieldTs[field]).getTime() : 0;
+                        if (lt > 0 && lt > rt) return localVal !== undefined ? localVal : remoteVal;
+                        return remoteVal !== undefined && remoteVal !== '' ? remoteVal : (localVal !== undefined ? localVal : '');
+                    }
+
+                    // _fieldTs のマージ（各フィールドの最新タイムスタンプを保持）
+                    const mergedFieldTs = {};
+                    const allTsKeys = new Set([...Object.keys(localTs), ...Object.keys(remoteFieldTs)]);
+                    for (const k of allTsKeys) {
+                        const lt = localTs[k] ? new Date(localTs[k]).getTime() : 0;
+                        const rt = remoteFieldTs[k] ? new Date(remoteFieldTs[k]).getTime() : 0;
+                        mergedFieldTs[k] = lt > rt ? localTs[k] : (remoteFieldTs[k] || localTs[k]);
+                    }
+
+                    // invoiceLocked: OR結合でロック状態を確実に伝搬
+                    const mergedLocked = !!((localCase && localCase.invoiceLocked) || remoteCase.invoiceLocked);
+                    const isLocked = localCase && localCase.invoiceLocked;
 
                     return {
                         ...remoteCase,
-                        orderNo: String(remoteCase.orderNo || remoteCase['注文書№'] || remoteCase['注文書No'] || remoteCase['注文書NO'] || remoteCase['注文番号'] || remoteCase['注文No'] || (localCase && localCase.orderNo) || ''),
+                        orderNo: pickNewer('orderNo', localCase && localCase.orderNo, String(remoteCase.orderNo || remoteCase['注文書№'] || remoteCase['注文書No'] || remoteCase['注文書NO'] || remoteCase['注文番号'] || remoteCase['注文No'] || (localCase && localCase.orderNo) || '')),
                         docs: Array.isArray(parsedDocs) ? parsedDocs : [],
-                        advances: isLocked ? localCase.advances : (isLocalNewer && localCase.advances ? localCase.advances : (Array.isArray(parsedAdvances) ? parsedAdvances : [])),
-                        clientContactId: remoteCase.clientContactId || (localCase && localCase.clientContactId) || '',
-                        locationId: remoteCase.locationId || (localCase && localCase.locationId) || '',
-                        faxId: remoteCase.faxId || (localCase && localCase.faxId) || '',
-                        inboxId: remoteCase.inboxId || (localCase && localCase.inboxId) || '',
-                        driveFolderUrl: remoteCase.driveFolderUrl || (localCase && localCase.driveFolderUrl) || '',
-                        carName: remoteCase.carName || (localCase && localCase.carName) || '',
-                        carAddress: remoteCase.carAddress || (localCase && localCase.carAddress) || '',
-                        parkingAddress: remoteCase.parkingAddress || (localCase && localCase.parkingAddress) || '',
-                        carPolice: remoteCase.carPolice || (localCase && localCase.carPolice) || '',
+                        advances: isLocked ? localCase.advances : pickNewer('advances', localCase && localCase.advances, Array.isArray(parsedAdvances) ? parsedAdvances : []),
+                        clientContactId: pickNewer('clientContactId', localCase && localCase.clientContactId, remoteCase.clientContactId),
+                        locationId: pickNewer('locationId', localCase && localCase.locationId, remoteCase.locationId),
+                        faxId: pickNewer('faxId', localCase && localCase.faxId, remoteCase.faxId),
+                        inboxId: pickNewer('inboxId', localCase && localCase.inboxId, remoteCase.inboxId),
+                        driveFolderUrl: pickNewer('driveFolderUrl', localCase && localCase.driveFolderUrl, remoteCase.driveFolderUrl),
+                        carName: pickNewer('carName', localCase && localCase.carName, remoteCase.carName),
+                        carAddress: pickNewer('carAddress', localCase && localCase.carAddress, remoteCase.carAddress),
+                        parkingAddress: pickNewer('parkingAddress', localCase && localCase.parkingAddress, remoteCase.parkingAddress),
+                        carPolice: pickNewer('carPolice', localCase && localCase.carPolice, remoteCase.carPolice),
                         carNumber: rawCarNum,
                         oldCarNumber: rawOldCarNum,
                         vin: rawVin,
                         regType: rawRegType,
-                        subCategory: remoteCase.subCategory || remoteCase['登録種別'] || (localCase && localCase.subCategory) || '',
-                        invoiceNo: remoteCase.invoiceNo || (localCase && localCase.invoiceNo) || '',
-                        deathDate: remoteCase.deathDate || (localCase && localCase.deathDate) || '',
-                        surveyDate: remoteCase.surveyDate || (localCase && localCase.surveyDate) || '',
-                        applyDate: remoteCase.applyDate || (localCase && localCase.applyDate) || '',
-                        policeDeliveryDate: (isLocalNewer && localCase && localCase.policeDeliveryDate) ? localCase.policeDeliveryDate : (remoteCase.policeDeliveryDate || (localCase && localCase.policeDeliveryDate) || ''),
-                        storeDeliveryDate: (isLocalNewer && localCase && localCase.storeDeliveryDate) ? localCase.storeDeliveryDate : (remoteCase.storeDeliveryDate || (localCase && localCase.storeDeliveryDate) || ''),
-                        storeDeliveryTime: (isLocalNewer && localCase && localCase.storeDeliveryTime) ? localCase.storeDeliveryTime : (remoteCase.storeDeliveryTime || (localCase && localCase.storeDeliveryTime) || ''),
-                        surveyLocationId: remoteCase.surveyLocationId || (localCase && localCase.surveyLocationId) || '',
-                        policeLocationId: remoteCase.policeLocationId || (localCase && localCase.policeLocationId) || '',
-                        landTransportLocationId: remoteCase.landTransportLocationId || (localCase && localCase.landTransportLocationId) || '',
-                        registrationDate: (isLocalNewer && localCase && localCase.registrationDate) ? localCase.registrationDate : (remoteCase.registrationDate || (localCase && localCase.registrationDate) || ''),
-                        completedAt: remoteCase.completedAt || remoteCase['螳御ｺ・律'] || (localCase && localCase.completedAt) || '',
+                        subCategory: pickNewer('subCategory', localCase && localCase.subCategory, remoteCase.subCategory || remoteCase['登録種別']),
+                        invoiceNo: pickNewer('invoiceNo', localCase && localCase.invoiceNo, remoteCase.invoiceNo),
+                        deathDate: pickNewer('deathDate', localCase && localCase.deathDate, remoteCase.deathDate),
+                        surveyDate: pickNewer('surveyDate', localCase && localCase.surveyDate, remoteCase.surveyDate),
+                        applyDate: pickNewer('applyDate', localCase && localCase.applyDate, remoteCase.applyDate),
+                        policeDeliveryDate: pickNewer('policeDeliveryDate', localCase && localCase.policeDeliveryDate, remoteCase.policeDeliveryDate),
+                        storeDeliveryDate: pickNewer('storeDeliveryDate', localCase && localCase.storeDeliveryDate, remoteCase.storeDeliveryDate),
+                        storeDeliveryTime: pickNewer('storeDeliveryTime', localCase && localCase.storeDeliveryTime, remoteCase.storeDeliveryTime),
+                        surveyLocationId: pickNewer('surveyLocationId', localCase && localCase.surveyLocationId, remoteCase.surveyLocationId),
+                        policeLocationId: pickNewer('policeLocationId', localCase && localCase.policeLocationId, remoteCase.policeLocationId),
+                        landTransportLocationId: pickNewer('landTransportLocationId', localCase && localCase.landTransportLocationId, remoteCase.landTransportLocationId),
+                        registrationDate: pickNewer('registrationDate', localCase && localCase.registrationDate, remoteCase.registrationDate),
+                        completedAt: isLocked ? localCase.completedAt : pickNewer('completedAt', localCase && localCase.completedAt, remoteCase.completedAt || remoteCase['完了日']),
+                        applicantName: pickNewer('applicantName', localCase && localCase.applicantName, remoteCase.applicantName),
+                        applicantAddress: pickNewer('applicantAddress', localCase && localCase.applicantAddress, remoteCase.applicantAddress),
+                        memo: pickNewer('memo', localCase && localCase.memo, remoteCase.memo),
                         milestoneIndex: remoteCase.milestoneIndex !== undefined && remoteCase.milestoneIndex !== ''
                             ? Number(remoteCase.milestoneIndex)
                             : (localCase && localCase.milestoneIndex) !== undefined && (localCase && localCase.milestoneIndex) !== ''
@@ -231,15 +256,14 @@ const SpreadsheetSync = {
                         isUsedCar: remoteCase.isUsedCar !== undefined
                             ? (remoteCase.isUsedCar === true || remoteCase.isUsedCar === 'true' || remoteCase.isUsedCar === '○')
                             : !!(localCase && localCase.isUsedCar),
-                        // 繝ｭ繝・け菫晁ｭｷ蟇ｾ雎｡繝輔ぅ繝ｼ繝ｫ繝・                        fee: isLocked ? localCase.fee : (isLocalNewer && localCase.fee !== undefined ? localCase.fee : (remoteCase.fee !== undefined ? remoteCase.fee : (localCase && localCase.fee) || '')),
-                        status: isLocked ? localCase.status : (isLocalNewer && localCase.status ? localCase.status : (remoteCase.status || (localCase && localCase.status) || '')),
-                        completedAt: isLocked ? localCase.completedAt : (isLocalNewer && localCase.completedAt ? localCase.completedAt : (remoteCase.completedAt || (localCase && localCase.completedAt) || '')),
+                        fee: isLocked ? localCase.fee : pickNewer('fee', localCase && localCase.fee, remoteCase.fee),
+                        status: isLocked ? localCase.status : pickNewer('status', localCase && localCase.status, remoteCase.status),
                         familyTreeData: parsedFamilyTree || null,
-                        // 繝ｭ繝・け髢｢騾｣繝｡繧ｿ繝・・繧ｿ縺ｮ菫晄戟
-                        invoiceLocked: isLocked ? true : ((remoteCase.invoiceLocked || (localCase && localCase.invoiceLocked)) || false),
-                        invoiceLockedAt: isLocked ? localCase.invoiceLockedAt : (remoteCase.invoiceLockedAt || (localCase && localCase.invoiceLockedAt) || ''),
-                        invoiceLockedFee: isLocked ? localCase.invoiceLockedFee : (remoteCase.invoiceLockedFee || ''),
-                        invoiceLockedAdvances: isLocked ? localCase.invoiceLockedAdvances : (remoteCase.invoiceLockedAdvances || []),
+                        invoiceLocked: mergedLocked,
+                        invoiceLockedAt: mergedLocked ? ((localCase && localCase.invoiceLockedAt) || remoteCase.invoiceLockedAt || '') : '',
+                        invoiceLockedFee: mergedLocked ? ((localCase && localCase.invoiceLockedFee) || remoteCase.invoiceLockedFee || '') : '',
+                        invoiceLockedAdvances: mergedLocked ? ((localCase && localCase.invoiceLockedAdvances) || remoteCase.invoiceLockedAdvances || []) : [],
+                        _fieldTs: mergedFieldTs,
                     };
                 });
                 
