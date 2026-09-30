@@ -1410,7 +1410,7 @@ const Invoice = {
           categoryShort = '封印';
         }
         if (c.isUsedCar) {
-          categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
+          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         }
 
         let remarkDisplay = '';
@@ -1986,7 +1986,7 @@ ${detailPagesHTML}
           categoryShort = '封印';
         }
         if (c.isUsedCar) {
-          categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
+          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         }
 
         const rawMemo = (c.memo || c.remarks || c.note || '').trim();
@@ -3774,7 +3774,7 @@ window.NissanPrint = {
       else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
       else if (c.category === 'car_reg_light') categoryShort = '軽登録';
       else if (c.category === 'seal') categoryShort = '封印';
-      if (c.isUsedCar) categoryShort = categoryShort ? `中古・${categoryShort}` : '中古';
+      if (c.isUsedCar) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
 
       const fee = Number(c.fee || 0);
       const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
