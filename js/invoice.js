@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 請求書発行モジュール
  * 自動車ディーラー3社（愛知トヨタWEST、三菱ふそう、日産愛知）の実務専用様式および標準様式に対応
  */
@@ -771,7 +771,7 @@ const Invoice = {
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
       garage_paper: '車庫証明(一般)', 
-      seal: '出張封印', 
+      seal: '封印', 
       car_reg_standard: '普通車登録', 
       car_reg_light: '軽自動車登録',
       inheritance: '相続・遺言',
@@ -905,7 +905,7 @@ const Invoice = {
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
       garage_paper: '車庫証明(一般)', 
-      seal: '出張封印', 
+      seal: '封印', 
       car_reg_standard: '普通車登録', 
       car_reg_light: '軽自動車登録',
       inheritance: '相続・遺言',
@@ -1004,7 +1004,7 @@ const Invoice = {
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
       garage_paper: '車庫証明(一般)', 
-      seal: '出張封印', 
+      seal: '封印', 
       car_reg_standard: '普通車登録', 
       car_reg_light: '軽自動車登録',
       inheritance: '相続・遺言',
@@ -1104,7 +1104,7 @@ const Invoice = {
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
       garage_paper: '車庫証明(一般)', 
-      seal: '出張封印', 
+      seal: '封印', 
       car_reg_standard: '普通車登録', 
       car_reg_light: '軽自動車登録',
       inheritance: '相続・遺言',
@@ -1220,15 +1220,26 @@ const Invoice = {
       }
       return String(raw);
     };
-    // 封印判定
-    const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印');
-    // 車庫・その他（封印以外）と封印を分離し、それぞれ完了日順でソート（同一日は受注No./注文No.順）
+    // OSS / Garage priority check
+    const isGarageCase = (c) => {
+      const cat = c.category || '';
+      const sub = c.subCategory || '';
+      const title = c.title || '';
+      if (cat === 'garage_oss' || cat === 'garage_paper') return true;
+      if (sub.includes('OSS') || sub.includes('車庫') || sub.includes('一般')) return true;
+      if (title.includes('OSS') || title.includes('車庫証明') || title.includes('車庫')) return true;
+      return false;
+    };
+    // Sort: Date ASC -> Same day: OSS/Garage first (Priority 1) then others (Priority 2) -> OrderNo ASC
     const parseOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
-    const sortCases = (arr) => arr.sort((a, b) => {
+    const sortedCases = [...cases].sort((a, b) => {
       const da = getSortDate(a);
       const db = getSortDate(b);
       const cmp = da.localeCompare(db);
       if (cmp !== 0) return cmp;
+      const pA = isGarageCase(a) ? 1 : 2;
+      const pB = isGarageCase(b) ? 1 : 2;
+      if (pA !== pB) return pA - pB;
       const oa = a.orderNo || a.caseNo || '';
       const ob = b.orderNo || b.caseNo || '';
       const na = parseOrderNum(oa);
@@ -1236,9 +1247,6 @@ const Invoice = {
       if (na !== nb) return na - nb;
       return String(oa).localeCompare(String(ob));
     });
-    const nonSealCases = sortCases(cases.filter(c => !isSeal(c)));
-    const sealCases = sortCases(cases.filter(c => isSeal(c)));
-    const sortedCases = [...nonSealCases, ...sealCases];
 
     // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
     const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
@@ -1386,10 +1394,10 @@ const Invoice = {
         <th rowspan="2" style="width:17%;">立替金</th>
       </tr>
       <tr>
-        <th style="width:13%;">${isFusoClient ? '受注No.' : '注文No.'}</th>
-        <th style="width:27%;">氏　名</th>
-        <th style="width:12%;">管　轄</th>
-        <th style="width:13%;">備　考</th>
+        <th style="width:9%;">${isFusoClient ? '受注No.' : '注文No.'}</th>
+        <th style="width:37%;">氏　名</th>
+        <th style="width:7%;">管　轄</th>
+        <th style="width:12%;">備　考</th>
       </tr>
     </thead>
     <tbody>
@@ -1614,7 +1622,7 @@ const Invoice = {
       <tr>
         <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
-          <div style="font-weight:bold;">車庫証明申請他</div>
+          <div style="font-weight:bold;">封印</div>
           <div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>
         </td>
         <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
@@ -1622,7 +1630,7 @@ const Invoice = {
       </tr>
       ${sealCount > 0 ? `<tr>
         <td>
-          <div style="font-weight:bold;">出張封印</div>
+          <div style="font-weight:bold;">封印</div>
         </td>
         <td class="col-center" style="font-weight:600; color:#000;">${sealCount}件</td>
         <td class="col-num">${sealFee.toLocaleString()}</td>
@@ -1778,15 +1786,31 @@ ${detailPagesHTML}
       return String(raw);
     };
 
-    // 日付順（昇順：古い日 → 新しい日）にソート。同一日の場合は注文No.または管理番号順
+    // Fuso sort: Date ASC -> Same day: OSS/Garage first -> OrderNo ASC
+    const isFusoGarageCase = (c) => {
+      const cat = c.category || '';
+      const sub = c.subCategory || '';
+      const title = c.title || '';
+      if (cat === 'garage_oss' || cat === 'garage_paper') return true;
+      if (sub.includes('OSS') || sub.includes('車庫') || sub.includes('一般')) return true;
+      if (title.includes('OSS') || title.includes('車庫証明') || title.includes('車庫')) return true;
+      return false;
+    };
+    const parseFusoOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
     const sortedFusoCases = [...cases].sort((a, b) => {
       const da = getFusoSortDate(a);
       const db = getFusoSortDate(b);
       const cmp = da.localeCompare(db);
       if (cmp !== 0) return cmp;
-      const oa = String(a.orderNo || a.caseNo || '');
-      const ob = String(b.orderNo || b.caseNo || '');
-      return oa.localeCompare(ob);
+      const pA = isFusoGarageCase(a) ? 1 : 2;
+      const pB = isFusoGarageCase(b) ? 1 : 2;
+      if (pA !== pB) return pA - pB;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseFusoOrderNum(oa);
+      const nb = parseFusoOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
     });
 
     // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
@@ -1900,9 +1924,9 @@ ${detailPagesHTML}
         <th rowspan="2" style="width:17%;">立替金</th>
       </tr>
       <tr>
-        <th style="width:11%;">注文No.</th>
-        <th style="width:33%;">氏　名</th>
-        <th style="width:9%;">管　轄</th>
+        <th style="width:9%;">注文No.</th>
+        <th style="width:37%;">氏　名</th>
+        <th style="width:7%;">管　轄</th>
         <th style="width:12%;">備　考</th>
       </tr>
     </thead>
@@ -3354,7 +3378,7 @@ window.NissanPrint = {
 
     const summaryRows = [
       ['書類作成業務', '車庫証明申請', garageCount, garageFee, ''],
-      ['', '出張封印', sealCount, sealFee, ''],
+      ['', '封印', sealCount, sealFee, ''],
       ['', '移転登録・その他', otherCount, otherFee, ''],
     ];
 
@@ -3554,11 +3578,31 @@ window.NissanPrint = {
     });
 
     const getSortDate = (c) => c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
-    const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印');
-    const sortedCases = [
-      ...cases.filter(c => !isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b))),
-      ...cases.filter(c => isSeal(c)).sort((a, b) => getSortDate(a).localeCompare(getSortDate(b)))
-    ];
+    const isGarageCase = (c) => {
+      const cat = c.category || '';
+      const sub = c.subCategory || '';
+      const title = c.title || '';
+      if (cat === 'garage_oss' || cat === 'garage_paper') return true;
+      if (sub.includes('OSS') || sub.includes('車庫') || sub.includes('一般')) return true;
+      if (title.includes('OSS') || title.includes('車庫証明') || title.includes('車庫')) return true;
+      return false;
+    };
+    const parseOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
+    const sortedCases = [...cases].sort((a, b) => {
+      const da = getSortDate(a);
+      const db = getSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const pA = isGarageCase(a) ? 1 : 2;
+      const pB = isGarageCase(b) ? 1 : 2;
+      if (pA !== pB) return pA - pB;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseOrderNum(oa);
+      const nb = parseOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
 
     let rowIdx = 4;
     sortedCases.forEach((c, idx) => {
@@ -3934,15 +3978,31 @@ window.NissanPrint = {
       return String(raw);
     };
 
-    // 日付順（昇順：古い日 → 新しい日）にソート。同一日の場合は注文No.または管理番号順
+    // Fuso sort: Date ASC -> Same day: OSS/Garage first -> OrderNo ASC
+    const isFusoGarageCase = (c) => {
+      const cat = c.category || '';
+      const sub = c.subCategory || '';
+      const title = c.title || '';
+      if (cat === 'garage_oss' || cat === 'garage_paper') return true;
+      if (sub.includes('OSS') || sub.includes('車庫') || sub.includes('一般')) return true;
+      if (title.includes('OSS') || title.includes('車庫証明') || title.includes('車庫')) return true;
+      return false;
+    };
+    const parseFusoOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
     const sortedFusoCases = [...cases].sort((a, b) => {
       const da = getFusoSortDate(a);
       const db = getFusoSortDate(b);
       const cmp = da.localeCompare(db);
       if (cmp !== 0) return cmp;
-      const oa = String(a.orderNo || a.caseNo || '');
-      const ob = String(b.orderNo || b.caseNo || '');
-      return oa.localeCompare(ob);
+      const pA = isFusoGarageCase(a) ? 1 : 2;
+      const pB = isFusoGarageCase(b) ? 1 : 2;
+      if (pA !== pB) return pA - pB;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseFusoOrderNum(oa);
+      const nb = parseFusoOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
     });
 
     ws2.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: Math.max(1, Math.ceil(sortedFusoCases.length / 22)), margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5 } };
@@ -4778,7 +4838,7 @@ window.NissanPrint = {
     
     const html = this.buildStandardInvoiceHTML({
       invoiceNo, issueDate: paidAt, dueDate: '', year: new Date(paidAt).getFullYear(), month: new Date(paidAt).getMonth() + 1,
-      client, office, cases, CATS: { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' },
+      client, office, cases, CATS: { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' },
       feeSubtotal, tax, taxRate, advanceTotal, total, note: '領収証として上記正に領収いたしました。',
       docType: 'receipt', contactNames: []
     });
