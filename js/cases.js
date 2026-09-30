@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 案件管理画面
  */
 const Cases = {
@@ -54,7 +54,7 @@ const Cases = {
   CATEGORIES: [
     { key: 'garage_oss', label: '🚗 車庫証明（OSS）' },
     { key: 'garage_paper', label: '📄 車庫証明（一般）' },
-    { key: 'seal', label: '🔩 出張封印' },
+    { key: 'seal', label: '🔩 封印' },
     { key: 'car_reg_standard', label: '🚘 普通自動車登録' },
     { key: 'car_reg_light', label: '🚙 軽自動車登録' },
   ],
@@ -63,7 +63,7 @@ const Cases = {
     { key: '', label: '— 登録種別を選択（任意） —' },
     { key: '新規登録', label: '新規登録（新車・中古新規）' },
     { key: '移転登録（名義変更）', label: '移転登録（名義変更・管轄変更なし）' },
-    { key: '移転登録（出張封印）', label: '移転登録（管轄変更あり・出張封印）' },
+    { key: '移転登録（封印）', label: '移転登録（管轄変更あり・封印）' },
     { key: '変更登録', label: '変更登録（住所・氏名等）' },
     { key: '抹消登録', label: '抹消登録（一時抹消・永久抹消）' },
     { key: '希望ナンバー', label: '希望ナンバー申し込み' },
