@@ -1445,9 +1445,9 @@ const Invoice = {
         const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
 
         if (isKibo && isLight) {
-          categoryShort = '希望ナンバー（軽）';
+          categoryShort = '軽・希望ナンバー';
         } else if (isKibo) {
-          categoryShort = '希望ナンバー';
+          categoryShort = '希望ナンバー申込';
         } else if (c.category === 'garage_oss') {
           categoryShort = 'OSS';
         } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
@@ -2025,9 +2025,9 @@ ${detailPagesHTML}
         const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
 
         if (isKibo && isLight) {
-          categoryShort = '希望ナンバー（軽）';
+          categoryShort = '軽・希望ナンバー';
         } else if (isKibo) {
-          categoryShort = '希望ナンバー';
+          categoryShort = '希望ナンバー申込';
         } else if (c.category === 'garage_oss') {
           categoryShort = 'OSS';
         } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
@@ -3826,8 +3826,8 @@ window.NissanPrint = {
       const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
       const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light';
 
-      if (isKibo && isLight) categoryShort = '希望ナンバー（軽）';
-      else if (isKibo) categoryShort = '希望ナンバー';
+      if (isKibo && isLight) categoryShort = '軽・希望ナンバー';
+      else if (isKibo) categoryShort = '希望ナンバー申込';
       else if (c.category === 'garage_oss') categoryShort = 'OSS';
       else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) categoryShort = '一般';
       else if (c.subCategory) categoryShort = c.subCategory;
