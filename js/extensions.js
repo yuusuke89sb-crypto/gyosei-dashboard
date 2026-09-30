@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 拡張機能モジュール
  * - 入金管理
  * - 対応履歴
@@ -363,7 +363,7 @@ const GlobalSearch = {
         const CATS = { 
           garage_oss: { label: '🚗 車庫(OSS)', bg: '#2563eb', color: '#fff' }, 
           garage_paper: { label: '📄 車庫(一般)', bg: '#0284c7', color: '#fff' }, 
-          seal: { label: '🔩 出張封印', bg: '#d97706', color: '#fff' }, 
+          seal: { label: '🔩 封印', bg: '#d97706', color: '#fff' }, 
           car_reg_standard: { label: '🚘 普通登録', bg: '#059669', color: '#fff' }, 
           car_reg_light: { label: '🚙 軽登録', bg: '#10b981', color: '#fff' } 
         };
