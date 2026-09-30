@@ -179,10 +179,22 @@ const Invoice = {
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
 
+  // 請求書・明細書用に案件メモから社内システムログ・登録BOX合流履歴・OCR解析ログを除去
+  _cleanCaseMemoForInvoice(rawMemo) {
+    if (!rawMemo) return '';
+    let memo = String(rawMemo);
+    // 登録BOXからの追送書類合流履歴を除去
+    memo = memo.replace(/【(?:📎\s*)?追送書類合流[\s\S]*?(?=(?:\n\s*【|$))/g, '');
+    // OCR解析やインボックスシステムログを除去
+    memo = memo.replace(/【(?:注文No|申請区分|担当者|申請者|使用の本拠\/住所|保管場所|車両情報|代替車|登録番号|登録\/納車予定日|OCR|添付|受信|送信|FAX|インボックス|Inbox|社内メモ)[\s\S]*?(?=(?:\n\s*【|$))/g, '');
+    // 空行や前後の余白を整理
+    return memo.replace(/^\s+|\s+$/g, '').replace(/\n{2,}/g, '\n');
+  },
+
   // 案件のメモ・立替金ラベル・タイトルから特別な文言（不受理、申請のみ等）を安全に自動検出
   _getCaseSpecialNote(c) {
     if (!c) return '';
-    const memo = String(c.memo || c.remarks || c.note || '');
+    const memo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
     const title = String(c.title || '');
     const advLabels = Array.isArray(c.advances) ? c.advances.map(a => String(a.label || a.category || '')).join(' ') : '';
     const allText = `${memo} ${title} ${advLabels}`;
@@ -190,7 +202,10 @@ const Invoice = {
     // メモ欄・特記事項に（...）で囲まれた特別な注記があればそれを最優先で採用
     const memoBracket = memo.match(/[（(]([^）)]+)[）)]/);
     if (memoBracket && memoBracket[1]) {
-      return `（${memoBracket[1].trim()}）`;
+      const bContent = memoBracket[1].trim();
+      if (!/\d{1,2}\/\d{1,2}/.test(bContent) && bContent !== '無題' && bContent.length <= 15) {
+        return `（${bContent}）`;
+      }
     }
 
     if (allText.includes('不受理')) {
@@ -1393,19 +1408,9 @@ const Invoice = {
       client.ruby || '',
       client.code || ''
     ].join(' ');
-    const isFusoClient = /三菱|ふそう|FUSO|mitsubishi/i.test(clientFullName) ||
-      /三菱|ふそう|FUSO|mitsubishi/i.test(note || '') ||
-      cases.some(c => {
-        const text = [
-          c.clientName || '',
-          c.title || '',
-          c.dealer || '',
-          c.dealerBranch || '',
-          c.carMaker || '',
-          c.maker || ''
-        ].join(' ');
-        return /三菱|ふそう|FUSO|mitsubishi/i.test(text);
-      });
+    const isFusoClient = /三菱ふそう|ふそう|FUSO/i.test(clientFullName) ||
+      /三菱ふそう|ふそう|FUSO/i.test(note || '') ||
+      cases.some(c => /三菱ふそう|ふそう|FUSO/i.test(c.dealer || c.clientName || ''));
 
     let detailPagesHTML = '';
     for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
@@ -1472,8 +1477,8 @@ const Invoice = {
 
         let remarkDisplay = '';
         if (isFusoClient) {
-          const rawMemo = (c.memo || c.remarks || c.note || '').trim();
-          remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : '-';
+          const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
+          remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : (categoryShort || '-');
         } else {
           remarkDisplay = categoryShort || '-';
         }
@@ -2051,7 +2056,7 @@ ${detailPagesHTML}
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
 
-        const rawMemo = (c.memo || c.remarks || c.note || '').trim();
+        const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
         const remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : (categoryShort || '-');
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
@@ -3731,19 +3736,9 @@ window.NissanPrint = {
       client.ruby || '',
       client.code || ''
     ].join(' ');
-    const isFusoClient = /三菱|ふそう|FUSO|mitsubishi/i.test(clientFullName) ||
-      /三菱|ふそう|FUSO|mitsubishi/i.test(note || '') ||
-      cases.some(c => {
-        const text = [
-          c.clientName || '',
-          c.title || '',
-          c.dealer || '',
-          c.dealerBranch || '',
-          c.carMaker || '',
-          c.maker || ''
-        ].join(' ');
-        return /三菱|ふそう|FUSO|mitsubishi/i.test(text);
-      });
+    const isFusoClient = /三菱ふそう|ふそう|FUSO/i.test(clientFullName) ||
+      /三菱ふそう|ふそう|FUSO/i.test(note || '') ||
+      cases.some(c => /三菱ふそう|ふそう|FUSO/i.test(c.dealer || c.clientName || ''));
 
     const headers2 = ['No.', '完了日', isFusoClient ? '受注No.' : '注文書No.', '申請者名・車名', '管轄警察署', isFusoClient ? '備考' : '業務区分', '報酬額（税抜）', '立替金合計', '立替金内訳'];
     ws2.getRow(3).height = 20;
@@ -3860,8 +3855,8 @@ window.NissanPrint = {
       ws2.getCell(`E${rowIdx}`).value = policeName;
       let remarkDisplay = '';
       if (isFusoClient) {
-        const rawMemo = (c.memo || c.remarks || c.note || '').trim();
-        remarkDisplay = rawMemo || '-';
+        const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
+        remarkDisplay = rawMemo || (categoryShort || '-');
       } else {
         remarkDisplay = categoryShort || '-';
       }
