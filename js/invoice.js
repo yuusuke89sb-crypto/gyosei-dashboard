@@ -88,43 +88,44 @@ const Invoice = {
     const str = String(name).trim();
     const visualLen = this._getVisualLength(str);
 
-    let fontSize = 11.5;
+    // 以前のサイズ(10.5px等)と直前のサイズ(11.5px等)の「ちょうど良い中間」に調整
+    let fontSize = 10.8;
     let letterSpacing = 0;
 
     if (visualLen <= 6.5) {
-      // 短い人名（3〜6文字）：セル幅37%でしっかり大きく見やすく表示
-      fontSize = 11.5;
+      // 短い人名（3〜6文字）：他の列(11px)と美しく調和する絶妙な10.8px
+      fontSize = 10.8;
       letterSpacing = 0;
     } else if (visualLen <= 9.0) {
-      // 7〜9文字（会社名等）：大きめの10.5px
-      fontSize = 10.5;
+      // 7〜9文字（会社名等）：9.8px
+      fontSize = 9.8;
       letterSpacing = -0.05;
     } else if (visualLen <= 11.5) {
-      // 10〜11文字
-      fontSize = 9.4;
-      letterSpacing = -0.15;
+      // 10〜11文字：8.8px
+      fontSize = 8.8;
+      letterSpacing = -0.10;
     } else if (visualLen <= 14.5) {
-      // 12〜14文字（「特定非営利活動法人MA」等）：37%幅で綺麗に大きく収まるサイズ
-      fontSize = 8.4;
-      letterSpacing = -0.25;
+      // 12〜14文字（「特定非営利活動法人MA」等）：8.0px
+      fontSize = 8.0;
+      letterSpacing = -0.20;
     } else if (visualLen <= 18.0) {
-      // 15〜18文字
-      fontSize = 7.4;
-      letterSpacing = -0.35;
+      // 15〜18文字：7.2px
+      fontSize = 7.2;
+      letterSpacing = -0.30;
     } else if (visualLen <= 22.0) {
-      // 19〜22文字
+      // 19〜22文字：6.6px
       fontSize = 6.6;
-      letterSpacing = -0.45;
+      letterSpacing = -0.40;
     } else {
       // 23文字以上の超長文：文字数に応じて滑らかに縮小
-      fontSize = Math.max(4.8, 6.2 - (visualLen - 22) * 0.15);
-      letterSpacing = -0.5;
+      fontSize = Math.max(5.0, 6.2 - (visualLen - 22) * 0.15);
+      letterSpacing = -0.50;
     }
 
     const fsStr = fontSize.toFixed(1) + 'px';
     const lsStr = letterSpacing === 0 ? 'normal' : letterSpacing.toFixed(2) + 'px';
 
-    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fsStr}; letter-spacing:${lsStr}; font-weight:bold; line-height:1.2;">${str}</span>`;
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fsStr}; letter-spacing:${lsStr}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
   // 備考欄の文字数に応じた自動縮小＆1行表示
   _formatRemarkHTML(text) {
@@ -1484,8 +1485,8 @@ const Invoice = {
   <table class="grid-table" style="font-size:11px; margin-bottom:6px;">
     <colgroup>
       <col style="width: 7%;">
-      <col style="width: 9%;">
-      <col style="width: 37%;">
+      <col style="width: 10.5%;">
+      <col style="width: 35.5%;">
       <col style="width: 7%;">
       <col style="width: 12%;">
       <col style="width: 11%;">
@@ -2054,8 +2055,8 @@ ${detailPagesHTML}
   <table class="fuso-table" style="font-size:11px; margin-bottom:6px;">
     <colgroup>
       <col style="width: 7%;">
-      <col style="width: 9%;">
-      <col style="width: 37%;">
+      <col style="width: 10.5%;">
+      <col style="width: 35.5%;">
       <col style="width: 7%;">
       <col style="width: 12%;">
       <col style="width: 11%;">
