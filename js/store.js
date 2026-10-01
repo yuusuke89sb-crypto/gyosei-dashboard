@@ -497,7 +497,28 @@ const Store = {
 
   // ---- 予定 CRUD ----
   getEvents() {
-    return this._get(this.KEYS.EVENTS);
+    const events = this._get(this.KEYS.EVENTS);
+    if (!Array.isArray(events) || events.length === 0) return [];
+    
+    // 同一タイトル・同一日付の重複予定を自動クリーンアップ
+    const seen = new Set();
+    const unique = [];
+    let hasDuplicate = false;
+    for (const e of events) {
+      if (!e) continue;
+      const cleanTitle = (e.title || '').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '').trim();
+      const key = `${cleanTitle}|${e.date || ''}|${e.time || ''}`;
+      if (seen.has(key)) {
+        hasDuplicate = true;
+      } else {
+        seen.add(key);
+        unique.push(e);
+      }
+    }
+    if (hasDuplicate) {
+      this._set(this.KEYS.EVENTS, unique);
+    }
+    return unique;
   },
 
   getEvent(id) {
