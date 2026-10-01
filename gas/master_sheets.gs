@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ============================================================
  *  行政書士事務所 — 顧客マスタ・担当者マスタ 管理スクリプト
  *  Google スプレッドシート用 Apps Script
@@ -100,6 +100,7 @@ function onOpen() {
     .addItem('🚗 車庫証明（OSS）の報酬を一律3,500円に復元', 'restoreAllOssFeesTo3500')
     .addItem('📥 インボックス「保留」入力規則の修復', 'fixInboxStatusValidation')
     .addItem('🚗 登録番号・車台番号の分離修復', 'fixVehiclePlateAndChassisNumbers')
+    .addItem('📥 未取得メール・FAXの救出スキャン (14日分)', 'recoverRecentInbox')
     .addSeparator()
     .addItem('✅ データ検証（顧客マスタ）', 'validateCustomerData')
     .addItem('✅ データ検証（担当者マスタ）', 'validateStaffData')
@@ -1359,19 +1360,19 @@ function upsertCase_(data, lineToken, lineUserId, lineNotifyCase) {
         const row = rowIdx + 2;
         const oldStatus = sheet.getRange(row, 6).getValue(); // Column 6 (F) is status
 
-        // Phase 1-B: updatedAt 繧ｿ繧､繝繧ｹ繧ｿ繝ｳ繝玲ｯ碑ｼ・- 蜿､縺・ョ繝ｼ繧ｿ縺ｫ繧医ｋ荳頑嶌縺阪ｒ髦ｲ豁｢
+        // Phase 1-B: updatedAt タイムスタンプ比較 - 古いデータによる上書きを防止
         if (data.updatedAt) {
-          var existingUpdatedAt = sheet.getRange(row, 13).getValue(); // Column 13 = 譖ｴ譁ｰ譌･
+          var existingUpdatedAt = sheet.getRange(row, 13).getValue(); // Column 13 = 更新日
           if (existingUpdatedAt) {
             var existingTime = new Date(existingUpdatedAt).getTime();
             var incomingTime = new Date(data.updatedAt).getTime();
             if (!isNaN(existingTime) && !isNaN(incomingTime) && incomingTime < existingTime) {
-              // push 縺輔ｌ縺溘ョ繝ｼ繧ｿ縺後せ繝励Ξ繝・ラ繧ｷ繝ｼ繝井ｸ翫・繝・・繧ｿ繧医ｊ蜿､縺・竊・譖ｴ譁ｰ繧偵せ繧ｭ繝・・
               return { success: true, action: 'skipped', id: data.id, reason: 'stale_data',
                        existingUpdatedAt: existingUpdatedAt.toString(), incomingUpdatedAt: data.updatedAt };
             }
           }
         }
+
 
         actualHeaders.forEach(function(header, col) {
           const key = keyMap[header];
@@ -2580,17 +2581,21 @@ function checkIncomingInbox_(options) {
     } catch (e) {}
     const rowsToInsert = [];
 
-    // A. FAX通知メールスキャン（Apeos複合機、bihoku@, yoshimura@felis-car.jp, 【FAX】など）
-    const faxQuery = options.faxQuery || ('newer_than:' + days + 'd (Apeos OR FAX OR bihoku OR felis-car.jp OR efax)');
+    // ========================================================
+    // A. 【最優先】一般顧客メールスキャン (car@felis-car.jp, hiei-gyousei@athena.ocn.ne.jp 等)
+    // ========================================================
+    // メールはFAXに比べ件数が少なく高速（1〜3秒）に完了するため、
+    // タイムアウトによる未取得を防ぐために最優先で確実にスキャンします。
+    const emailQuery = options.emailQuery || ('newer_than:' + days + 'd (car@felis-car.jp OR hiei-gyousei@athena.ocn.ne.jp)');
     try {
-      const faxThreads = GmailApp.search(faxQuery, 0, maxThreads);
-      for (let tIdx = 0; tIdx < faxThreads.length; tIdx++) {
+      const emailThreads = GmailApp.search(emailQuery, 0, Math.min(maxThreads, 60));
+      for (let tIdx = 0; tIdx < emailThreads.length; tIdx++) {
         if (Date.now() - startTime > maxExecutionTimeMs) {
-          Logger.log('GAS実行制限時間に近づいたため安全に中断して書き込みます');
+          Logger.log('GAS実行制限時間に近づいたためメールスキャンを中断して書き込みます');
           timedOut = true;
           break;
         }
-        const thread = faxThreads[tIdx];
+        const thread = emailThreads[tIdx];
         const messages = thread.getMessages();
         for (let mIdx = 0; mIdx < messages.length; mIdx++) {
           if (Date.now() - startTime > maxExecutionTimeMs) {
@@ -2601,47 +2606,44 @@ function checkIncomingInbox_(options) {
           const msgId = msg.getId();
           const newId = 'INB-' + msgId;
 
-          // 既にシートに存在する場合はスキップ（二重登録防止）
           if (existingIds.has(newId)) continue;
 
           const toStr = (msg.getTo() || '').toLowerCase();
+          const ccStr = (msg.getCc() || '').toLowerCase();
           const fromStr = (msg.getFrom() || '').toLowerCase();
-          const subject = msg.getSubject() || '';
-          const subjLower = subject.toLowerCase();
 
-          // システム通知・一般サービスの除外
           const ignoreSenders = ['google.com', 'github.com', 'youtube.com', 'microsoft.com', 'stripe.com', 'amazon.', 'no-reply@', 'noreply@'];
           if (ignoreSenders.some(ign => fromStr.includes(ign))) continue;
 
-          // FAXまたは業務メールかの判定（Apeos、bihoku@、FAX、yoshimura@）
-          const isFax = fromStr.includes('bihoku') || fromStr.includes('efax') || subjLower.includes('fax') || subjLower.includes('apeos') || toStr.includes('yoshimura@felis-car.jp') || toStr.includes('bihoku');
-          if (!isFax) continue;
+          const validRecipients = ['car@felis-car.jp', 'hiei-gyousei@athena.ocn.ne.jp'];
+          const isTargetRecipient = validRecipients.some(addr => toStr.includes(addr) || ccStr.includes(addr));
+          if (!isTargetRecipient) continue;
 
           const date = msg.getDate();
           const dStr = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
+          const subject = msg.getSubject() || '';
           const body = msg.getPlainBody() || '';
-          const faxNumber = extractFaxNumber_(msg);
           const ts = dStr;
           const attachments = [];
 
           try {
             msg.getAttachments().forEach(att => {
-              if (faxFolder) {
-                const file = faxFolder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
+              if (mailFolder) {
+                const file = mailFolder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
                 attachments.push({ name: att.getName(), url: file.getUrl() });
               }
             });
           } catch (attErr) {
-            Logger.log('FAX添付ファイル保存エラー: ' + attErr.message);
+            Logger.log('メール添付ファイル保存エラー: ' + attErr.message);
           }
 
           const rowData = [
             newId,
             date,
-            'FAX',
-            faxNumber || fromStr,
+            'メール',
+            fromStr,
             subject,
-            body.substring(0, 500),
+            body.substring(0, 1000),
             JSON.stringify(attachments),
             '未対応',
             '',
@@ -2654,21 +2656,24 @@ function checkIncomingInbox_(options) {
         }
       }
     } catch (err) {
-      Logger.log('FAX受信チェックエラー: ' + err.message);
+      Logger.log('メール受信チェックエラー: ' + err.message);
     }
 
-    // B. 一般顧客メールスキャン (car@felis-car.jp, hiei-gyousei@athena.ocn.ne.jp 等)
+    // ========================================================
+    // B. FAX通知メールスキャン（Apeos複合機、bihoku@, yoshimura@felis-car.jp, 【FAX】など）
+    // ========================================================
+    // 一般メールが巻き込まれないようクエリを適正化し、残り時間で安全に処理します。
     if (!timedOut) {
-      const emailQuery = options.emailQuery || ('newer_than:' + days + 'd (car@felis-car.jp OR hiei-gyousei@athena.ocn.ne.jp)');
+      const faxQuery = options.faxQuery || ('newer_than:' + days + 'd (Apeos OR FAX OR bihoku OR efax OR to:yoshimura@felis-car.jp)');
       try {
-        const emailThreads = GmailApp.search(emailQuery, 0, Math.min(maxThreads, 60));
-        for (let tIdx = 0; tIdx < emailThreads.length; tIdx++) {
+        const faxThreads = GmailApp.search(faxQuery, 0, maxThreads);
+        for (let tIdx = 0; tIdx < faxThreads.length; tIdx++) {
           if (Date.now() - startTime > maxExecutionTimeMs) {
-            Logger.log('GAS実行制限時間に近づいたためメールスキャンを中断して書き込みます');
+            Logger.log('GAS実行制限時間に近づいたため安全に中断して書き込みます');
             timedOut = true;
             break;
           }
-          const thread = emailThreads[tIdx];
+          const thread = faxThreads[tIdx];
           const messages = thread.getMessages();
           for (let mIdx = 0; mIdx < messages.length; mIdx++) {
             if (Date.now() - startTime > maxExecutionTimeMs) {
@@ -2679,44 +2684,47 @@ function checkIncomingInbox_(options) {
             const msgId = msg.getId();
             const newId = 'INB-' + msgId;
 
+            // 既にシートに存在する場合はスキップ（二重登録防止）
             if (existingIds.has(newId)) continue;
 
             const toStr = (msg.getTo() || '').toLowerCase();
-            const ccStr = (msg.getCc() || '').toLowerCase();
             const fromStr = (msg.getFrom() || '').toLowerCase();
+            const subject = msg.getSubject() || '';
+            const subjLower = subject.toLowerCase();
 
+            // システム通知・一般サービスの除外
             const ignoreSenders = ['google.com', 'github.com', 'youtube.com', 'microsoft.com', 'stripe.com', 'amazon.', 'no-reply@', 'noreply@'];
             if (ignoreSenders.some(ign => fromStr.includes(ign))) continue;
 
-            const validRecipients = ['car@felis-car.jp', 'hiei-gyousei@athena.ocn.ne.jp'];
-            const isTargetRecipient = validRecipients.some(addr => toStr.includes(addr) || ccStr.includes(addr));
-            if (!isTargetRecipient) continue;
+            // FAXまたは業務メールかの判定（Apeos、bihoku@、FAX、yoshimura@）
+            const isFax = fromStr.includes('bihoku') || fromStr.includes('efax') || subjLower.includes('fax') || subjLower.includes('apeos') || toStr.includes('yoshimura@felis-car.jp') || toStr.includes('bihoku');
+            if (!isFax) continue;
 
             const date = msg.getDate();
             const dStr = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
-            const subject = msg.getSubject() || '';
             const body = msg.getPlainBody() || '';
+            const faxNumber = extractFaxNumber_(msg);
             const ts = dStr;
             const attachments = [];
 
             try {
               msg.getAttachments().forEach(att => {
-                if (mailFolder) {
-                  const file = mailFolder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
+                if (faxFolder) {
+                  const file = faxFolder.createFile(att.copyBlob().setName(ts + '_' + att.getName()));
                   attachments.push({ name: att.getName(), url: file.getUrl() });
                 }
               });
             } catch (attErr) {
-              Logger.log('メール添付ファイル保存エラー: ' + attErr.message);
+              Logger.log('FAX添付ファイル保存エラー: ' + attErr.message);
             }
 
             const rowData = [
               newId,
               date,
-              'メール',
-              fromStr,
+              'FAX',
+              faxNumber || fromStr,
               subject,
-              body.substring(0, 1000),
+              body.substring(0, 500),
               JSON.stringify(attachments),
               '未対応',
               '',
@@ -2729,7 +2737,7 @@ function checkIncomingInbox_(options) {
           }
         }
       } catch (err) {
-        Logger.log('メール受信チェックエラー: ' + err.message);
+        Logger.log('FAX受信チェックエラー: ' + err.message);
       }
     }
 
@@ -3265,6 +3273,23 @@ function testCheckInbox() {
 }
 
 /**
+ * 直近14日間の未取得メール＆FAXを一括救出スキャン（エディタ上部の関数プルダウンまたはメニューから実行）
+ */
+function recoverRecentInbox() {
+  Logger.log('=== 直近14日間の未取得メール・FAX救出スキャン開始 ===');
+  const res = checkIncomingInbox_({
+    days: 14,
+    maxThreads: 100,
+    maxTimeMs: 300000 // 5分間フル実行可能
+  });
+  Logger.log('救出スキャン完了: ' + JSON.stringify(res));
+  try {
+    SpreadsheetApp.getActiveSpreadsheet().toast('✅ 救出完了: ' + (res.saved || 0) + ' 件のメール・FAXを取り込みました', '登録前BOX救出');
+  } catch (e) {}
+  return res;
+}
+
+/**
  * 8月29日前後を含む未取得FAX・メールを一括救出・取り込みする専用関数
  * Apps Scriptエディタ上部の関数プルダウンから「recoverAugust29Inbox」を選択して「実行」を押すと即座に救出されます。
  */
@@ -3372,7 +3397,7 @@ function updateCaseFeesFromLocations() {
     const isOss = cat === 'garage_oss' || cat.toUpperCase().indexOf('OSS') !== -1 ||
                   title.toUpperCase().indexOf('OSS') !== -1 || memo.toUpperCase().indexOf('OSS') !== -1;
     
-    // 所轄警察署で単価が変わるのは「車庫証明（一般）」のみ。車庫証明（OSS）は警察署に行かないため対象外
+    // 所轄警察署で単価が変わるのは「車庫証明（一般）」および「軽自動車登録（半額）」のみ
     if (isOss) {
       // OSS車庫証明案件は警察署に出頭しないため一律3,500円（もし誤って所轄単価に変更されていた場合は3,500円に復元）
       const currentFee = Number(r[feeCol - 1]) || 0;
@@ -3382,6 +3407,11 @@ function updateCaseFeesFromLocations() {
       }
       return;
     }
+
+    // 普通車登録・封印などは警察署単価の対象外
+    if (cat === 'car_reg_standard' || cat === 'seal') return;
+
+    const isCarRegLight = cat === 'car_reg_light' || cat.indexOf('軽') !== -1 || title.indexOf('軽登録') !== -1;
 
     const polId = polLocCol > 0 ? String(r[polLocCol - 1]).trim() : '';
     const carPolice = carPoliceCol > 0 ? String(r[carPoliceCol - 1]).replace(/\s+/g, '') : '';
@@ -3398,6 +3428,10 @@ function updateCaseFeesFromLocations() {
     }
 
     if (targetFee > 0) {
+      // 軽自動車登録の場合は管轄警察署の単価設定の半額＋一律1,000円
+      if (isCarRegLight) {
+        targetFee = Math.round(targetFee / 2) + 1000;
+      }
       const currentFee = Number(r[feeCol - 1]) || 0;
       if (currentFee !== targetFee) {
         caseSheet.getRange(idx + 2, feeCol).setValue(targetFee);
