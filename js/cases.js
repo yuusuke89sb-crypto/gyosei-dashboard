@@ -2176,6 +2176,10 @@ const Cases = {
         const el = document.getElementById('csf_registrationDate');
         if (el) el.value = prefills.registrationDate;
       }
+      if (prefills.registeredAt || prefills.receivedDate) {
+        const el = document.getElementById('csf_registeredAt');
+        if (el) el.value = prefills.registeredAt || prefills.receivedDate;
+      }
       
       let faxInput = document.getElementById('csf_faxId');
       if (!faxInput && formEl) {
