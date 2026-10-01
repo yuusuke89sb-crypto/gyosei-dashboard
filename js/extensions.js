@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 拡張機能モジュール
  * - 入金管理
  * - 対応履歴
@@ -738,9 +738,7 @@ const CaseTemplates = {
           const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
           // ★軽自動車登録は管轄警察署の単価設定の半額＋一律1,000円（4000円なら3000円）
           const targetFee = isCarRegLight ? (Math.round(Number(loc.syakoFee) / 2) + 1000) : Number(loc.syakoFee);
-          const needUpdate = forceAll 
-            ? (currentFee !== targetFee) 
-            : (currentFee === 0 || currentFee === 3500 || currentFee === 5500 || currentFee === 2000 || currentFee === Number(loc.syakoFee) || (isCarRegLight && currentFee !== targetFee));
+          const needUpdate = (currentFee !== targetFee) || (!c.policeLocationId && loc.id);
 
           if (needUpdate) {
             const updateData = { fee: targetFee };
