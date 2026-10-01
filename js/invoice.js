@@ -1623,7 +1623,7 @@ const Invoice = {
           categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         }
         const specialNote = this._getCaseSpecialNote(c);
-        if (specialNote && !categoryShort.includes(specialNote)) {
+        if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
@@ -2205,7 +2205,7 @@ ${detailPagesHTML}
           categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         }
         const specialNote = this._getCaseSpecialNote(c);
-        if (specialNote && !categoryShort.includes(specialNote)) {
+        if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
@@ -3990,7 +3990,7 @@ window.NissanPrint = {
       else if (c.category === 'seal') categoryShort = '封印';
       if (c.isUsedCar) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
       const specialNote = this._getCaseSpecialNote(c);
-      if (specialNote && !categoryShort.includes(specialNote)) {
+      if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
         categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
       }
       if (c.regType === 'jyuminhyo') categoryShort = '住民票';
