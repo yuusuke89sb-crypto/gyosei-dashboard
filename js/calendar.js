@@ -1046,7 +1046,10 @@ const Calendar = {
 
   // ---- 案件から日付イベント（締切・現調・申請・交付・店届）を切り出し ----
   getCaseEvents() {
-    const cases = Store.getCases();
+    const allCases = Store.getCases();
+    // 重複ID排除（sync等で同一IDが複数回保存される問題への安全策）
+    const seenIds = new Set();
+    const cases = allCases.filter(c => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
     const caseEvents = [];
     const CATEGORY_LABELS = { garage_oss: '車庫(OSS)', garage_paper: '車庫(一般)', seal: '出張封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
 
