@@ -191,7 +191,7 @@ const Invoice = {
     return memo.replace(/^\s+|\s+$/g, '').replace(/\n{2,}/g, '\n');
   },
 
-  // 案件のメモ・立替金ラベル・タイトルから特別な文言（不受理、申請のみ等）を安全に自動検出
+  // 案件のメモ・立替金ラベル・タイトルから特別な文言（不受理、申請のみ、番号変更等）を安全に自動検出
   _getCaseSpecialNote(c) {
     if (!c) return '';
     const memo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
@@ -199,7 +199,7 @@ const Invoice = {
     const advLabels = Array.isArray(c.advances) ? c.advances.map(a => String(a.label || a.category || '')).join(' ') : '';
     const allText = `${memo} ${title} ${advLabels}`;
 
-    // メモ欄・特記事項に（...）で囲まれた特別な注記があればそれを最優先で採用
+    // 1. メモ欄に（...）で囲まれた注記があれば最優先で採用
     const memoBracket = memo.match(/[（(]([^）)]+)[）)]/);
     if (memoBracket && memoBracket[1]) {
       const bContent = memoBracket[1].trim();
@@ -208,6 +208,22 @@ const Invoice = {
       }
     }
 
+    // 2. メモ欄に直接書かれた短い文言（例:「番号変更」「出張封印」「名義変更」「不受理」などカッコなしで入力された場合）
+    const memoLines = memo.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (memoLines.length > 0) {
+      const firstLine = memoLines[0].replace(/^[・\-\*]\s*/, '').trim();
+      if (firstLine.length > 0 && firstLine.length <= 15 && !firstLine.includes('http') && !/\d{2,4}-\d{2,4}/.test(firstLine) && !firstLine.startsWith('【')) {
+        const cleaned = firstLine.replace(/^[（(]|[）)]$/g, '').trim();
+        if (cleaned && cleaned.length <= 15) {
+          return `（${cleaned}）`;
+        }
+      }
+    }
+
+    // 3. 一般的なキーワード検出（メモ・タイトル・立替金ラベルから）
+    if (memo.includes('番号変更') || title.includes('番号変更')) {
+      return '（番号変更）';
+    }
     if (allText.includes('不受理')) {
       return '（不受理）';
     }
@@ -216,6 +232,12 @@ const Invoice = {
     }
     if (allText.includes('受取のみ') || allText.includes('受領のみ') || allText.includes('交付のみ')) {
       return '（受取のみ）';
+    }
+    if (memo.includes('出張封印') || title.includes('出張封印')) {
+      return '（出張封印）';
+    }
+    if (memo.includes('名義変更') || title.includes('名義変更')) {
+      return '（名義変更）';
     }
     return '';
   },
