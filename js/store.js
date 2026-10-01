@@ -310,7 +310,8 @@ const Store = {
       inboxId: data.inboxId || '',               // インボックス連携用ID
       calendarEventIds: data.calendarEventIds || {},  // { apply, delivery, storeDelivery, registration } カレンダー同期用
       memo: data.memo || '',
-      createdAt: new Date().toISOString(),
+      registeredAt: data.registeredAt || (data.createdAt ? data.createdAt.slice(0, 10) : ''),
+      createdAt: data.registeredAt ? (data.registeredAt.includes('T') ? data.registeredAt : (data.registeredAt + 'T12:00:00.000Z')) : (data.createdAt || new Date().toISOString()),
       updatedAt: new Date().toISOString(),
     };
     cases.push(newCase);
