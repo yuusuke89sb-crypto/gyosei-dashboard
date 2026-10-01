@@ -718,6 +718,7 @@ const Cases = {
                       <option value="change">📍 変更登録（住所変更等＋番号変更）</option>
                       <option value="reseal">🔩 再封印（修繕・破損・再取付）</option>
                       <option value="plate_change">⭐ 番号変更（希望番号・図柄ナンバー）</option>
+                      <option value="jyuminhyo">📄 住民票</option>
                     </select>
                   </div>
                 </div>
