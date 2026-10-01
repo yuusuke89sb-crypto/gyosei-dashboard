@@ -1947,7 +1947,7 @@ const Invoice = {
       </tr>
 
       <!-- 立替金パート -->
-      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'送料':4,'その他実費':5}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; return (P[cA]||9) - (P[cB]||9) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
+      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'送料':4,'その他実費':5}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; return (P[cA]||9) - (P[cB]||9) || b[1].count - a[1].count || b[1].amount - a[1].amount; }).map(([lbl, data], idx) => `
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td style="font-size:11px;">${lbl}</td>
@@ -3684,7 +3684,7 @@ window.NissanPrint = {
     ws1.getRow(6).height = 20;
 
     // 後述の総合計セル(D23以降)を参照
-    const advKeys = Object.keys(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'送料':4,'その他実費':5}; const cA = (a.match(/【(.+?)】/) || [])[1] || ''; const cB = (b.match(/【(.+?)】/) || [])[1] || ''; return (P[cA]||9) - (P[cB]||9) || a.localeCompare(b); });
+    const advKeys = Object.keys(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'送料':4,'その他実費':5}; const cA = (a.match(/【(.+?)】/) || [])[1] || ''; const cB = (b.match(/【(.+?)】/) || [])[1] || ''; return (P[cA]||9) - (P[cB]||9) || advMap[b].count - advMap[a].count || advMap[b].amount - advMap[a].amount; });
     const advRowCount = advKeys.length > 0 ? advKeys.length : 1;
     const subtotalRow = 14;
     const taxRow = 15;
