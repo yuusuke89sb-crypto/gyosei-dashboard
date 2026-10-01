@@ -260,6 +260,7 @@ const Invoice = {
   // 案件のメモ・立替金ラベル・タイトルから特別な文言（不受理、申請のみ、番号変更等）を安全に自動検出
   _getCaseSpecialNote(c) {
     if (!c) return '';
+    if (c.regType === 'jyuminhyo') return '（住民票）';
     const memo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
     const title = String(c.title || '');
     const advLabels = Array.isArray(c.advances) ? c.advances.map(a => String(a.label || a.category || '')).join(' ') : '';
