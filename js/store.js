@@ -311,7 +311,7 @@ const Store = {
       calendarEventIds: data.calendarEventIds || {},  // { apply, delivery, storeDelivery, registration } カレンダー同期用
       memo: data.memo || '',
       registeredAt: data.registeredAt || (data.createdAt ? data.createdAt.slice(0, 10) : ''),
-      createdAt: data.registeredAt ? (data.registeredAt.includes('T') ? data.registeredAt : (data.registeredAt + 'T12:00:00.000Z')) : (data.createdAt || new Date().toISOString()),
+      createdAt: data.createdAt || (data.registeredAt ? (data.registeredAt.includes('T') ? data.registeredAt : (data.registeredAt + 'T12:00:00.000Z')) : new Date().toISOString()),
       updatedAt: new Date().toISOString(),
     };
     cases.push(newCase);

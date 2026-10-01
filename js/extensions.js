@@ -687,6 +687,7 @@ const CaseTemplates = {
           // トヨタ以外のディーラー（日産・三菱など）や手動設定された単価は一切上書きせず完全保護
           const isToyota = (typeof Store.isToyotaCase === 'function') ? Store.isToyotaCase(c) : (title + memo).includes('トヨタ');
           if (isToyota) {
+            if (c.invoiceLocked) return;
             const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
             // トヨタOSSで未設定（0円）の場合のみ標準単価3,500円を補完（手動変更済みの単価は保護）
             if (currentFee === 0) {
@@ -702,6 +703,9 @@ const CaseTemplates = {
         const isGaragePaper = !isCarRegLight && (cat === 'garage_paper' ||
                               ((title.includes('車庫') || memo.includes('車庫')) && !isOss && cat !== 'car_reg_standard' && cat !== 'seal'));
         if (!isGaragePaper && !isCarRegLight) return;
+
+        // 請求書発行済み（ロック中）の案件は単価・警察署ともに完全保護
+        if (c.invoiceLocked) return;
 
         // ★一般車庫証明・軽登録の警察署単価自動反映は愛知トヨタのみ！他ディーラー（日産・三菱等）は対象外として保護
         const isToyota = (typeof Store.isToyotaCase === 'function') ? Store.isToyotaCase(c) : (title + memo).includes('トヨタ');
@@ -738,11 +742,13 @@ const CaseTemplates = {
           const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
           // ★軽自動車登録は管轄警察署の単価設定の半額＋一律1,000円（4000円なら3000円）
           const targetFee = isCarRegLight ? (Math.round(Number(loc.syakoFee) / 2) + 1000) : Number(loc.syakoFee);
-          const needUpdate = (currentFee !== targetFee) || (!c.policeLocationId && loc.id);
+          const feeNeedsUpdate = (currentFee !== targetFee);
+          const locNeedsUpdate = (!c.policeLocationId && loc.id);
 
-          if (needUpdate) {
-            const updateData = { fee: targetFee };
-            if (!c.policeLocationId) updateData.policeLocationId = loc.id;
+          if (feeNeedsUpdate || locNeedsUpdate) {
+            const updateData = {};
+            if (feeNeedsUpdate) updateData.fee = targetFee;
+            if (locNeedsUpdate) updateData.policeLocationId = loc.id;
             Store.updateCase(c.id, updateData);
             updatedCount++;
             details.push(`${c.title || '案件'}: ¥${currentFee} → ¥${targetFee} (${loc.name}${isCarRegLight ? '・軽半額+1000' : ''})`);

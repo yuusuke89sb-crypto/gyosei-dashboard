@@ -269,7 +269,9 @@ const Invoice = {
     const memoBracket = memo.match(/[（(]([^）)]+)[）)]/);
     if (memoBracket && memoBracket[1]) {
       const bContent = memoBracket[1].trim();
-      if (!/\d{1,2}\/\d{1,2}/.test(bContent) && bContent !== '無題' && bContent.length <= 15) {
+      const isDate = /\d{1,4}[-/年]\d{1,2}/.test(bContent) || /\d{1,2}\/\d{1,2}/.test(bContent);
+      const isTaskMemo = /(?:持込|待ち|連絡|TEL|電話|確認|予定|不要)/.test(bContent);
+      if (!isDate && !isTaskMemo && bContent !== '無題' && bContent.length <= 15) {
         return `（${bContent}）`;
       }
     }
@@ -278,9 +280,11 @@ const Invoice = {
     const memoLines = memo.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (memoLines.length > 0) {
       const firstLine = memoLines[0].replace(/^[・\-\*]\s*/, '').trim();
-      if (firstLine.length > 0 && firstLine.length <= 15 && !firstLine.includes('http') && !/\d{2,4}-\d{2,4}/.test(firstLine) && !firstLine.startsWith('【')) {
+      const isDate = /\d{1,4}[-/年]\d{1,2}/.test(firstLine) || /\d{1,2}\/\d{1,2}/.test(firstLine);
+      const isTaskMemo = /(?:持込|待ち|連絡|TEL|電話|確認|予定|不要|済|完了|送付|郵送|レターパック)/.test(firstLine);
+      if (firstLine.length > 0 && firstLine.length <= 15 && !firstLine.includes('http') && !isDate && !isTaskMemo && !firstLine.startsWith('【')) {
         const cleaned = firstLine.replace(/^[（(]|[）)]$/g, '').trim();
-        if (cleaned && cleaned.length <= 15) {
+        if (cleaned && cleaned.length <= 15 && !/\d{1,2}\/\d{1,2}/.test(cleaned)) {
           return `（${cleaned}）`;
         }
       }
@@ -1658,7 +1662,7 @@ const Invoice = {
       detailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases)}等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</span>` : ''}</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</span>` : ''}</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div style="max-width:52%; flex-shrink:1;">

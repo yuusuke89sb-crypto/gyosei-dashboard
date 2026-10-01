@@ -3394,6 +3394,11 @@ function updateCaseFeesFromLocations() {
     const cat = catCol > 0 ? String(r[catCol - 1]).trim() : '';
     const title = titleCol > 0 ? String(r[titleCol - 1]).trim() : '';
     const memo = memoCol > 0 ? String(r[memoCol - 1]).trim() : '';
+
+    // ★所轄警察署単価の自動連動は愛知トヨタのみ！他ディーラー（日産・三菱等）や一般案件は対象外として保護
+    const isToyota = (title + memo).includes('トヨタ');
+    if (!isToyota) return;
+
     const isOss = cat === 'garage_oss' || cat.toUpperCase().indexOf('OSS') !== -1 ||
                   title.toUpperCase().indexOf('OSS') !== -1 || memo.toUpperCase().indexOf('OSS') !== -1;
     
