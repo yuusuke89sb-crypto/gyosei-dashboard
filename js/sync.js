@@ -440,8 +440,16 @@ const SpreadsheetSync = {
             if (data.events && Array.isArray(data.events)) {
                 const localEvents = Store.getEvents();
                 const knownIds = new Set(localEvents.filter(e => e.calendarEventId).map(e => e.calendarEventId));
+                // タイトル＋日付の組み合わせでも重複チェック（手動追加分との重複防止）
+                const knownTitleDate = new Set(localEvents.map(e => {
+                    const t = (e.title || '').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '').trim();
+                    return t + '|' + (e.date || '');
+                }));
                 data.events.forEach(ge => {
                     if (knownIds.has(ge.calendarEventId)) return;
+                    // タイトル＋日付が既存と一致する場合もスキップ
+                    const cleanTitle = (ge.title || '').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '').trim();
+                    if (knownTitleDate.has(cleanTitle + '|' + (ge.date || ''))) return;
                     let title = ge.title || '';
                     title = title.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\s*/u, '');
                     Store.addEvent({
