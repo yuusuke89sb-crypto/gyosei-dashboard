@@ -1627,7 +1627,6 @@ const Invoice = {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-        if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
         let remarkDisplay = '';
         if (isFusoClient) {
@@ -2209,7 +2208,6 @@ ${detailPagesHTML}
         if (specialNote && !categoryShort.includes(specialNote)) {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
-        if (c.regType === 'jyuminhyo') categoryShort = '住民票';
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
         const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
