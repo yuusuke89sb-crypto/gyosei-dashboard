@@ -3993,6 +3993,7 @@ window.NissanPrint = {
       if (specialNote && !categoryShort.includes(specialNote)) {
         categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
       }
+      if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
       const fee = Number(c.fee || 0);
       const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
