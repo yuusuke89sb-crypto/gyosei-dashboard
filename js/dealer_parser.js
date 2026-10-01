@@ -315,6 +315,7 @@ const DealerDocumentParser = {
       clientStaffPhone: parsed.staffPhone || '',
       deadline: parsed.receivedDate || '',
       status: '受任・書類確認中',
+      registeredAt: parsed.receivedDate || new Date().toISOString().split('T')[0],
       receivedDate: parsed.receivedDate || new Date().toISOString().split('T')[0],
       memo: memoLines.join('\n'),
       isOss: parsed.isOss,
@@ -833,6 +834,14 @@ const DealerDocumentParser = {
         if (textContent) {
           const parsed = JSON.parse(textContent);
           parsed.rawText = JSON.stringify(parsed);
+          // 蜿嶺ｿ｡繧｢繧､繝・Β縺後≠繧句ｴ蜷医∵嶌鬘槭°繧画律莉倥′蜿悶ｌ縺ｪ縺代ｌ縺ｰ蜿嶺ｿ｡譌･繧偵ヵ繧ｩ繝ｼ繝ｫ繝舌ャ繧ｯ謗｡逕ｨ
+          if (!parsed.receivedDate && item) {
+            const rawItemDate = item.date || item.receivedAt || '';
+            if (rawItemDate) {
+              const mDate = String(rawItemDate).match(/^(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
+              if (mDate) parsed.receivedDate = mDate[1].replace(/\//g, '-');
+            }
+          }
           parsed.suggestedTitle = `${parsed.storeFullName || parsed.dealerName || 'ディーラー'} - ${parsed.applicantName || '案件'} 様 (${parsed.applicationType || (parsed.isOss ? 'OSS' : '車庫証明')})`;
           // 顧客マスタ照合
           if (typeof Store !== 'undefined' && Store.getClients) {
