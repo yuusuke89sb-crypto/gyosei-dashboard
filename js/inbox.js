@@ -840,6 +840,24 @@ const InboxManager = {
         category = 'seal';
       }
 
+      // 蜿嶺ｿ｡譌･・・AX/繝｡繝ｼ繝ｫ縺悟ｱ翫＞縺滓律・峨ｒ逋ｻ骭ｲ譌･繝ｻ蜿嶺ｻｻ譌･縺ｨ縺励※謚ｽ蜃ｺ
+      let receivedDate = '';
+      const rawDate = item.date || item.receivedAt || (item.inboxItem && item.inboxItem.date) || '';
+      if (rawDate) {
+        if (typeof rawDate === 'string') {
+          const match = rawDate.match(/^(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
+          if (match) {
+            receivedDate = match[1].replace(/\//g, '-');
+          } else {
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) {
+              receivedDate = d.toISOString().split('T')[0];
+            }
+          }
+        } else if (rawDate instanceof Date) {
+          receivedDate = rawDate.toISOString().split('T')[0];
+        }
+      }
       const prefills = {
         title: (parsed && parsed.suggestedTitle) ? parsed.suggestedTitle : `${item.type === 'FAX' ? 'FAX' : 'メール'}依頼: ${item.subject || '無題案件'}`,
         clientId: (client ? client.id : '') || (parsed ? parsed.matchedClientId : ''),
@@ -848,6 +866,8 @@ const InboxManager = {
         applicantName: parsed ? parsed.applicantName : '',
         applicantAddress: parsed ? parsed.applicantAddress : '',
         memo: '',
+        registeredAt: receivedDate || '',
+        receivedDate: receivedDate || '',
         inboxId: item.id,
         faxId: item.type === 'FAX' ? item.id : '',
         attachments: attachments,
