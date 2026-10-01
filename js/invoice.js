@@ -526,6 +526,7 @@ const Invoice = {
                 <label>📋 請求書様式（テンプレート）</label>
                 <select id="invoiceTemplateType" class="form-select" style="font-weight:600;">
                   <option value="toyota" ${detectedTpl === 'toyota' ? 'selected' : ''}>愛知トヨタWEST様式（表紙サマリー＋明細票）</option>
+                  <option value="toyota_date" ${detectedTpl === 'toyota_date' ? 'selected' : ''}>愛知トヨタWEST様式（日付順モード）</option>
                   <option value="mitsubishi" ${detectedTpl === 'mitsubishi' ? 'selected' : ''}>三菱ふそう様式（業務別集計＋諸費用）</option>
                   <option value="nissan" ${detectedTpl === 'nissan' ? 'selected' : ''}>日産愛知販売様式（別紙明細報酬＋税目別立替）</option>
                   <option value="standard" ${detectedTpl === 'standard' ? 'selected' : ''}>標準様式（一般・他士業向け）</option>
@@ -610,6 +611,7 @@ const Invoice = {
                 <label>📋 請求書様式（テンプレート）</label>
                 <select id="reprintTemplateType" class="form-select" style="font-weight:600;">
                   <option value="toyota" ${detectedTpl === 'toyota' ? 'selected' : ''}>愛知トヨタWEST様式（表紙サマリー＋明細票）</option>
+                  <option value="toyota_date" ${detectedTpl === 'toyota_date' ? 'selected' : ''}>愛知トヨタWEST様式（日付順モード）</option>
                   <option value="mitsubishi" ${detectedTpl === 'mitsubishi' ? 'selected' : ''}>三菱ふそう様式（業務別集計＋諸費用）</option>
                   <option value="nissan" ${detectedTpl === 'nissan' ? 'selected' : ''}>日産愛知販売様式（別紙明細報酬＋税目別立替）</option>
                   <option value="standard" ${detectedTpl === 'standard' ? 'selected' : ''}>標準様式（一般向け）</option>
@@ -1342,6 +1344,8 @@ const Invoice = {
     const templateType = params.templateType || 'standard';
     if (templateType === 'toyota') {
       return this.buildToyotaInvoiceHTML(params);
+    } else if (templateType === 'toyota_date') {
+      return this.buildToyotaInvoiceHTML({ ...params, sortMode: 'date_only' });
     } else if (templateType === 'mitsubishi') {
       return this.buildMitsubishiInvoiceHTML(params);
     } else if (templateType === 'nissan') {
@@ -1350,10 +1354,53 @@ const Invoice = {
     return this.buildStandardInvoiceHTML(params);
   },
 
+  // 表紙の件名を案件内容に応じて動的に生成（トヨタ向け）
+  _getToyotaCoverTitle(cases) {
+    const nonSealCases = cases.filter(c => {
+      const cat = c.category || '';
+      const title = c.title || '';
+      return !(cat.includes('seal') || title.includes('封印') || (c.subCategory || '').includes('封印'));
+    });
+    if (nonSealCases.length === 0) return '車庫証明申請他';
+    
+    // 各案件のカテゴリを分析
+    const types = new Set();
+    nonSealCases.forEach(c => {
+      const cat = c.category || '';
+      const sub = c.subCategory || '';
+      const title = c.title || '';
+      const memo = c.memo || c.remarks || '';
+      if (cat.includes('garage') || title.includes('車庫')) {
+        types.add('車庫証明申請');
+      } else if (sub.includes('番号変更') || title.includes('番号変更') || memo.includes('番号変更') || cat === '番号変更') {
+        types.add('番号変更');
+      } else if (sub.includes('移転') || title.includes('移転') || sub === 'transfer') {
+        types.add('移転登録');
+      } else if (sub.includes('変更登録') || sub === 'change') {
+        types.add('変更登録');
+      } else if (sub.includes('新規') || title.includes('新規') || sub === 'new') {
+        types.add('新規登録');
+      } else {
+        types.add('その他');
+      }
+    });
+    
+    const typeArr = [...types];
+    if (typeArr.length === 1) {
+      // 1種類のみ → その名称をそのまま表示
+      return typeArr[0];
+    }
+    // 複数種類の場合：車庫証明があれば「車庫証明申請他」、なければ最初の種類 + 他
+    if (types.has('車庫証明申請')) {
+      return '車庫証明申請他';
+    }
+    return typeArr[0] + '他';
+  },
+
   // =========================================================================
   // 1. 愛知トヨタWEST様式（表紙サマリー＋明細票）
   // =========================================================================
-  buildToyotaInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice' }) {
+  buildToyotaInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default' }) {
     // 案件を集計（車庫証明、封印、移転登録、その他）
     let garageCount = 0, garageFee = 0;
     let sealCount = 0, sealFee = 0;
@@ -1464,10 +1511,27 @@ const Invoice = {
       return String(oa).localeCompare(String(ob));
     });
 
-    const nonSealCases = sortNonSealCases(cases.filter(c => !isSeal(c)));
-    const sealCases = sortSealCases(cases.filter(c => isSeal(c)));
-    // 封印はあくまで最後に並べる
-    const sortedCases = [...nonSealCases, ...sealCases];
+    let sortedCases;
+    if (sortMode === 'date_only') {
+      // 日付順モード：封印も含め全案件を純粋に日付順 → 注文No.順
+      sortedCases = [...cases].sort((a, b) => {
+        const da = getSortDate(a);
+        const db = getSortDate(b);
+        const cmp = da.localeCompare(db);
+        if (cmp !== 0) return cmp;
+        const oa = a.orderNo || a.caseNo || '';
+        const ob = b.orderNo || b.caseNo || '';
+        const na = parseOrderNum(oa);
+        const nb = parseOrderNum(ob);
+        if (na !== nb) return na - nb;
+        return String(oa).localeCompare(String(ob));
+      });
+    } else {
+      // デフォルト：非封印案件 → 封印案件の順
+      const nonSealCases = sortNonSealCases(cases.filter(c => !isSeal(c)));
+      const sealCases = sortSealCases(cases.filter(c => isSeal(c)));
+      sortedCases = [...nonSealCases, ...sealCases];
+    }
 
     // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
     const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
@@ -1593,7 +1657,7 @@ const Invoice = {
       detailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">車庫証明申請等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</span>` : ''}</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases)}等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</span>` : ''}</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div style="max-width:52%; flex-shrink:1;">
@@ -1854,7 +1918,7 @@ const Invoice = {
       <tr>
         <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
-          <div style="font-weight:bold;">${(garageCount > 0 && otherCount === 0) ? '車庫証明申請' : '車庫証明申請他'}</div>
+          <div style="font-weight:bold;">${this._getToyotaCoverTitle(cases)}</div>
           ${(garageCount > 0 && otherCount > 0) ? `<div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>` : ''}
         </td>
         <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
@@ -3460,6 +3524,8 @@ window.NissanPrint = {
     const templateType = params.templateType || 'standard';
     if (templateType === 'toyota') {
       this.buildToyotaExcel(wb, params);
+    } else if (templateType === 'toyota_date') {
+      this.buildToyotaExcel(wb, { ...params, sortMode: 'date_only' });
     } else if (templateType === 'mitsubishi') {
       this.buildMitsubishiExcel(wb, params);
     } else if (templateType === 'nissan') {
