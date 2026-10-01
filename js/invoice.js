@@ -207,6 +207,45 @@ const Invoice = {
   },
 
   // 請求書・明細書用に案件メモから社内システムログ・登録BOX合流履歴・OCR解析ログを除去
+  // 立替金明細の文字数に応じた自動縮小＆セル幅内収容（「県外封印払出（OSS登録分）:3,300」等もはみ出さず綺麗に収める）
+  _formatAdvanceItemHTML(label, amount) {
+    if (!amount || Number(amount) <= 0) return '';
+    const text = `${label}:${Number(amount).toLocaleString()}`;
+    const visualLen = this._getVisualLength(text);
+
+    // 立替金列幅17%(約30mm)
+    // 通常の「車庫証明証紙代:2,300」(約10.5文字)は 8.8px で綺麗に収まる
+    // 11文字を超える長文は文字数に応じて滑らかに自動縮小＆文字間引き締め
+    let fontSize = 8.8;
+    let letterSpacing = 0;
+
+    if (visualLen <= 11.0) {
+      // 11文字以下（例: 車庫証明証紙代:2,300, 証紙代:2,700 など）
+      fontSize = 8.8;
+      letterSpacing = 0;
+    } else if (visualLen <= 13.5) {
+      // 12〜13文字
+      fontSize = 7.6;
+      letterSpacing = -0.15;
+    } else if (visualLen <= 16.5) {
+      // 14〜16文字
+      fontSize = 6.8;
+      letterSpacing = -0.25;
+    } else if (visualLen <= 19.5) {
+      // 17〜19文字（例: 県外封印払出（OSS登録分）:3,300 ＝ 約17文字）
+      fontSize = 5.8;
+      letterSpacing = -0.30;
+    } else {
+      // 20文字以上の超長文
+      fontSize = Math.max(4.5, 5.5 - (visualLen - 19.5) * 0.1);
+      letterSpacing = -0.35;
+    }
+
+    const fsStr = fontSize.toFixed(1) + 'px';
+    const lsStr = letterSpacing === 0 ? 'normal' : letterSpacing.toFixed(2) + 'px';
+
+    return `<div style="white-space:nowrap; overflow:hidden; text-overflow:clip; font-size:${fsStr}; letter-spacing:${lsStr}; font-weight:500; line-height:1.25;">${text}</div>`;
+  },
   _cleanCaseMemoForInvoice(rawMemo) {
     if (!rawMemo) return '';
     let memo = String(rawMemo);
@@ -1536,7 +1575,7 @@ const Invoice = {
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
         const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
           const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
-          return `<div style="white-space:nowrap">${displayLabel}:${Number(a.amount).toLocaleString()}</div>`;
+          return this._formatAdvanceItemHTML(displayLabel, a.amount);
         }).join('');
 
         return `
@@ -1547,7 +1586,7 @@ const Invoice = {
           <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatPoliceHTML(policeName)}</td>
           <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
           <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num" style="font-size:11px; font-weight:600; color:#000; overflow:visible;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="font-size:9px; color:#000; font-weight:500; line-height:1.3;">${advDetails}</div>` : ''}` : ''}</td>
+          <td class="col-num" style="font-size:11px; font-weight:600; color:#000; overflow:hidden; text-overflow:clip; padding:3px 2px;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="color:#000; margin-top:1px;">${advDetails}</div>` : ''}` : ''}</td>
         </tr>`;
       }).join('');
 
