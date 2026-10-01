@@ -143,6 +143,33 @@ const Invoice = {
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
 
+  // 注文No.の文字数に応じた自動縮小＆はみ出し防止（ハイフン付き「57360239-0」等も綺麗に1行で収める）
+  _formatOrderNoHTML(orderNo) {
+    if (!orderNo || orderNo === '-') return '-';
+    const str = String(orderNo).trim();
+    const len = str.length;
+
+    let fontSize = '11px';
+    let letterSpacing = 'normal';
+
+    if (len > 12) {
+      fontSize = '7.5px';
+      letterSpacing = '-0.4px';
+    } else if (len > 10) {
+      fontSize = '8.5px';
+      letterSpacing = '-0.3px';
+    } else if (len > 8) {
+      // 9〜10文字（例: 57360239-0）
+      fontSize = '9.2px';
+      letterSpacing = '-0.2px';
+    } else {
+      fontSize = '11px';
+      letterSpacing = 'normal';
+    }
+
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
+  },
+
   // 備考欄の文字数に応じた自動縮小＆1行表示（文字が切れないよう最適化）
   _formatRemarkHTML(text) {
     if (!text || text === '-') return '-';
@@ -1515,7 +1542,7 @@ const Invoice = {
         return `
         <tr>
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
-          <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatOrderNoHTML(orderNo)}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatPoliceHTML(policeName)}</td>
           <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
@@ -2086,7 +2113,7 @@ ${detailPagesHTML}
         return `
         <tr>
           <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
-          <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${orderNo}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatOrderNoHTML(orderNo)}</td>
           <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatApplicantHTML(applicant)}</td>
           <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatPoliceHTML(policeName)}</td>
           <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
