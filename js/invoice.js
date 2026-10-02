@@ -1376,6 +1376,8 @@ const Invoice = {
       const memo = c.memo || c.remarks || '';
       if (cat.includes('garage') || title.includes('車庫')) {
         types.add('車庫証明申請');
+      } else if (sub.includes('車検証') || title.includes('車検証') || memo.includes('車検証') || c.regType === 'syakensho') {
+        types.add('車検証再交付');
       } else if (sub.includes('番号変更') || title.includes('番号変更') || memo.includes('番号変更') || cat === '番号変更') {
         types.add('番号変更');
       } else if (sub.includes('移転') || title.includes('移転') || sub === 'transfer') {
@@ -1631,6 +1633,7 @@ const Invoice = {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
+        if (c.regType === 'syakensho' || (c.subCategory && c.subCategory.includes('車検証')) || (c.title && c.title.includes('車検証再交付')) || (c.memo && c.memo.includes('車検証再交付'))) categoryShort = '車検証再交付';
 
         let remarkDisplay = '';
         if (isFusoClient) {
@@ -2213,6 +2216,7 @@ ${detailPagesHTML}
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
+        if (c.regType === 'syakensho' || (c.subCategory && c.subCategory.includes('車検証')) || (c.title && c.title.includes('車検証再交付')) || (c.memo && c.memo.includes('車検証再交付'))) categoryShort = '車検証再交付';
 
         const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
         const remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : (categoryShort || '-');
@@ -3998,6 +4002,7 @@ window.NissanPrint = {
         categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
       }
       if (c.regType === 'jyuminhyo') categoryShort = '住民票';
+        if (c.regType === 'syakensho' || (c.subCategory && c.subCategory.includes('車検証')) || (c.title && c.title.includes('車検証再交付')) || (c.memo && c.memo.includes('車検証再交付'))) categoryShort = '車検証再交付';
 
       const fee = Number(c.fee || 0);
       const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
