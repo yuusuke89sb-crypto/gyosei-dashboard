@@ -788,14 +788,14 @@ const Cases = {
                 </div>
 
                 <!-- 🤝 県外登録・外注提携先（提携行政書士）＆ 代行料・対応評価即時表示 -->
-                <div class="form-group" id="csf_partner_group" style="margin-bottom:14px; background:rgba(30,41,59,0.5); padding:10px 12px; border-radius:8px; border:1px solid rgba(56,189,248,0.25);">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <label style="margin:0; font-size:0.85rem; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px;">
-                      <span>🤝</span> 県外外注先（提携行政書士）
+                <div class="form-group" id="csf_partner_group" style="margin-bottom:14px; background:rgba(30,41,59,0.5); padding:12px 14px; border-radius:8px; border:1.5px solid rgba(56,189,248,0.35);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <label style="margin:0; font-size:0.96rem; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:1.15rem;">🤝</span> 県外外注先（提携行政書士）
                     </label>
-                    <button type="button" class="btn btn-ghost btn-small" onclick="App.navigate('partners')" style="font-size:0.75rem; color:#94a3b8; padding:1px 6px; text-decoration:underline;">マスター管理 ↗</button>
+                    <button type="button" class="btn btn-ghost btn-small" onclick="App.navigate('partners')" style="font-size:0.85rem; color:#94a3b8; padding:3px 8px; text-decoration:underline;">マスター管理 ↗</button>
                   </div>
-                  <select name="partnerId" id="csf_partnerId" class="form-select" onchange="Cases.onPartnerChange(this.value)" style="width:100%; font-size:0.88rem;">
+                  <select name="partnerId" id="csf_partnerId" class="form-select" onchange="Cases.onPartnerChange(this.value)" style="width:100%; font-size:0.95rem; font-weight:600; padding:8px 10px;">
                     <option value="">— 自所対応 / 県内通常（提携先なし） —</option>
                     ${typeof Store !== 'undefined' && Store.getPartners ? Store.getPartners().map(p => `
                       <option value="${p.id}">【${p.prefecture || '県外'}】${p.officeName} （${p.representative || '代表'}・${p.rating || '提携'}）</option>
@@ -803,7 +803,7 @@ const Cases = {
                   </select>
 
                   <!-- 提携先の代行料・対応評価プレビューカード（選択時に即時展開） -->
-                  <div id="csf_partner_preview" style="display:none; margin-top:8px;"></div>
+                  <div id="csf_partner_preview" style="display:none; margin-top:10px;"></div>
                 </div>
 
                 <!-- 店舗届ける予定日、店舗届ける時間帯 -->
@@ -2855,84 +2855,84 @@ const Cases = {
     let ratingBadge = '';
     const r = p.rating || '';
     if (r.includes('◎') || r.includes('迅速') || p.ratingLevel >= 5) {
-      ratingBadge = `<span style="background:rgba(16,185,129,0.18); color:#10b981; border:1px solid rgba(16,185,129,0.4); font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:bold;">⭐ ${p.rating || '対応◎・迅速'}</span>`;
+      ratingBadge = `<span style="background:rgba(16,185,129,0.18); color:#10b981; border:1px solid rgba(16,185,129,0.4); font-size:0.84rem; padding:3px 8px; border-radius:4px; font-weight:bold;">⭐ ${p.rating || '対応◎・迅速'}</span>`;
     } else if (r.includes('丁寧') || r.includes('安心')) {
-      ratingBadge = `<span style="background:rgba(59,130,246,0.18); color:#3b82f6; border:1px solid rgba(59,130,246,0.4); font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:bold;">⭐ ${p.rating || '丁寧・安心'}</span>`;
+      ratingBadge = `<span style="background:rgba(59,130,246,0.18); color:#38bdf8; border:1px solid rgba(59,130,246,0.4); font-size:0.84rem; padding:3px 8px; border-radius:4px; font-weight:bold;">⭐ ${p.rating || '丁寧・安心'}</span>`;
     } else {
-      ratingBadge = `<span style="background:rgba(245,158,11,0.18); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:bold;">★ ${p.rating || '標準'}</span>`;
+      ratingBadge = `<span style="background:rgba(245,158,11,0.18); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); font-size:0.84rem; padding:3px 8px; border-radius:4px; font-weight:bold;">★ ${p.rating || '標準'}</span>`;
     }
 
     // 各代行料金
-    const regFee = p.feeRegistration ? `¥${Number(p.feeRegistration).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal;">要問合せ</span>';
-    const lightFee = p.feeLight ? `¥${Number(p.feeLight).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal;">要問合せ</span>';
-    const garageFee = p.feeGarage ? `¥${Number(p.feeGarage).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal;">要問合せ</span>';
-    const sealFee = p.feeSeal ? `¥${Number(p.feeSeal).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal;">要問合せ</span>';
+    const regFee = p.feeRegistration ? `¥${Number(p.feeRegistration).toLocaleString()}` : '<span style="color:#94a3b8;font-weight:normal;font-size:0.92rem;">要問合せ</span>';
+    const lightFee = p.feeLight ? `¥${Number(p.feeLight).toLocaleString()}` : '<span style="color:#94a3b8;font-weight:normal;font-size:0.92rem;">要問合せ</span>';
+    const garageFee = p.feeGarage ? `¥${Number(p.feeGarage).toLocaleString()}` : '<span style="color:#94a3b8;font-weight:normal;font-size:0.92rem;">要問合せ</span>';
+    const sealFee = p.feeSeal ? `¥${Number(p.feeSeal).toLocaleString()}` : '<span style="color:#94a3b8;font-weight:normal;font-size:0.92rem;">要問合せ</span>';
 
     previewEl.style.display = 'block';
     previewEl.innerHTML = `
-      <div style="background:var(--bg-card, #1e293b); border:1.5px solid #0284c7; border-radius:8px; padding:12px; font-size:0.82rem; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-top:8px;">
+      <div style="background:var(--bg-card, #1e293b); border:1.5px solid #0284c7; border-radius:8px; padding:14px; font-size:0.92rem; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-top:8px;">
         <!-- ヘッダー：事務所名 & 評価 -->
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
           <div>
-            <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px; flex-wrap:wrap;">
-              <span style="background:#0284c7; color:#fff; font-size:0.72rem; font-weight:bold; padding:2px 6px; border-radius:3px;">${p.prefecture || '県外'}</span>
-              <strong style="color:var(--text-primary); font-size:0.95rem;">${p.officeName}</strong>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+              <span style="background:#0284c7; color:#fff; font-size:0.84rem; font-weight:bold; padding:3px 8px; border-radius:4px;">${p.prefecture || '県外'}</span>
+              <strong style="color:#ffffff; font-size:1.15rem; font-weight:700;">${p.officeName}</strong>
               ${ratingBadge}
             </div>
-            <div style="color:var(--text-secondary); font-size:0.75rem;">
+            <div style="color:#cbd5e1; font-size:0.86rem; display:flex; gap:10px; flex-wrap:wrap; margin-top:2px;">
               ${p.representative ? `<span>${p.representative}</span>` : ''}
-              ${p.branches ? `<span style="margin-left:8px; color:#38bdf8;">🏛️ ${p.branches}</span>` : ''}
+              ${p.branches ? `<span style="color:#38bdf8; font-weight:600;">🏛️ ${p.branches}</span>` : ''}
             </div>
           </div>
-          <div style="display:flex; gap:4px; flex-wrap:wrap;">
-            <button type="button" class="btn btn-secondary btn-small" onclick="Partners.copyLetterpack('${p.id}')" style="font-size:0.72rem; padding:2px 7px; color:#38bdf8; border-color:#38bdf8;" title="レターパック送付先宛名をクリップボードにコピー">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-small" onclick="Partners.copyLetterpack('${p.id}')" style="font-size:0.82rem; padding:4px 10px; font-weight:600; color:#38bdf8; border-color:#38bdf8;" title="レターパック送付先宛名をクリップボードにコピー">
               📋 宛名コピー
             </button>
-            <button type="button" class="btn btn-secondary btn-small" onclick="Partners.copyBank('${p.id}')" style="font-size:0.72rem; padding:2px 7px; color:#10b981; border-color:#10b981;" title="振込先口座をクリップボードにコピー">
+            <button type="button" class="btn btn-secondary btn-small" onclick="Partners.copyBank('${p.id}')" style="font-size:0.82rem; padding:4px 10px; font-weight:600; color:#10b981; border-color:#10b981;" title="振込先口座をクリップボードにコピー">
               🏦 口座コピー
             </button>
           </div>
         </div>
 
         <!-- 💰 代行料ハイライトボックス -->
-        <div style="background:rgba(2,132,199,0.08); border:1px solid rgba(56,189,248,0.3); border-radius:6px; padding:8px 10px; margin-bottom:8px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
-            <span style="font-weight:bold; color:#38bdf8; font-size:0.78rem;">💰 外注代行料目安（この先生の代行料金）</span>
-            ${p.feeNote ? `<span style="font-size:0.7rem; color:var(--text-muted);">${p.feeNote}</span>` : ''}
+        <div style="background:rgba(2,132,199,0.1); border:1px solid rgba(56,189,248,0.35); border-radius:6px; padding:10px 12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:4px;">
+            <span style="font-weight:bold; color:#38bdf8; font-size:0.92rem;">💰 外注代行料目安（この先生の代行料金）</span>
+            ${p.feeNote ? `<span style="font-size:0.82rem; color:#cbd5e1;">${p.feeNote}</span>` : ''}
           </div>
-          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; text-align:center;">
-            <div style="background:var(--bg-secondary, #0f172a); padding:6px 4px; border-radius:4px; border:1px solid var(--border-color);">
-              <div style="font-size:0.7rem; color:var(--text-muted);">🚗 普通車登録</div>
-              <div style="font-size:0.88rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">${regFee}</div>
+          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; text-align:center;">
+            <div style="background:var(--bg-secondary, #0f172a); padding:8px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.82rem; font-weight:600; color:#94a3b8;">🚗 普通車登録</div>
+              <div style="font-size:1.08rem; font-weight:bold; color:#ffffff; margin-top:3px;">${regFee}</div>
             </div>
-            <div style="background:var(--bg-secondary, #0f172a); padding:6px 4px; border-radius:4px; border:1px solid var(--border-color);">
-              <div style="font-size:0.7rem; color:var(--text-muted);">🚙 軽自動車</div>
-              <div style="font-size:0.88rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">${lightFee}</div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:8px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.82rem; font-weight:600; color:#94a3b8;">🚙 軽自動車</div>
+              <div style="font-size:1.08rem; font-weight:bold; color:#ffffff; margin-top:3px;">${lightFee}</div>
             </div>
-            <div style="background:var(--bg-secondary, #0f172a); padding:6px 4px; border-radius:4px; border:1px solid var(--border-color);">
-              <div style="font-size:0.7rem; color:var(--text-muted);">🅿️ 車庫証明</div>
-              <div style="font-size:0.88rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">${garageFee}</div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:8px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.82rem; font-weight:600; color:#94a3b8;">🅿️ 車庫証明</div>
+              <div style="font-size:1.08rem; font-weight:bold; color:#ffffff; margin-top:3px;">${garageFee}</div>
             </div>
-            <div style="background:var(--bg-secondary, #0f172a); padding:6px 4px; border-radius:4px; border:1px solid var(--border-color);">
-              <div style="font-size:0.7rem; color:var(--text-muted);">🔩 出張封印</div>
-              <div style="font-size:0.88rem; font-weight:bold; color:var(--accent-gold, #f59e0b); margin-top:2px;">${sealFee}</div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:8px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.82rem; font-weight:600; color:#94a3b8;">🔩 出張封印</div>
+              <div style="font-size:1.08rem; font-weight:bold; color:#fbbf24; margin-top:3px;">${sealFee}</div>
             </div>
           </div>
           <!-- 立替金へのワンクリック追加アシスト -->
-          <div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap;">
-            <span style="font-size:0.7rem; color:var(--text-muted);">立替金への反映:</span>
+          <div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap;">
+            <span style="font-size:0.82rem; font-weight:600; color:#cbd5e1;">立替金への反映:</span>
             ${p.feeRegistration ? `
-              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '登録代行料', ${p.feeRegistration})" style="font-size:0.7rem; padding:2px 7px; color:#38bdf8; border-color:rgba(56,189,248,0.3);">
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '登録代行料', ${p.feeRegistration})" style="font-size:0.82rem; padding:4px 9px; font-weight:600; color:#38bdf8; border-color:rgba(56,189,248,0.4);">
                 ＋普通車代行(${Number(p.feeRegistration).toLocaleString()}円)
               </button>
             ` : ''}
             ${p.feeLight ? `
-              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '軽登録代行料', ${p.feeLight})" style="font-size:0.7rem; padding:2px 7px; color:#38bdf8; border-color:rgba(56,189,248,0.3);">
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '軽登録代行料', ${p.feeLight})" style="font-size:0.82rem; padding:4px 9px; font-weight:600; color:#38bdf8; border-color:rgba(56,189,248,0.4);">
                 ＋軽登録(${Number(p.feeLight).toLocaleString()}円)
               </button>
             ` : ''}
             ${p.feeGarage ? `
-              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '車庫代行料', ${p.feeGarage})" style="font-size:0.7rem; padding:2px 7px; color:#38bdf8; border-color:rgba(56,189,248,0.3);">
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '車庫代行料', ${p.feeGarage})" style="font-size:0.82rem; padding:4px 9px; font-weight:600; color:#38bdf8; border-color:rgba(56,189,248,0.4);">
                 ＋車庫(${Number(p.feeGarage).toLocaleString()}円)
               </button>
             ` : ''}
@@ -2941,22 +2941,22 @@ const Cases = {
 
         <!-- ⏰ 締切 & 💡 対応メモ -->
         ${(p.deadlineNote || p.ratingNote || p.memo) ? `
-          <div style="background:rgba(245,158,11,0.06); border:1px dashed rgba(245,158,11,0.3); border-radius:6px; padding:6px 10px; font-size:0.76rem; color:#fde68a; line-height:1.4; margin-bottom:6px;">
+          <div style="background:rgba(245,158,11,0.08); border:1px dashed rgba(245,158,11,0.35); border-radius:6px; padding:8px 12px; font-size:0.88rem; color:#fef08a; line-height:1.55; margin-bottom:8px;">
             ${p.deadlineNote ? `<div><strong>⏰ 締切時間:</strong> ${p.deadlineNote}</div>` : ''}
             ${p.ratingNote ? `<div><strong>💡 対応の評判:</strong> ${p.ratingNote}</div>` : ''}
-            ${p.memo ? `<div style="color:var(--text-muted);">📝 ${p.memo}</div>` : ''}
+            ${p.memo ? `<div style="color:#cbd5e1; font-size:0.85rem; margin-top:2px;">📝 ${p.memo}</div>` : ''}
           </div>
         ` : ''}
 
         <!-- 📭 送付先 & TEL短縮表示 -->
-        <div style="font-size:0.75rem; color:var(--text-secondary); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:0.86rem; color:#cbd5e1; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08);">
           <div>
             <span>📭 ${p.zip ? `〒${p.zip} ` : ''}${p.address || ''}</span>
-            ${p.phone ? `<span style="margin-left:8px;">TEL: <strong style="color:var(--text-primary);">${p.phone}</strong></span>` : ''}
-            ${p.mobile ? `<span style="margin-left:6px; color:#fbbf24;">携帯: ${p.mobile}</span>` : ''}
+            ${p.phone ? `<span style="margin-left:10px;">TEL: <strong style="color:#ffffff; font-size:0.95rem;">${p.phone}</strong></span>` : ''}
+            ${p.mobile ? `<span style="margin-left:8px; color:#fef08a; font-weight:600;">携帯: ${p.mobile}</span>` : ''}
           </div>
           <div>
-            <a href="javascript:void(0)" onclick="Partners.showModal('${p.id}')" style="color:#38bdf8; text-decoration:underline;">提携先詳細・編集 ❯</a>
+            <a href="javascript:void(0)" onclick="Partners.showModal('${p.id}')" style="color:#38bdf8; text-decoration:underline; font-size:0.86rem; font-weight:600;">提携先詳細・編集 ❯</a>
           </div>
         </div>
       </div>
