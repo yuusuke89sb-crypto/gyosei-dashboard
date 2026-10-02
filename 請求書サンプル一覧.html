@@ -131,16 +131,35 @@
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="showTab('toyota')">🚗 愛知トヨタWEST様式（一宮店）</button>
+  <button class="tab-btn active" onclick="showTab('toyota-new')">✨ 愛知トヨタWEST【新様式・ゴシック】</button>
+  <button class="tab-btn" onclick="showTab('toyota')">🚗 愛知トヨタWEST【旧様式】</button>
   <button class="tab-btn" onclick="showTab('fuso')">🚚 三菱ふそう様式（小牧支店）</button>
   <button class="tab-btn" onclick="showTab('nissan')">🚙 日産愛知様式（桜井店）</button>
 </div>
 
 <div class="container">
-  <!-- トヨタ -->
-  <div id="tab-toyota" class="sample-card active">
+  <!-- トヨタ新様式 -->
+  <div id="tab-toyota-new" class="sample-card active">
     <div class="card-toolbar">
-      <span class="card-title">愛知トヨタWEST株式会社 一宮店 御中（2026年8月分 請求書）</span>
+      <div>
+        <span class="card-title">✨ 愛知トヨタWEST株式会社 一宮店 御中（新様式：ゴシック体統一・厳格1行収容・視認性特化）</span>
+        <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">
+          表紙サマリー＋明細票 / 全面ゴシック体統一 / セル内改行なし（厳格1行） / 行高拡大（padding 6px） / フォント11.5px〜9.2px
+        </div>
+      </div>
+      <div class="btn-group">
+        <a href="sample_toyota_invoice_v2.html" target="_blank" class="btn-action">🖨️ 単体で開く・印刷する</a>
+      </div>
+    </div>
+    <iframe id="frame-toyota-new" class="preview-frame" src="sample_toyota_invoice_v2.html"></iframe>
+  </div>
+
+  <!-- トヨタ旧様式 -->
+  <div id="tab-toyota" class="sample-card">
+    <div class="card-toolbar">
+      <div>
+        <span class="card-title">愛知トヨタWEST株式会社 一宮店 御中（従来様式 サンプル）</span>
+      </div>
       <div class="btn-group">
         <a href="sample_toyota_invoice.html" target="_blank" class="btn-action">🖨️ 単体で開く・印刷する</a>
       </div>
@@ -176,16 +195,11 @@ function showTab(id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.sample-card').forEach(c => c.classList.remove('active'));
   
-  if (id === 'toyota') {
-    document.querySelectorAll('.tab-btn')[0].classList.add('active');
-    document.getElementById('tab-toyota').classList.add('active');
-  } else if (id === 'fuso') {
-    document.querySelectorAll('.tab-btn')[1].classList.add('active');
-    document.getElementById('tab-fuso').classList.add('active');
-  } else if (id === 'nissan') {
-    document.querySelectorAll('.tab-btn')[2].classList.add('active');
-    document.getElementById('tab-nissan').classList.add('active');
-  }
+  const targetCard = document.getElementById('tab-' + id);
+  if (targetCard) targetCard.classList.add('active');
+  
+  const btn = document.querySelector(`.tab-btn[onclick="showTab('${id}')"]`);
+  if (btn) btn.classList.add('active');
 }
 </script>
 

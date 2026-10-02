@@ -246,6 +246,181 @@ const Invoice = {
 
     return `<div style="white-space:nowrap; overflow:hidden; text-overflow:clip; font-size:${fsStr}; letter-spacing:${lsStr}; font-weight:500; line-height:1.25;">${text}</div>`;
   },
+
+  // =========================================================================
+  // 新様式（ゴシック体統一・厳格1行収容・視認性特化）専用フォーマッター
+  // =========================================================================
+
+  // 新様式 申請者名・顧客名の1行フォーマッター（セル幅28% / 約52mm）
+  // 枠内1行収容（white-space:nowrap）を死守しつつ、極端な縮小を完全撤廃して下限9.0pxを保証
+  _formatApplicantGothicHTML(name) {
+    if (!name || name === '-') return '-';
+    const str = String(name).trim();
+    const visualLen = this._getVisualLength(str);
+
+    let fontSize = 11.5;
+    let letterSpacing = 0;
+
+    if (visualLen <= 11.0) {
+      fontSize = 11.5;
+      letterSpacing = 0;
+    } else if (visualLen <= 14.0) {
+      fontSize = 11.0;
+      letterSpacing = -0.15;
+    } else if (visualLen <= 17.0) {
+      fontSize = 10.2;
+      letterSpacing = -0.25;
+    } else if (visualLen <= 20.0) {
+      fontSize = 9.6;
+      letterSpacing = -0.35;
+    } else {
+      fontSize = Math.max(9.0, 9.6 - (visualLen - 20) * 0.08);
+      letterSpacing = -0.45;
+    }
+
+    const fsStr = fontSize.toFixed(1) + 'px';
+    const lsStr = letterSpacing === 0 ? 'normal' : letterSpacing.toFixed(2) + 'px';
+
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fsStr}; letter-spacing:${lsStr}; font-weight:600; line-height:1.2;">${str}</span>`;
+  },
+
+  // 新様式 管轄警察署名の1行フォーマッター（セル幅13.5% / 約25mm）
+  // 「西枇杷島」「小牧陸事」等の4文字も縮小せず11.5pxでクッキリ
+  _formatPoliceGothicHTML(police) {
+    if (!police || police === '-') return '-';
+    const str = String(police).trim();
+    const visualLen = this._getVisualLength(str);
+
+    let fontSize = '11.5px';
+    let letterSpacing = 'normal';
+    if (visualLen > 6.0) {
+      fontSize = '9.8px';
+      letterSpacing = '-0.25px';
+    } else if (visualLen > 4.5) {
+      fontSize = '10.8px';
+      letterSpacing = '-0.15px';
+    } else {
+      fontSize = '11.5px';
+      letterSpacing = 'normal';
+    }
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
+  },
+
+  // 新様式 注文No.の1行フォーマッター（セル幅10.5% / 約20mm）
+  // 等幅数字（tnum）でズレなく鮮明表示
+  _formatOrderNoGothicHTML(orderNo) {
+    if (!orderNo || orderNo === '-') return '-';
+    const str = String(orderNo).trim();
+    const len = str.length;
+
+    let fontSize = '11.5px';
+    let letterSpacing = 'normal';
+
+    if (len > 12) {
+      fontSize = '9.2px';
+      letterSpacing = '-0.35px';
+    } else if (len > 10) {
+      fontSize = '10.0px';
+      letterSpacing = '-0.25px';
+    } else if (len > 8) {
+      fontSize = '10.8px';
+      letterSpacing = '-0.15px';
+    } else {
+      fontSize = '11.5px';
+      letterSpacing = 'normal';
+    }
+
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">${str}</span>`;
+  },
+
+  // 新様式 備考欄の1行フォーマッター（セル幅14.5% / 約27mm）
+  // 従来の5.8pxなどの極小表示を排除し、8.5px〜11.5pxでくっきり表示
+  _formatRemarkGothicHTML(text) {
+    if (!text || text === '-') return '-';
+    const str = String(text).trim();
+    const visualLen = this._getVisualLength(str);
+
+    let fontSize = '11.5px';
+    let letterSpacing = 'normal';
+    if (visualLen > 14.0) {
+      fontSize = '8.5px';
+      letterSpacing = '-0.45px';
+    } else if (visualLen > 11.5) {
+      fontSize = '9.0px';
+      letterSpacing = '-0.38px';
+    } else if (visualLen > 9.5) {
+      fontSize = '9.6px';
+      letterSpacing = '-0.30px';
+    } else if (visualLen > 7.5) {
+      fontSize = '10.2px';
+      letterSpacing = '-0.20px';
+    } else if (visualLen > 5.0) {
+      fontSize = '11.0px';
+      letterSpacing = '-0.10px';
+    } else {
+      fontSize = '11.5px';
+      letterSpacing = 'normal';
+    }
+    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
+  },
+
+  // 新様式 立替金欄の厳格1行フォーマッター（セル幅17.0% / 約31mm）
+  // ディーラーの強い要望「絶対に2行にしない（1行厳格収容）」を完全遵守
+  _formatAdvanceCellGothicHTML(advSum, advances) {
+    if (!advSum || Number(advSum) <= 0) return '-';
+    const sumStr = Number(advSum).toLocaleString();
+    const validAdvances = (advances || []).filter(a => Number(a.amount) > 0);
+    if (validAdvances.length === 0) {
+      return `<span style="font-size:11.5px; font-weight:700; color:#000;">${sumStr}</span>`;
+    }
+
+    if (validAdvances.length === 1) {
+      const a = validAdvances[0];
+      let shortLabel = a.label || a.category || '証紙';
+      shortLabel = shortLabel.replace(/【.+?】/g, '').replace(/車庫証明/, '').replace(/申請/, '').replace(/代$/, '').trim() || '証紙';
+      if (shortLabel.length > 4) shortLabel = shortLabel.slice(0, 4);
+
+      return `<div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;">
+        <span style="font-size:11.5px; font-weight:700; color:#000;">${sumStr}</span>
+        <span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(${shortLabel})</span>
+      </div>`;
+    }
+
+    const shortLabels = validAdvances.map(a => {
+      let lbl = a.label || a.category || '実費';
+      lbl = lbl.replace(/【.+?】/g, '').replace(/車庫証明/, '').replace(/申請/, '').replace(/代$/, '').trim();
+      return lbl.slice(0, 2);
+    });
+    const combinedLabel = shortLabels.join('+');
+    return `<div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;">
+      <span style="font-size:11.5px; font-weight:700; color:#000;">${sumStr}</span>
+      <span style="font-size:8.8px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(${combinedLabel})</span>
+    </div>`;
+  },
+
+  // 新様式 宛名フォーマッター（ゴシック体）
+  _formatClientNameGothicHTML(name, baseSize = 20, isCover = false) {
+    if (!name) return '';
+    const str = String(name).trim();
+    const visualLen = this._getVisualLength(str);
+
+    let size = baseSize;
+    let letterSpacing = 'normal';
+    if (visualLen > 24) {
+      size = Math.round(baseSize * 0.72);
+      letterSpacing = '-0.4px';
+    } else if (visualLen > 18) {
+      size = Math.round(baseSize * 0.82);
+      letterSpacing = '-0.2px';
+    } else if (visualLen > 14) {
+      size = Math.round(baseSize * 0.92);
+      letterSpacing = '-0.1px';
+    }
+
+    const borderWidth = isCover ? '2px' : '1.5px';
+    return `<span style="font-size:${size}px; letter-spacing:${letterSpacing}; font-weight:bold; display:inline-block; border-bottom:${borderWidth} solid #000; padding-bottom:3px; white-space:nowrap; line-height:1.35; max-width:100%;">${str}</span>`;
+  },
+
   _cleanCaseMemoForInvoice(rawMemo) {
     if (!rawMemo) return '';
     let memo = String(rawMemo);
@@ -529,9 +704,12 @@ const Invoice = {
               <div class="form-group" style="flex:1;">
                 <label>📋 請求書様式（テンプレート）</label>
                 <select id="invoiceTemplateType" class="form-select" style="font-weight:600;">
-                  <option value="toyota" ${detectedTpl === 'toyota' ? 'selected' : ''}>愛知トヨタWEST様式（表紙サマリー＋明細票）</option>
-                  <option value="toyota_split" ${detectedTpl === 'toyota_split' ? 'selected' : ''}>愛知トヨタWEST様式（普通車・U-Car別明細）</option>
-                  <option value="toyota_date" ${detectedTpl === 'toyota_date' ? 'selected' : ''}>愛知トヨタWEST様式（日付順モード）</option>
+                  <option value="toyota_new" ${detectedTpl === 'toyota_new' || detectedTpl === 'toyota' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（表紙＋明細）</option>
+                  <option value="toyota_new_split" ${detectedTpl === 'toyota_new_split' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（普通車・U-Car別明細）</option>
+                  <option value="toyota_new_date" ${detectedTpl === 'toyota_new_date' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（日付順モード）</option>
+                  <option value="toyota">愛知トヨタWEST【旧様式・明朝】（表紙サマリー＋明細票）</option>
+                  <option value="toyota_split">愛知トヨタWEST【旧様式・明朝】（普通車・U-Car別明細）</option>
+                  <option value="toyota_date">愛知トヨタWEST【旧様式・明朝】（日付順モード）</option>
                   <option value="mitsubishi" ${detectedTpl === 'mitsubishi' ? 'selected' : ''}>三菱ふそう様式（業務別集計＋諸費用）</option>
                   <option value="nissan" ${detectedTpl === 'nissan' ? 'selected' : ''}>日産愛知販売様式（別紙明細報酬＋税目別立替）</option>
                   <option value="standard" ${detectedTpl === 'standard' ? 'selected' : ''}>標準様式（一般・他士業向け）</option>
@@ -615,9 +793,12 @@ const Invoice = {
               <div class="form-group" style="flex:1;">
                 <label>📋 請求書様式（テンプレート）</label>
                 <select id="reprintTemplateType" class="form-select" style="font-weight:600;">
-                  <option value="toyota" ${detectedTpl === 'toyota' ? 'selected' : ''}>愛知トヨタWEST様式（表紙サマリー＋明細票）</option>
-                  <option value="toyota_split" ${detectedTpl === 'toyota_split' ? 'selected' : ''}>愛知トヨタWEST様式（普通車・U-Car別明細）</option>
-                  <option value="toyota_date" ${detectedTpl === 'toyota_date' ? 'selected' : ''}>愛知トヨタWEST様式（日付順モード）</option>
+                  <option value="toyota_new" ${detectedTpl === 'toyota_new' || detectedTpl === 'toyota' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（表紙＋明細）</option>
+                  <option value="toyota_new_split" ${detectedTpl === 'toyota_new_split' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（普通車・U-Car別明細）</option>
+                  <option value="toyota_new_date" ${detectedTpl === 'toyota_new_date' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（日付順モード）</option>
+                  <option value="toyota">愛知トヨタWEST【旧様式・明朝】（表紙サマリー＋明細票）</option>
+                  <option value="toyota_split">愛知トヨタWEST【旧様式・明朝】（普通車・U-Car別明細）</option>
+                  <option value="toyota_date">愛知トヨタWEST【旧様式・明朝】（日付順モード）</option>
                   <option value="mitsubishi" ${detectedTpl === 'mitsubishi' ? 'selected' : ''}>三菱ふそう様式（業務別集計＋諸費用）</option>
                   <option value="nissan" ${detectedTpl === 'nissan' ? 'selected' : ''}>日産愛知販売様式（別紙明細報酬＋税目別立替）</option>
                   <option value="standard" ${detectedTpl === 'standard' ? 'selected' : ''}>標準様式（一般向け）</option>
@@ -1348,7 +1529,13 @@ const Invoice = {
   // 請求書HTMLビルダー（様式に応じた分岐）
   buildInvoiceHTML(params) {
     const templateType = params.templateType || 'standard';
-    if (templateType === 'toyota') {
+    if (templateType === 'toyota_new') {
+      return this.buildToyotaNewInvoiceHTML(params);
+    } else if (templateType === 'toyota_new_split') {
+      return this.buildToyotaNewSplitInvoiceHTML(params);
+    } else if (templateType === 'toyota_new_date') {
+      return this.buildToyotaNewInvoiceHTML({ ...params, sortMode: 'date_only' });
+    } else if (templateType === 'toyota') {
       return this.buildToyotaInvoiceHTML(params);
     } else if (templateType === 'toyota_split') {
       return this.buildToyotaSplitInvoiceHTML(params);
@@ -2645,6 +2832,1243 @@ ${detailPagesHTML}
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td style="font-size:11px;">${lbl}</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${data.count}件</td>
+        <td class="col-num">${data.amount.toLocaleString()}</td>
+      </tr>
+      `).join('') : `
+      <tr>
+        <td class="section-label col-center">立替金</td>
+        <td>立替金なし</td>
+        <td class="col-center" style="font-weight:600; color:#000;">0件</td>
+        <td class="col-num">0</td>
+      </tr>`}
+      <tr style="background:#fdfdfd; font-weight:bold;">
+        <td colspan="3" class="col-center">立替金計</td>
+        <td class="col-num">${advanceTotal.toLocaleString()}</td>
+      </tr>
+
+      <!-- 総合計 -->
+      <tr class="grand-total-row">
+        <td colspan="3" class="col-center">総　合　計</td>
+        <td class="col-num" style="font-size:18px;">¥${total.toLocaleString()}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
+  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
+  ${dueDate && docType !== 'estimate' ? `
+  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+    お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
+  </div>` : '<div style="margin-bottom: 20px;"></div>'}
+
+  <div class="sender-container">
+    <div class="bank-info">
+      <h4>《 振込先 》</h4>
+      <div>${office.bankName || '三菱UFJ銀行'}　${office.bankBranch || '西春支店'}</div>
+      <div>${office.accountType || '普通'}　${office.accountNumber || '0129129'}</div>
+      <div>口座名義：${office.accountHolder || '行政書士法人フェリス'}</div>
+      <div style="font-size:11px; color:#555; margin-top:4px;">※振込手数料は貴社にてご負担願います。</div>
+    </div>
+    <div class="office-info">
+      ${this._renderToyotaSealHTML('cover')}
+      <div>${office.assocName || '愛知県行政書士会会員'}</div>
+      <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:14px; margin:2px 0;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div>TEL: ${office.tel || '0586-50-2896'}</div>
+      <div>FAX: ${office.fax || '0568-26-3714'}</div>
+      ${office.registrationNumber ? `<div style="font-size:11px;">登録番号: ${office.registrationNumber}</div>` : ''}
+    </div>
+  </div>
+</div>
+
+${detailPagesHTML}
+
+</body>
+</html>`;
+  },
+
+  // =========================================================================
+  // 1-C. 愛知トヨタWEST【新様式】（ゴシック体統一・厳格1行収容・視認性特化）
+  // 表紙サマリー＋明細票
+  // =========================================================================
+  buildToyotaNewInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default' }) {
+    let garageCount = 0, garageFee = 0;
+    let sealCount = 0, sealFee = 0;
+    let otherCount = 0, otherFee = 0;
+
+    cases.forEach(c => {
+      const cat = c.category || '';
+      const title = c.title || '';
+      if (cat.includes('garage') || title.includes('車庫')) {
+        garageCount++;
+        garageFee += Number(c.fee || 0);
+      } else if (cat.includes('seal') || title.includes('封印')) {
+        sealCount++;
+        sealFee += Number(c.fee || 0);
+      } else {
+        otherCount++;
+        otherFee += Number(c.fee || 0);
+      }
+    });
+
+    const advMap = {};
+    cases.forEach(c => {
+      (c.advances || []).forEach(a => {
+        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : 'その他実費')))));
+        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
+        const amt = Number(a.amount || 0);
+        if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
+        advMap[lbl].count++;
+        advMap[lbl].amount += amt;
+      });
+    });
+
+    const rawClientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
+    let effectiveIssueDate = issueDate;
+    if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
+      const bp = Store.getBillingPeriod(year, month);
+      if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
+    }
+    if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
+    const [issueY, issueM, issueD] = effectiveIssueDate.split('-');
+    const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
+
+    const getSortDate = (c) => {
+      const raw = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+      if (!raw) return '9999-99-99';
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      const parts = String(raw).split(/[-/T\s]/);
+      if (parts.length >= 3) {
+        const y = parts[0].padStart(4, '20');
+        const m = parts[1].padStart(2, '0');
+        const day = parts[2].padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      return String(raw);
+    };
+    const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印') || (c.subCategory || '').includes('封印');
+    const isGarageCase = (c) => {
+      const cat = c.category || '';
+      const sub = c.subCategory || '';
+      const title = c.title || '';
+      if (cat === 'garage_oss' || cat === 'garage_paper') return true;
+      if (sub.includes('OSS') || sub.includes('車庫') || sub.includes('一般')) return true;
+      if (title.includes('OSS') || title.includes('車庫証明') || title.includes('車庫')) return true;
+      return false;
+    };
+    const parseOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
+
+    const sortNonSealCases = (arr) => arr.sort((a, b) => {
+      const da = getSortDate(a);
+      const db = getSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const pA = isGarageCase(a) ? 1 : 2;
+      const pB = isGarageCase(b) ? 1 : 2;
+      if (pA !== pB) return pA - pB;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseOrderNum(oa);
+      const nb = parseOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
+
+    const sortSealCases = (arr) => arr.sort((a, b) => {
+      const da = getSortDate(a);
+      const db = getSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseOrderNum(oa);
+      const nb = parseOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
+
+    let sortedCases;
+    if (sortMode === 'date_only') {
+      sortedCases = [...cases].sort((a, b) => {
+        const da = getSortDate(a);
+        const db = getSortDate(b);
+        const cmp = da.localeCompare(db);
+        if (cmp !== 0) return cmp;
+        const oa = a.orderNo || a.caseNo || '';
+        const ob = b.orderNo || b.caseNo || '';
+        const na = parseOrderNum(oa);
+        const nb = parseOrderNum(ob);
+        if (na !== nb) return na - nb;
+        return String(oa).localeCompare(String(ob));
+      });
+    } else {
+      const nonSealCases = sortNonSealCases(cases.filter(c => !isSeal(c)));
+      const sealCases = sortSealCases(cases.filter(c => isSeal(c)));
+      sortedCases = [...nonSealCases, ...sealCases];
+    }
+
+    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
+      if (!items || items.length === 0) return [[]];
+      if (items.length <= maxLimit) return [items];
+      const pages = [];
+      let remaining = [...items];
+      while (remaining.length > 0) {
+        if (remaining.length <= maxLimit) {
+          pages.push(remaining);
+          break;
+        }
+        pages.push(remaining.slice(0, baseLimit));
+        remaining = remaining.slice(baseLimit);
+      }
+      return pages;
+    };
+
+    const detailPages = paginateCases(sortedCases, 20, 22);
+    const totalDetailPages = detailPages.length;
+
+    const clientFullName = [
+      client.companyName || '',
+      client.name || '',
+      client.tradeName || '',
+      client.ruby || '',
+      client.code || ''
+    ].join(' ');
+    const isFusoClient = /三菱ふそう|ふそう|FUSO/i.test(clientFullName) ||
+      /三菱ふそう|ふそう|FUSO/i.test(note || '') ||
+      cases.some(c => /三菱ふそう|ふそう|FUSO/i.test(c.dealer || c.clientName || ''));
+
+    let detailPagesHTML = '';
+    for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
+      const pageNum = pIdx + 1;
+      const isLastPage = (pageNum === totalDetailPages);
+      const pageCases = detailPages[pIdx];
+
+      const rowsHTML = pageCases.map((c) => {
+        const rawDate = getSortDate(c);
+        let dateStr = '-';
+        if (rawDate) {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+          } else {
+            const parts = String(rawDate).split(/[-/T]/);
+            if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+            else dateStr = String(rawDate).slice(5);
+          }
+        }
+        const orderNo = c.orderNo || c.caseNo || '-';
+        const applicant = c.carName || c.applicantName || c.title || '-';
+        
+        let policeName = '';
+        if (c.category !== 'garage_oss') {
+          policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+          if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+            const loc = Store.getLocation(c.policeLocationId);
+            if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+          }
+          if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+        }
+
+        let categoryShort = '';
+        const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
+        const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
+        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
+
+        if (isKibo && isLight) {
+          categoryShort = '軽・希望ナンバー';
+        } else if (isKibo) {
+          categoryShort = '希望ナンバー申込';
+        } else if (c.category === 'garage_oss') {
+          categoryShort = 'OSS';
+        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+          categoryShort = isLight ? '一般・軽' : '一般';
+        } else if (c.subCategory) {
+          categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
+        } else if (c.category === 'car_reg_standard') {
+          categoryShort = '新規登録';
+        } else if (c.category === 'car_reg_light') {
+          categoryShort = '軽登録';
+        } else if (c.category === 'seal') {
+          categoryShort = '封印';
+        }
+        if (c.isUsedCar) {
+          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+        }
+        const specialNote = this._getCaseSpecialNote(c);
+        if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
+          categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
+        }
+        if (c.regType === 'jyuminhyo') categoryShort = '住民票';
+
+        let remarkDisplay = '';
+        if (isFusoClient) {
+          const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
+          remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, ' ') : (categoryShort || '-');
+        } else {
+          remarkDisplay = categoryShort || '-';
+        }
+
+        const fee = Number(c.fee || 0);
+        const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
+
+        return `
+        <tr style="height: 32px;">
+          <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">${dateStr}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;">${this._formatOrderNoGothicHTML(orderNo)}</td>
+          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">${this._formatApplicantGothicHTML(applicant)}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">${this._formatPoliceGothicHTML(policeName)}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;">${this._formatRemarkGothicHTML(remarkDisplay)}</td>
+          <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+          <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">${this._formatAdvanceCellGothicHTML(advSum, c.advances)}</td>
+        </tr>`;
+      }).join('');
+
+      detailPagesHTML += `
+<!-- 明細書 ページ ${pageNum} -->
+<div class="page ${isLastPage ? '' : 'page-break'}">
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</span>` : ''}</div>
+  
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
+    <div style="max-width:52%; flex-shrink:1;">
+      ${this._formatClientNameGothicHTML(clientName, 15, false)}
+    </div>
+    <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box; position:relative;">
+      ${this._renderToyotaSealHTML('detail')}
+      <div>〒${office.zip || '481-0033'}</div>
+      <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div style="margin-top:4px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM} 月分　　№${pageNum}</div>
+    </div>
+  </div>
+
+  <table class="grid-table" style="font-size:11.5px; margin-bottom:6px;">
+    <colgroup>
+      <col style="width: 6.5%;">
+      <col style="width: 10.5%;">
+      <col style="width: 28.0%;">
+      <col style="width: 13.5%;">
+      <col style="width: 14.5%;">
+      <col style="width: 10.0%;">
+      <col style="width: 17.0%;">
+    </colgroup>
+    <thead>
+      <tr>
+        <th rowspan="2">日付</th>
+        <th colspan="4">申　請　者</th>
+        <th rowspan="2">報酬額</th>
+        <th rowspan="2">立替金</th>
+      </tr>
+      <tr>
+        <th>${isFusoClient ? '受注No.' : '注文No.'}</th>
+        <th>氏　名</th>
+        <th>管　轄</th>
+        <th>備　考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHTML}
+      ${isLastPage ? `
+      <tr style="font-weight:bold; background:#f8fafc; color:#000; height:34px;">
+        <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">合　　計</td>
+        <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${advanceTotal.toLocaleString()}</td>
+      </tr>` : ''}
+    </tbody>
+  </table>
+
+  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:16px; padding-top:4px;">
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${pageNum}/${totalDetailPages})
+  </div>
+</div>
+`;
+    }
+
+    return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>請求書 ${clientName} 様（新様式）</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Yu Gothic UI', 'Hiragino Sans', 'BIZ UDPGothic', 'Meiryo', sans-serif;
+    color: #000;
+    background: #e2e8f0;
+    padding: 20px;
+    -webkit-print-color-adjust: exact;
+  }
+  @media print {
+    body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+    .no-print { display: none !important; }
+    @page { size: A4 portrait; margin: 8mm 10mm; }
+    .page {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: auto !important;
+      height: auto !important;
+      margin: 0 !important;
+      padding: 0 1.5mm !important;
+      box-shadow: none !important;
+      box-sizing: border-box !important;
+      page-break-after: auto !important;
+      break-after: auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      position: relative !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    .page.page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
+    .page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    background: #fff;
+    margin: 0 auto 20px;
+    padding: 15mm 18mm 12mm;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  .no-print-bar {
+    max-width: 210mm;
+    margin: 0 auto 15px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .btn {
+    padding: 8px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  .btn-print { background: #2563eb; color: #fff; }
+  .btn-close { background: #cbd5e1; color: #1e293b; }
+
+  .doc-title {
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    margin-bottom: 18px;
+    padding-bottom: 6px;
+  }
+  .recipient-box {
+    margin-bottom: 22px;
+    font-size: 21px;
+    font-weight: bold;
+  }
+
+  table.grid-table {
+    width: calc(100% - 1px);
+    margin: 0 auto 12px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 11.5px;
+    box-sizing: border-box;
+  }
+  table.grid-table th, table.grid-table td {
+    border: 1px solid #000;
+    padding: 6px 5px;
+    line-height: 1.35;
+    overflow: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
+    vertical-align: middle;
+  }
+  table.grid-table th:last-child,
+  table.grid-table td:last-child {
+    border-right: 1.2px solid #000;
+  }
+  table.grid-table th {
+    background: #f1f5f9;
+    text-align: center;
+    font-weight: bold;
+    color: #000;
+    padding: 6px 4px;
+  }
+  .col-num { text-align: right; font-weight: 600; color: #000; }
+  .col-center { text-align: center; }
+
+  .section-label {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 4px;
+    font-weight: bold;
+    background: #f1f5f9;
+  }
+
+  .grand-total-row th, .grand-total-row td {
+    font-size: 15px;
+    font-weight: bold;
+    background: #f8fafc;
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+  }
+
+  .sender-container {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .bank-info {
+    width: 48%;
+  }
+  .bank-info h4 {
+    font-size: 13px;
+    margin-bottom: 4px;
+    font-weight: bold;
+  }
+  .office-info {
+    width: 50%;
+    text-align: right;
+    padding-right: 20mm;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .seal-stamp-cover {
+    position: absolute;
+    right: 8mm;
+    top: 7mm;
+    width: 21mm;
+    height: 21mm;
+    mix-blend-mode: multiply;
+    opacity: 0.88;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .seal-stamp-detail {
+    position: absolute;
+    right: 8mm;
+    top: 3.5mm;
+    width: 17mm;
+    height: 17mm;
+    mix-blend-mode: multiply;
+    opacity: 0.88;
+    pointer-events: none;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print-bar no-print">
+  <button class="btn btn-print" onclick="window.print()">🖨️ 印刷 / PDF出力</button>
+  <button class="btn btn-close" onclick="window.close()">✕ 閉じる</button>
+</div>
+
+<!-- 1ページ目：請求書 表紙（新様式・ゴシック体） -->
+<div class="page page-break">
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</div>` : ''}</div>
+  
+  <div class="recipient-box">
+    ${this._formatClientNameGothicHTML(clientName, 21, true)}
+  </div>
+
+  <table class="grid-table">
+    <thead>
+      <tr>
+        <th style="width: 15%;">区分</th>
+        <th style="width: 45%;">件名</th>
+        <th style="width: 15%;">数量</th>
+        <th style="width: 25%;">金額（円）</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
+        <td>
+          <div style="font-weight:bold;">${this._getToyotaCoverTitle(cases)}</div>
+          ${(garageCount > 0 && otherCount > 0) ? `<div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>` : ''}
+        </td>
+        <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
+        <td class="col-num">${(garageFee + otherFee).toLocaleString()}</td>
+      </tr>
+      ${sealCount > 0 ? `<tr>
+        <td>
+          <div style="font-weight:bold;">封印</div>
+        </td>
+        <td class="col-center" style="font-weight:600; color:#000;">${sealCount}件</td>
+        <td class="col-num">${sealFee.toLocaleString()}</td>
+      </tr>` : ''}
+      <tr style="background:#fdfdfd;">
+        <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${cases.length}件</td>
+        <td class="col-num" style="font-weight:bold;">${feeSubtotal.toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td colspan="3" class="col-center">消費税 (${taxRate || 10}%)</td>
+        <td class="col-num">${tax.toLocaleString()}</td>
+      </tr>
+      <tr style="font-weight:bold; background:#f8fafc;">
+        <td colspan="3" class="col-center">合　　計</td>
+        <td class="col-num">${(feeSubtotal + tax).toLocaleString()}</td>
+      </tr>
+
+      <!-- 立替金パート -->
+      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'その他実費':6}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
+      <tr>
+        ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
+        <td style="font-size:11.5px;">${lbl}</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${data.count}件</td>
+        <td class="col-num">${data.amount.toLocaleString()}</td>
+      </tr>
+      `).join('') : `
+      <tr>
+        <td class="section-label col-center">立替金</td>
+        <td>立替金なし</td>
+        <td class="col-center" style="font-weight:600; color:#000;">0件</td>
+        <td class="col-num">0</td>
+      </tr>`}
+      <tr style="background:#fdfdfd; font-weight:bold;">
+        <td colspan="3" class="col-center">立替金計</td>
+        <td class="col-num">${advanceTotal.toLocaleString()}</td>
+      </tr>
+
+      <!-- 総合計 -->
+      <tr class="grand-total-row">
+        <td colspan="3" class="col-center">総　合　計</td>
+        <td class="col-num" style="font-size:18px;">¥${total.toLocaleString()}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
+  <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
+  ${dueDate && docType !== 'estimate' ? `
+  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+    お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
+  </div>` : '<div style="margin-bottom: 20px;"></div>'}
+
+  <div class="sender-container">
+    <div class="bank-info">
+      <h4>《 振込先 》</h4>
+      <div>${office.bankName || '三菱UFJ銀行'}　${office.bankBranch || '西春支店'}</div>
+      <div>${office.accountType || '普通'}　${office.accountNumber || '0129129'}</div>
+      <div>口座名義：${office.accountHolder || '行政書士法人フェリス'}</div>
+      <div style="font-size:11px; color:#555; margin-top:4px;">※振込手数料は貴社にてご負担願います。</div>
+    </div>
+    <div class="office-info">
+      ${this._renderToyotaSealHTML('cover')}
+      <div>${office.assocName || '愛知県行政書士会会員'}</div>
+      <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:14px; margin:2px 0;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div>TEL: ${office.tel || '0586-50-2896'}</div>
+      <div>FAX: ${office.fax || '0568-26-3714'}</div>
+      ${office.registrationNumber ? `<div style="font-size:11px;">登録番号: ${office.registrationNumber}</div>` : ''}
+    </div>
+  </div>
+</div>
+
+${detailPagesHTML}
+
+</body>
+</html>`;
+  },
+
+  // =========================================================================
+  // 1-D. 愛知トヨタWEST【新様式】（普通車・U-Car別明細・ゴシック統一）
+  // =========================================================================
+  buildToyotaNewSplitInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default' }) {
+    const isCaseUsed = (c) => {
+      if (c.isUsedCar === true || c.isUsedCar === 'true' || c.isUsedCar === 1) return true;
+      const title = c.title || '';
+      const memo = c.memo || c.remarks || c.note || '';
+      const sub = c.subCategory || '';
+      if (sub.includes('U-Car') || sub.includes('中古')) return true;
+      if (title.includes('U-Car') || title.includes('中古')) return true;
+      if (memo.includes('U-Car') || memo.includes('中古車')) return true;
+      return false;
+    };
+
+    const normalCases = cases.filter(c => !isCaseUsed(c));
+    const usedCases = cases.filter(c => isCaseUsed(c));
+
+    const normalFee = normalCases.reduce((s, c) => s + Number(c.fee || 0), 0);
+    const normalAdv = normalCases.reduce((s, c) => s + (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0), 0);
+    const usedFee = usedCases.reduce((s, c) => s + Number(c.fee || 0), 0);
+    const usedAdv = usedCases.reduce((s, c) => s + (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0), 0);
+
+    let garageCount = 0, garageFee = 0;
+    let sealCount = 0, sealFee = 0;
+    let otherCount = 0, otherFee = 0;
+
+    cases.forEach(c => {
+      const cat = c.category || '';
+      const title = c.title || '';
+      if (cat.includes('garage') || title.includes('車庫')) {
+        garageCount++;
+        garageFee += Number(c.fee || 0);
+      } else if (cat.includes('seal') || title.includes('封印')) {
+        sealCount++;
+        sealFee += Number(c.fee || 0);
+      } else {
+        otherCount++;
+        otherFee += Number(c.fee || 0);
+      }
+    });
+
+    const advMap = {};
+    cases.forEach(c => {
+      (c.advances || []).forEach(a => {
+        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : 'その他実費')))));
+        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
+        const amt = Number(a.amount || 0);
+        if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
+        advMap[lbl].count++;
+        advMap[lbl].amount += amt;
+      });
+    });
+
+    const rawClientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
+    const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
+    let effectiveIssueDate = issueDate;
+    if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
+      const bp = Store.getBillingPeriod(year, month);
+      if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
+    }
+    if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
+    const [issueY, issueM, issueD] = effectiveIssueDate.split('-');
+    const reiwaYear = issueY ? parseInt(issueY) - 2018 : 8;
+
+    const getSortDate = (c) => {
+      const raw = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
+      if (!raw) return '9999-99-99';
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      const parts = String(raw).split(/[-/T\s]/);
+      if (parts.length >= 3) {
+        const y = parts[0].padStart(4, '20');
+        const m = parts[1].padStart(2, '0');
+        const day = parts[2].padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      return String(raw);
+    };
+    const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印') || (c.subCategory || '').includes('封印');
+    const isGarageCase = (c) => {
+      const cat = c.category || '';
+      const sub = c.subCategory || '';
+      const title = c.title || '';
+      if (cat === 'garage_oss' || cat === 'garage_paper') return true;
+      if (sub.includes('OSS') || sub.includes('車庫') || sub.includes('一般')) return true;
+      if (title.includes('OSS') || title.includes('車庫証明') || title.includes('車庫')) return true;
+      return false;
+    };
+    const parseOrderNum = (s) => { const m = String(s || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : Infinity; };
+
+    const sortNonSealCases = (arr) => arr.sort((a, b) => {
+      const da = getSortDate(a);
+      const db = getSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const pA = isGarageCase(a) ? 1 : 2;
+      const pB = isGarageCase(b) ? 1 : 2;
+      if (pA !== pB) return pA - pB;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseOrderNum(oa);
+      const nb = parseOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
+
+    const sortSealCases = (arr) => arr.sort((a, b) => {
+      const da = getSortDate(a);
+      const db = getSortDate(b);
+      const cmp = da.localeCompare(db);
+      if (cmp !== 0) return cmp;
+      const oa = a.orderNo || a.caseNo || '';
+      const ob = b.orderNo || b.caseNo || '';
+      const na = parseOrderNum(oa);
+      const nb = parseOrderNum(ob);
+      if (na !== nb) return na - nb;
+      return String(oa).localeCompare(String(ob));
+    });
+
+    const sortCaseList = (items) => {
+      if (sortMode === 'date_only') {
+        return [...items].sort((a, b) => {
+          const da = getSortDate(a);
+          const db = getSortDate(b);
+          const cmp = da.localeCompare(db);
+          if (cmp !== 0) return cmp;
+          const oa = a.orderNo || a.caseNo || '';
+          const ob = b.orderNo || b.caseNo || '';
+          const na = parseOrderNum(oa);
+          const nb = parseOrderNum(ob);
+          if (na !== nb) return na - nb;
+          return String(oa).localeCompare(String(ob));
+        });
+      }
+      const nonSeal = sortNonSealCases(items.filter(c => !isSeal(c)));
+      const seal = sortSealCases(items.filter(c => isSeal(c)));
+      return [...nonSeal, ...seal];
+    };
+
+    const sortedNormalCases = sortCaseList(normalCases);
+    const sortedUsedCases = sortCaseList(usedCases);
+
+    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
+      if (!items || items.length === 0) return [[]];
+      if (items.length <= maxLimit) return [items];
+      const pages = [];
+      let remaining = [...items];
+      while (remaining.length > 0) {
+        if (remaining.length <= maxLimit) {
+          pages.push(remaining);
+          break;
+        }
+        pages.push(remaining.slice(0, baseLimit));
+        remaining = remaining.slice(baseLimit);
+      }
+      return pages;
+    };
+
+    const hasNormal = sortedNormalCases.length > 0;
+    const hasUsed = sortedUsedCases.length > 0;
+
+    const buildSectionDetailPages = (sectionCases, sectionLabel, sectionFee, sectionAdv, isVeryLastSection) => {
+      if (!sectionCases || sectionCases.length === 0) return '';
+      const pages = paginateCases(sectionCases, 20, 22);
+      const totalPages = pages.length;
+      let html = '';
+
+      for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+        const pageNum = pIdx + 1;
+        const isSectionLast = (pageNum === totalPages);
+        const isDocLast = isSectionLast && isVeryLastSection;
+        const pageCases = pages[pIdx];
+
+        const rowsHTML = pageCases.map((c) => {
+          const rawDate = getSortDate(c);
+          let dateStr = '-';
+          if (rawDate) {
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) {
+              dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+            } else {
+              const parts = String(rawDate).split(/[-/T]/);
+              if (parts.length >= 3) dateStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+              else dateStr = String(rawDate).slice(5);
+            }
+          }
+          const orderNo = c.orderNo || c.caseNo || '-';
+          const applicant = c.carName || c.applicantName || c.title || '-';
+
+          let policeName = '';
+          if (c.category !== 'garage_oss') {
+            policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+            if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
+              const loc = Store.getLocation(c.policeLocationId);
+              if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
+            }
+            if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+          }
+
+          let categoryShort = '';
+          const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
+          const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
+          const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
+
+          if (isKibo && isLight) {
+            categoryShort = '軽・希望ナンバー';
+          } else if (isKibo) {
+            categoryShort = '希望ナンバー申込';
+          } else if (c.category === 'garage_oss') {
+            categoryShort = 'OSS';
+          } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+            categoryShort = isLight ? '一般・軽' : '一般';
+          } else if (c.subCategory) {
+            categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
+          } else if (c.category === 'car_reg_standard') {
+            categoryShort = '新規登録';
+          } else if (c.category === 'car_reg_light') {
+            categoryShort = '軽登録';
+          } else if (c.category === 'seal') {
+            categoryShort = '封印';
+          }
+          if (c.isUsedCar) {
+            categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+          }
+          const specialNote = this._getCaseSpecialNote(c);
+          if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
+            categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
+          }
+          if (c.regType === 'jyuminhyo') categoryShort = '住民票';
+
+          const remarkDisplay = categoryShort || '-';
+          const fee = Number(c.fee || 0);
+          const advSum = (c.advances || []).reduce((s, a) => s + Number(a.amount || 0), 0);
+
+          return `
+          <tr style="height: 32px;">
+            <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">${dateStr}</td>
+            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;">${this._formatOrderNoGothicHTML(orderNo)}</td>
+            <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">${this._formatApplicantGothicHTML(applicant)}</td>
+            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">${this._formatPoliceGothicHTML(policeName)}</td>
+            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;">${this._formatRemarkGothicHTML(remarkDisplay)}</td>
+            <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+            <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">${this._formatAdvanceCellGothicHTML(advSum, c.advances)}</td>
+          </tr>`;
+        }).join('');
+
+        const subtotalHTML = isSectionLast ? `
+        <tr style="font-weight:bold; background:#f1f5f9; color:#000; height:34px;">
+          <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">${sectionLabel}　小計</td>
+          <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${sectionFee.toLocaleString()}</td>
+          <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${sectionAdv.toLocaleString()}</td>
+        </tr>` : '';
+
+        const grandTotalHTML = isDocLast ? `
+        <tr style="font-weight:bold; background:#e2e8f0; color:#000; height:34px; border-top:2px solid #000;">
+          <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">当月総合計（新車・U-Car合算）</td>
+          <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${feeSubtotal.toLocaleString()}</td>
+          <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${advanceTotal.toLocaleString()}</td>
+        </tr>` : '';
+
+        html += `
+<!-- 明細書 ページ ${pageNum} [${sectionLabel}] -->
+<div class="page ${isDocLast ? '' : 'page-break'}">
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書<span style="font-size:14px; letter-spacing:1px; font-weight:bold; margin-left:14px; color:#1e3a8a; vertical-align:middle;">【${sectionLabel}】</span></div>
+  
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
+    <div style="max-width:52%; flex-shrink:1;">
+      ${this._formatClientNameGothicHTML(clientName, 15, false)}
+    </div>
+    <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box; position:relative;">
+      ${this._renderToyotaSealHTML('detail')}
+      <div>〒${office.zip || '481-0033'}</div>
+      <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
+      <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
+      <div>${office.representative || '代表行政書士 日栄 政敏'}</div>
+      <div style="margin-top:4px; font-weight:bold;">令和 ${reiwaYear} 年 ${month || issueM} 月分　　№${pageNum}</div>
+    </div>
+  </div>
+
+  <table class="grid-table" style="font-size:11.5px; margin-bottom:6px;">
+    <colgroup>
+      <col style="width: 6.5%;">
+      <col style="width: 10.5%;">
+      <col style="width: 28.0%;">
+      <col style="width: 13.5%;">
+      <col style="width: 14.5%;">
+      <col style="width: 10.0%;">
+      <col style="width: 17.0%;">
+    </colgroup>
+    <thead>
+      <tr>
+        <th rowspan="2">日付</th>
+        <th colspan="4">申　請　者</th>
+        <th rowspan="2">報酬額</th>
+        <th rowspan="2">立替金</th>
+      </tr>
+      <tr>
+        <th>注文No.</th>
+        <th>氏　名</th>
+        <th>管　轄</th>
+        <th>備　考</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHTML}
+      ${subtotalHTML}
+      ${grandTotalHTML}
+    </tbody>
+  </table>
+
+  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:16px; padding-top:4px;">
+    ${office.name || '行政書士法人フェリス'} | 請求書番号: ${invoiceNo} (${sectionLabel} ${pageNum}/${totalPages})
+  </div>
+</div>
+`;
+      }
+      return html;
+    };
+
+    let detailPagesHTML = '';
+    if (hasNormal && hasUsed) {
+      detailPagesHTML += buildSectionDetailPages(sortedNormalCases, '普通車（新車）分', normalFee, normalAdv, false);
+      detailPagesHTML += buildSectionDetailPages(sortedUsedCases, 'U-Car（中古車）分', usedFee, usedAdv, true);
+    } else if (hasUsed) {
+      detailPagesHTML += buildSectionDetailPages(sortedUsedCases, 'U-Car（中古車）分', usedFee, usedAdv, true);
+    } else {
+      detailPagesHTML += buildSectionDetailPages(sortedNormalCases, '普通車（新車）分', normalFee, normalAdv, true);
+    }
+
+    return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>請求書 ${clientName} 様（新様式・普通車/U-Car別明細）</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Yu Gothic UI', 'Hiragino Sans', 'BIZ UDPGothic', 'Meiryo', sans-serif;
+    color: #000;
+    background: #e2e8f0;
+    padding: 20px;
+    -webkit-print-color-adjust: exact;
+  }
+  @media print {
+    body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+    .no-print { display: none !important; }
+    @page { size: A4 portrait; margin: 8mm 10mm; }
+    .page {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: auto !important;
+      height: auto !important;
+      margin: 0 !important;
+      padding: 0 1.5mm !important;
+      box-shadow: none !important;
+      box-sizing: border-box !important;
+      page-break-after: auto !important;
+      break-after: auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      position: relative !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    .page.page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
+    .page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    background: #fff;
+    margin: 0 auto 20px;
+    padding: 15mm 18mm 12mm;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  .no-print-bar {
+    max-width: 210mm;
+    margin: 0 auto 15px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .btn {
+    padding: 8px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  .btn-print { background: #2563eb; color: #fff; }
+  .btn-close { background: #cbd5e1; color: #1e293b; }
+
+  .doc-title {
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    margin-bottom: 18px;
+    padding-bottom: 6px;
+  }
+  .recipient-box {
+    margin-bottom: 22px;
+    font-size: 21px;
+    font-weight: bold;
+  }
+
+  table.grid-table {
+    width: calc(100% - 1px);
+    margin: 0 auto 12px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 11.5px;
+    box-sizing: border-box;
+  }
+  table.grid-table th, table.grid-table td {
+    border: 1px solid #000;
+    padding: 6px 5px;
+    line-height: 1.35;
+    overflow: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
+    vertical-align: middle;
+  }
+  table.grid-table th:last-child,
+  table.grid-table td:last-child {
+    border-right: 1.2px solid #000;
+  }
+  table.grid-table th {
+    background: #f1f5f9;
+    text-align: center;
+    font-weight: bold;
+    color: #000;
+    padding: 6px 4px;
+  }
+  .col-num { text-align: right; font-weight: 600; color: #000; }
+  .col-center { text-align: center; }
+
+  .section-label {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 4px;
+    font-weight: bold;
+    background: #f1f5f9;
+  }
+
+  .grand-total-row th, .grand-total-row td {
+    font-size: 15px;
+    font-weight: bold;
+    background: #f8fafc;
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+  }
+
+  .sender-container {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .bank-info {
+    width: 48%;
+  }
+  .bank-info h4 {
+    font-size: 13px;
+    margin-bottom: 4px;
+    font-weight: bold;
+  }
+  .office-info {
+    width: 50%;
+    text-align: right;
+    padding-right: 20mm;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .seal-stamp-cover {
+    position: absolute;
+    right: 8mm;
+    top: 7mm;
+    width: 21mm;
+    height: 21mm;
+    mix-blend-mode: multiply;
+    opacity: 0.88;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .seal-stamp-detail {
+    position: absolute;
+    right: 8mm;
+    top: 3.5mm;
+    width: 17mm;
+    height: 17mm;
+    mix-blend-mode: multiply;
+    opacity: 0.88;
+    pointer-events: none;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print-bar no-print">
+  <button class="btn btn-print" onclick="window.print()">🖨️ 印刷 / PDF出力</button>
+  <button class="btn btn-close" onclick="window.close()">✕ 閉じる</button>
+</div>
+
+<!-- 1ページ目：共通合算表紙（新様式・ゴシック体） -->
+<div class="page page-break">
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${note}</div>` : ''}</div>
+  
+  <div class="recipient-box">
+    ${this._formatClientNameGothicHTML(clientName, 21, true)}
+  </div>
+
+  <table class="grid-table">
+    <thead>
+      <tr>
+        <th style="width: 15%;">区分</th>
+        <th style="width: 45%;">件名</th>
+        <th style="width: 15%;">数量</th>
+        <th style="width: 25%;">金額（円）</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
+        <td>
+          <div style="font-weight:bold;">${this._getToyotaCoverTitle(cases)}</div>
+          ${(garageCount > 0 && otherCount > 0) ? `<div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>` : ''}
+        </td>
+        <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
+        <td class="col-num">${(garageFee + otherFee).toLocaleString()}</td>
+      </tr>
+      ${sealCount > 0 ? `<tr>
+        <td>
+          <div style="font-weight:bold;">封印</div>
+        </td>
+        <td class="col-center" style="font-weight:600; color:#000;">${sealCount}件</td>
+        <td class="col-num">${sealFee.toLocaleString()}</td>
+      </tr>` : ''}
+      <tr style="background:#fdfdfd;">
+        <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
+        <td class="col-center" style="font-weight:600; color:#000;">${cases.length}件</td>
+        <td class="col-num" style="font-weight:bold;">${feeSubtotal.toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td colspan="3" class="col-center">消費税 (${taxRate || 10}%)</td>
+        <td class="col-num">${tax.toLocaleString()}</td>
+      </tr>
+      <tr style="font-weight:bold; background:#f8fafc;">
+        <td colspan="3" class="col-center">合　　計</td>
+        <td class="col-num">${(feeSubtotal + tax).toLocaleString()}</td>
+      </tr>
+
+      <!-- 立替金パート -->
+      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'その他実費':6}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
+      <tr>
+        ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
+        <td style="font-size:11.5px;">${lbl}</td>
         <td class="col-center" style="font-weight:600; color:#000;">${data.count}件</td>
         <td class="col-num">${data.amount.toLocaleString()}</td>
       </tr>
@@ -4219,11 +5643,11 @@ window.NissanPrint = {
     wb.modified = new Date();
 
     const templateType = params.templateType || 'standard';
-    if (templateType === 'toyota') {
+    if (templateType === 'toyota_new' || templateType === 'toyota') {
       this.buildToyotaExcel(wb, params);
-    } else if (templateType === 'toyota_split') {
+    } else if (templateType === 'toyota_new_split' || templateType === 'toyota_split') {
       this.buildToyotaExcel(wb, { ...params, splitUCar: true });
-    } else if (templateType === 'toyota_date') {
+    } else if (templateType === 'toyota_new_date' || templateType === 'toyota_date') {
       this.buildToyotaExcel(wb, { ...params, sortMode: 'date_only' });
     } else if (templateType === 'mitsubishi') {
       this.buildMitsubishiExcel(wb, params);

@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>御請求書 - 愛知トヨタWEST株式会社 一宮店 御中【新様式】</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Yu Gothic UI', 'Hiragino Sans', 'BIZ UDPGothic', 'Meiryo', sans-serif;
+    color: #000;
+    background: #e2e8f0;
+    padding: 20px;
+    -webkit-print-color-adjust: exact;
+  }
+  @media print {
+    body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+    .no-print { display: none !important; }
+    @page { size: A4 portrait; margin: 8mm 10mm; }
+    .page {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: auto !important;
+      height: auto !important;
+      margin: 0 !important;
+      padding: 0 1.5mm !important;
+      box-shadow: none !important;
+      box-sizing: border-box !important;
+      page-break-after: auto !important;
+      break-after: auto !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      position: relative !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    .page.page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+    }
+    .page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
+    }
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    background: #fff;
+    margin: 0 auto 20px;
+    padding: 15mm 18mm 12mm;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  .no-print-bar {
+    max-width: 210mm;
+    margin: 0 auto 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1e3a8a;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+  }
+  .btn {
+    padding: 8px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    transition: opacity 0.2s;
+  }
+  .btn:hover { opacity: 0.9; }
+  .btn-print { background: #22c55e; color: #fff; }
+  .btn-close { background: #cbd5e1; color: #1e293b; }
+
+  .doc-title {
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    margin-bottom: 18px;
+    padding-bottom: 6px;
+  }
+  .recipient-box {
+    margin-bottom: 22px;
+    font-size: 21px;
+    font-weight: bold;
+  }
+  .recipient-name {
+    display: inline-block;
+    border-bottom: 2px solid #000;
+    padding-bottom: 3px;
+    white-space: nowrap;
+    line-height: 1.35;
+    max-width: 100%;
+  }
+
+  table.grid-table {
+    width: calc(100% - 1px);
+    margin: 0 auto 12px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 11.5px;
+    box-sizing: border-box;
+  }
+  table.grid-table th, table.grid-table td {
+    border: 1px solid #000;
+    padding: 6px 5px;
+    line-height: 1.35;
+    overflow: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
+    vertical-align: middle;
+  }
+  table.grid-table th:last-child,
+  table.grid-table td:last-child {
+    border-right: 1.2px solid #000;
+  }
+  table.grid-table th {
+    background: #f1f5f9;
+    text-align: center;
+    font-weight: bold;
+    color: #000;
+    padding: 6px 4px;
+  }
+  .col-num { text-align: right; font-weight: 600; color: #000; }
+  .col-center { text-align: center; }
+
+  .section-label {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    letter-spacing: 4px;
+    font-weight: bold;
+    background: #f1f5f9;
+  }
+
+  .grand-total-row th, .grand-total-row td {
+    font-size: 15px;
+    font-weight: bold;
+    background: #f8fafc;
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+  }
+
+  .sender-container {
+    margin-top: 18px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .bank-info {
+    width: 48%;
+  }
+  .bank-info h4 {
+    font-size: 13px;
+    margin-bottom: 4px;
+    font-weight: bold;
+  }
+  .office-info {
+    width: 50%;
+    text-align: right;
+    padding-right: 20mm;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .seal-stamp-cover {
+    position: absolute;
+    right: 8mm;
+    top: 7mm;
+    width: 21mm;
+    height: 21mm;
+    mix-blend-mode: multiply;
+    opacity: 0.88;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .seal-stamp-detail {
+    position: absolute;
+    right: 8mm;
+    top: 3.5mm;
+    width: 17mm;
+    height: 17mm;
+    mix-blend-mode: multiply;
+    opacity: 0.88;
+    pointer-events: none;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print-bar no-print">
+  <span>✨ 愛知トヨタWEST専用【新様式】（ゴシック体統一・厳格1行収容・視認性特化）</span>
+  <div style="display:flex; gap:10px;">
+    <button class="btn btn-print" onclick="window.print()">🖨️ 印刷 / PDF保存</button>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- 1ページ目：請求書 表紙（新様式・ゴシック統一） -->
+<!-- ========================================== -->
+<div class="page page-break">
+  <div class="doc-title">請 求 書</div>
+  
+  <div class="recipient-box">
+    <span class="recipient-name">愛知トヨタWEST株式会社　一宮店 御中</span>
+  </div>
+
+  <table class="grid-table">
+    <thead>
+      <tr>
+        <th style="width: 15%;">区分</th>
+        <th style="width: 45%;">件名</th>
+        <th style="width: 15%;">数量</th>
+        <th style="width: 25%;">金額（円）</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="section-label col-center" rowspan="2">報酬</td>
+        <td>
+          <div style="font-weight:bold;">車庫証明申請他</div>
+          <div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 16件)</div>
+        </td>
+        <td class="col-center" style="font-weight:600; color:#000;">16件</td>
+        <td class="col-num">88,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div style="font-weight:bold;">封印</div>
+        </td>
+        <td class="col-center" style="font-weight:600; color:#000;">4件</td>
+        <td class="col-num">36,000</td>
+      </tr>
+      <tr style="background:#fdfdfd;">
+        <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
+        <td class="col-center" style="font-weight:600; color:#000;">20件</td>
+        <td class="col-num" style="font-weight:bold;">124,000</td>
+      </tr>
+      <tr>
+        <td colspan="3" class="col-center">消費税 (10%)</td>
+        <td class="col-num">12,400</td>
+      </tr>
+      <tr style="font-weight:bold; background:#f8fafc;">
+        <td colspan="3" class="col-center">合　　計</td>
+        <td class="col-num">136,400</td>
+      </tr>
+
+      <!-- 立替金パート -->
+      <tr>
+        <td rowspan="2" class="section-label col-center">立替金</td>
+        <td style="font-size:11.5px;">【証紙代】証紙代</td>
+        <td class="col-center" style="font-weight:600; color:#000;">14件</td>
+        <td class="col-num">21,000</td>
+      </tr>
+      <tr>
+        <td style="font-size:11.5px;">【プレート代】ナンバープレート代</td>
+        <td class="col-center" style="font-weight:600; color:#000;">1件</td>
+        <td class="col-num">1,000</td>
+      </tr>
+      <tr style="background:#fdfdfd; font-weight:bold;">
+        <td colspan="3" class="col-center">立替金計</td>
+        <td class="col-num">22,000</td>
+      </tr>
+
+      <!-- 総合計 -->
+      <tr class="grand-total-row">
+        <td colspan="3" class="col-center">総　合　計</td>
+        <td class="col-num" style="font-size:18px;">¥158,400</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
+  <div style="font-size:13px; margin-bottom: 8px;">令和 8 年 8 月 31 日</div>
+  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+    お支払期日：2026/09/25（翌月25日）
+  </div>
+
+  <div class="sender-container">
+    <div class="bank-info">
+      <h4>《 振込先 》</h4>
+      <div>三菱UFJ銀行　西春支店</div>
+      <div>普通　0129129</div>
+      <div>口座名義：行政書士法人フェリス</div>
+      <div style="font-size:11px; color:#555; margin-top:4px;">※振込手数料は貴社にてご負担願います。</div>
+    </div>
+    <div class="office-info">
+      <img src="電子印.png" class="seal-stamp-cover" alt="行政書士法人フェリス之印">
+      <div>愛知県行政書士会会員</div>
+      <div>所在地：北名古屋市六ツ師道毛74番地1</div>
+      <div style="font-weight:bold; font-size:14px; margin:2px 0;">行政書士法人フェリス</div>
+      <div>代表行政書士 日栄 政敏</div>
+      <div>TEL: 0586-50-2896</div>
+      <div>FAX: 0568-26-3714</div>
+      <div style="font-size:11px;">登録番号: T1180005021234</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- 2ページ目：車庫証明申請等明細書（新様式・ゴシック統一） -->
+<!-- ========================================== -->
+<div class="page">
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">車庫証明申請等明細書</div>
+  
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
+    <div style="max-width:52%; flex-shrink:1;">
+      <span style="font-size:15px; font-weight:bold; display:inline-block; border-bottom:1.5px solid #000; padding-bottom:3px; white-space:nowrap; line-height:1.35; max-width:100%;">愛知トヨタWEST株式会社　一宮店 御中</span>
+    </div>
+    <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box; position:relative;">
+      <img src="電子印.png" class="seal-stamp-detail" alt="行政書士法人フェリス之印">
+      <div>〒481-0033</div>
+      <div>北名古屋市六ツ師道毛74番地1</div>
+      <div style="font-weight:bold; font-size:12.5px;">行政書士法人フェリス</div>
+      <div>代表行政書士 日栄 政敏</div>
+      <div style="margin-top:4px; font-weight:bold;">令和 8 年 8 月分　　№1</div>
+    </div>
+  </div>
+
+  <table class="grid-table" style="font-size:11.5px; margin-bottom:6px;">
+    <colgroup>
+      <col style="width: 6.5%;">
+      <col style="width: 10.5%;">
+      <col style="width: 28.0%;">
+      <col style="width: 13.5%;">
+      <col style="width: 14.5%;">
+      <col style="width: 10.0%;">
+      <col style="width: 17.0%;">
+    </colgroup>
+    <thead>
+      <tr>
+        <th rowspan="2">日付</th>
+        <th colspan="4">申　請　者</th>
+        <th rowspan="2">報酬額</th>
+        <th rowspan="2">立替金</th>
+      </tr>
+      <tr>
+        <th>注文No.</th>
+        <th>氏　名</th>
+        <th>管　轄</th>
+        <th>備　考</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- 行高32px、パディング6px 5px、1行厳格収容、フォントサイズ11.5px〜9.2px -->
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/1</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360211-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">山田 太郎 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一宮</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一般</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/2</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360212-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">佐藤 健一 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">西枇杷島</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一般</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/3</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360215-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">鈴木 一郎 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">OSS</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">500</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/5</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360218-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.0px; letter-spacing:-0.15px; font-weight:600; line-height:1.2;">株式会社 北九ライニング 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">小牧</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一般</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/6</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360220-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">高橋 美咲 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">春日井</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.0px; letter-spacing:-0.10px; font-weight:600; line-height:1.2;">一般・軽</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">500</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/7</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360223-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">伊藤 慎吾 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一宮</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.2px; letter-spacing:-0.20px; font-weight:600; line-height:1.2;">希望ナンバー申込</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/9</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360225-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">渡辺 裕子 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">OSS</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">500</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/10</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360228-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">小林 誠 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">西枇杷島</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.0px; letter-spacing:-0.10px; font-weight:600; line-height:1.2;">U-Car・一般</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/11</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360230-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">加藤 浩二 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一宮</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一般</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/12</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360233-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">吉田 恵美 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">OSS</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">500</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/15</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360236-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.0px; letter-spacing:-0.15px; font-weight:600; line-height:1.2;">有限会社 中部建材サービス 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">小牧陸事</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一般</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/17</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360238-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">松田 直樹 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一宮</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:9.6px; letter-spacing:-0.30px; font-weight:600; line-height:1.2;">U-Car・希望ナンバー</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/18</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360241-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">井上 大輔 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">OSS</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">500</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/19</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360244-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">木村 拓也 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">西枇杷島</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一般</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/21</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360247-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">林 健太郎 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">OSS</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">500</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/22</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360250-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:9.6px; letter-spacing:-0.35px; font-weight:600; line-height:1.2;">愛知トヨタWEST株式会社 総務部 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">一宮</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:9.0px; letter-spacing:-0.38px; font-weight:600; line-height:1.2;">U-Car・一般（申請のみ）</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">5,500</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">2,700</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(証紙)</span></div></td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/23</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360252-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">斉藤 雅之 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">封印</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">9,000</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">-</td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/24</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360255-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">岡田 智子 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">封印</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">9,000</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">-</td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/25</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360258-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">長谷川 勇 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">封印</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">9,000</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">-</td>
+      </tr>
+      <tr style="height: 32px;">
+        <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">8/25</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:10.8px; letter-spacing:-0.15px; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">57360260-0</span></td>
+        <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">近藤 雄二 様</span></td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">-</td>
+        <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;"><span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:11.5px; letter-spacing:normal; font-weight:600; line-height:1.2;">封印</span></td>
+        <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">9,000</td>
+        <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;"><div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;"><span style="font-size:11.5px; font-weight:700; color:#000;">1,000</span><span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(ナンバー)</span></div></td>
+      </tr>
+      <!-- 合計行 -->
+      <tr style="font-weight:bold; background:#f8fafc; color:#000; height:34px;">
+        <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">合　　計</td>
+        <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">124,000</td>
+        <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">22,000</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="detail-footer" style="font-size:10px; text-align:right; color:#666; margin-top:16px; padding-top:4px;">
+    行政書士法人フェリス | 請求書番号: INV-202608-001 (1/1)
+  </div>
+</div>
+
+</body>
+</html>
