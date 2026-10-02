@@ -325,6 +325,7 @@ const Cases = {
   ADVANCE_CATEGORIES: [
     { key: '証紙代', label: '証紙代' },
     { key: '印紙代', label: '印紙代' },
+    { key: '法定費用', label: '法定費用' },
     { key: '送料', label: '送料' },
     { key: 'プレート代', label: 'プレート代' },
     { key: '手数料', label: '手数料' },
@@ -340,7 +341,7 @@ const Cases = {
       return;
     }
     container.innerHTML = this.advanceDraft.map((adv, i) => {
-      const curCat = adv.category || (adv.label && adv.label.includes('証紙') ? '証紙代' : (adv.label && adv.label.includes('印紙') ? '印紙代' : (adv.label && (adv.label.includes('送') || adv.label.includes('レターパック')) ? '送料' : (adv.label && (adv.label.includes('プレート') || adv.label.includes('ナンバー')) ? 'プレート代' : '証紙代'))));
+      const curCat = adv.category || (adv.label && adv.label.includes('証紙') ? '証紙代' : (adv.label && adv.label.includes('印紙') ? '印紙代' : (adv.label && (adv.label.includes('税') || adv.label.includes('法定')) ? '法定費用' : (adv.label && (adv.label.includes('送') || adv.label.includes('レターパック')) ? '送料' : (adv.label && (adv.label.includes('プレート') || adv.label.includes('ナンバー')) ? 'プレート代' : '証紙代')))));
       return `
       <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
         <select style="width:105px; font-size:0.82rem; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-card,#fff); color:var(--text-color);"
@@ -366,18 +367,18 @@ const Cases = {
     let lbl = '';
     let amt = '';
     if (typeof categoryOrLabel === 'string' && (label !== '' || amount !== '')) {
-      if (['証紙代', '印紙代', '送料', 'プレート代', '手数料', 'その他'].includes(categoryOrLabel)) {
+      if (['証紙代', '印紙代', '法定費用', '送料', 'プレート代', '手数料', 'その他'].includes(categoryOrLabel)) {
         cat = categoryOrLabel;
         lbl = label;
         amt = amount;
       } else {
         lbl = categoryOrLabel;
         amt = label;
-        cat = (lbl.includes('証紙') ? '証紙代' : (lbl.includes('印紙') ? '印紙代' : (lbl.includes('送') || lbl.includes('レターパック') ? '送料' : (lbl.includes('プレート') || lbl.includes('ナンバー') ? 'プレート代' : 'その他'))));
+        cat = (lbl.includes('証紙') ? '証紙代' : (lbl.includes('印紙') ? '印紙代' : (lbl.includes('税') || lbl.includes('法定') ? '法定費用' : (lbl.includes('送') || lbl.includes('レターパック') ? '送料' : (lbl.includes('プレート') || lbl.includes('ナンバー') ? 'プレート代' : 'その他')))));
       }
     } else if (typeof categoryOrLabel === 'string' && label === '' && amount === '') {
       lbl = categoryOrLabel;
-      cat = (lbl.includes('証紙') ? '証紙代' : (lbl.includes('印紙') ? '印紙代' : (lbl.includes('送') || lbl.includes('レターパック') ? '送料' : (lbl.includes('プレート') || lbl.includes('ナンバー') ? 'プレート代' : 'その他'))));
+      cat = (lbl.includes('証紙') ? '証紙代' : (lbl.includes('印紙') ? '印紙代' : (lbl.includes('税') || lbl.includes('法定') ? '法定費用' : (lbl.includes('送') || lbl.includes('レターパック') ? '送料' : (lbl.includes('プレート') || lbl.includes('ナンバー') ? 'プレート代' : 'その他')))));
     }
     this.advanceDraft.push({ category: cat, label: lbl, amount: amt });
     this.renderAdvanceRows();
@@ -719,7 +720,6 @@ const Cases = {
                       <option value="reseal">🔩 再封印（修繕・破損・再取付）</option>
                       <option value="plate_change">⭐ 番号変更（希望番号・図柄ナンバー）</option>
                       <option value="jyuminhyo">📄 住民票</option>
-                      <option value="syakensho">📄 車検証再交付</option>
                     </select>
                   </div>
                 </div>
@@ -902,6 +902,7 @@ const Cases = {
                       <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('印紙代', '登録印紙代', 700)">＋ 印紙700円</button>
                       <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('送料', 'レターパックプラス送料', 600)">＋ 送料600円</button>
                       <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('プレート代', 'ナンバープレート代', 1440)">＋ プレート1,440円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('法定費用', '', '')">＋ 法定費用</button>
                       <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow('その他', '', '')">＋ 追加</button>
                     </div>
                   </div>
