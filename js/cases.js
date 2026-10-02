@@ -719,6 +719,7 @@ const Cases = {
                       <option value="reseal">🔩 再封印（修繕・破損・再取付）</option>
                       <option value="plate_change">⭐ 番号変更（希望番号・図柄ナンバー）</option>
                       <option value="jyuminhyo">📄 住民票</option>
+                      <option value="syakensho">📄 車検証再交付</option>
                     </select>
                   </div>
                 </div>
