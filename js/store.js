@@ -13,6 +13,7 @@ const Store = {
     LOCATIONS: 'gyosei_locations',
     INBOX: 'gyosei_inbox',
     INHERITANCE_FILES: 'gyosei_inheritance_files',
+    PARTNERS: 'gyosei_partners',
   },
 
   // 旧ステータスの自動マイグレーション（hearing→applying, documents→delivery）
@@ -719,6 +720,193 @@ const Store = {
     // スプレッドシートへ自動プッシュ
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('deleteLocation', { id });
+    }
+  },
+
+  // ---- 県外・提携行政書士マスター CRUD ----
+  getPartners() {
+    let partners = this._get(this.KEYS.PARTNERS);
+    if (!partners || partners.length === 0) {
+      const isCleared = localStorage.getItem('gyosei_partners_cleared');
+      if (!isCleared) {
+        partners = this.getSeedPartners();
+        this._set(this.KEYS.PARTNERS, partners);
+      }
+    }
+    return partners || [];
+  },
+
+  getSeedPartners() {
+    return [
+      {
+        id: 'partner_gifu_01',
+        officeName: '岐阜中央行政書士事務所',
+        representative: '代表行政書士 岐阜 健一',
+        association: '岐阜県行政書士会',
+        prefecture: '岐阜県',
+        branches: '岐阜運輸支局、軽自動車検査協会岐阜事務所',
+        rating: '対応◎・迅速',
+        ratingLevel: 5,
+        ratingNote: '急ぎの県外登録も即日対応可能。電話対応も非常に丁寧で信頼性高。',
+        feeRegistration: 8800,
+        feeLight: 7700,
+        feeGarage: 6600,
+        feeSeal: 11000,
+        feeNote: '丁種出張封印の再々委託施封・他県発送対応可能',
+        zip: '500-8262',
+        address: '岐阜県岐阜市茜部本郷2丁目88番地',
+        phone: '058-271-1234',
+        fax: '058-271-1235',
+        mobile: '090-1234-5678',
+        email: 'info@gifu-gyosei-example.jp',
+        invoiceNumber: 'T1234567890123',
+        bankName: '十六銀行',
+        bankBranch: '本店営業部',
+        accountType: '普通',
+        accountNumber: '1234567',
+        accountHolder: 'ギフチュウオウギョウセイショシジムショ',
+        deadlineNote: '登録希望日前日の午前中必着。書類到着日当日に申請・登録完了報告あり。',
+        memo: '愛知トヨタ・日産愛知の岐阜登録をメインで依頼。封印受領後はレターパックプラスで当日返送受領実績あり。',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'partner_mie_01',
+        officeName: '三重オート法務行政書士事務所',
+        representative: '代表行政書士 三重 裕二',
+        association: '三重県行政書士会',
+        prefecture: '三重県',
+        branches: '三重運輸支局（津）、鈴鹿自動車検査登録事務所、軽検協三重事務所',
+        rating: '丁寧・安心',
+        ratingLevel: 5,
+        ratingNote: '鈴鹿ナンバー・三重ナンバーどちらも迅速対応。書類チェックが非常に綿密。',
+        feeRegistration: 8800,
+        feeLight: 7700,
+        feeGarage: 7150,
+        feeSeal: 11000,
+        feeNote: '鈴鹿ナンバーは出張料別途要相談の場合あり',
+        zip: '514-0815',
+        address: '三重県津市藤方字井戸田1234-5',
+        phone: '059-224-5678',
+        fax: '059-224-5679',
+        mobile: '090-2345-6789',
+        email: 'office@mie-auto-example.jp',
+        invoiceNumber: 'T2345678901234',
+        bankName: '百五銀行',
+        bankBranch: '本店営業部',
+        accountType: '普通',
+        accountNumber: '7654321',
+        accountHolder: 'ミエオートホウムギョウセイショシジムショ',
+        deadlineNote: '前日14時までに到着で翌朝一番登録。',
+        memo: '車庫証明の現地調査も迅速。警察署の受取から陸運局提出まで一気通貫で依頼実績多数。',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'partner_shizuoka_01',
+        officeName: '浜松自動車法務行政書士事務所',
+        representative: '代表行政書士 浜松 誠',
+        association: '静岡県行政書士会',
+        prefecture: '静岡県',
+        branches: '静岡運輸支局浜松自動車検査登録事務所、軽検協浜松支所',
+        rating: '対応◎・迅速',
+        ratingLevel: 5,
+        ratingNote: '浜松ナンバーの登録に特化。スピーディーで連絡レスポンスが極めて早い。',
+        feeRegistration: 9900,
+        feeLight: 8800,
+        feeGarage: 6600,
+        feeSeal: 12100,
+        feeNote: '浜松市内の出張封印対応可',
+        zip: '435-0007',
+        address: '静岡県浜松市東区流通元町20-1',
+        phone: '053-421-9876',
+        fax: '053-421-9877',
+        mobile: '090-3456-7890',
+        email: 'hamamatsu@car-support-example.jp',
+        invoiceNumber: 'T3456789012345',
+        bankName: '静岡銀行',
+        bankBranch: '浜松営業部',
+        accountType: '普通',
+        accountNumber: '3456789',
+        accountHolder: 'ハママツジドウシャホウムギョウセイショシジムショ',
+        deadlineNote: '午前中必着で当日午後登録可能（事前連絡要）。',
+        memo: '浜松流通元町の陸運支局至近。緊急案件の持ち込みにも柔軟に対応してくれる。',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+  },
+
+  getPartner(id) {
+    return this.getPartners().find(p => p.id === id) || null;
+  },
+
+  getPartnerName(id) {
+    const p = this.getPartner(id);
+    return p ? (p.officeName || p.representative || '') : '';
+  },
+
+  addPartner(data) {
+    const partners = this.getPartners();
+    const partner = {
+      id: data.id || ('partner_' + Date.now()),
+      officeName: data.officeName || '',
+      representative: data.representative || '',
+      association: data.association || '',
+      prefecture: data.prefecture || '',
+      branches: data.branches || '',
+      rating: data.rating || '対応◎・迅速',
+      ratingLevel: Number(data.ratingLevel || 5),
+      ratingNote: data.ratingNote || '',
+      feeRegistration: (data.feeRegistration !== undefined && data.feeRegistration !== '' && data.feeRegistration !== null) ? Number(data.feeRegistration) : null,
+      feeLight: (data.feeLight !== undefined && data.feeLight !== '' && data.feeLight !== null) ? Number(data.feeLight) : null,
+      feeGarage: (data.feeGarage !== undefined && data.feeGarage !== '' && data.feeGarage !== null) ? Number(data.feeGarage) : null,
+      feeSeal: (data.feeSeal !== undefined && data.feeSeal !== '' && data.feeSeal !== null) ? Number(data.feeSeal) : null,
+      feeNote: data.feeNote || '',
+      zip: data.zip || '',
+      address: data.address || '',
+      phone: data.phone || '',
+      fax: data.fax || '',
+      mobile: data.mobile || '',
+      email: data.email || '',
+      invoiceNumber: data.invoiceNumber || '',
+      bankName: data.bankName || '',
+      bankBranch: data.bankBranch || '',
+      accountType: data.accountType || '普通',
+      accountNumber: data.accountNumber || '',
+      accountHolder: data.accountHolder || '',
+      deadlineNote: data.deadlineNote || '',
+      memo: data.memo || '',
+      createdAt: data.createdAt || new Date().toISOString(),
+      updatedAt: data.updatedAt || new Date().toISOString()
+    };
+    partners.unshift(partner);
+    this._set(this.KEYS.PARTNERS, partners);
+    return partner;
+  },
+
+  updatePartner(id, data) {
+    const partners = this.getPartners();
+    const idx = partners.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    partners[idx] = {
+      ...partners[idx],
+      ...data,
+      feeRegistration: (data.feeRegistration !== undefined && data.feeRegistration !== '' && data.feeRegistration !== null) ? Number(data.feeRegistration) : (data.feeRegistration === '' ? null : partners[idx].feeRegistration),
+      feeLight: (data.feeLight !== undefined && data.feeLight !== '' && data.feeLight !== null) ? Number(data.feeLight) : (data.feeLight === '' ? null : partners[idx].feeLight),
+      feeGarage: (data.feeGarage !== undefined && data.feeGarage !== '' && data.feeGarage !== null) ? Number(data.feeGarage) : (data.feeGarage === '' ? null : partners[idx].feeGarage),
+      feeSeal: (data.feeSeal !== undefined && data.feeSeal !== '' && data.feeSeal !== null) ? Number(data.feeSeal) : (data.feeSeal === '' ? null : partners[idx].feeSeal),
+      updatedAt: new Date().toISOString()
+    };
+    this._set(this.KEYS.PARTNERS, partners);
+    return partners[idx];
+  },
+
+  deletePartner(id) {
+    const partners = this.getPartners().filter(p => p.id !== id);
+    this._set(this.KEYS.PARTNERS, partners);
+    if (partners.length === 0) {
+      localStorage.setItem('gyosei_partners_cleared', '1');
     }
   },
 

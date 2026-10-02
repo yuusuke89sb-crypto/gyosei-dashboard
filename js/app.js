@@ -17,7 +17,7 @@ const App = {
       return; // 初期化を中断
     }
     // 🌟 URLハッシュまたは直前のセッションからページを復元（リロードや戻るでダッシュボードに戻るのを防止）
-    const validPages = ['dashboard', 'clients', 'cases', 'advances', 'inheritance-casefile', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
+    const validPages = ['dashboard', 'clients', 'partners', 'cases', 'advances', 'inheritance-casefile', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
     const hash = (window.location.hash || '').replace(/^#/, '');
     if (hash && validPages.includes(hash)) {
       this.currentPage = hash;
@@ -229,6 +229,9 @@ const App = {
         <a class="nav-item ${this.currentPage === 'clients' ? 'active' : ''}" onclick="App.navigate('clients')">
           <span class="nav-icon">👥</span><span class="nav-label">顧客管理</span>
         </a>
+        <a class="nav-item ${this.currentPage === 'partners' ? 'active' : ''}" onclick="App.navigate('partners')">
+          <span class="nav-icon">🤝</span><span class="nav-label">県外行政書士</span>
+        </a>
         <a class="nav-item ${this.currentPage === 'cases' ? 'active' : ''}" onclick="App.navigate('cases')">
           <span class="nav-icon">📋</span><span class="nav-label">案件管理</span>
         </a>
@@ -319,6 +322,7 @@ const App = {
     switch (this.currentPage) {
       case 'dashboard': content.innerHTML = renderDashboard(); break;
       case 'clients': content.innerHTML = Clients.render(); break;
+      case 'partners': content.innerHTML = Partners.render(); break;
       case 'cases': content.innerHTML = Cases.render(); break;
       case 'advances': content.innerHTML = Advances.render(); break;
       case 'inheritance-casefile': content.innerHTML = InheritanceCasefile.render(); break;
@@ -335,7 +339,7 @@ const App = {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.bottom-nav-item').forEach(item => item.classList.remove('active'));
     const navItems = document.querySelectorAll('.nav-item');
-    const sidebarPages = ['dashboard', 'clients', 'cases', 'advances', 'inheritance-casefile', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
+    const sidebarPages = ['dashboard', 'clients', 'partners', 'cases', 'advances', 'inheritance-casefile', 'progress', 'calendar', 'accounting', 'inbox', 'formats', 'analytics'];
     const sidebarIdx = sidebarPages.indexOf(this.currentPage);
     if (navItems[sidebarIdx]) navItems[sidebarIdx].classList.add('active');
     const bottomItems = document.querySelectorAll('.bottom-nav-item');

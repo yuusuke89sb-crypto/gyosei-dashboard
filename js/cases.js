@@ -473,6 +473,11 @@ const Cases = {
           ${c.isUsedCar ? `<span style="font-size:0.7rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:1px 5px; border-radius:3px; font-weight:bold;">🚙 中古</span>` : ''}
           ${c.subCategory ? `<span style="font-size:0.7rem;background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:3px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
           ${syakoMapBadgeHtml}
+          ${c.partnerId && typeof Store !== 'undefined' && Store.getPartner(c.partnerId) ? `
+            <span style="font-size:0.7rem; background:rgba(56,189,248,0.15); color:#0284c7; border:1px solid rgba(56,189,248,0.4); padding:1px 5px; border-radius:3px; font-weight:bold; display:inline-flex; align-items:center; gap:2px;" title="外注提携先：${Store.getPartner(c.partnerId).officeName}">
+              🤝 提携: ${Store.getPartner(c.partnerId).officeName.replace(/行政書士事務所|事務所/g, '')}${Store.getPartner(c.partnerId).feeRegistration ? `(¥${Number(Store.getPartner(c.partnerId).feeRegistration).toLocaleString()})` : ''}
+            </span>
+          ` : ''}
         </div>
         <div class="kanban-card-title">${c.title}</div>
         <div class="kanban-card-meta">
@@ -551,6 +556,11 @@ const Cases = {
                     ${c.isUsedCar ? `<span style="font-size:0.72rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:1px 6px; border-radius:3px; font-weight:bold; margin-left:4px;">🚙 中古</span>` : ''}
                     ${c.subCategory ? `<span style="font-size:0.75rem;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
                     ${syakoMapBadgeHtml}
+                    ${c.partnerId && typeof Store !== 'undefined' && Store.getPartner(c.partnerId) ? `
+                      <span style="font-size:0.72rem; background:rgba(56,189,248,0.15); color:#0284c7; border:1px solid rgba(56,189,248,0.4); padding:1px 6px; border-radius:3px; font-weight:bold; margin-left:4px; display:inline-flex; align-items:center; gap:2px;" title="外注提携先：${Store.getPartner(c.partnerId).officeName}">
+                        🤝 提携: ${Store.getPartner(c.partnerId).officeName.replace(/行政書士事務所|事務所/g, '')}${Store.getPartner(c.partnerId).feeRegistration ? ` (代行: ¥${Number(Store.getPartner(c.partnerId).feeRegistration).toLocaleString()})` : ''}
+                      </span>
+                    ` : ''}
                     <span class="status-badge status-${c.status}">${statusInfo ? statusInfo.icon + ' ' + statusInfo.label : ''}</span>
                     ${milestoneHtml}
                   </div>
@@ -774,6 +784,25 @@ const Cases = {
                     <label>登録予定日</label>
                     <input type="date" name="registrationDate" id="csf_registrationDate">
                   </div>
+                </div>
+
+                <!-- 🤝 県外登録・外注提携先（提携行政書士）＆ 代行料・対応評価即時表示 -->
+                <div class="form-group" id="csf_partner_group" style="margin-bottom:14px; background:rgba(30,41,59,0.5); padding:10px 12px; border-radius:8px; border:1px solid rgba(56,189,248,0.25);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <label style="margin:0; font-size:0.85rem; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px;">
+                      <span>🤝</span> 県外外注先（提携行政書士）
+                    </label>
+                    <button type="button" class="btn btn-ghost btn-small" onclick="App.navigate('partners')" style="font-size:0.75rem; color:#94a3b8; padding:1px 6px; text-decoration:underline;">マスター管理 ↗</button>
+                  </div>
+                  <select name="partnerId" id="csf_partnerId" class="form-select" onchange="Cases.onPartnerChange(this.value)" style="width:100%; font-size:0.88rem;">
+                    <option value="">— 自所対応 / 県内通常（提携先なし） —</option>
+                    ${typeof Store !== 'undefined' && Store.getPartners ? Store.getPartners().map(p => `
+                      <option value="${p.id}">【${p.prefecture || '県外'}】${p.officeName} （${p.representative || '代表'}・${p.rating || '提携'}）</option>
+                    `).join('') : ''}
+                  </select>
+
+                  <!-- 提携先の代行料・対応評価プレビューカード（選択時に即時展開） -->
+                  <div id="csf_partner_preview" style="display:none; margin-top:8px;"></div>
                 </div>
 
                 <!-- 店舗届ける予定日、店舗届ける時間帯 -->
@@ -2060,6 +2089,14 @@ const Cases = {
     this.renderAdvanceRows();
     this.onClientChange('');
 
+    // 提携行政書士の初期化
+    this.updatePartnerSelectOptions();
+    const partnerEl = document.getElementById('csf_partnerId');
+    if (partnerEl) {
+      partnerEl.value = (prefills && prefills.partnerId) || '';
+      this.onPartnerChange(partnerEl.value);
+    }
+
     // 注文書№ 初期値（依頼書・注文書実物を見て手入力するため、自動PO連番は廃止し空欄をデフォルト化）
     const compEl = document.getElementById('csf_completedAt');
     if (compEl) compEl.value = '';
@@ -2272,6 +2309,12 @@ const Cases = {
       const regTypeEl = document.getElementById('csf_regType');
       if (regTypeEl) regTypeEl.value = c.regType || '';
       document.getElementById('csf_status').value = c.status || 'received';
+      this.updatePartnerSelectOptions();
+      const partnerEditEl = document.getElementById('csf_partnerId');
+      if (partnerEditEl) {
+        partnerEditEl.value = c.partnerId || '';
+        this.onPartnerChange(c.partnerId || '');
+      }
       const deadlineEl = document.getElementById('csf_deadline');
       if (deadlineEl) deadlineEl.value = c.deadline || '';
       document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
@@ -2504,6 +2547,7 @@ const Cases = {
       registrationDate: form.registrationDate ? form.registrationDate.value : '',
       completedAt: (form.completedAt && form.completedAt.value) ? form.completedAt.value : undefined,
       landTransportLocationId: form.landTransportLocationId ? form.landTransportLocationId.value : '',
+      partnerId: form.partnerId ? form.partnerId.value : (document.getElementById('csf_partnerId') ? document.getElementById('csf_partnerId').value : ''),
       carName: form.carName ? form.carName.value.trim() : '',
       carAddress: form.carAddress ? form.carAddress.value.trim() : '',
       parkingAddress: form.parkingAddress ? form.parkingAddress.value.trim() : '',
@@ -2771,6 +2815,168 @@ const Cases = {
       const deleteBtn = document.getElementById('caseDeleteBtn');
       if (deleteBtn) deleteBtn.style.display = 'block';
       App.showToast('💾 案件データを保存しました（続けて入力できます）');
+    }
+  },
+
+  // 提携行政書士選択肢の動的更新
+  updatePartnerSelectOptions() {
+    const sel = document.getElementById('csf_partnerId');
+    if (!sel) return;
+    const curVal = sel.value;
+    const partners = typeof Store !== 'undefined' && Store.getPartners ? Store.getPartners() : [];
+    sel.innerHTML = `
+      <option value="">— 自所対応 / 県内通常（提携先なし） —</option>
+      ${partners.map(p => `
+        <option value="${p.id}">【${p.prefecture || '県外'}】${p.officeName} （${p.representative || '代表'}・${p.rating || '提携'}）</option>
+      `).join('')}
+    `;
+    if (curVal) sel.value = curVal;
+  },
+
+  // 提携行政書士が選択された時の即時プレビュー（代行料・対応評価・送付先）
+  onPartnerChange(partnerId) {
+    const previewEl = document.getElementById('csf_partner_preview');
+    if (!previewEl) return;
+    if (!partnerId) {
+      previewEl.style.display = 'none';
+      previewEl.innerHTML = '';
+      return;
+    }
+    const p = typeof Store !== 'undefined' && Store.getPartner ? Store.getPartner(partnerId) : null;
+    if (!p) {
+      previewEl.style.display = 'none';
+      previewEl.innerHTML = '';
+      return;
+    }
+
+    // 評価バッジ
+    let ratingBadge = '';
+    const r = p.rating || '';
+    if (r.includes('◎') || r.includes('迅速') || p.ratingLevel >= 5) {
+      ratingBadge = `<span style="background:rgba(16,185,129,0.18); color:#10b981; border:1px solid rgba(16,185,129,0.4); font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:bold;">⭐ ${p.rating || '対応◎・迅速'}</span>`;
+    } else if (r.includes('丁寧') || r.includes('安心')) {
+      ratingBadge = `<span style="background:rgba(59,130,246,0.18); color:#3b82f6; border:1px solid rgba(59,130,246,0.4); font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:bold;">⭐ ${p.rating || '丁寧・安心'}</span>`;
+    } else {
+      ratingBadge = `<span style="background:rgba(245,158,11,0.18); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:bold;">★ ${p.rating || '標準'}</span>`;
+    }
+
+    // 各代行料金
+    const regFee = p.feeRegistration ? `¥${Number(p.feeRegistration).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal;">要問合せ</span>';
+    const lightFee = p.feeLight ? `¥${Number(p.feeLight).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal;">要問合せ</span>';
+    const garageFee = p.feeGarage ? `¥${Number(p.feeGarage).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal;">要問合せ</span>';
+    const sealFee = p.feeSeal ? `¥${Number(p.feeSeal).toLocaleString()}` : '<span style="color:var(--text-muted);font-weight:normal;">要問合せ</span>';
+
+    previewEl.style.display = 'block';
+    previewEl.innerHTML = `
+      <div style="background:var(--bg-card, #1e293b); border:1.5px solid #0284c7; border-radius:8px; padding:12px; font-size:0.82rem; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-top:8px;">
+        <!-- ヘッダー：事務所名 & 評価 -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; gap:8px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px; flex-wrap:wrap;">
+              <span style="background:#0284c7; color:#fff; font-size:0.72rem; font-weight:bold; padding:2px 6px; border-radius:3px;">${p.prefecture || '県外'}</span>
+              <strong style="color:var(--text-primary); font-size:0.95rem;">${p.officeName}</strong>
+              ${ratingBadge}
+            </div>
+            <div style="color:var(--text-secondary); font-size:0.75rem;">
+              ${p.representative ? `<span>${p.representative}</span>` : ''}
+              ${p.branches ? `<span style="margin-left:8px; color:#38bdf8;">🏛️ ${p.branches}</span>` : ''}
+            </div>
+          </div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-small" onclick="Partners.copyLetterpack('${p.id}')" style="font-size:0.72rem; padding:2px 7px; color:#38bdf8; border-color:#38bdf8;" title="レターパック送付先宛名をクリップボードにコピー">
+              📋 宛名コピー
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="Partners.copyBank('${p.id}')" style="font-size:0.72rem; padding:2px 7px; color:#10b981; border-color:#10b981;" title="振込先口座をクリップボードにコピー">
+              🏦 口座コピー
+            </button>
+          </div>
+        </div>
+
+        <!-- 💰 代行料ハイライトボックス -->
+        <div style="background:rgba(2,132,199,0.08); border:1px solid rgba(56,189,248,0.3); border-radius:6px; padding:8px 10px; margin-bottom:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
+            <span style="font-weight:bold; color:#38bdf8; font-size:0.78rem;">💰 外注代行料目安（この先生の代行料金）</span>
+            ${p.feeNote ? `<span style="font-size:0.7rem; color:var(--text-muted);">${p.feeNote}</span>` : ''}
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; text-align:center;">
+            <div style="background:var(--bg-secondary, #0f172a); padding:6px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.7rem; color:var(--text-muted);">🚗 普通車登録</div>
+              <div style="font-size:0.88rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">${regFee}</div>
+            </div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:6px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.7rem; color:var(--text-muted);">🚙 軽自動車</div>
+              <div style="font-size:0.88rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">${lightFee}</div>
+            </div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:6px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.7rem; color:var(--text-muted);">🅿️ 車庫証明</div>
+              <div style="font-size:0.88rem; font-weight:bold; color:var(--text-primary); margin-top:2px;">${garageFee}</div>
+            </div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:6px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.7rem; color:var(--text-muted);">🔩 出張封印</div>
+              <div style="font-size:0.88rem; font-weight:bold; color:var(--accent-gold, #f59e0b); margin-top:2px;">${sealFee}</div>
+            </div>
+          </div>
+          <!-- 立替金へのワンクリック追加アシスト -->
+          <div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap;">
+            <span style="font-size:0.7rem; color:var(--text-muted);">立替金への反映:</span>
+            ${p.feeRegistration ? `
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '登録代行料', ${p.feeRegistration})" style="font-size:0.7rem; padding:2px 7px; color:#38bdf8; border-color:rgba(56,189,248,0.3);">
+                ＋普通車代行(${Number(p.feeRegistration).toLocaleString()}円)
+              </button>
+            ` : ''}
+            ${p.feeLight ? `
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '軽登録代行料', ${p.feeLight})" style="font-size:0.7rem; padding:2px 7px; color:#38bdf8; border-color:rgba(56,189,248,0.3);">
+                ＋軽登録(${Number(p.feeLight).toLocaleString()}円)
+              </button>
+            ` : ''}
+            ${p.feeGarage ? `
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '車庫代行料', ${p.feeGarage})" style="font-size:0.7rem; padding:2px 7px; color:#38bdf8; border-color:rgba(56,189,248,0.3);">
+                ＋車庫(${Number(p.feeGarage).toLocaleString()}円)
+              </button>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- ⏰ 締切 & 💡 対応メモ -->
+        ${(p.deadlineNote || p.ratingNote || p.memo) ? `
+          <div style="background:rgba(245,158,11,0.06); border:1px dashed rgba(245,158,11,0.3); border-radius:6px; padding:6px 10px; font-size:0.76rem; color:#fde68a; line-height:1.4; margin-bottom:6px;">
+            ${p.deadlineNote ? `<div><strong>⏰ 締切時間:</strong> ${p.deadlineNote}</div>` : ''}
+            ${p.ratingNote ? `<div><strong>💡 対応の評判:</strong> ${p.ratingNote}</div>` : ''}
+            ${p.memo ? `<div style="color:var(--text-muted);">📝 ${p.memo}</div>` : ''}
+          </div>
+        ` : ''}
+
+        <!-- 📭 送付先 & TEL短縮表示 -->
+        <div style="font-size:0.75rem; color:var(--text-secondary); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.06);">
+          <div>
+            <span>📭 ${p.zip ? `〒${p.zip} ` : ''}${p.address || ''}</span>
+            ${p.phone ? `<span style="margin-left:8px;">TEL: <strong style="color:var(--text-primary);">${p.phone}</strong></span>` : ''}
+            ${p.mobile ? `<span style="margin-left:6px; color:#fbbf24;">携帯: ${p.mobile}</span>` : ''}
+          </div>
+          <div>
+            <a href="javascript:void(0)" onclick="Partners.showModal('${p.id}')" style="color:#38bdf8; text-decoration:underline;">提携先詳細・編集 ❯</a>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  // 提携先の外注代行料を案件の立替金にワンクリック追加
+  applyPartnerFeeToAdvance(officeName, typeName, amount) {
+    if (!amount) return;
+    const shortName = (officeName || '').replace(/行政書士事務所|事務所/g, '');
+    const label = `外注${typeName}（${shortName}）`;
+    // 既に同じラベルの行があるかチェック
+    const exists = (this.advanceDraft || []).some(a => a.label === label);
+    if (exists) {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('既に立替金に同じ外注費が追加されています');
+      }
+      return;
+    }
+    this.addAdvanceRow('その他', label, amount);
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast(`✅ ${label}（¥${Number(amount).toLocaleString()}）を立替金に追加しました`);
     }
   },
 
