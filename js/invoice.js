@@ -1376,8 +1376,6 @@ const Invoice = {
       const memo = c.memo || c.remarks || '';
       if (cat.includes('garage') || title.includes('車庫')) {
         types.add('車庫証明申請');
-      } else if (sub.includes('車検証') || title.includes('車検証') || memo.includes('車検証') || c.regType === 'syakensho') {
-        types.add('車検証再交付');
       } else if (sub.includes('番号変更') || title.includes('番号変更') || memo.includes('番号変更') || cat === '番号変更') {
         types.add('番号変更');
       } else if (sub.includes('移転') || title.includes('移転') || sub === 'transfer') {
@@ -1431,7 +1429,7 @@ const Invoice = {
     const advMap = {};
     cases.forEach(c => {
       (c.advances || []).forEach(a => {
-        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : 'その他実費'))));
+        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : 'その他実費')))));
         const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
         const amt = Number(a.amount || 0);
         if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
@@ -1633,7 +1631,6 @@ const Invoice = {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-        if (c.regType === 'syakensho' || (c.subCategory && c.subCategory.includes('車検証')) || (c.title && c.title.includes('車検証再交付')) || (c.memo && c.memo.includes('車検証再交付'))) categoryShort = '車検証再交付';
 
         let remarkDisplay = '';
         if (isFusoClient) {
@@ -1954,7 +1951,7 @@ const Invoice = {
       </tr>
 
       <!-- 立替金パート -->
-      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'送料':4,'その他実費':5}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
+      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'その他実費':6}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td style="font-size:11px;">${lbl}</td>
@@ -2216,7 +2213,6 @@ ${detailPagesHTML}
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-        if (c.regType === 'syakensho' || (c.subCategory && c.subCategory.includes('車検証')) || (c.title && c.title.includes('車検証再交付')) || (c.memo && c.memo.includes('車検証再交付'))) categoryShort = '車検証再交付';
 
         const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
         const remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : (categoryShort || '-');
@@ -3358,7 +3354,7 @@ window.NissanPrint = {
   buildStandardInvoiceHTML({ invoiceNo, issueDate, dueDate, year, month, client, office, cases, CATS, feeSubtotal, tax, taxRate, advanceTotal, total, note, docType = 'invoice', contactNames = [] }) {
     const allAdvances = cases.flatMap(c =>
       (c.advances||[]).filter(a => a.label || Number(a.amount) > 0).map(a => {
-        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : '実費・その他'))));
+        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : '実費・その他')))));
         return {
           category: cat,
           label: a.label || cat,
@@ -3640,7 +3636,7 @@ window.NissanPrint = {
     const advMap = {};
     cases.forEach(c => {
       (c.advances || []).forEach(a => {
-        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : 'その他実費'))));
+        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : 'その他実費')))));
         const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
         const amt = Number(a.amount || 0);
         if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
@@ -3693,7 +3689,7 @@ window.NissanPrint = {
     ws1.getRow(6).height = 20;
 
     // 後述の総合計セル(D23以降)を参照
-    const advKeys = Object.keys(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'送料':4,'その他実費':5}; const cA = (a.match(/【(.+?)】/) || [])[1] || ''; const cB = (b.match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a) - sp(b) || a.localeCompare(b); });
+    const advKeys = Object.keys(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'その他実費':6}; const cA = (a.match(/【(.+?)】/) || [])[1] || ''; const cB = (b.match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a) - sp(b) || a.localeCompare(b); });
     const advRowCount = advKeys.length > 0 ? advKeys.length : 1;
     const subtotalRow = 14;
     const taxRow = 15;
@@ -4002,7 +3998,6 @@ window.NissanPrint = {
         categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
       }
       if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-        if (c.regType === 'syakensho' || (c.subCategory && c.subCategory.includes('車検証')) || (c.title && c.title.includes('車検証再交付')) || (c.memo && c.memo.includes('車検証再交付'))) categoryShort = '車検証再交付';
 
       const fee = Number(c.fee || 0);
       const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
