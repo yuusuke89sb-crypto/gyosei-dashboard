@@ -1044,11 +1044,38 @@ const Store = {
       exportedAt: new Date().toISOString(),
       version: '2.0',
     };
+
+    // 完全バックアップ: 端末内の全データ（IndexedDB キャッシュ＋localStorage）を丸ごと保存
+    // ※読み取りのみ。請求書連番・事務所情報・入金予定など上記に含まれない項目の保全用
+    const fullDump = { indexedDB: {}, localStorage: {} };
+    try {
+      if (typeof IdbStore !== 'undefined' && IdbStore._cache) {
+        IdbStore._cache.forEach((v, k) => { fullDump.indexedDB[k] = v; });
+      }
+    } catch (e) { fullDump.indexedDBError = String(e); }
+    try {
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (!k) continue;
+        fullDump.localStorage[k] = Storage.prototype.getItem.call(window.localStorage, k);
+      }
+    } catch (e) { fullDump.localStorageError = String(e); }
+    // 認証・APIキー類はバックアップファイルに含めない
+    ['gyosei_auth_hash', 'gyosei_admin_pin', 'gyosei_gemini_api_key'].forEach(k => {
+      delete fullDump.indexedDB[k];
+      delete fullDump.localStorage[k];
+    });
+    data._fullDump = fullDump;
+    data._device = { userAgent: navigator.userAgent, origin: location.origin };
+
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gyosei_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `gyosei_backup_${stamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
     if (typeof App !== 'undefined' && App.showToast) {
