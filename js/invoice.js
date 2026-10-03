@@ -364,38 +364,80 @@ const Invoice = {
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
 
-  // 新様式 立替金欄の厳格1行フォーマッター（セル幅17.0% / 約31mm）
-  // ディーラーの強い要望「絶対に2行にしない（1行厳格収容）」を完全遵守
+  // 新様式 立替金欄の明細ブロック生成（表示用・高さ見積り用の共通ロジック）
+  // 明細名は省略せず、入力ラベルをそのまま使用（明朝体版と同じ「ラベル:金額」表記）
+  // 1件のみ: 2行目は明細名のみ（金額は1行目の合計と同額のため）
+  // 複数件: 「ラベル:金額」を不可分ブロックとして並べる（ブロック途中では改行しない）
+  _buildGothicAdvanceBlocks(advances) {
+    const CELL_W = 100;   // 立替金セル内の有効幅(px)
+    const BASE_FS = 9.2;  // 明細の基準フォントサイズ(px)
+    const MIN_FS = 7.0;   // 縮小下限(px)
+    const valid = (advances || []).filter(a => Number(a.amount) > 0);
+    const single = valid.length === 1;
+    return valid.map(a => {
+      const label = String(a.label || a.category || '実費').trim();
+      const text = single ? label : `${label}:${Number(a.amount).toLocaleString()}`;
+      const w = this._getVisualLength(text) * BASE_FS;
+      let fs = BASE_FS;
+      if (w > CELL_W) fs = Math.max(MIN_FS, BASE_FS * CELL_W / w);
+      return { text, fs, width: this._getVisualLength(text) * fs };
+    });
+  },
+
+  // 新様式 立替金欄: 1行目=合計金額 / 2行目以降=明細（ブロック単位で折り返し）
   _formatAdvanceCellGothicHTML(advSum, advances) {
     if (!advSum || Number(advSum) <= 0) return '-';
     const sumStr = Number(advSum).toLocaleString();
-    const validAdvances = (advances || []).filter(a => Number(a.amount) > 0);
-    if (validAdvances.length === 0) {
-      return `<span style="font-size:11.5px; font-weight:700; color:#000;">${sumStr}</span>`;
-    }
+    const blocks = this._buildGothicAdvanceBlocks(advances);
+    const totalLine = `<div style="font-size:11.5px; font-weight:700; color:#000; line-height:1.2;">${sumStr}</div>`;
+    if (blocks.length === 0) return totalLine;
+    const blocksHTML = blocks.map(b =>
+      `<span style="display:inline-block; white-space:nowrap; font-size:${b.fs.toFixed(1)}px; font-weight:600; color:#334155; line-height:1.25;">${b.text}</span>`
+    ).join('');
+    return `${totalLine}<div style="display:flex; flex-wrap:wrap; justify-content:flex-end; gap:0 4px; white-space:normal; margin-top:1px;">${blocksHTML}</div>`;
+  },
 
-    if (validAdvances.length === 1) {
-      const a = validAdvances[0];
-      let shortLabel = a.label || a.category || '証紙';
-      shortLabel = shortLabel.replace(/【.+?】/g, '').replace(/車庫証明/, '').replace(/申請/, '').replace(/代$/, '').trim() || '証紙';
-      if (shortLabel.length > 4) shortLabel = shortLabel.slice(0, 4);
-
-      return `<div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;">
-        <span style="font-size:11.5px; font-weight:700; color:#000;">${sumStr}</span>
-        <span style="font-size:9.2px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(${shortLabel})</span>
-      </div>`;
-    }
-
-    const shortLabels = validAdvances.map(a => {
-      let lbl = a.label || a.category || '実費';
-      lbl = lbl.replace(/【.+?】/g, '').replace(/車庫証明/, '').replace(/申請/, '').replace(/代$/, '').trim();
-      return lbl.slice(0, 2);
+  // 新様式 1行(1案件)の推定高さ(px)。立替金の折り返し行数を加味
+  _estimateGothicRowHeight(c) {
+    const MIN_H = 32;
+    const CELL_W = 100;
+    const GAP = 4;
+    const blocks = this._buildGothicAdvanceBlocks(c && c.advances);
+    if (blocks.length === 0) return MIN_H;
+    let lines = 1, cur = 0;
+    blocks.forEach(b => {
+      const need = cur === 0 ? b.width : cur + GAP + b.width;
+      if (need > CELL_W && cur > 0) { lines++; cur = b.width; } else { cur = need; }
     });
-    const combinedLabel = shortLabels.join('+');
-    return `<div style="display:inline-flex; align-items:baseline; justify-content:flex-end; width:100%; white-space:nowrap; overflow:hidden; text-overflow:clip; gap:3px;">
-      <span style="font-size:11.5px; font-weight:700; color:#000;">${sumStr}</span>
-      <span style="font-size:8.8px; font-weight:600; color:#475569; letter-spacing:-0.2px;">(${combinedLabel})</span>
-    </div>`;
+    // 余白12px + 合計行14px + 明細行(約11.5px)×行数 + 罫線等2px
+    return Math.max(MIN_H, 12 + 14 + 2 + lines * 11.5);
+  },
+
+  // 新様式 高さベースの自動改ページ（固定件数ではなく、各行の推定高さを積み上げる）
+  _paginateGothicByHeight(items) {
+    if (!items || items.length === 0) return [[]];
+    const BUDGET_MID = 710;   // 通常ページの明細領域の高さ(px)
+    const BUDGET_LAST = 706;  // 最終ページ（合計行34pxを含む）の明細領域の高さ(px)
+    const rowH = (c) => this._estimateGothicRowHeight(c);
+    const sumH = (arr) => arr.reduce((s, c) => s + rowH(c), 0);
+    const pages = [];
+    let page = [], h = 0;
+    items.forEach(c => {
+      const rh = rowH(c);
+      if (page.length > 0 && h + rh > BUDGET_MID) {
+        pages.push(page); page = []; h = 0;
+      }
+      page.push(c); h += rh;
+    });
+    if (page.length > 0) pages.push(page);
+    // 最終ページに合計行が収まらない場合、末尾の行を次ページへ送る
+    const last = pages[pages.length - 1];
+    if (last.length > 1 && sumH(last) > BUDGET_LAST) {
+      const moved = [];
+      while (last.length > 1 && sumH(last) > BUDGET_LAST) moved.unshift(last.pop());
+      pages.push(moved);
+    }
+    return pages;
   },
 
   // 新様式 宛名フォーマッター（ゴシック体）
@@ -3016,21 +3058,7 @@ ${detailPagesHTML}
       sortedCases = [...nonSealCases, ...sealCases];
     }
 
-    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
-      if (!items || items.length === 0) return [[]];
-      if (items.length <= maxLimit) return [items];
-      const pages = [];
-      let remaining = [...items];
-      while (remaining.length > 0) {
-        if (remaining.length <= maxLimit) {
-          pages.push(remaining);
-          break;
-        }
-        pages.push(remaining.slice(0, baseLimit));
-        remaining = remaining.slice(baseLimit);
-      }
-      return pages;
-    };
+    const paginateCases = (items) => this._paginateGothicByHeight(items);
 
     const detailPages = paginateCases(sortedCases, 20, 22);
     const totalDetailPages = detailPages.length;
@@ -3640,21 +3668,7 @@ ${detailPagesHTML}
     const sortedNormalCases = sortCaseList(normalCases);
     const sortedUsedCases = sortCaseList(usedCases);
 
-    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
-      if (!items || items.length === 0) return [[]];
-      if (items.length <= maxLimit) return [items];
-      const pages = [];
-      let remaining = [...items];
-      while (remaining.length > 0) {
-        if (remaining.length <= maxLimit) {
-          pages.push(remaining);
-          break;
-        }
-        pages.push(remaining.slice(0, baseLimit));
-        remaining = remaining.slice(baseLimit);
-      }
-      return pages;
-    };
+    const paginateCases = (items) => this._paginateGothicByHeight(items);
 
     const hasNormal = sortedNormalCases.length > 0;
     const hasUsed = sortedUsedCases.length > 0;
