@@ -646,6 +646,9 @@ function doGet(e) {
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 請求書・請求明細・入金（invoices.gs）
+    if (type === 'invoices') result.invoices = getInvoiceData_();
+
     result.syncedAt = new Date().toISOString();
 
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -705,6 +708,12 @@ function doPost(e) {
     const lineNotifyCase = !!body.lineNotifyCase; // 案件完了通知フラグ
     const lineNotifyInbox = !!body.lineNotifyInbox; // インボックス通知フラグ
     let result = {};
+
+    // 請求書・請求明細・入金（invoices.gs）— 排他採番つき
+    if (typeof isInvoiceAction_ === 'function' && isInvoiceAction_(action)) {
+      result = handleInvoiceAction_(action, data);
+      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    }
 
     switch (action) {
       case 'upsertCustomer': result = upsertCustomer_(data); break;
