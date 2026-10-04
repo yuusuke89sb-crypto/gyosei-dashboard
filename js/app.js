@@ -261,6 +261,8 @@ const App = {
       <div class="sidebar-tools">
         <button class="btn btn-ghost" onclick="GlobalSearch.show()" title="検索 (Ctrl+K)">🔍 案件・顧客検索</button>
         <button class="btn btn-ghost briefing-sidebar-btn" onclick="Briefing.show()" title="今日のブリーフィング">☀️ 今日のブリーフィング</button>
+        <button class="btn btn-ghost" onclick="ClosingCheck.show()" title="請求の締め前に、請求漏れ・入力漏れをまとめて確認">📋 締め前チェック</button>
+        <button class="btn btn-ghost" onclick="SyncPanel.show()" title="同期の状態・未送信の確認・自動バックアップ">🔄 同期の状態</button>
         
         ${isAdmin ? `
           <!-- 管理者（代表者）専用メニュー -->

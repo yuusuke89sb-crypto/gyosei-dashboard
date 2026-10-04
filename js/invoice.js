@@ -616,6 +616,7 @@ const Invoice = {
   showSelectModal(clientId, docType = 'invoice', includeAll = false) {
     const client = Store.getClient(clientId);
     if (!client) return;
+    if (docType === 'invoice' && typeof InvoiceSync !== 'undefined') InvoiceSync.ensureDeviceName();
 
     const now = new Date();
     const currentPeriod = this.getCurrentBillingPeriod(now);
@@ -1117,27 +1118,23 @@ const Invoice = {
   },
 
   // 請求書を取り消して対象案件を未請求に戻す
-  cancelInvoice(clientId) {
+  async cancelInvoice(clientId) {
     const invoiceNo = document.getElementById('reprintInvoiceNo') ? document.getElementById('reprintInvoiceNo').value : '';
     if (!invoiceNo) return;
 
-    if (!confirm(`⚠️ 請求書「${invoiceNo}」を取り消して、含まれる案件を「未請求」状態に戻しますか？\n（入金・売掛金データも連動して削除されます）`)) {
+    if (!confirm(`⚠️ 請求書「${invoiceNo}」を取り消して、含まれる案件を「未請求」状態に戻しますか？\n（入金予定も取り消されます。全端末に反映されます）`)) {
       return;
     }
+    const reason = prompt('取消の理由（任意）', '') ;
+    if (reason === null) return;
 
     const cases = this.getBilledCases(clientId, invoiceNo);
-    cases.forEach(c => {
-      Store.updateCase(c.id, {
-            invoiceNo: '',
-            invoiceLocked: false,
-            invoiceLockedAt: '',
-            invoiceLockedFee: '',
-            invoiceLockedAdvances: []
-          });
-    });
-
-    if (typeof Payments !== 'undefined') {
-      Payments.deleteByInvoiceNo(invoiceNo);
+    // 取消は共有の請求データ（スプレッドシート）で行う。案件の請求済み表示は自動で戻る
+    try {
+      await InvoiceSync.cancel(invoiceNo, reason);
+    } catch (err) {
+      alert('請求書を取り消せませんでした。\n\n' + InvoiceSync.describeError(err));
+      return;
     }
 
     const modal = document.getElementById('invoiceSelectModal');
@@ -1217,6 +1214,38 @@ const Invoice = {
         .filter(Boolean)
     )];
 
+    // 請求書：全端末共通の番号をスプレッドシートで採番して登録（二重請求はここで拒否される）
+    let win = null;
+    if (docType === 'invoice') {
+      if (!InvoiceSync.getDeviceName() && !InvoiceSync.ensureDeviceName()) {
+        App.showToast('端末名が未設定のため発行を中止しました');
+        return;
+      }
+      if (!InvoiceSync.isReady()) {
+        alert('請求データをまだ取得できていません。画面左の「🔄 同期」を押してから、もう一度発行してください。');
+        return;
+      }
+      // ポップアップブロック防止のため、先に画面だけ開いておく
+      try {
+        win = window.open('', '_blank');
+        if (win) win.document.write('<p style="font-family:sans-serif;padding:40px;color:#334155">請求書番号を取得しています…</p>');
+      } catch (e) { win = null; }
+      try {
+        const res = await InvoiceSync.issue({ clientId, year, month, issueDate, dueDate, cases, taxRate, templateType, note });
+        invoiceNo = res.invoiceNo;
+      } catch (err) {
+        if (win) { try { win.close(); } catch (e) { /* noop */ } }
+        alert('請求書を発行できませんでした。\n\n' + InvoiceSync.describeError(err));
+        if (err && err.code === 'ALREADY_BILLED') {
+          await InvoiceSync.refresh().catch(() => {});
+          const m = document.getElementById('invoiceSelectModal');
+          if (m) m.remove();
+          App.refreshView();
+        }
+        return;
+      }
+    }
+
     const invoiceParams = {
       invoiceNo, issueDate, dueDate, year, month,
       client, office, cases, CATS,
@@ -1228,7 +1257,7 @@ const Invoice = {
 
     // 1. ポップアップブロック防止のため、印刷プレビュー画面を同期的にオープン
     try {
-      const win = window.open('', '_blank');
+      if (!win) win = window.open('', '_blank');
       if (win) {
         win.document.open();
         win.document.write(html);
@@ -1265,20 +1294,9 @@ const Invoice = {
     if (modal) modal.remove();
     
     if (docType === 'invoice') {
-      cases.forEach(c => {
-        Store.updateCase(c.id, {
-            invoiceNo: invoiceNo,
-            invoiceLocked: true,
-            invoiceLockedAt: new Date().toISOString(),
-            invoiceLockedFee: c.fee,
-            invoiceLockedAdvances: c.advances || []
-          });
-      });
-
-      if (typeof Payments !== 'undefined') {
-        Payments.createFromInvoice(invoiceNo, clientId, total, dueDate, taxRate);
-      }
-      App.showToast(`請求書 ${invoiceNo} を発行しました（Excelも出力済）`);
+      // 請求済み表示・入金予定は InvoiceSync.issue で反映済み（全端末共有）
+      App.refreshView();
+      App.showToast(`請求書 ${invoiceNo} を発行しました（全端末に共有されます）`);
     } else {
       App.showToast(`見積書 ${invoiceNo} を作成しました`);
     }
@@ -1351,22 +1369,22 @@ const Invoice = {
         .filter(Boolean)
     )];
 
-    const markBilled = confirm(`📊 Excelファイルを出力します。\n\n対象の案件(${cases.length}件)を「請求済み（売掛金計上）」として処理しますか？\n・[OK]：請求書番号（${invoiceNo}）を付番して請求済みに登録し、Excelを出力\n・[キャンセル]：未請求のまま、確認用下書きExcelのみ出力`);
+    const markBilled = confirm(`📊 Excelファイルを出力します。\n\n対象の案件(${cases.length}件)を「請求済み（売掛金計上）」として処理しますか？\n・[OK]：全端末共通の請求書番号を付番して請求済みに登録し、Excelを出力\n・[キャンセル]：未請求のまま、確認用下書きExcelのみ出力`);
 
     if (markBilled) {
       if (docType === 'invoice') {
-        cases.forEach(c => {
-          Store.updateCase(c.id, {
-            invoiceNo: invoiceNo,
-            invoiceLocked: true,
-            invoiceLockedAt: new Date().toISOString(),
-            invoiceLockedFee: c.fee,
-            invoiceLockedAdvances: c.advances || []
-          });
-        });
-
-        if (typeof Payments !== 'undefined') {
-          Payments.createFromInvoice(invoiceNo, clientId, total, dueDate, taxRate);
+        try {
+          const res = await InvoiceSync.issue({ clientId, year, month, issueDate, dueDate, cases, taxRate, templateType, note });
+          invoiceNo = res.invoiceNo;
+        } catch (err) {
+          alert('請求書を発行できませんでした。\n\n' + InvoiceSync.describeError(err));
+          if (err && err.code === 'ALREADY_BILLED') {
+            await InvoiceSync.refresh().catch(() => {});
+            const m = document.getElementById('invoiceSelectModal');
+            if (m) m.remove();
+            App.refreshView();
+          }
+          return;
         }
       }
       const modal = document.getElementById('invoiceSelectModal');

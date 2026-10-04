@@ -646,8 +646,8 @@ function doGet(e) {
       return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 請求書・請求明細・入金（invoices.gs）
-    if (type === 'invoices') result.invoices = getInvoiceData_();
+    // 拡張データ（請求書・削除ログ等 / sync_ext.gs）
+    if (typeof extDoGet_ === 'function') extDoGet_(type, result);
 
     result.syncedAt = new Date().toISOString();
 
@@ -709,10 +709,12 @@ function doPost(e) {
     const lineNotifyInbox = !!body.lineNotifyInbox; // インボックス通知フラグ
     let result = {};
 
-    // 請求書・請求明細・入金（invoices.gs）— 排他採番つき
-    if (typeof isInvoiceAction_ === 'function' && isInvoiceAction_(action)) {
-      result = handleInvoiceAction_(action, data);
-      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    // 拡張アクション（請求書・案件の項目単位保存・削除ログ / sync_ext.gs）
+    if (typeof extDoPost_ === 'function') {
+      const extResult = extDoPost_(action, data, body);
+      if (extResult !== null) {
+        return ContentService.createTextOutput(JSON.stringify(extResult)).setMimeType(ContentService.MimeType.JSON);
+      }
     }
 
     switch (action) {

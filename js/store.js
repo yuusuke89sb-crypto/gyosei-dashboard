@@ -90,6 +90,9 @@ const Store = {
 
         if (rowChanged) {
           changed = true;
+          // 直した項目に変更時刻を付ける（項目単位同期で送信される）
+          const tsNow = new Date().toISOString();
+          c._fieldTs = Object.assign({}, c._fieldTs || {}, { vin: tsNow, carNumber: tsNow });
           modifiedCases.push(c);
         }
       });
@@ -97,7 +100,9 @@ const Store = {
       if (changed) {
         localStorage.setItem('gyosei_cases', JSON.stringify(cases));
         console.log(`✅ 車台番号(VIN)と登録番号の自動救済・分離マイグレーションを完了しました (${modifiedCases.length}件修復)`);
-        if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+        if (typeof CaseSync !== 'undefined') {
+          CaseSync.flushSoon();
+        } else if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
           modifiedCases.forEach(fc => {
             SpreadsheetSync.push('upsertCase', fc).catch(() => {});
           });
@@ -315,10 +320,13 @@ const Store = {
       createdAt: data.createdAt || (data.registeredAt ? (data.registeredAt.includes('T') ? data.registeredAt : (data.registeredAt + 'T12:00:00.000Z')) : new Date().toISOString()),
       updatedAt: new Date().toISOString(),
     };
+    if (typeof CaseSync !== 'undefined') CaseSync.markNew(newCase);
     cases.push(newCase);
     this._set(this.KEYS.CASES, cases);
-    // スプレッドシートへ自動プッシュ
-    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+    // スプレッドシートへ自動送信（失敗しても残り、自動で再送される）
+    if (typeof CaseSync !== 'undefined') {
+      CaseSync.flushSoon();
+    } else if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('upsertCase', newCase);
     }
     // 完了案件として登録され報酬がある場合は仕訳を自動生成
@@ -373,9 +381,11 @@ const Store = {
     cases[idx] = { ...cases[idx], ...data, updatedAt: now, _fieldTs: newFieldTs };
     this._set(this.KEYS.CASES, cases);
 
-    // スプレッドシートへ自動プッシュ
+    // スプレッドシートへ自動送信（変更した項目だけ。失敗しても自動で再送）
     const updatedCase = cases[idx];
-    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+    if (typeof CaseSync !== 'undefined') {
+      CaseSync.flushSoon();
+    } else if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('upsertCase', updatedCase);
     }
 
@@ -444,7 +454,7 @@ const Store = {
     const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
     const journalDate = (c.completedAt ? c.completedAt.slice(0, 10) : this.getLocalDateStr());
     journals.push({
-      id: 'j_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      id: `j_case_${c.id}_${c.category || 'sales'}`, // 案件から決まる固定ID（複数端末で作られても重複しない）
       date: journalDate,
       debit: '売掛金',
       credit: '売上高',
@@ -471,8 +481,10 @@ const Store = {
     const remainingJournals = journals.filter(j => j.caseId !== id);
     localStorage.setItem('gyosei_journals', JSON.stringify(remainingJournals));
 
-    // スプレッドシートからも削除
-    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+    // スプレッドシートからも削除（削除ログに残り、他端末でも消える。失敗時は自動再送）
+    if (typeof CaseSync !== 'undefined') {
+      CaseSync.queueDelete(id);
+    } else if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('deleteCase', { id });
     }
   },
@@ -1022,7 +1034,8 @@ const Store = {
   },
 
   // ---- エクスポート / インポート ----
-  exportData() {
+  /** バックアップ内容を組み立てる（読み取りのみ。手動・自動バックアップ共通） */
+  buildBackupData() {
     const data = {
       clients: this.getClients(),
       cases: this.getCases(),
@@ -1066,8 +1079,12 @@ const Store = {
       delete fullDump.localStorage[k];
     });
     data._fullDump = fullDump;
-    data._device = { userAgent: navigator.userAgent, origin: location.origin };
+    data._device = { userAgent: navigator.userAgent, origin: location.origin, name: localStorage.getItem('gyosei_device_name') || '' };
+    return data;
+  },
 
+  exportData() {
+    const data = this.buildBackupData();
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;

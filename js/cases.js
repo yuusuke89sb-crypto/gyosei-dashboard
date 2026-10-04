@@ -2050,16 +2050,17 @@ const Cases = {
   },
 
   // 個別案件の請求取消（未請求に戻す）
-  cancelSingleCaseInvoice(caseId) {
+  async cancelSingleCaseInvoice(caseId) {
     const c = Store.getCase(caseId);
     if (!c || !c.invoiceNo) return;
-    if (!confirm(`案件「${c.title}」の請求書（${c.invoiceNo}）を取り消して「未請求」に戻しますか？`)) return;
-    const oldInv = c.invoiceNo;
-    Store.updateCase(caseId, { invoiceNo: '' });
-    // 他の案件にこの請求書番号が残っていなければPaymentsからも削除
-    const otherCases = Store.getCases().filter(other => other.id !== caseId && other.invoiceNo === oldInv);
-    if (otherCases.length === 0 && typeof Payments !== 'undefined') {
-      Payments.deleteByInvoiceNo(oldInv);
+    if (!confirm(`案件「${c.title}」の請求書（${c.invoiceNo}）を取り消して「未請求」に戻しますか？\n（全端末に反映されます。請求書の合計金額も減額されます）`)) return;
+    const reason = prompt('取消の理由（任意）', '');
+    if (reason === null) return;
+    try {
+      await InvoiceSync.cancelCase(c.invoiceNo, caseId, reason);
+    } catch (err) {
+      alert('請求を取り消せませんでした。\n\n' + InvoiceSync.describeError(err));
+      return;
     }
     this.closeModal();
     App.refreshView();

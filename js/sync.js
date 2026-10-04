@@ -46,6 +46,11 @@ const SpreadsheetSync = {
         const url = this.getGasUrl();
         if (!url) throw new Error('GAS URL が設定されていません');
 
+        // 未送信の案件変更を先に送る（取得で上書きされないように）
+        if (typeof CaseSync !== 'undefined') {
+            try { await CaseSync.flush(); } catch (e) { console.warn('[SpreadsheetSync.pull] 案件の送信警告:', e); }
+        }
+
         // 未送信キューがあれば事前に再送試行
         try {
             await this.flushPendingInboxQueue();
@@ -65,7 +70,7 @@ const SpreadsheetSync = {
         } catch (allErr) {
             console.warn('[SpreadsheetSync.pull] type=all 通信エラーまたはタイムアウト。個別並行取得へフォールバックします...', allErr);
             // 分割並行取得にフォールバック（Google 30秒タイムアウト対策）
-            const chunkTypes = ['customers', 'staff', 'locations', 'clientContacts', 'cases', 'journals', 'inbox', 'events'];
+            const chunkTypes = ['customers', 'staff', 'locations', 'clientContacts', 'cases', 'journals', 'inbox', 'events', 'deletedCases', 'invoices'];
             const chunkResults = await Promise.allSettled(chunkTypes.map(async (t) => {
                 const r = await fetch(url + sep + 'type=' + t + '&t=' + Date.now());
                 if (!r.ok) return null;
@@ -94,180 +99,16 @@ const SpreadsheetSync = {
                 Store._set(Store.KEYS.STAFF, data.staff);
             }
 
-            // 案件データを localStorage に保存
-            if (data.cases) {
-                // ローカルの案件データから docs 等の失われたくないデータをマージ
-                const localCases = Store.getCases();
-                
-                const mergedCases = data.cases.map(remoteCase => {
-                    const localCase = localCases.find(c => c.id === remoteCase.id);
-                    
-                    // docs のパース（GASから文字列で返ってきた場合）
-                    let parsedDocs = remoteCase.docs;
-                    if (typeof parsedDocs === 'string') {
-                        try { parsedDocs = JSON.parse(parsedDocs); } catch(e) { parsedDocs = null; }
-                    }
-                    // リモートに docs が無い、または空の場合はローカルを優先
-                    if ((!parsedDocs || parsedDocs.length === 0) && localCase && localCase.docs) {
-                        parsedDocs = localCase.docs;
-                    }
+            // 案件データ：項目単位のマージ（case_sync.js）。未送信の変更・新規案件は消さない
+            if (data.cases && typeof CaseSync !== 'undefined') {
+                CaseSync.mergeRemoteCases(data.cases, data.deletedCases || [], { serverReady: Array.isArray(data.deletedCases) });
+            }
 
-                    // advances のパース
-                    let parsedAdvances = remoteCase.advances;
-                    if (typeof parsedAdvances === 'string') {
-                        try { parsedAdvances = JSON.parse(parsedAdvances); } catch(e) { parsedAdvances = null; }
-                    }
-                    if ((!parsedAdvances || parsedAdvances.length === 0) && localCase && localCase.advances) {
-                        parsedAdvances = localCase.advances;
-                    }
-
-                    // familyTreeData のパース
-                    let parsedFamilyTree = remoteCase.familyTreeData;
-                    if (typeof parsedFamilyTree === 'string') {
-                        try { parsedFamilyTree = JSON.parse(parsedFamilyTree); } catch(e) { parsedFamilyTree = null; }
-                    }
-                    if (!parsedFamilyTree && localCase && localCase.familyTreeData) {
-                        parsedFamilyTree = localCase.familyTreeData;
-                    }
-
-                    // 車台番号(VIN)と自動車登録番号(ナンバー)のスマート判定と完全分離
-                    let rawCarNum = String(remoteCase.carNumber || remoteCase['自動車登録番号'] || remoteCase['新自動車登録番号'] || remoteCase['登録番号'] || remoteCase['新ナンバー'] || '').trim();
-                    let rawOldCarNum = String(remoteCase.oldCarNumber || remoteCase['旧自動車登録番号'] || remoteCase['旧登録番号'] || remoteCase['旧ナンバー'] || (localCase && localCase.oldCarNumber) || '').trim();
-                    let rawVin = String(remoteCase.vin || remoteCase['車台番号'] || remoteCase['VIN'] || '').trim();
-                    let rawRegType = String(remoteCase.regType || remoteCase['封印事由'] || remoteCase['登録区分'] || remoteCase['登録種別区分'] || (localCase && localCase.regType) || '').trim();
-
-                    const localCarNum = (localCase && localCase.carNumber) ? String(localCase.carNumber).trim() : '';
-                    const localVin = (localCase && localCase.vin) ? String(localCase.vin).trim() : '';
-
-                    // ナンバー判定（地域名漢字・ひらがな入り、または1〜4桁の希望ナンバー）
-                    const isPlateNum = (str) => Boolean(str && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(str) || /^\d{1,4}$/.test(str.trim())));
-                    // 車台番号判定（英数字とハイフンのみ、日本語なし、モデル番号ハイフン型または17桁VIN）
-                    const isChassisNum = (str) => Boolean(str && !/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(str) && (/^[A-Z0-9]{2,8}-[0-9A-Z]{4,10}$/i.test(str.trim()) || /^[A-Z0-9]{17}$/i.test(str.trim())));
-
-                    // 1. localCaseからの安全な補完
-                    if (!rawCarNum && localCarNum) {
-                        rawCarNum = localCarNum;
-                    }
-                    if (!rawVin && localVin && !isPlateNum(localVin)) {
-                        rawVin = localVin;
-                    }
-
-                    // 2. rawVin にナンバーが入っている場合の救済（旧GASで車台番号列にナンバーが保存されていたケース）
-                    if (isPlateNum(rawVin)) {
-                        if (!rawCarNum) rawCarNum = rawVin;
-                        rawVin = (localVin && !isPlateNum(localVin)) ? localVin : '';
-                    }
-
-                    // 3. rawCarNum と rawVin が同一の場合の分離解消
-                    if (rawCarNum && rawVin && rawCarNum === rawVin) {
-                        if (isPlateNum(rawCarNum)) {
-                            rawVin = '';
-                        } else if (isChassisNum(rawVin)) {
-                            rawCarNum = '';
-                        } else {
-                            rawVin = '';
-                        }
-                    }
-
-                    // 4. rawCarNum に車台番号が入っている場合の救済
-                    if (!rawVin && isChassisNum(rawCarNum)) {
-                        rawVin = rawCarNum;
-                        rawCarNum = (localCarNum && !isChassisNum(localCarNum)) ? localCarNum : '';
-                    }
-
-                    // 5. rawVin が空の場合、メモ欄から車台番号を抽出
-                    if (!rawVin) {
-                        const memoText = String(remoteCase.memo || (localCase && localCase.memo) || '');
-                        if (memoText) {
-                            const m = memoText.match(/車台番号\s*[:：]?\s*([0-9A-Z]+-[0-9A-Z]+)/i) || memoText.match(/\b([A-Z0-9]{2,8}-[0-9A-Z]{4,10})\b/i);
-                            if (m && !/^\d{8}-/.test(m[1])) {
-                                rawVin = m[1].toUpperCase();
-                            }
-                        }
-                    }
-
-                    // 隲区ｱよ嶌繝ｭ繝・け菫晁ｭｷ: 繝ｭ繝ｼ繧ｫ繝ｫ縺ｧ invoiceLocked=true 縺ｮ譯井ｻｶ縺ｯ縲・                    // 蝣ｱ驟ｬ鬘阪・遶区崛驥代・繧ｹ繝・・繧ｿ繧ｹ繝ｻ螳御ｺ・律繧偵Μ繝｢繝ｼ繝医〒荳頑嶌縺阪＠縺ｪ縺・                    // Phase 2: フィールド単位タイムスタンプによるスマートマージ
-                    const localTs = (localCase && localCase._fieldTs) || {};
-                    let remoteFieldTs = remoteCase._fieldTs || {};
-                    if (typeof remoteFieldTs === 'string') {
-                        try { remoteFieldTs = JSON.parse(remoteFieldTs); } catch(e) { remoteFieldTs = {}; }
-                    }
-
-                    // フィールド単位で最新値を選択するヘルパー
-                    function pickNewer(field, localVal, remoteVal) {
-                        const lt = localTs[field] ? new Date(localTs[field]).getTime() : 0;
-                        const rt = remoteFieldTs[field] ? new Date(remoteFieldTs[field]).getTime() : 0;
-                        if (lt > 0 && lt > rt) return localVal !== undefined ? localVal : remoteVal;
-                        return remoteVal !== undefined && remoteVal !== '' ? remoteVal : (localVal !== undefined ? localVal : '');
-                    }
-
-                    // _fieldTs のマージ（各フィールドの最新タイムスタンプを保持）
-                    const mergedFieldTs = {};
-                    const allTsKeys = new Set([...Object.keys(localTs), ...Object.keys(remoteFieldTs)]);
-                    for (const k of allTsKeys) {
-                        const lt = localTs[k] ? new Date(localTs[k]).getTime() : 0;
-                        const rt = remoteFieldTs[k] ? new Date(remoteFieldTs[k]).getTime() : 0;
-                        mergedFieldTs[k] = lt > rt ? localTs[k] : (remoteFieldTs[k] || localTs[k]);
-                    }
-
-                    // invoiceLocked: OR結合でロック状態を確実に伝搬
-                    const mergedLocked = !!((localCase && localCase.invoiceLocked) || remoteCase.invoiceLocked);
-                    const isLocked = localCase && localCase.invoiceLocked;
-
-                    return {
-                        ...remoteCase,
-                        orderNo: pickNewer('orderNo', localCase && localCase.orderNo, String(remoteCase.orderNo || remoteCase['注文書№'] || remoteCase['注文書No'] || remoteCase['注文書NO'] || remoteCase['注文番号'] || remoteCase['注文No'] || (localCase && localCase.orderNo) || '')),
-                        docs: Array.isArray(parsedDocs) ? parsedDocs : [],
-                        advances: isLocked ? localCase.advances : pickNewer('advances', localCase && localCase.advances, Array.isArray(parsedAdvances) ? parsedAdvances : []),
-                        clientContactId: pickNewer('clientContactId', localCase && localCase.clientContactId, remoteCase.clientContactId),
-                        locationId: pickNewer('locationId', localCase && localCase.locationId, remoteCase.locationId),
-                        faxId: pickNewer('faxId', localCase && localCase.faxId, remoteCase.faxId),
-                        inboxId: pickNewer('inboxId', localCase && localCase.inboxId, remoteCase.inboxId),
-                        driveFolderUrl: pickNewer('driveFolderUrl', localCase && localCase.driveFolderUrl, remoteCase.driveFolderUrl),
-                        carName: pickNewer('carName', localCase && localCase.carName, remoteCase.carName),
-                        carAddress: pickNewer('carAddress', localCase && localCase.carAddress, remoteCase.carAddress),
-                        parkingAddress: pickNewer('parkingAddress', localCase && localCase.parkingAddress, remoteCase.parkingAddress),
-                        carPolice: pickNewer('carPolice', localCase && localCase.carPolice, remoteCase.carPolice),
-                        carNumber: rawCarNum,
-                        oldCarNumber: rawOldCarNum,
-                        vin: rawVin,
-                        regType: rawRegType,
-                        subCategory: pickNewer('subCategory', localCase && localCase.subCategory, remoteCase.subCategory || remoteCase['登録種別']),
-                        invoiceNo: pickNewer('invoiceNo', localCase && localCase.invoiceNo, remoteCase.invoiceNo),
-                        deathDate: pickNewer('deathDate', localCase && localCase.deathDate, remoteCase.deathDate),
-                        surveyDate: pickNewer('surveyDate', localCase && localCase.surveyDate, remoteCase.surveyDate),
-                        applyDate: pickNewer('applyDate', localCase && localCase.applyDate, remoteCase.applyDate),
-                        policeDeliveryDate: pickNewer('policeDeliveryDate', localCase && localCase.policeDeliveryDate, remoteCase.policeDeliveryDate),
-                        storeDeliveryDate: pickNewer('storeDeliveryDate', localCase && localCase.storeDeliveryDate, remoteCase.storeDeliveryDate),
-                        storeDeliveryTime: pickNewer('storeDeliveryTime', localCase && localCase.storeDeliveryTime, remoteCase.storeDeliveryTime),
-                        surveyLocationId: pickNewer('surveyLocationId', localCase && localCase.surveyLocationId, remoteCase.surveyLocationId),
-                        policeLocationId: pickNewer('policeLocationId', localCase && localCase.policeLocationId, remoteCase.policeLocationId),
-                        landTransportLocationId: pickNewer('landTransportLocationId', localCase && localCase.landTransportLocationId, remoteCase.landTransportLocationId),
-                        registrationDate: pickNewer('registrationDate', localCase && localCase.registrationDate, remoteCase.registrationDate),
-                        completedAt: isLocked ? localCase.completedAt : pickNewer('completedAt', localCase && localCase.completedAt, remoteCase.completedAt || remoteCase['完了日']),
-                        applicantName: pickNewer('applicantName', localCase && localCase.applicantName, remoteCase.applicantName),
-                        applicantAddress: pickNewer('applicantAddress', localCase && localCase.applicantAddress, remoteCase.applicantAddress),
-                        memo: pickNewer('memo', localCase && localCase.memo, remoteCase.memo),
-                        milestoneIndex: remoteCase.milestoneIndex !== undefined && remoteCase.milestoneIndex !== ''
-                            ? Number(remoteCase.milestoneIndex)
-                            : (localCase && localCase.milestoneIndex) !== undefined && (localCase && localCase.milestoneIndex) !== ''
-                                ? Number(localCase.milestoneIndex)
-                                : 0,
-                        isUsedCar: remoteCase.isUsedCar !== undefined
-                            ? (remoteCase.isUsedCar === true || remoteCase.isUsedCar === 'true' || remoteCase.isUsedCar === '○')
-                            : !!(localCase && localCase.isUsedCar),
-                        fee: isLocked ? localCase.fee : pickNewer('fee', localCase && localCase.fee, remoteCase.fee),
-                        status: isLocked ? localCase.status : pickNewer('status', localCase && localCase.status, remoteCase.status),
-                        familyTreeData: parsedFamilyTree || null,
-                        invoiceLocked: mergedLocked,
-                        invoiceLockedAt: mergedLocked ? ((localCase && localCase.invoiceLockedAt) || remoteCase.invoiceLockedAt || '') : '',
-                        invoiceLockedFee: mergedLocked ? ((localCase && localCase.invoiceLockedFee) || remoteCase.invoiceLockedFee || '') : '',
-                        invoiceLockedAdvances: mergedLocked ? ((localCase && localCase.invoiceLockedAdvances) || remoteCase.invoiceLockedAdvances || []) : [],
-                        _fieldTs: mergedFieldTs,
-                    };
-                });
-                
-                Store._set(Store.KEYS.CASES, mergedCases);
+            // 請求書・請求明細・入金（invoice_sync.js）。案件の請求済み表示もここで組み立て直す
+            if (data.invoices && typeof InvoiceSync !== 'undefined') {
+                InvoiceSync.applyRemote(data.invoices);
+            } else if (data.cases && typeof InvoiceSync !== 'undefined' && InvoiceSync.isReady()) {
+                InvoiceSync.reconcileCases();
             }
 
             // インボックスデータを localStorage に保存（ローカルのステータス変更を優先保持）
