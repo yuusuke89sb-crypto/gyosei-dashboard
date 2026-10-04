@@ -359,10 +359,37 @@ const CaseSync = {
     else if (orphan) { bg = '#92400e'; fg = '#fef3c7'; text = `🟡 要確認 ${orphan}件`; }
     el.style.background = bg;
     el.style.color = fg;
-    el.textContent = text;
-    el.title = '同期の状態（クリックで詳細）';
+    const mobile = this.positionBadge(el);
+    // スマホは短い表示（「同期済み」「送信中」などの文字を省き、記号と数字だけ）
+    el.textContent = mobile ? text.replace(/同期済み |送信中 |要確認 |未送信 |（再送待ち）|同期準備中/g, '').trim() : text;
+    el.title = text + '（クリックで詳細）';
+  },
+
+  /** 下部メニュー（スマホ）が表示されていればその上に逃がす。スマホなら true */
+  positionBadge(el) {
+    el = el || document.getElementById('syncStatusBadge');
+    if (!el) return false;
+    const nav = document.querySelector('.bottom-nav');
+    const navVisible = !!(nav && getComputedStyle(nav).display !== 'none' && nav.offsetHeight > 0);
+    const mobile = navVisible || window.innerWidth <= 768;
+    if (mobile) {
+      const navH = navVisible ? nav.offsetHeight : 0;
+      el.style.bottom = (navH + 8) + 'px';
+      el.style.right = '8px';
+      el.style.padding = '4px 9px';
+      el.style.fontSize = '11px';
+      el.style.opacity = '0.9';
+    } else {
+      el.style.bottom = '14px';
+      el.style.right = '14px';
+      el.style.padding = '7px 14px';
+      el.style.fontSize = '12px';
+      el.style.opacity = '1';
+    }
+    return mobile;
   },
 };
 
 window.addEventListener('online', () => { CaseSync.flushSoon(500); });
 document.addEventListener('DOMContentLoaded', () => { setTimeout(() => CaseSync.renderBadge(), 800); });
+window.addEventListener('resize', () => { if (document.getElementById('syncStatusBadge')) CaseSync.renderBadge(); });

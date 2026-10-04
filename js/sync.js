@@ -70,7 +70,7 @@ const SpreadsheetSync = {
         } catch (allErr) {
             console.warn('[SpreadsheetSync.pull] type=all 通信エラーまたはタイムアウト。個別並行取得へフォールバックします...', allErr);
             // 分割並行取得にフォールバック（Google 30秒タイムアウト対策）
-            const chunkTypes = ['customers', 'staff', 'locations', 'clientContacts', 'cases', 'journals', 'inbox', 'events', 'deletedCases', 'invoices'];
+            const chunkTypes = ['customers', 'staff', 'locations', 'clientContacts', 'cases', 'journals', 'inbox', 'events', 'deletedCases', 'invoices', 'settings'];
             const chunkResults = await Promise.allSettled(chunkTypes.map(async (t) => {
                 const r = await fetch(url + sep + 'type=' + t + '&t=' + Date.now());
                 if (!r.ok) return null;
@@ -109,6 +109,11 @@ const SpreadsheetSync = {
                 InvoiceSync.applyRemote(data.invoices);
             } else if (data.cases && typeof InvoiceSync !== 'undefined' && InvoiceSync.isReady()) {
                 InvoiceSync.reconcileCases();
+            }
+
+            // 全端末共通の設定（目標値・事務所情報 / shared_settings.js）
+            if (data.settings && typeof SharedSettings !== 'undefined') {
+                SharedSettings.applyRemote(data.settings);
             }
 
             // インボックスデータを localStorage に保存（ローカルのステータス変更を優先保持）

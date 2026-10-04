@@ -1532,13 +1532,24 @@ const GoalTracker = {
 
   getGoals() {
     return JSON.parse(localStorage.getItem(this.STORAGE_KEY) || 'null') || {
-      annualRevenue: 3000000,
-      annualCases: 50,
-      monthlyCases: 5,
+      annualRevenue: 30000000,
+      annualCases: 6000,
+      monthlyCases: 500,
     };
   },
   saveGoals(goals) {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(goals));
+  },
+
+  /** 事業年度（10月〜翌9月）の始まりと終わり */
+  getFiscalYear(now) {
+    now = now || new Date();
+    const y = now.getMonth() + 1 >= 10 ? now.getFullYear() : now.getFullYear() - 1;
+    return { startDate: `${y}-10-01`, endDate: `${y + 1}-09-30`, label: `${y}/10〜${y + 1}/09` };
+  },
+
+  caseDoneDate(c) {
+    return String(c.completedAt || c.registrationDate || c.policeDeliveryDate || c.updatedAt || c.createdAt || '').slice(0, 10);
   },
 
   renderWidget() {
@@ -1547,20 +1558,17 @@ const GoalTracker = {
     const period = typeof Store !== 'undefined' && Store.getCurrentBillingPeriod ? Store.getCurrentBillingPeriod(now) : null;
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
+    const fy = this.getFiscalYear(now);
 
-    // 年間実績
-    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
-    const INCOME = ['売上高', '雑収入'];
-    const yearlyIncome = journals
-      .filter(j => j.date && j.date.startsWith(String(year)) && INCOME.includes(j.credit))
-      .reduce((s, j) => s + (j.amount || 0), 0);
-
+    // 今期実績（完了案件・報酬は税抜）― 案件は全端末で同期されているので、どの端末でも同じ数字になる
     const cases = Store.getCases();
-    const yearlyCases = cases.filter(c => {
+    const fyDone = cases.filter(c => {
       if (c.status !== 'done') return false;
-      const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.updatedAt || c.createdAt || '';
-      return rawDate.slice(0, 4) === String(year);
-    }).length;
+      const d = this.caseDoneDate(c);
+      return d >= fy.startDate && d <= fy.endDate;
+    });
+    const yearlyIncome = fyDone.reduce((s, c) => s + (Number(c.fee) || 0), 0);
+    const yearlyCases = fyDone.length;
 
     const ym = `${year}-${String(month).padStart(2, '0')}`;
     const monthlyCases = cases.filter(c => {
@@ -1584,16 +1592,16 @@ const GoalTracker = {
     return `
       <div class="goal-tracker">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h3 style="font-size:0.95rem;margin:0">🎯 年間目標</h3>
+          <h3 style="font-size:0.95rem;margin:0">🎯 今期の目標 <span style="font-size:0.75rem;color:var(--text-muted);font-weight:normal">(${fy.label})</span></h3>
           <button class="btn btn-small btn-ghost" onclick="GoalTracker.showSettings()">⚙️</button>
         </div>
         <div class="goal-item">
-          <div class="goal-label">💰 年間売上 <span style="float:right">¥${yearlyIncome.toLocaleString()} / ¥${goals.annualRevenue.toLocaleString()}</span></div>
+          <div class="goal-label">💰 今期売上<span style="font-size:0.7rem;color:var(--text-muted)">（報酬・税抜）</span> <span style="float:right">¥${yearlyIncome.toLocaleString()} / ¥${goals.annualRevenue.toLocaleString()}</span></div>
           <div class="checklist-bar"><div class="checklist-fill" style="width:${revPct}%;background:${revPct >= 80 ? 'var(--accent-green)' : revPct >= 50 ? 'var(--accent-gold)' : 'var(--accent-orange)'}"></div></div>
           <div style="text-align:right;font-size:0.72rem;color:var(--text-muted)">${revPct}%</div>
         </div>
         <div class="goal-item">
-          <div class="goal-label">📋 年間案件数 <span style="float:right">${yearlyCases} / ${goals.annualCases}件</span></div>
+          <div class="goal-label">📋 今期案件数 <span style="float:right">${yearlyCases} / ${goals.annualCases}件</span></div>
           <div class="checklist-bar"><div class="checklist-fill" style="width:${caseYPct}%;background:${caseYPct >= 80 ? 'var(--accent-green)' : caseYPct >= 50 ? 'var(--accent-gold)' : 'var(--accent-orange)'}"></div></div>
           <div style="text-align:right;font-size:0.72rem;color:var(--text-muted)">${caseYPct}%</div>
         </div>
@@ -1621,11 +1629,11 @@ const GoalTracker = {
         </div>
         <form onsubmit="event.preventDefault(); GoalTracker.onSave()">
           <div class="form-group">
-            <label>年間売上目標（円）</label>
+            <label>今期（10月〜翌9月）の売上目標（円・報酬税抜）</label>
             <input type="number" id="goal_revenue" value="${goals.annualRevenue}" min="0" step="100000">
           </div>
           <div class="form-group">
-            <label>年間案件数目標</label>
+            <label>今期（10月〜翌9月）の案件数目標</label>
             <input type="number" id="goal_cases_y" value="${goals.annualCases}" min="0">
           </div>
           <div class="form-group">
@@ -1651,7 +1659,7 @@ const GoalTracker = {
     this.saveGoals(goals);
     document.getElementById('goalSettingsModal').remove();
     App.refreshView();
-    App.showToast('目標を更新しました');
+    App.showToast('目標を更新しました（全端末共通）');
   },
 };
 

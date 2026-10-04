@@ -29,7 +29,55 @@ function extDoPost_(action, data, body) {
   if (action === 'patchCases') return withCaseLock_(function () { return patchCases_(data, body || {}); });
   if (action === 'deleteCase') return withCaseLock_(function () { return deleteCaseLogged_(data || {}); });
   if (action === 'upsertCase') return withCaseLock_(function () { return legacyUpsertCase_(data || {}, body || {}); });
+  if (action === 'saveSetting') return withCaseLock_(function () { return saveSharedSetting_(data || {}); });
   return null;
+}
+
+// ------------------------------------------------------------
+//  共有設定（目標値・事務所情報など、全端末で同じにしたい設定）
+//  シート「共有設定」: キー | 値(JSON) | 更新日時 | 端末
+// ------------------------------------------------------------
+const SHARED_SETTINGS_SHEET = '共有設定';
+const SHARED_SETTING_KEYS = ['goals', 'officeInfo'];
+
+function sharedSettingsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHARED_SETTINGS_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(SHARED_SETTINGS_SHEET);
+    sh.getRange(1, 1, 1, 4).setValues([['キー', '値(JSON)', '更新日時', '端末']]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, sh.getMaxRows(), 4).setNumberFormat('@');
+  }
+  return sh;
+}
+
+function getSharedSettings_() {
+  const sh = sharedSettingsSheet_();
+  const last = sh.getLastRow();
+  const out = {};
+  if (last < 2) return out;
+  sh.getRange(2, 1, last - 1, 3).getValues().forEach(function (r) {
+    if (!r[0]) return;
+    let v = null;
+    try { v = JSON.parse(r[1]); } catch (e) { v = null; }
+    out[String(r[0])] = { value: v, updatedAt: String(r[2] || '') };
+  });
+  return out;
+}
+
+function saveSharedSetting_(data) {
+  if (SHARED_SETTING_KEYS.indexOf(data.key) === -1) return { error: '保存できない設定です: ' + data.key };
+  if (data.value === undefined || data.value === null) return { error: '値がありません' };
+  const sh = sharedSettingsSheet_();
+  const last = sh.getLastRow();
+  const keys = last >= 2 ? sh.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return String(r[0]); }) : [];
+  const row = keys.indexOf(data.key);
+  const now = new Date().toISOString();
+  const vals = [[data.key, JSON.stringify(data.value), now, String(data.device || '')]];
+  const target = row === -1 ? last + 1 : row + 2;
+  sh.getRange(target, 1, 1, 4).setNumberFormat('@').setValues(vals);
+  return { success: true, key: data.key, updatedAt: now };
 }
 
 /**
@@ -70,6 +118,9 @@ function extDoGet_(type, result) {
   }
   if (type === 'deletedCases' || type === 'all') {
     try { result.deletedCases = getDeletedCaseIds_(); } catch (e) { result.deletedCasesError = e.message; }
+  }
+  if (type === 'settings' || type === 'all') {
+    try { result.settings = getSharedSettings_(); } catch (e) { result.settingsError = e.message; }
   }
 }
 
