@@ -133,7 +133,7 @@ function invAppend_(name, cols, objs) {
   const sh = invSheet_(name, cols);
   const start = sh.getLastRow() + 1;
   const rows = objs.map(function (o) { return invToRow_(o, cols); });
-  sh.getRange(start, 1, rows.length, cols.length).setNumberFormat('@').setValues(rows);
+  sh.getRange(start, 1, rows.length, cols.length).setValues(rows);
 }
 
 function invUpdate_(name, cols, obj) {
@@ -199,22 +199,54 @@ function issueInvoice_(data) {
   if (invNum_(data.advanceTotal) !== advSum) return { error: '立替金合計が明細と一致しません（' + data.advanceTotal + ' / ' + advSum + '）' };
   if (invNum_(data.grandTotal) !== feeSum + invNum_(data.tax) + advSum) return { error: '請求合計が一致しません' };
 
-  // 二重請求チェック
+  // 二重請求チェック（高速スキャン：フォーマット処理を省いて必要な列のみ直接検査）
+  const shItems = invSheet_(INV_SHEETS.ITEMS, ITEM_COLS);
+  const lastItems = shItems.getLastRow();
+  if (lastItems >= 2) {
+    const itemVals = shItems.getRange(2, 1, lastItems - 1, ITEM_COLS.length).getValues();
+    const caseIdSet = new Set(caseIds);
+    const activeConflicts = [];
+    for (let i = 0; i < itemVals.length; i++) {
+      const row = itemVals[i];
+      const cId = String(row[1] || '');
+      const st = String(row[4] || '');
+      if (st === ITEM_STATUS.ACTIVE && caseIdSet.has(cId)) {
+        activeConflicts.push({ caseId: cId, invoiceNo: String(row[0] || '') });
+      }
+    }
+    if (activeConflicts.length > 0) {
+      const invoices = invReadAll_(INV_SHEETS.INVOICES, INV_COLS);
+      const invMap = {};
+      invoices.forEach(function (v) { invMap[v.invoiceNo] = v; });
+      const conflicts = activeConflicts.map(function (cf) {
+        const p = invMap[cf.invoiceNo] || {};
+        return { caseId: cf.caseId, invoiceNo: cf.invoiceNo, issuedBy: p.issuedBy || '', issuedDevice: p.issuedDevice || '', issuedAt: p.issuedAt || '' };
+      });
+      return { error: '請求済みの案件が含まれています', code: 'ALREADY_BILLED', conflicts: conflicts };
+    }
+  }
+
   const invoices = invReadAll_(INV_SHEETS.INVOICES, INV_COLS);
   const invMap = {};
   invoices.forEach(function (v) { invMap[v.invoiceNo] = v; });
-  const items = invReadAll_(INV_SHEETS.ITEMS, ITEM_COLS);
-  const conflicts = items.filter(function (it) {
-    return it.status === ITEM_STATUS.ACTIVE && caseIds.indexOf(String(it.caseId)) !== -1;
-  }).map(function (it) {
-    const p = invMap[it.invoiceNo] || {};
-    return { caseId: it.caseId, invoiceNo: it.invoiceNo, issuedBy: p.issuedBy || '', issuedDevice: p.issuedDevice || '', issuedAt: p.issuedAt || '' };
-  });
-  if (conflicts.length) return { error: '請求済みの案件が含まれています', code: 'ALREADY_BILLED', conflicts: conflicts };
 
   if (data.reissueOf && !invMap[data.reissueOf]) return { error: '再発行元の請求番号が見つかりません: ' + data.reissueOf };
 
-  const no = nextInvoiceNo_(data.yyyymm, invoices);
+  // 端末が指定した番号が空いていれば優先採用（即時発行対応）、衝突または未指定ならGAS自動採番
+  let no = data.invoiceNo;
+  if (!no || invMap[no]) {
+    no = nextInvoiceNo_(data.yyyymm, invoices);
+  } else {
+    const props = PropertiesService.getScriptProperties();
+    const key = 'INV_SEQ_' + data.yyyymm;
+    let seq = parseInt(props.getProperty(key) || '0', 10);
+    const prefix = 'INV-' + data.yyyymm + '-';
+    if (no.indexOf(prefix) === 0) {
+      const n = parseInt(no.substring(prefix.length), 10);
+      if (n > seq) props.setProperty(key, String(n));
+    }
+  }
+
   const now = invNow_();
   const inv = {
     invoiceNo: no, status: INV_STATUS.ISSUED, customerId: data.customerId, customerName: data.customerName || '',

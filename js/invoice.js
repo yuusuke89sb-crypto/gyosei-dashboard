@@ -1225,7 +1225,7 @@ const Invoice = {
         .filter(Boolean)
     )];
 
-    // 請求書：全端末共通の番号をスプレッドシートで採番して登録（二重請求はここで拒否される）
+    // 請求書：全端末共通の番号で即時採番・単価ロックし、裏でスプレッドシートへ自動送信
     let win = null;
     const genBtn = document.getElementById('generateInvoiceBtn');
     const excelBtn = document.getElementById('exportExcelOnlyBtn');
@@ -1241,15 +1241,10 @@ const Invoice = {
       }
       if (genBtn) {
         genBtn.disabled = true;
-        genBtn.textContent = '⏳ 請求書発行中…';
+        genBtn.textContent = '⏳ 発行中…';
       }
       if (excelBtn) excelBtn.disabled = true;
 
-      // ポップアップブロック防止のため、先に画面だけ開いておく
-      try {
-        win = window.open('', '_blank');
-        if (win) win.document.write('<p style="font-family:sans-serif;padding:40px;color:#334155">請求書番号を取得しています…</p>');
-      } catch (e) { win = null; }
       try {
         const res = await InvoiceSync.issue({ clientId, year, month, issueDate, dueDate, cases, taxRate, templateType, note });
         invoiceNo = res.invoiceNo;
@@ -1259,7 +1254,6 @@ const Invoice = {
           genBtn.textContent = origGenText;
         }
         if (excelBtn) excelBtn.disabled = false;
-        if (win) { try { win.close(); } catch (e) { /* noop */ } }
         alert('請求書を発行できませんでした。\n\n' + InvoiceSync.describeError(err));
         if (err && err.code === 'ALREADY_BILLED') {
           await InvoiceSync.refresh().catch(() => {});

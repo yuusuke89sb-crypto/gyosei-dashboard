@@ -8,8 +8,95 @@
  */
 const InvoiceSync = {
   STATE_KEY: 'gyosei_inv_state',
+  QUEUE_KEY: 'gyosei_inv_pending_queue',
   DEVICE_KEY: 'gyosei_device_name',
   STAFF_KEY: 'gyosei_device_staff',
+
+  // ---------------- 未送信キュー ----------------
+  getQueue() {
+    try {
+      return JSON.parse(localStorage.getItem(this.QUEUE_KEY)) || [];
+    } catch (e) {
+      return [];
+    }
+  },
+  saveQueue(q) {
+    localStorage.setItem(this.QUEUE_KEY, JSON.stringify(q || []));
+  },
+  enqueue(item) {
+    const q = this.getQueue();
+    if (!q.some(x => x.invoiceNo === item.invoiceNo)) {
+      q.push(item);
+      this.saveQueue(q);
+    }
+  },
+  nextInvoiceNo(yyyymm) {
+    const s = this.getState();
+    const prefix = `INV-${yyyymm}-`;
+    let seq = 0;
+    (s.invoices || []).forEach(inv => {
+      const no = String((inv && inv.invoiceNo) || '');
+      if (no.startsWith(prefix)) {
+        const n = parseInt(no.substring(prefix.length), 10);
+        if (!isNaN(n) && n > seq) seq = n;
+      }
+    });
+    const q = this.getQueue();
+    q.forEach(item => {
+      const no = String(item.invoiceNo || '');
+      if (no.startsWith(prefix)) {
+        const n = parseInt(no.substring(prefix.length), 10);
+        if (!isNaN(n) && n > seq) seq = n;
+      }
+    });
+    seq += 1;
+    return `${prefix}${String(seq).padStart(4, '0')}`;
+  },
+  _flushing: false,
+  async flushQueue() {
+    if (this._flushing) return;
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) return;
+    const q = this.getQueue();
+    if (!q.length) return;
+
+    this._flushing = true;
+    try {
+      while (q.length > 0) {
+        const item = q[0];
+        try {
+          const res = await SpreadsheetSync.push(item.action || 'issueInvoice', item.payload || item.data);
+          if (res && (res.success || res.invoiceNo)) {
+            // スプレッドシート側で万一再採番された場合の番号補正
+            if (res.invoiceNo && res.invoiceNo !== item.invoiceNo) {
+              const oldNo = item.invoiceNo;
+              const newNo = res.invoiceNo;
+              const s = this.getState();
+              const v = s.invoices.find(x => x.invoiceNo === oldNo);
+              if (v) v.invoiceNo = newNo;
+              s.items.forEach(it => { if (it.invoiceNo === oldNo) it.invoiceNo = newNo; });
+              s.payments.forEach(p => { if (p.invoiceNo === oldNo) p.invoiceNo = newNo; });
+              this.saveState(s);
+              this.reconcileCases();
+              this.rebuildPayments();
+            }
+            q.shift();
+            this.saveQueue(q);
+          } else if (res && res.error && res.code === 'ALREADY_BILLED') {
+            q.shift();
+            this.saveQueue(q);
+          } else {
+            // 一時エラーなら次回に委ねてブレーク
+            break;
+          }
+        } catch (postErr) {
+          console.warn('[InvoiceSync.flushQueue] 通信待機:', postErr);
+          break;
+        }
+      }
+    } finally {
+      this._flushing = false;
+    }
+  },
 
   // ---------------- 端末名 ----------------
   getDeviceName() {
@@ -80,6 +167,23 @@ const InvoiceSync = {
       payments: (inv.payments || []).filter(p => p && p.invoiceNo),
       loadedAt: new Date().toISOString()
     };
+    // 未送信キューにある請求書・明細・入金をマージして保護
+    const queue = this.getQueue();
+    queue.forEach(qItem => {
+      if (qItem.invoice && !s.invoices.some(v => v.invoiceNo === qItem.invoiceNo)) {
+        s.invoices.push(qItem.invoice);
+      }
+      if (Array.isArray(qItem.items)) {
+        qItem.items.forEach(it => {
+          if (!s.items.some(x => x.invoiceNo === it.invoiceNo && String(x.caseId) === String(it.caseId))) {
+            s.items.push(it);
+          }
+        });
+      }
+      if (qItem.payment && !s.payments.some(p => p.invoiceNo === qItem.invoiceNo)) {
+        s.payments.push(qItem.payment);
+      }
+    });
     this.saveState(s);
     this.reconcileCases();
     this.rebuildPayments();
@@ -164,13 +268,40 @@ const InvoiceSync = {
   },
 
   /**
-   * 発行
-   * @returns {Promise<{invoiceNo:string, invoice:object}>}
+   * 発行（手元で即座に確定・単価ロックし、裏で確実にスプレッドシートへ送信）
+   * @returns {Promise<{invoiceNo:string, invoice:object, items:Array, payment:object}>}
    */
   async issue({ clientId, year, month, issueDate, dueDate, cases, taxRate, templateType, note, period }) {
     if (!this.isReady()) throw new Error('請求データをまだ取得できていません。「🔄 同期」してから発行してください。');
     const device = this.ensureDeviceName();
     if (!device) throw new Error('端末名が未設定のため発行を中止しました');
+
+    // 二重請求を手元データで事前チェック（既に請求済み案件があれば即座に検知）
+    const active = this.activeItemByCase();
+    const caseIds = cases.map(c => String(c.id));
+    const conflicts = [];
+    const invMap = {};
+    (this.getState().invoices || []).forEach(v => { if (v && v.invoiceNo) invMap[v.invoiceNo] = v; });
+    caseIds.forEach(cId => {
+      const it = active[cId];
+      if (it) {
+        const p = invMap[it.invoiceNo] || {};
+        conflicts.push({
+          caseId: cId,
+          invoiceNo: it.invoiceNo,
+          issuedBy: p.issuedBy || '',
+          issuedDevice: p.issuedDevice || '',
+          issuedAt: p.issuedAt || ''
+        });
+      }
+    });
+    if (conflicts.length > 0) {
+      const err = new Error('請求済みの案件が含まれています');
+      err.code = 'ALREADY_BILLED';
+      err.conflicts = conflicts;
+      throw err;
+    }
+
     const client = Store.getClient(clientId) || {};
     const items = cases.map(c => ({
       caseId: c.id,
@@ -180,33 +311,107 @@ const InvoiceSync = {
     const feeExTax = items.reduce((s, it) => s + it.fee, 0);
     const advanceTotal = items.reduce((s, it) => s + it.advances.reduce((t, a) => t + a.amount, 0), 0);
     const tax = Math.floor(feeExTax * (taxRate || 10) / 100);
+    const grandTotal = feeExTax + tax + advanceTotal;
     const p = period || (typeof Store.getBillingPeriod === 'function' ? Store.getBillingPeriod(year, month) : {});
-    const res = await this.call('issueInvoice', {
-      yyyymm: `${year}${String(month).padStart(2, '0')}`,
+    const yyyymm = `${year}${String(month).padStart(2, '0')}`;
+
+    // 最新の連番を即時採番（INV-YYYYMM-XXXX）
+    const invoiceNo = this.nextInvoiceNo(yyyymm);
+    const now = new Date().toISOString();
+
+    const inv = {
+      invoiceNo,
+      status: '発行',
       customerId: clientId,
       customerName: client.companyName || client.name || '',
-      periodFrom: (p && p.startDate) || '', periodTo: (p && p.endDate) || '',
-      issueDate: issueDate || Store.getLocalDateStr(), dueDate: dueDate || '',
-      feeExTax, tax, advanceTotal, grandTotal: feeExTax + tax + advanceTotal,
-      template: templateType || '', note: note || '',
-      issuedBy: this.operatorName(), issuedDevice: device,
-      items,
-    });
-    if (!res || !res.invoiceNo) {
-      throw new Error('スプレッドシートから有効な請求番号が取得できませんでした。スプレッドシートのデプロイ状態を確認してください。');
-    }
-    // 手元の状態にも即時反映（null / undefined の混入を完全に防止）
+      periodFrom: (p && p.startDate) || '',
+      periodTo: (p && p.endDate) || '',
+      issueDate: issueDate || Store.getLocalDateStr(),
+      dueDate: dueDate || '',
+      feeExTax,
+      tax,
+      feeInTax: feeExTax + tax,
+      advanceTotal,
+      grandTotal,
+      caseCount: cases.length,
+      template: templateType || '',
+      issuedBy: this.operatorName(),
+      issuedDevice: device,
+      issuedAt: now,
+      canceledBy: '',
+      canceledDevice: '',
+      canceledAt: '',
+      cancelReason: '',
+      reissueOf: '',
+      pdfUrl: '',
+      note: note || '',
+    };
+
+    const newItems = items.map(it => ({
+      invoiceNo,
+      caseId: it.caseId,
+      lockedFee: it.fee,
+      lockedAdvancesJson: JSON.stringify(it.advances || []),
+      status: '有効',
+      updatedAt: now,
+    }));
+
+    const pay = {
+      paymentId: 'pay_' + invoiceNo,
+      invoiceNo,
+      customerId: clientId,
+      amount: grandTotal,
+      dueDate: inv.dueDate,
+      paidAmount: '',
+      paidDate: '',
+      status: '未入金',
+      method: '',
+      journalId: '',
+      updatedBy: inv.issuedBy,
+      updatedAt: now,
+    };
+
+    // 手元の状態に即時反映（案件の単価ロック invoiceLocked: true もここで即時確定！）
     const s = this.getState();
-    if (res.invoice) s.invoices.push(res.invoice);
-    if (Array.isArray(res.items)) s.items.push(...res.items);
-    if (res.payment) s.payments.push(res.payment);
+    s.invoices.push(inv);
+    s.items.push(...newItems);
+    s.payments.push(pay);
     this.saveState(s);
     this.reconcileCases();
     this.rebuildPayments();
+
     if (typeof ActivityLog !== 'undefined' && ActivityLog.add) {
-      try { ActivityLog.add('invoice', res.invoiceNo, `請求書 ${res.invoiceNo} 発行（${cases.length}件・${device}）`); } catch (e) { /* noop */ }
+      try { ActivityLog.add('invoice', invoiceNo, `請求書 ${invoiceNo} 発行（${cases.length}件・${device}）`); } catch (e) { /* noop */ }
     }
-    return res;
+
+    // スプレッドシート送信キューに追加
+    const payload = {
+      invoiceNo,
+      yyyymm,
+      customerId: clientId,
+      customerName: inv.customerName,
+      periodFrom: inv.periodFrom,
+      periodTo: inv.periodTo,
+      issueDate: inv.issueDate,
+      dueDate: inv.dueDate,
+      feeExTax,
+      tax,
+      advanceTotal,
+      grandTotal,
+      template: inv.template,
+      note: inv.note,
+      issuedBy: inv.issuedBy,
+      issuedDevice: device,
+      items,
+    };
+    this.enqueue({ action: 'issueInvoice', invoiceNo, invoice: inv, items: newItems, payment: pay, payload });
+
+    // バックグラウンドで非同期送信（待たずに即リターン）
+    this.flushQueue().catch(err => {
+      console.warn('[InvoiceSync] 背景送信待機中:', err);
+    });
+
+    return { success: true, invoiceNo, invoice: inv, items: newItems, payment: pay };
   },
 
   async cancel(invoiceNo, reason) {

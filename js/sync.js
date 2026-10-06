@@ -58,6 +58,11 @@ const SpreadsheetSync = {
             console.warn('[SpreadsheetSync.pull] キュー自動フラッシュ警告:', e);
         }
 
+        // 未送信の請求書発行があれば事前に再送試行
+        if (typeof InvoiceSync !== 'undefined' && typeof InvoiceSync.flushQueue === 'function') {
+            try { await InvoiceSync.flushQueue(); } catch (e) { console.warn('[SpreadsheetSync.pull] 請求キュー送信警告:', e); }
+        }
+
         try {
             let data;
             const sep = url.includes('?') ? '&' : '?';
