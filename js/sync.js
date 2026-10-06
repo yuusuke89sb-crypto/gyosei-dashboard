@@ -843,6 +843,9 @@ const SpreadsheetSync = {
             const data = await response.json();
             if (data.error) throw new Error(data.error);
 
+            if (typeof CaseSync !== 'undefined' && typeof CaseSync.setState === 'function') {
+                CaseSync.setState({ lastPullAt: new Date().toISOString() });
+            }
             return this.mergeInboxData(data.inbox || []);
         } catch (err) {
             console.error('インボックス取得エラー:', err);
@@ -873,6 +876,10 @@ const SpreadsheetSync = {
 
         if (data.faxLog && Array.isArray(data.faxLog)) {
             localStorage.setItem('gyosei_fax_logs', JSON.stringify(data.faxLog));
+        }
+
+        if (typeof CaseSync !== 'undefined' && typeof CaseSync.setState === 'function') {
+            CaseSync.setState({ lastPullAt: new Date().toISOString() });
         }
 
         return result;

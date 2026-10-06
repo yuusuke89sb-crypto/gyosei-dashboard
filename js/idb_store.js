@@ -160,8 +160,24 @@ const IdbStore = {
       this._writeTimer = setTimeout(() => this._flushWriteQueue(), 50);
     }
 
-    // 軽量な設定系キーのみ localStorage にも控えとして保存 (任意)
-    if (key === 'gyosei_sync_settings' || key === 'gyosei_auth_session') {
+    // 軽量な設定・状態系キー（同期日時、セッション、未送信キュー等）は native localStorage にも保存
+    // → スーパーリロード時にも10/5などの古いキャッシュに巻き戻るのを完全に防止
+    const isLightweightStateKey = (
+      key === 'gyosei_sync_settings' ||
+      key === 'gyosei_auth_session' ||
+      key === 'gyosei_casesync_state' ||
+      key === 'gyosei_casesync_v1' ||
+      key === 'gyosei_sync_config' ||
+      key === 'gyosei_inbox_pending_queue' ||
+      key === 'gyosei_last_sync' ||
+      key === 'gyosei_current_page' ||
+      key === 'gyosei_shared_settings'
+    );
+    if (isLightweightStateKey && this._origSetItem) {
+      try {
+        this._origSetItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+      } catch {}
+    } else if (key === 'gyosei_sync_settings' || key === 'gyosei_auth_session') {
       try {
         localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
       } catch {}
@@ -257,11 +273,12 @@ const IdbStore = {
       };
     }
 
-    // 2. localStorage の透過的インターセプト (gyosei_ プレフィックスの救済)
-    try {
       const origGetItem = localStorage.getItem.bind(localStorage);
       const origSetItem = localStorage.setItem.bind(localStorage);
       const origRemoveItem = localStorage.removeItem.bind(localStorage);
+      self._origGetItem = origGetItem;
+      self._origSetItem = origSetItem;
+      self._origRemoveItem = origRemoveItem;
 
       localStorage.getItem = function(key) {
         if (typeof key === 'string' && (key.startsWith('gyosei_') || key.startsWith('koteihi_') || key.startsWith('syako_'))) {

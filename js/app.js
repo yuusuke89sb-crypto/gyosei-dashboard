@@ -84,6 +84,10 @@ const App = {
     window.addEventListener('resize', () => this.refreshView());
     // スプレッドシート自動同期
     if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      // 登録前BOXを開いている場合は最優先でインボックス単体を0.5秒で高速同期（10/5巻き戻り・待たされ感を解消）
+      if (this.currentPage === 'inbox' && typeof SpreadsheetSync.pullInbox === 'function') {
+        SpreadsheetSync.pullInbox().then(() => this.refreshView()).catch(() => {});
+      }
       SpreadsheetSync.pull().then(() => {
         if (typeof CaseTemplates !== 'undefined') {
           if (typeof CaseTemplates.seedPoliceFees === 'function') CaseTemplates.seedPoliceFees();
