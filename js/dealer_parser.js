@@ -819,18 +819,21 @@ const DealerDocumentParser = {
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         const ctx = canvas.getContext('2d');
+        // 🌟 透過背景による黒化（ブラックアウト）を完全防止するため、必ず純白（#ffffff）でキャンバス全体を初期化
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: ctx, viewport: viewport }).promise;
 
         pages.push({
           pageNumber: i,
           name: `ページ ${i}`,
-          dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+          dataUrl: canvas.toDataURL('image/jpeg', 0.95),
           width: viewport.width,
           height: viewport.height,
           mimeType: 'image/jpeg'
         });
       }
-      console.log(`✅ マルチページPDF (${numPages}ページ) を高解像度画像として展開しました`);
+      console.log(`✅ マルチページPDF (${numPages}ページ) を高解像度白背景画像として展開しました`);
       return pages;
     } catch (err) {
       console.warn('PDF convertPdfToPages failed:', err);

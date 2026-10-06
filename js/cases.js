@@ -1211,12 +1211,45 @@ const Cases = {
         if (match) {
           const fileId = match[0];
           if (isPdf) {
-            // PDFの場合はiframeでGoogleプレビュー表示（2ページ目以降も縦スクロール・全ページ完全閲覧可能）
-            const previewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+            // 📑 PDFの場合：
+            // 1. まず1ページ目（Google lh3サムネイル）を即座に表示（待たされ感ゼロ・0ms）
             if (loading) loading.style.display = 'none';
-            if (iframeEl) {
-              iframeEl.src = previewUrl;
-              iframeEl.style.display = 'block';
+            this.viewerState.rotation = 0;
+
+            const currentIdx = idx;
+            const showPdfThumb = () => {
+              if (this.viewerState.currentIndex !== currentIdx) return;
+              if (loading) loading.style.display = 'none';
+              if (wrapper && imgEl) {
+                wrapper.style.display = 'flex';
+                imgEl.style.display = 'block';
+                this.applyViewerTransform();
+                this.setupViewerInteractions();
+              }
+            };
+
+            if (imgEl && wrapper) {
+              imgEl.onload = () => showPdfThumb();
+              imgEl.onerror = () => {
+                if (iframeEl) {
+                  if (loading) loading.style.display = 'none';
+                  wrapper.style.display = 'none';
+                  imgEl.style.display = 'none';
+                  iframeEl.src = `https://drive.google.com/file/d/${fileId}/preview`;
+                  iframeEl.style.display = 'block';
+                }
+              };
+              imgEl.src = `https://lh3.googleusercontent.com/d/${fileId}=w2048`;
+              if (imgEl.complete && imgEl.naturalWidth > 0) {
+                showPdfThumb();
+              }
+            }
+
+            // 2. バックグラウンドでPDF.jsにより全ページを白背景高解像度画像として展開
+            // （Google Drive iframeの2ページ目以降真っ黒バグを完全解消し、全ページ閲覧・回転・白消しを可能に）
+            if (!att._expanding) {
+              att._expanding = true;
+              this.expandPdfPages(att, idx, fileId);
             }
             return;
           } else {
@@ -1239,6 +1272,9 @@ const Cases = {
                 imgEl.style.display = 'block';
                 this.applyViewerTransform();
                 this.setupViewerInteractions();
+              }
+              if (isTiff) {
+                this.autoBakeTiffCanvas(att, fileId, imgEl, currentIdx);
               }
             };
 
@@ -1378,6 +1414,28 @@ const Cases = {
           }
         }
       } else if (isPdf) {
+        if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertPdfToPages) {
+          DealerDocumentParser.convertPdfToPages(result).then(pages => {
+            if (pages && pages.length > 0) {
+              const baseName = file.name.replace(/\.pdf$/i, '');
+              const newAttachments = pages.map((p) => ({
+                name: pages.length === 1 ? file.name : `${baseName}_P${p.pageNumber}.jpg`,
+                dataUrl: p.dataUrl,
+                pageNumber: p.pageNumber,
+                mimeType: 'image/jpeg'
+              }));
+              this.viewerState.attachments = newAttachments;
+              this.viewerState.selectedPageIndices = newAttachments.map((_, i) => i);
+              this.renderAttachmentTabs();
+              this.loadAttachmentByIndex(0);
+              return;
+            }
+            if (iframeEl) { iframeEl.src = result; iframeEl.style.display = 'block'; }
+          }).catch(() => {
+            if (iframeEl) { iframeEl.src = result; iframeEl.style.display = 'block'; }
+          });
+          return;
+        }
         if (iframeEl) {
           iframeEl.src = result;
           iframeEl.style.display = 'block';
@@ -1449,6 +1507,8 @@ const Cases = {
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
       }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate((angle * Math.PI) / 180);
       ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
@@ -1457,6 +1517,77 @@ const Cases = {
     } catch (e) {
       console.warn('fetchAndRotateDriveImage error:', e);
       return null;
+    }
+  },
+
+  /**
+   * 📑 マルチページPDFをPDF.jsにより全ページ白背景画像として展開
+   */
+  async expandPdfPages(att, idx, fileId) {
+    const gasUrl = (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl) ? SpreadsheetSync.getGasUrl() : '';
+    if (!gasUrl || typeof DealerDocumentParser === 'undefined' || !DealerDocumentParser.convertPdfToPages) return;
+
+    try {
+      let base64 = att.rawBase64 || '';
+      if (!base64) {
+        const res = await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'getFileBase64', fileId: fileId })
+        });
+        const data = await res.json();
+        if (data && data.success && data.base64) {
+          base64 = data.base64;
+          att.rawBase64 = base64;
+        }
+      }
+
+      if (!base64) return;
+
+      const pages = await DealerDocumentParser.convertPdfToPages(base64, 1.8);
+      if (pages && pages.length > 0) {
+        const baseName = (att.origName || att.name || '書類原本').replace(/\.pdf$/i, '');
+        const newAttachments = pages.map((p) => ({
+          name: pages.length === 1 ? (att.name || '書類原本.pdf') : `${baseName}_P${p.pageNumber}.jpg`,
+          dataUrl: p.dataUrl,
+          pageNumber: p.pageNumber,
+          mimeType: 'image/jpeg',
+          origUrl: att.url,
+          origName: att.name || '書類原本.pdf'
+        }));
+
+        const currentAtts = this.viewerState.attachments || [];
+        const targetIdx = currentAtts.findIndex(a => a === att || (a.url === att.url && !a.pageNumber));
+        if (targetIdx !== -1) {
+          currentAtts.splice(targetIdx, 1, ...newAttachments);
+          this.viewerState.attachments = currentAtts;
+          this.viewerState.selectedPageIndices = currentAtts.map((_, i) => i);
+          this.renderAttachmentTabs();
+          if (this.viewerState.currentIndex === targetIdx) {
+            this.loadAttachmentByIndex(targetIdx);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('expandPdfPages error:', e);
+    }
+  },
+
+  /**
+   * 🔄 TIFF画像をバックグラウンドでCanvas物理270度回転し、恒久的に正立A4画像にベイク
+   */
+  async autoBakeTiffCanvas(att, fileId, imgEl, targetIdx) {
+    if (!att || att.dataUrl || this.viewerState.rotation !== 270) return;
+    try {
+      const bakedUrl = await this.fetchAndRotateDriveImage(fileId, 270);
+      if (bakedUrl && this.viewerState.currentIndex === targetIdx && this.viewerState.rotation === 270) {
+        att.dataUrl = bakedUrl;
+        imgEl.src = bakedUrl;
+        this.viewerState.rotation = 0;
+        this.applyViewerTransform();
+      }
+    } catch (e) {
+      console.warn('autoBakeTiffCanvas failed, keeping CSS transform:', e);
     }
   },
 
@@ -1728,13 +1859,14 @@ const Cases = {
 
     if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
       const isSideways = (rotation === 90 || rotation === 270);
+      const container = document.getElementById('caseViewerContainer');
+      const containerW = (container ? container.clientWidth : 500) - 24;
+
       wrapper.style.display = 'flex';
       wrapper.style.alignItems = 'center';
       wrapper.style.justifyContent = 'center';
       wrapper.style.width = '100%';
-      wrapper.style.minHeight = '100%';
       wrapper.style.overflow = 'visible';
-      wrapper.style.padding = isSideways ? '20px 0' : '0';
 
       imgEl.style.display = 'block';
       imgEl.style.margin = 'auto';
@@ -1747,7 +1879,22 @@ const Cases = {
       imgEl.style.maxHeight = 'none';
       imgEl.style.height = 'auto';
 
-      imgEl.style.transform = `scale(${zoom}) rotate(${rotation}deg)`;
+      let scale = zoom;
+      if (isSideways && imgEl.naturalWidth && imgEl.naturalHeight) {
+        // 🌟 横長画像を270度/90度回転させた際に、見た目の横幅がプレビュー枠全幅（100%）にピタッとフィットするように拡大
+        const ar = imgEl.naturalWidth / imgEl.naturalHeight;
+        scale = zoom * ar;
+        const visualHeight = Math.round(containerW * ar);
+        wrapper.style.minHeight = visualHeight + 'px';
+        wrapper.style.height = visualHeight + 'px';
+        wrapper.style.padding = '10px 0';
+      } else {
+        wrapper.style.minHeight = '100%';
+        wrapper.style.height = 'auto';
+        wrapper.style.padding = '0';
+      }
+
+      imgEl.style.transform = `scale(${scale}) rotate(${rotation}deg)`;
       imgEl.style.transformOrigin = 'center center';
       imgEl.style.transition = 'transform 0.15s ease';
     } else if (iframeEl && iframeEl.style.display !== 'none') {
