@@ -1049,21 +1049,6 @@ const InboxManager = {
                   }
                 }
 
-                // PDFを個別ページに展開（複数ページOSS依頼書・車庫申請書類の全ページ表示・切り出し対応）
-                const isPdfData = (!isTiffData) && ((b64Data.mimeType || '').includes('pdf') || (firstAtt.name && firstAtt.name.match(/\.pdf$/i)) || b64Data.base64.startsWith('JVBERi'));
-                if (isPdfData && typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertPdfToPages) {
-                  const pdfPages = await DealerDocumentParser.convertPdfToPages(b64Data.base64);
-                  if (pdfPages && pdfPages.length > 0) {
-                    geminiParsed.attachments = pdfPages.map((p, idx) => ({
-                      name: pdfPages.length === 1 ? (firstAtt.name || '依頼書原本.pdf') : `${(firstAtt.name || '依頼書原本').replace(/\.pdf$/i, '')}_P${idx + 1}.jpg`,
-                      dataUrl: p.dataUrl,
-                      pageNumber: idx + 1,
-                      mimeType: 'image/jpeg',
-                      origUrl: firstAtt.url,
-                      origName: firstAtt.name
-                    }));
-                  }
-                }
                 this.hideLoadingModal();
                 DealerDocumentParser.showOcrResultModal(geminiParsed, firstAtt.url);
                 return;

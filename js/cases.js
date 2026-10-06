@@ -1211,45 +1211,14 @@ const Cases = {
         if (match) {
           const fileId = match[0];
           if (isPdf) {
-            // 📑 PDFの場合：
-            // 1. まず1ページ目（Google lh3サムネイル）を即座に表示（待たされ感ゼロ・0ms）
+            // PDFの場合はiframeでGoogle Drive公式プレビュー表示（全ページ縦スクロール可能）
+            const previewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
             if (loading) loading.style.display = 'none';
-            this.viewerState.rotation = 0;
-
-            const currentIdx = idx;
-            const showPdfThumb = () => {
-              if (this.viewerState.currentIndex !== currentIdx) return;
-              if (loading) loading.style.display = 'none';
-              if (wrapper && imgEl) {
-                wrapper.style.display = 'flex';
-                imgEl.style.display = 'block';
-                this.applyViewerTransform();
-                this.setupViewerInteractions();
-              }
-            };
-
-            if (imgEl && wrapper) {
-              imgEl.onload = () => showPdfThumb();
-              imgEl.onerror = () => {
-                if (iframeEl) {
-                  if (loading) loading.style.display = 'none';
-                  wrapper.style.display = 'none';
-                  imgEl.style.display = 'none';
-                  iframeEl.src = `https://drive.google.com/file/d/${fileId}/preview`;
-                  iframeEl.style.display = 'block';
-                }
-              };
-              imgEl.src = `https://lh3.googleusercontent.com/d/${fileId}=w2048`;
-              if (imgEl.complete && imgEl.naturalWidth > 0) {
-                showPdfThumb();
-              }
-            }
-
-            // 2. バックグラウンドでPDF.jsにより全ページを白背景高解像度画像として展開
-            // （Google Drive iframeの2ページ目以降真っ黒バグを完全解消し、全ページ閲覧・回転・白消しを可能に）
-            if (!att._expanding) {
-              att._expanding = true;
-              this.expandPdfPages(att, idx, fileId);
+            if (wrapper) wrapper.style.display = 'none';
+            if (imgEl) imgEl.style.display = 'none';
+            if (iframeEl) {
+              iframeEl.src = previewUrl;
+              iframeEl.style.display = 'block';
             }
             return;
           } else {
@@ -1414,28 +1383,6 @@ const Cases = {
           }
         }
       } else if (isPdf) {
-        if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertPdfToPages) {
-          DealerDocumentParser.convertPdfToPages(result).then(pages => {
-            if (pages && pages.length > 0) {
-              const baseName = file.name.replace(/\.pdf$/i, '');
-              const newAttachments = pages.map((p) => ({
-                name: pages.length === 1 ? file.name : `${baseName}_P${p.pageNumber}.jpg`,
-                dataUrl: p.dataUrl,
-                pageNumber: p.pageNumber,
-                mimeType: 'image/jpeg'
-              }));
-              this.viewerState.attachments = newAttachments;
-              this.viewerState.selectedPageIndices = newAttachments.map((_, i) => i);
-              this.renderAttachmentTabs();
-              this.loadAttachmentByIndex(0);
-              return;
-            }
-            if (iframeEl) { iframeEl.src = result; iframeEl.style.display = 'block'; }
-          }).catch(() => {
-            if (iframeEl) { iframeEl.src = result; iframeEl.style.display = 'block'; }
-          });
-          return;
-        }
         if (iframeEl) {
           iframeEl.src = result;
           iframeEl.style.display = 'block';
@@ -1520,58 +1467,7 @@ const Cases = {
     }
   },
 
-  /**
-   * 📑 マルチページPDFをPDF.jsにより全ページ白背景画像として展開
-   */
-  async expandPdfPages(att, idx, fileId) {
-    const gasUrl = (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl) ? SpreadsheetSync.getGasUrl() : '';
-    if (!gasUrl || typeof DealerDocumentParser === 'undefined' || !DealerDocumentParser.convertPdfToPages) return;
 
-    try {
-      let base64 = att.rawBase64 || '';
-      if (!base64) {
-        const res = await fetch(gasUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ action: 'getFileBase64', fileId: fileId })
-        });
-        const data = await res.json();
-        if (data && data.success && data.base64) {
-          base64 = data.base64;
-          att.rawBase64 = base64;
-        }
-      }
-
-      if (!base64) return;
-
-      const pages = await DealerDocumentParser.convertPdfToPages(base64, 1.8);
-      if (pages && pages.length > 0) {
-        const baseName = (att.origName || att.name || '書類原本').replace(/\.pdf$/i, '');
-        const newAttachments = pages.map((p) => ({
-          name: pages.length === 1 ? (att.name || '書類原本.pdf') : `${baseName}_P${p.pageNumber}.jpg`,
-          dataUrl: p.dataUrl,
-          pageNumber: p.pageNumber,
-          mimeType: 'image/jpeg',
-          origUrl: att.url,
-          origName: att.name || '書類原本.pdf'
-        }));
-
-        const currentAtts = this.viewerState.attachments || [];
-        const targetIdx = currentAtts.findIndex(a => a === att || (a.url === att.url && !a.pageNumber));
-        if (targetIdx !== -1) {
-          currentAtts.splice(targetIdx, 1, ...newAttachments);
-          this.viewerState.attachments = currentAtts;
-          this.viewerState.selectedPageIndices = currentAtts.map((_, i) => i);
-          this.renderAttachmentTabs();
-          if (this.viewerState.currentIndex === targetIdx) {
-            this.loadAttachmentByIndex(targetIdx);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('expandPdfPages error:', e);
-    }
-  },
 
   /**
    * 🔄 TIFF画像をバックグラウンドでCanvas物理270度回転し、恒久的に正立A4画像にベイク
