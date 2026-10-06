@@ -16,6 +16,12 @@ const IdbStore = {
   _ready: false,
   _writeQueue: new Map(),
   _writeTimer: null,
+  _origGetItem: null,
+  _origSetItem: null,
+  _origRemoveItem: null,
+  _storePatched: false,
+  _storagePatched: false,
+  _inNativeWrite: false,
 
   /**
    * IndexedDBの初期化とインメモリ展開、初回自動データ移行
@@ -100,6 +106,7 @@ const IdbStore = {
   async _autoMigrateFromLocalStorage() {
     let migratedCount = 0;
     const targetPrefixes = ['gyosei_', 'koteihi_', 'syako_'];
+    const getFn = this._origGetItem || localStorage.getItem.bind(localStorage);
 
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -110,7 +117,7 @@ const IdbStore = {
 
       // すでに IndexedDB に存在する場合は上書きしない
       if (!this._cache.has(key)) {
-        const raw = localStorage.getItem(key);
+        const raw = getFn(key);
         if (raw !== null && raw !== undefined) {
           try {
             const parsed = JSON.parse(raw);
@@ -140,8 +147,9 @@ const IdbStore = {
     }
     // メモリになければ localStorage を確認 (後方互換)
     try {
-      const raw = localStorage.getItem(key);
-      if (raw !== null) {
+      const getFn = this._origGetItem || localStorage.getItem.bind(localStorage);
+      const raw = getFn(key);
+      if (raw !== null && raw !== undefined) {
         try { return JSON.parse(raw); } catch { return raw; }
       }
     } catch {}
@@ -161,7 +169,7 @@ const IdbStore = {
     }
 
     // 軽量な設定・状態系キー（同期日時、セッション、未送信キュー等）は native localStorage にも保存
-    // → スーパーリロード時にも10/5などの古いキャッシュに巻き戻るのを完全に防止
+    // → スーパーリロード時にも古いキャッシュに巻き戻るのを防止
     const isLightweightStateKey = (
       key === 'gyosei_sync_settings' ||
       key === 'gyosei_auth_session' ||
@@ -173,14 +181,19 @@ const IdbStore = {
       key === 'gyosei_current_page' ||
       key === 'gyosei_shared_settings'
     );
-    if (isLightweightStateKey && this._origSetItem) {
+    if (isLightweightStateKey && !this._inNativeWrite) {
+      this._inNativeWrite = true;
       try {
-        this._origSetItem(key, typeof val === 'string' ? val : JSON.stringify(val));
-      } catch {}
-    } else if (key === 'gyosei_sync_settings' || key === 'gyosei_auth_session') {
-      try {
-        localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
-      } catch {}
+        const strVal = typeof val === 'string' ? val : JSON.stringify(val);
+        if (this._origSetItem) {
+          this._origSetItem(key, strVal);
+        } else {
+          localStorage.setItem(key, strVal);
+        }
+      } catch (e) {
+      } finally {
+        this._inNativeWrite = false;
+      }
     }
   },
 
@@ -195,7 +208,11 @@ const IdbStore = {
         const tx = this._db.transaction(this.STORE_NAME, 'readwrite');
         tx.objectStore(this.STORE_NAME).delete(key);
       }
-      localStorage.removeItem(key);
+      if (this._origRemoveItem) {
+        this._origRemoveItem(key);
+      } else {
+        localStorage.removeItem(key);
+      }
     } catch (e) {
       console.warn('[IdbStore.remove error]', e);
     }
@@ -261,7 +278,8 @@ const IdbStore = {
     const self = this;
 
     // 1. Store._get / Store._set のフック
-    if (typeof Store !== 'undefined') {
+    if (typeof Store !== 'undefined' && !this._storePatched) {
+      this._storePatched = true;
       Store._get = function(key) {
         const val = self.get(key);
         if (val === null || val === undefined) return [];
@@ -271,45 +289,52 @@ const IdbStore = {
       Store._set = function(key, data) {
         self.set(key, data);
       };
+      console.log('🛡️ [IdbStore] Store._get / Store._set インターセプト完了');
     }
 
-      const origGetItem = localStorage.getItem.bind(localStorage);
-      const origSetItem = localStorage.setItem.bind(localStorage);
-      const origRemoveItem = localStorage.removeItem.bind(localStorage);
-      self._origGetItem = origGetItem;
-      self._origSetItem = origSetItem;
-      self._origRemoveItem = origRemoveItem;
+    // 2. localStorage の透過的インターセプト (1度のみ実行)
+    if (!this._storagePatched) {
+      this._storagePatched = true;
+      try {
+        const origGetItem = localStorage.getItem.bind(localStorage);
+        const origSetItem = localStorage.setItem.bind(localStorage);
+        const origRemoveItem = localStorage.removeItem.bind(localStorage);
+        self._origGetItem = origGetItem;
+        self._origSetItem = origSetItem;
+        self._origRemoveItem = origRemoveItem;
 
-      localStorage.getItem = function(key) {
-        if (typeof key === 'string' && (key.startsWith('gyosei_') || key.startsWith('koteihi_') || key.startsWith('syako_'))) {
-          if (self._cache.has(key)) {
-            const val = self._cache.get(key);
-            return typeof val === 'string' ? val : JSON.stringify(val);
+        localStorage.getItem = function(key) {
+          if (typeof key === 'string' && (key.startsWith('gyosei_') || key.startsWith('koteihi_') || key.startsWith('syako_'))) {
+            if (self._cache.has(key)) {
+              const val = self._cache.get(key);
+              return typeof val === 'string' ? val : JSON.stringify(val);
+            }
           }
-        }
-        return origGetItem(key);
-      };
+          return origGetItem(key);
+        };
 
-      localStorage.setItem = function(key, val) {
-        if (typeof key === 'string' && (key.startsWith('gyosei_') || key.startsWith('koteihi_') || key.startsWith('syako_'))) {
-          let parsed = val;
-          try { parsed = JSON.parse(val); } catch {}
-          self.set(key, parsed);
-          return;
-        }
-        return origSetItem(key, val);
-      };
+        localStorage.setItem = function(key, val) {
+          if (typeof key === 'string' && (key.startsWith('gyosei_') || key.startsWith('koteihi_') || key.startsWith('syako_'))) {
+            let parsed = val;
+            try { parsed = JSON.parse(val); } catch {}
+            self.set(key, parsed);
+            return;
+          }
+          return origSetItem(key, val);
+        };
 
-      localStorage.removeItem = function(key) {
-        if (typeof key === 'string' && (key.startsWith('gyosei_') || key.startsWith('koteihi_') || key.startsWith('syako_'))) {
-          self.remove(key);
-        }
-        return origRemoveItem(key);
-      };
+        localStorage.removeItem = function(key) {
+          if (typeof key === 'string' && (key.startsWith('gyosei_') || key.startsWith('koteihi_') || key.startsWith('syako_'))) {
+            self.remove(key);
+            return;
+          }
+          return origRemoveItem(key);
+        };
 
-      console.log('🛡️ [IdbStore] localStorage 透過インターセプト有効化（5MB制限を完全バイパス）');
-    } catch (hookErr) {
-      console.warn('[IdbStore] localStorage フック不可 (ブラウザ制約):', hookErr);
+        console.log('🛡️ [IdbStore] localStorage 透過インターセプト有効化（5MB制限を完全バイパス）');
+      } catch (hookErr) {
+        console.warn('[IdbStore] localStorage フック不可 (ブラウザ制約):', hookErr);
+      }
     }
   }
 };
