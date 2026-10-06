@@ -65,10 +65,16 @@ function isInvoiceAction_(action) {
           'unmarkInvoicePaid', 'importInvoices', 'getInvoices'].indexOf(action) !== -1;
 }
 
+let _invSheetCache_ = {};
+function invResetCache_() {
+  _invSheetCache_ = {};
+}
+
 function withInvoiceLock_(fn) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return { error: '他の端末が請求処理中です。数秒後にもう一度お試しください。', code: 'LOCKED' };
   try {
+    invResetCache_();
     return fn();
   } finally {
     SpreadsheetApp.flush();
@@ -80,6 +86,7 @@ function withInvoiceLock_(fn) {
 //  シート入出力ヘルパー
 // ------------------------------------------------------------
 function invSheet_(name, cols) {
+  if (_invSheetCache_[name]) return _invSheetCache_[name];
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(name);
   if (!sh) {
@@ -89,6 +96,7 @@ function invSheet_(name, cols) {
     // 日付・番号の自動変換を防ぐため全列を書式なしテキストに
     sh.getRange(1, 1, sh.getMaxRows(), cols.length).setNumberFormat('@');
   }
+  _invSheetCache_[name] = sh;
   return sh;
 }
 
@@ -242,12 +250,19 @@ function cancelInvoice_(data) {
   if (!inv) return { error: '請求番号が見つかりません: ' + data.invoiceNo };
   if (inv.status === INV_STATUS.CANCELED) return { error: 'すでに取消済みです', code: 'ALREADY_CANCELED' };
 
-  const pays = invReadAll_(INV_SHEETS.PAYMENTS, PAY_COLS).filter(function (p) { return p.invoiceNo === data.invoiceNo; });
-  if (pays.some(function (p) { return p.status === PAY_STATUS.PAID; })) {
-    return { error: '入金済みの請求書は取消できません。先に入金を取り消してください。', code: 'PAID' };
+  // 入金チェック（PAY_COLS: invoiceNo=1, status=7）
+  const paySheet = invSheet_(INV_SHEETS.PAYMENTS, PAY_COLS);
+  const payLast = paySheet.getLastRow();
+  const payVals = payLast >= 2 ? paySheet.getRange(2, 1, payLast - 1, PAY_COLS.length).getValues() : [];
+  for (let i = 0; i < payVals.length; i++) {
+    if (String(payVals[i][1]) === String(data.invoiceNo) && String(payVals[i][7]) === PAY_STATUS.PAID) {
+      return { error: '入金済みの請求書は取消できません。先に入金を取り消してください。', code: 'PAID' };
+    }
   }
 
   const now = invNow_();
+
+  // 1) 請求書シートの更新（1行）
   inv.status = INV_STATUS.CANCELED;
   inv.canceledBy = data.canceledBy || '';
   inv.canceledDevice = data.canceledDevice || '';
@@ -255,19 +270,49 @@ function cancelInvoice_(data) {
   inv.cancelReason = data.reason || '';
   invUpdate_(INV_SHEETS.INVOICES, INV_COLS, inv);
 
-  const items = invReadAll_(INV_SHEETS.ITEMS, ITEM_COLS).filter(function (it) { return it.invoiceNo === data.invoiceNo; });
+  // 2) 請求明細シートの一括更新（ITEM_COLS: invoiceNo=0, caseId=1, status=4, updatedAt=5）
+  //    明細を1件ずつ setValues() するとタイムアウトするため、メモリ上で一括更新して 1回で書き戻す
+  const itemSheet = invSheet_(INV_SHEETS.ITEMS, ITEM_COLS);
+  const itemLast = itemSheet.getLastRow();
   const canceledCaseIds = [];
-  items.forEach(function (it) {
-    if (it.status !== ITEM_STATUS.CANCELED) {
-      it.status = ITEM_STATUS.CANCELED; it.updatedAt = now;
-      invUpdate_(INV_SHEETS.ITEMS, ITEM_COLS, it);
-      canceledCaseIds.push(it.caseId);
+  if (itemLast >= 2) {
+    const itemRange = itemSheet.getRange(2, 1, itemLast - 1, ITEM_COLS.length);
+    const itemVals = itemRange.getValues();
+    let itemModified = false;
+    for (let i = 0; i < itemVals.length; i++) {
+      if (String(itemVals[i][0]) === String(data.invoiceNo)) {
+        if (String(itemVals[i][4]) !== ITEM_STATUS.CANCELED) {
+          itemVals[i][4] = ITEM_STATUS.CANCELED;
+          itemVals[i][5] = now;
+          canceledCaseIds.push(String(itemVals[i][1]));
+          itemModified = true;
+        }
+      }
     }
-  });
-  pays.forEach(function (p) {
-    p.status = PAY_STATUS.CANCELED; p.updatedBy = data.canceledBy || ''; p.updatedAt = now;
-    invUpdate_(INV_SHEETS.PAYMENTS, PAY_COLS, p);
-  });
+    if (itemModified) {
+      itemRange.setValues(itemVals);
+    }
+  }
+
+  // 3) 入金シートの一括更新（1回の setValues で完了）
+  if (payLast >= 2) {
+    const payRange = paySheet.getRange(2, 1, payLast - 1, PAY_COLS.length);
+    let payModified = false;
+    for (let i = 0; i < payVals.length; i++) {
+      if (String(payVals[i][1]) === String(data.invoiceNo)) {
+        if (String(payVals[i][7]) !== PAY_STATUS.CANCELED) {
+          payVals[i][7] = PAY_STATUS.CANCELED;
+          payVals[i][10] = data.canceledBy || '';
+          payVals[i][11] = now;
+          payModified = true;
+        }
+      }
+    }
+    if (payModified) {
+      payRange.setValues(payVals);
+    }
+  }
+
   return { success: true, invoiceNo: data.invoiceNo, caseIds: canceledCaseIds };
 }
 

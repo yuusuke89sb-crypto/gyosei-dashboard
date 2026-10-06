@@ -922,14 +922,25 @@ const InboxManager = {
         dataUrl: targetAtt?.dataUrl || null,
         rawBase64: targetAtt?.rawBase64 || targetAtt?.base64 || null,
         fileName: fileName,
-        onApply: ({ dataUrl }) => {
+        onApply: ({ dataUrl, pages }) => {
           if (targetAtt) {
             targetAtt.dataUrl = dataUrl;
             targetAtt.isCleaned = true;
           }
           if (confirm('✨ 白消しが完了しました！この修正済み書類で案件登録に進みますか？')) {
             if (item) {
-              if (targetAtt) item.attachments = [targetAtt];
+              if (pages && pages.length > 1) {
+                item.attachments = pages.map((p, idx) => ({
+                  name: `${fileName.replace(/\.[^.]+$/, '')}_白消し_P${idx + 1}.jpg`,
+                  dataUrl: p.dataUrl,
+                  pageNumber: idx + 1,
+                  mimeType: 'image/jpeg',
+                  isCleaned: true,
+                  origUrl: targetUrl
+                }));
+              } else if (targetAtt) {
+                item.attachments = [targetAtt];
+              }
               this.registerCase(item.id);
             }
           }
@@ -1032,7 +1043,24 @@ const InboxManager = {
                       name: tiffPages.length === 1 ? `FAX原本_正立270度.jpg` : `FAX原本_P${idx + 1}.jpg`,
                       dataUrl: p.dataUrl,
                       pageNumber: idx + 1,
-                      mimeType: 'image/jpeg'
+                      mimeType: 'image/jpeg',
+                      origUrl: firstAtt.url
+                    }));
+                  }
+                }
+
+                // PDFを個別ページに展開（複数ページOSS依頼書・車庫申請書類の全ページ表示・切り出し対応）
+                const isPdfData = (!isTiffData) && ((b64Data.mimeType || '').includes('pdf') || (firstAtt.name && firstAtt.name.match(/\.pdf$/i)) || b64Data.base64.startsWith('JVBERi'));
+                if (isPdfData && typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertPdfToPages) {
+                  const pdfPages = await DealerDocumentParser.convertPdfToPages(b64Data.base64);
+                  if (pdfPages && pdfPages.length > 0) {
+                    geminiParsed.attachments = pdfPages.map((p, idx) => ({
+                      name: pdfPages.length === 1 ? (firstAtt.name || '依頼書原本.pdf') : `${(firstAtt.name || '依頼書原本').replace(/\.pdf$/i, '')}_P${idx + 1}.jpg`,
+                      dataUrl: p.dataUrl,
+                      pageNumber: idx + 1,
+                      mimeType: 'image/jpeg',
+                      origUrl: firstAtt.url,
+                      origName: firstAtt.name
                     }));
                   }
                 }

@@ -1,0 +1,3918 @@
+/**
+ * 案件管理画面
+ */
+const Cases = {
+  filterCategory: sessionStorage.getItem('gyosei_cases_cat') || 'all',
+  filterStatus: sessionStorage.getItem('gyosei_cases_status') || 'all',
+  filterMapStatus: sessionStorage.getItem('gyosei_cases_map') || 'all', // 'all' | 'uncreated' (車庫証明の図面未作成)
+  searchQuery: sessionStorage.getItem('gyosei_cases_search') || '',        // 検索クエリ (申請者名・車台番号・ナンバー・注文書No等)
+  editingId: null,
+  returnPage: null,
+  returnTab: null,
+  returnClientId: null,
+  advanceDraft: [],  // 立替金一時データ [{label, amount}]
+
+  ensureModalInDOM(force = false) {
+    let holder = document.getElementById('caseModalHolder');
+    if (!holder) {
+      holder = document.createElement('div');
+      holder.id = 'caseModalHolder';
+      document.body.appendChild(holder);
+    }
+    const modal = document.getElementById('caseModal');
+    if (!modal || force) {
+      holder.innerHTML = this.renderModal();
+    }
+  },
+
+  // 車庫証明案件判定
+  isSyakoCase(c) {
+    if (!c || !c.category) return false;
+    return c.category === 'garage_oss' || c.category === 'garage_paper' || c.category.includes('garage');
+  },
+
+  // 案件の所在図・配置図データ存在判定
+  hasMapData(caseId) {
+    if (!caseId) return false;
+    return !!(localStorage.getItem('syako_case_map_' + caseId) || localStorage.getItem('gyosei_case_map_png_' + caseId));
+  },
+
+  // 図面未作成クイックフィルター切り替え
+  toggleMapFilter() {
+    this.filterMapStatus = this.filterMapStatus === 'uncreated' ? 'all' : 'uncreated';
+    try { sessionStorage.setItem('gyosei_cases_map', this.filterMapStatus); } catch(e) {}
+    App.refreshView();
+  },
+
+  STATUSES: [
+    { key: 'received', label: '受付', icon: '📥' },
+    { key: 'applying', label: '申請中', icon: '📝' },
+    { key: 'delivery', label: '交付・受取', icon: '📋' },
+    { key: 'done', label: '完了・納品', icon: '✅' },
+  ],
+
+  CATEGORIES: [
+    { key: 'garage_oss', label: '🚗 車庫証明（OSS）' },
+    { key: 'garage_paper', label: '📄 車庫証明（一般）' },
+    { key: 'seal', label: '🔩 封印' },
+    { key: 'car_reg_standard', label: '🚘 普通自動車登録' },
+    { key: 'car_reg_light', label: '🚙 軽自動車登録' },
+  ],
+
+  SUB_CATEGORIES: [
+    { key: '', label: '— 登録種別を選択（任意） —' },
+    { key: '新規登録', label: '新規登録（新車・中古新規）' },
+    { key: '移転登録', label: '移転登録（名義変更・管轄変更等）' },
+    { key: '変更登録', label: '変更登録（住所・氏名等）' },
+    { key: '番号変更', label: '番号変更（希望番号・図柄ナンバー等）' },
+    { key: '抹消登録', label: '抹消登録（一時抹消・永久抹消）' },
+    { key: '希望ナンバー', label: '希望ナンバー申し込み' },
+    { key: 'ナンバー再交付', label: 'ナンバー再交付（破損・汚損）' },
+    { key: '車検証・標章再交付', label: '車検証 / 検査標章 再交付' },
+    { key: '登録事項証明書', label: '登録事項等証明書（現在・詳細）' },
+    { key: '減免申請', label: '減免申請（身体障害者等）' },
+    { key: 'その他', label: 'その他' },
+  ],
+
+  onSearchInput(val) {
+    this.searchQuery = val;
+    try { sessionStorage.setItem('gyosei_cases_search', val); } catch(e) {}
+
+    // クリアボタン表示切替（DOM直接制御）
+    const clearBtn = document.getElementById('caseSearchClearBtn');
+    if (clearBtn) {
+      clearBtn.style.display = val ? 'block' : 'none';
+    }
+
+    // デバウンス処理：入力中（特に日本語IME変換中）の大量DOM書き換えによるフォーカス喪失やチラつきを完全防止
+    if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      const container = document.getElementById('casesMainContainer');
+      if (!container) return;
+      try {
+        const filtered = this.getFilteredCases();
+        const isMobile = window.innerWidth < 768;
+        container.innerHTML = isMobile ? this.renderList(filtered) : this.renderKanban(filtered);
+      } catch (err) {
+        console.error('[Cases.onSearchInput] filter error:', err);
+      }
+    }, 120);
+  },
+
+  clearSearch() {
+    this.searchQuery = '';
+    try { sessionStorage.removeItem('gyosei_cases_search'); } catch(e) {}
+    if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+
+    const input = document.getElementById('caseSearchInput');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    const clearBtn = document.getElementById('caseSearchClearBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    const container = document.getElementById('casesMainContainer');
+    if (container) {
+      try {
+        const filtered = this.getFilteredCases();
+        const isMobile = window.innerWidth < 768;
+        container.innerHTML = isMobile ? this.renderList(filtered) : this.renderKanban(filtered);
+      } catch (err) {
+        console.error('[Cases.clearSearch] error:', err);
+      }
+    }
+    if (input) input.focus();
+  },
+
+  // 全角半角・カナかな・英数字・記号を正規化するヘルパー
+  normalizeText(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/[\u30A1-\u30F6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60))
+      .replace(/[\s\u3000\-_－ー・/／()（）]/g, '')
+      .toLowerCase();
+  },
+
+  getFilteredCases() {
+    const cases = Store.getCases();
+    let filtered = cases;
+    if (this.filterCategory !== 'all') filtered = filtered.filter(c => c.category === this.filterCategory);
+    
+    if (this.filterStatus === 'active') {
+      filtered = filtered.filter(c => c.status !== 'done');
+    } else if (this.filterStatus !== 'all' && this.filterStatus !== 'done') {
+      filtered = filtered.filter(c => c.status === this.filterStatus);
+    } else if (this.filterStatus === 'done') {
+      filtered = filtered.filter(c => c.status === 'done');
+    }
+
+    // 検索語句がない場合のみ、直近7日以前の完了案件を自動非表示（検索時は過去の案件もすべてヒットさせる）
+    if (this.filterStatus === 'all' && !this.searchQuery) {
+      const now = Date.now();
+      const HIDE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7日
+      filtered = filtered.filter(c => {
+        if (c.status !== 'done') return true;
+        const doneTime = c.completedAt ? new Date(c.completedAt).getTime() : (c.updatedAt ? new Date(c.updatedAt).getTime() : 0);
+        return doneTime > 0 ? (now - doneTime) < HIDE_AFTER_MS : true;
+      });
+    }
+
+    // 図面未作成クイックフィルター適用
+    if (this.filterMapStatus === 'uncreated') {
+      filtered = filtered.filter(c => this.isSyakoCase(c) && !this.hasMapData(c.id));
+    }
+
+    // キーワード検索フィルター（複数単語AND検索・全角半角・ハイフン・スペース吸収の超柔軟検索）
+    if (this.searchQuery && this.searchQuery.trim()) {
+      const rawWords = this.searchQuery.trim().split(/\s+/).filter(Boolean);
+      const normalizedWords = rawWords.map(w => this.normalizeText(w));
+
+      filtered = filtered.filter(c => {
+        const client = Store.getClient(c.clientId);
+        const clientName = client ? (client.name || '') : '';
+        const clientCompany = client ? (client.companyName || '') : '';
+        const staffName = c.staffId ? Store.getStaffName(c.staffId) : '';
+        const memoStr = typeof c.memo === 'string' ? c.memo : '';
+
+        // 案件の全テキストを結合（生テキスト ＆ 正規化テキスト）
+        const rawFullText = [
+          c.title, c.carName, c.applicantName, c.orderNo, c.caseNo,
+          c.carNumber, c.oldCarNumber, c.vin, c.carAddress, c.parkingAddress,
+          c.carPolice, memoStr, c.subCategory, clientName, clientCompany, staffName
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        const normFullText = [
+          this.normalizeText(c.title),
+          this.normalizeText(c.carName),
+          this.normalizeText(c.applicantName),
+          this.normalizeText(c.orderNo),
+          this.normalizeText(c.caseNo),
+          this.normalizeText(c.carNumber),
+          this.normalizeText(c.oldCarNumber),
+          this.normalizeText(c.vin),
+          this.normalizeText(c.carAddress),
+          this.normalizeText(c.parkingAddress),
+          this.normalizeText(c.carPolice),
+          this.normalizeText(memoStr),
+          this.normalizeText(c.subCategory),
+          this.normalizeText(clientName),
+          this.normalizeText(clientCompany),
+          this.normalizeText(staffName)
+        ].join('');
+
+        // すべての検索単語が含まれているかチェック (AND検索)
+        return rawWords.every((rw, idx) => {
+          const nw = normalizedWords[idx];
+          return rawFullText.includes(rw.toLowerCase()) || (nw && normFullText.includes(nw));
+        });
+      });
+    }
+
+    return filtered;
+  },
+
+  render() {
+    const cases = Store.getCases();
+    const filtered = this.getFilteredCases();
+
+    // 進行中の車庫証明案件のうち、図面未作成の件数を集計
+    const activeGarageCases = cases.filter(c => c.status !== 'done' && this.isSyakoCase(c));
+    const uncreatedMapCount = activeGarageCases.filter(c => !this.hasMapData(c.id)).length;
+
+    // ビュー切替: PC=カンバン / モバイルはリスト
+    const isMobile = window.innerWidth < 768;
+
+    return `
+      <div class="cases-page">
+        <div class="page-header">
+          <h1>案件管理</h1>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-ghost" onclick="Cases.promptApplyLatestPoliceFees()" title="警察署マスタの最新報酬単価（一宮4000円、江南5000円等）を案件に一括適用" style="font-size:0.82rem; color:var(--accent-primary, #4f46e5); font-weight:600; border:1px solid rgba(79,70,229,0.25);">
+              📍 警察署最新単価を一括適用
+            </button>
+            <button class="btn btn-ghost" onclick="Cases.syncAllCasesToCalendar()" title="進行中の全案件をGoogleカレンダーに一括同期" style="font-size:0.82rem;">
+              📅 カレンダー一括同期
+            </button>
+            <button class="btn btn-primary" onclick="Cases.showAddModal()">
+              <span class="btn-icon">＋</span> 新規案件
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-bar" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <!-- 🔍 キーワード検索ボックス -->
+          <div class="filter-group" style="position:relative; flex:1; min-width:220px; max-width:380px;">
+            <input type="text" id="caseSearchInput" class="filter-input" autocomplete="off" spellcheck="false" placeholder="🔍 申請者名・車台・ナンバー・注文書No等..."
+              value="${this.searchQuery}" oninput="Cases.onSearchInput(this.value)"
+              style="width:100%; padding:9px 32px 9px 14px; border-radius:8px; border:2px solid #3b82f6; background:#1e293b; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; font-size:1.0rem; font-weight:600; caret-color:#38bdf8;">
+            <button type="button" id="caseSearchClearBtn" onclick="Cases.clearSearch()" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.85rem; display:${this.searchQuery ? 'block' : 'none'};" title="検索クリア">✕</button>
+          </div>
+
+          <div class="filter-group">
+            <label>カテゴリ:</label>
+            <select id="filterCategory" onchange="Cases.onFilterChange()" class="filter-select">
+              <option value="all" ${this.filterCategory === 'all' ? 'selected' : ''}>すべて</option>
+              ${this.CATEGORIES.map(c => `<option value="${c.key}" ${this.filterCategory === c.key ? 'selected' : ''}>${c.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>ステータス:</label>
+            <select id="filterStatus" onchange="Cases.onFilterChange()" class="filter-select">
+              <option value="all" ${this.filterStatus === 'all' ? 'selected' : ''}>すべて（進行中＋直近完了）</option>
+              <option value="active" ${this.filterStatus === 'active' ? 'selected' : ''}>⚡ 進行中のみ（未完了）</option>
+              ${this.STATUSES.map(s => `<option value="${s.key}" ${this.filterStatus === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="filter-group" style="margin-left:auto;">
+            <button type="button" class="btn btn-small" onclick="Cases.toggleMapFilter()"
+              title="車庫証明の所在図・配置図が未作成の案件のみを絞り込み表示"
+              style="font-size:0.8rem; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:6px; transition:all 0.2s; ${this.filterMapStatus === 'uncreated' ? 'background:#fef3c7; color:#b45309; border:1.5px solid #f59e0b; font-weight:bold; box-shadow:0 1px 3px rgba(245,158,11,0.2);' : 'background:var(--bg-card, #fff); border:1px solid var(--border-color); color:var(--text-secondary);'}">
+              <span>🗺️ 図面未作成</span>
+              ${uncreatedMapCount > 0 
+                ? `<span style="background:#ef4444; color:white; border-radius:10px; padding:1px 6px; font-size:0.72rem; font-weight:bold;">${uncreatedMapCount}</span>` 
+                : '<span style="color:var(--text-muted); font-size:0.72rem;">(0)</span>'}
+            </button>
+          </div>
+        </div>
+
+        <div id="casesMainContainer">
+          ${isMobile ? this.renderList(filtered) : this.renderKanban(filtered)}
+        </div>
+      </div>
+      ${!document.getElementById('caseModal') ? this.renderModal() : ''}
+    `;
+  },
+
+  renderKanban(cases) {
+    return `
+      <div class="kanban-board">
+        ${this.STATUSES.map(status => {
+          let statusCases = cases.filter(c => c.status === status.key);
+          let extraFooterHtml = '';
+          if (status.key === 'done' && this.filterStatus === 'all' && !this.searchQuery && statusCases.length > 5) {
+            const totalDoneCount = statusCases.length;
+            statusCases = [...statusCases].sort((a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)).slice(0, 5);
+            extraFooterHtml = `
+              <div style="text-align:center;padding:10px 4px;font-size:0.78rem;color:var(--primary);cursor:pointer;font-weight:600;background:rgba(99,102,241,0.06);border-radius:6px;margin-top:6px" onclick="Cases.filterStatus='done';App.refreshView();">
+                過去の完了案件を見る (${totalDoneCount}件) ➔
+              </div>`;
+          }
+          return `
+            <div class="kanban-column" data-status="${status.key}"
+              ondragover="event.preventDefault(); this.classList.add('drag-over')"
+              ondragleave="this.classList.remove('drag-over')"
+              ondrop="Cases.onDrop(event, '${status.key}'); this.classList.remove('drag-over')">
+              <div class="kanban-header">
+                <span>${status.icon} ${status.label}</span>
+                <span class="kanban-count">${statusCases.length}</span>
+              </div>
+              <div class="kanban-cards">
+                ${statusCases.length === 0
+                  ? '<div class="kanban-empty">案件なし</div>'
+                  : statusCases.map(c => this.renderKanbanCard(c)).join('')
+                }
+                ${extraFooterHtml}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  },
+
+  ADVANCE_CATEGORIES: [
+    { key: '証紙代', label: '証紙代' },
+    { key: '印紙代', label: '印紙代' },
+    { key: '法定費用', label: '法定費用' },
+    { key: '送料', label: '送料' },
+    { key: 'プレート代', label: 'プレート代' },
+    { key: '手数料', label: '手数料' },
+    { key: 'その他', label: 'その他' },
+  ],
+
+  // 立替金行を再描画
+  renderAdvanceRows() {
+    const container = document.getElementById('advancesRowsContainer') || document.getElementById('csf_advance_rows');
+    if (!container) return;
+    if (!this.advanceDraft || this.advanceDraft.length === 0) {
+      container.innerHTML = `<div style="font-size:0.78rem; color:var(--text-muted, #94a3b8); padding:4px 0;">立替金（証紙代・印紙代・送料・プレート代等）がある場合は「＋ 追加」またはプリセットを押してください</div>`;
+      return;
+    }
+    container.innerHTML = this.advanceDraft.map((adv, i) => {
+      const curCat = adv.category || (adv.label && adv.label.includes('証紙') ? '証紙代' : (adv.label && adv.label.includes('印紙') ? '印紙代' : (adv.label && (adv.label.includes('税') || adv.label.includes('法定')) ? '法定費用' : (adv.label && (adv.label.includes('送') || adv.label.includes('レターパック')) ? '送料' : (adv.label && (adv.label.includes('プレート') || adv.label.includes('ナンバー')) ? 'プレート代' : '証紙代')))));
+      return `
+      <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+        <select style="width:105px; font-size:0.82rem; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-card,#fff); color:var(--text-color);"
+          data-adv-idx="${i}" data-adv-field="category" onchange="Cases.onAdvInput(this)">
+          ${this.ADVANCE_CATEGORIES.map(ac => `<option value="${ac.key}" ${curCat === ac.key ? 'selected' : ''}>${ac.label}</option>`).join('')}
+        </select>
+        <input type="text" placeholder="内容（例：車庫証明証紙代 / レターパック等）" value="${adv.label || ''}"
+          style="flex:2; font-size:0.85rem;" data-adv-idx="${i}" data-adv-field="label"
+          oninput="Cases.onAdvInput(this)">
+        <input type="number" placeholder="金額（円）" value="${adv.amount !== undefined ? adv.amount : ''}"
+          style="flex:1.2; font-size:0.85rem;" data-adv-idx="${i}" data-adv-field="amount"
+          oninput="Cases.onAdvInput(this)">
+        <button type="button" class="btn btn-secondary btn-small" style="flex-shrink:0; padding:2px 8px; color:#ef4444; border-color:rgba(239,68,68,0.3);"
+          onclick="Cases.removeAdvanceRow(${i})" title="削除">✕</button>
+      </div>
+    `;
+    }).join('');
+  },
+
+  addAdvanceRow(categoryOrLabel = '証紙代', label = '', amount = '') {
+    if (!this.advanceDraft) this.advanceDraft = [];
+    let cat = '証紙代';
+    let lbl = '';
+    let amt = '';
+    if (typeof categoryOrLabel === 'string' && (label !== '' || amount !== '')) {
+      if (['証紙代', '印紙代', '法定費用', '送料', 'プレート代', '手数料', 'その他'].includes(categoryOrLabel)) {
+        cat = categoryOrLabel;
+        lbl = label;
+        amt = amount;
+      } else {
+        lbl = categoryOrLabel;
+        amt = label;
+        cat = (lbl.includes('証紙') ? '証紙代' : (lbl.includes('印紙') ? '印紙代' : (lbl.includes('税') || lbl.includes('法定') ? '法定費用' : (lbl.includes('送') || lbl.includes('レターパック') ? '送料' : (lbl.includes('プレート') || lbl.includes('ナンバー') ? 'プレート代' : 'その他')))));
+      }
+    } else if (typeof categoryOrLabel === 'string' && label === '' && amount === '') {
+      lbl = categoryOrLabel;
+      cat = (lbl.includes('証紙') ? '証紙代' : (lbl.includes('印紙') ? '印紙代' : (lbl.includes('税') || lbl.includes('法定') ? '法定費用' : (lbl.includes('送') || lbl.includes('レターパック') ? '送料' : (lbl.includes('プレート') || lbl.includes('ナンバー') ? 'プレート代' : 'その他')))));
+    }
+    this.advanceDraft.push({ category: cat, label: lbl, amount: amt });
+    this.renderAdvanceRows();
+  },
+
+  removeAdvanceRow(i) {
+    if (!this.advanceDraft) return;
+    this.advanceDraft.splice(i, 1);
+    this.renderAdvanceRows();
+  },
+
+  onAdvInput(el) {
+    const i = parseInt(el.dataset.advIdx, 10);
+    const field = el.dataset.advField;
+    if (!this.advanceDraft) this.advanceDraft = [];
+    if (!this.advanceDraft[i]) this.advanceDraft[i] = { category: '証紙代', label: '', amount: '' };
+    this.advanceDraft[i][field] = field === 'amount' ? (el.value === '' ? '' : Number(el.value)) : el.value;
+  },
+
+  renderKanbanCard(c) {
+    const client = Store.getClient(c.clientId);
+    const catLabel = this.CATEGORIES.find(cat => cat.key === c.category);
+    const deadlineClass = this.getDeadlineClass(c.deadline, c.status);
+    const staffName = Store.getStaffName(c.staffId);
+    const contactName = c.clientContactId ? Store.getClientContact(c.clientContactId)?.name : '';
+    
+    // 複数目的地のバッジを組み立て
+    const locNames = [];
+    if (c.surveyLocationId) {
+      const loc = Store.getLocationName(c.surveyLocationId);
+      if (loc) locNames.push(`現調:${loc}`);
+    }
+    if (c.policeLocationId) {
+      const loc = Store.getLocationName(c.policeLocationId);
+      if (loc) locNames.push(`警察:${loc}`);
+    }
+    if (c.landTransportLocationId) {
+      const loc = Store.getLocationName(c.landTransportLocationId);
+      if (loc) locNames.push(`陸局:${loc}`);
+    }
+    if (locNames.length === 0 && c.locationId) {
+      const loc = Store.getLocationName(c.locationId);
+      if (loc) locNames.push(loc);
+    }
+    const locationsHtml = locNames.map(name => `<span>📍 ${name}</span>`).join('');
+
+    let milestoneHtml = '';
+    const mIndex = c.milestoneIndex !== undefined ? Number(c.milestoneIndex) : 0;
+    if (this.filterCategory === 'all') {
+      if (c.category !== 'inheritance') {
+        const steps = c.category === 'seal' 
+          ? ['書類受領', '日程調整', '施封完了'] 
+          : ['配置図作成', '承諾書回収', '警察署申請'];
+        milestoneHtml = `
+          <div class="card-milestone-dots" title="進捗: ${mIndex}/3 (現在: ${steps[Math.min(mIndex, 2)] || '未完了'})">
+            ${[0, 1, 2].map(idx => `<span class="milestone-dot ${idx < mIndex ? 'active' : ''} ${c.category}"></span>`).join('')}
+            <span class="milestone-text-ratio">${mIndex}/3</span>
+          </div>`;
+      }
+    } else if (this.filterCategory === 'inheritance') {
+      const steps = ['相続人特定', '財産調査', '協議書捺印', '手続完了'];
+      milestoneHtml = `
+        <div class="card-milestone-dots" title="進捗: ${mIndex}/4 (現在: ${steps[Math.min(mIndex, 3)] || '未完了'})">
+          ${[0, 1, 2, 3].map(idx => `<span class="milestone-dot ${idx < mIndex ? 'active' : ''} ${c.category}"></span>`).join('')}
+          <span class="milestone-text-ratio">${mIndex}/4</span>
+        </div>`;
+    } else {
+      const steps = c.category === 'seal' 
+        ? ['書類受領', '日程調整', '施封完了'] 
+        : ['配置図作成', '承諾書回収', '警察署申請'];
+      milestoneHtml = `
+        <div class="card-milestone-dots" title="進捗: ${mIndex}/3 (現在: ${steps[Math.min(mIndex, 2)] || '未完了'})">
+          ${[0, 1, 2].map(idx => `<span class="milestone-dot ${idx < mIndex ? 'active' : ''} ${c.category}"></span>`).join('')}
+          <span class="milestone-text-ratio">${mIndex}/3</span>
+        </div>`;
+    }
+
+    // 車庫証明の所在図・配置図バッジ判定
+    let syakoMapBadgeHtml = '';
+    if (this.isSyakoCase(c)) {
+      const hasMap = this.hasMapData(c.id);
+      syakoMapBadgeHtml = hasMap
+        ? `<span class="syako-map-badge map-done" onclick="event.stopPropagation(); Cases.openSyakoMapMaker('${c.id}')" title="クリックで作図ツールを開く（作成済）" style="font-size:0.7rem; background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:4px; padding:1px 6px; font-weight:600; cursor:pointer; margin-left:4px; display:inline-flex; align-items:center; gap:2px;">🟢 図面済</span>`
+        : `<span class="syako-map-badge map-pending" onclick="event.stopPropagation(); Cases.openSyakoMapMaker('${c.id}')" title="クリックで作図ツールを起動（未作成）" style="font-size:0.7rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:4px; padding:1px 6px; font-weight:bold; cursor:pointer; margin-left:4px; display:inline-flex; align-items:center; gap:2px;">🟡 図面未作成</span>`;
+    }
+
+    return `
+      <div class="kanban-card ${deadlineClass}" draggable="true"
+        ondragstart="event.dataTransfer.setData('text/plain','${c.id}')"
+        onclick="Cases.showEditModal('${c.id}')">
+        <div class="kanban-card-cat" style="display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+          <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : c.category}</span>
+          ${c.isUsedCar ? `<span style="font-size:0.7rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:1px 5px; border-radius:3px; font-weight:bold;">🚙 中古</span>` : ''}
+          ${c.subCategory ? `<span style="font-size:0.7rem;background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:3px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
+          ${syakoMapBadgeHtml}
+          ${c.partnerId && typeof Store !== 'undefined' && Store.getPartner(c.partnerId) ? `
+            <span style="font-size:0.7rem; background:rgba(56,189,248,0.15); color:#0284c7; border:1px solid rgba(56,189,248,0.4); padding:1px 5px; border-radius:3px; font-weight:bold; display:inline-flex; align-items:center; gap:2px;" title="外注提携先：${Store.getPartner(c.partnerId).officeName}">
+              🤝 提携: ${Store.getPartner(c.partnerId).officeName.replace(/行政書士事務所|事務所/g, '')}${Store.getPartner(c.partnerId).feeRegistration ? `(¥${Number(Store.getPartner(c.partnerId).feeRegistration).toLocaleString()})` : ''}
+            </span>
+          ` : ''}
+        </div>
+        <div class="kanban-card-title">${c.title}</div>
+        <div class="kanban-card-meta">
+          ${client ? `<span>🏢 ${client.name}</span>` : ''}
+          ${c.carName ? `<span style="color:#0369a1; font-weight:600">👤 ${c.carName} 様</span>` : ''}
+          ${(c.carNumber || c.oldCarNumber || c.vin) ? `<span style="font-size:0.75rem; color:var(--text-secondary)">🚗 ${c.carNumber || c.oldCarNumber || ''}${c.vin ? ` (${c.vin})` : ''}</span>` : ''}
+          ${contactName ? `<span style="font-size:0.78rem;color:var(--text-muted)">└ ${contactName}</span>` : ''}
+          ${c.staffId ? `<span>🏷️ ${staffName}</span>` : ''}
+          ${locationsHtml}
+          ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
+          ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
+          ${c.registrationDate ? `<span style="color:#d97706;font-weight:600">🚗 登録: ${c.registrationDate.slice(5)}</span>` : ''}
+          ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
+          ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
+          ${(c.docs && c.docs.length > 0) ? `<span style="font-size:0.75rem; color:#2563eb; font-weight:600;">📎 ${c.docs.length}件</span>` : ''}
+          ${c.driveFolderUrl ? `<span style="font-size:0.75rem; color:#059669; font-weight:600; cursor:pointer;" onclick="event.stopPropagation(); window.open('${c.driveFolderUrl}', '_blank')" title="Google Driveフォルダを開く">📁 Drive↗</span>` : ''}
+        </div>
+        ${milestoneHtml}
+        ${(c.memo && typeof c.memo === 'string' && c.memo.trim()) ? `<div class="kanban-card-memo" style="font-size:0.75rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;" title="${String(c.memo).replace(/"/g, '&quot;')}">📝 ${String(c.memo).trim()}</div>` : ''}
+        ${c.createdAt ? `<div class="kanban-card-date">📋 ${c.createdAt.slice(0, 10)}</div>` : ''}
+        ${c.fee ? `<div class="kanban-card-fee">💰 報酬 ${Number(c.fee).toLocaleString()}円${(c.advances||[]).length > 0 ? ` + 立替 ${(c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0).toLocaleString()}円` : ''}</div>` : ''}
+      </div>
+    `;
+  },
+
+  renderList(cases) {
+    const sorted = cases.sort((a, b) => {
+      const statusOrder = ['received', 'applying', 'delivery', 'done'];
+      return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+    });
+    return `
+      <div class="case-list">
+        ${sorted.length === 0
+        ? '<div class="empty-state"><div class="empty-icon">📋</div><p>案件がまだありません</p><button class="btn btn-primary" onclick="Cases.showAddModal()">最初の案件を登録</button></div>'
+        : sorted.map(c => {
+          const client = Store.getClient(c.clientId);
+          const statusInfo = this.STATUSES.find(s => s.key === c.status);
+          const catLabel = this.CATEGORIES.find(cat => cat.key === c.category);
+          const deadlineClass = this.getDeadlineClass(c.deadline, c.status);
+
+          // 複数目的地のバッジを組み立て
+          const locNames = [];
+          if (c.policeLocationId) {
+            const loc = Store.getLocationName(c.policeLocationId);
+            if (loc) locNames.push(`警察:${loc}`);
+          }
+          if (c.landTransportLocationId) {
+            const loc = Store.getLocationName(c.landTransportLocationId);
+            if (loc) locNames.push(`陸局:${loc}`);
+          }
+          if (locNames.length === 0 && c.locationId) {
+            const loc = Store.getLocationName(c.locationId);
+            if (loc) locNames.push(loc);
+          }
+          const locationsHtml = locNames.map(name => `<span>📍 ${name}</span>`).join('');
+
+          let milestoneHtml = '';
+          const mIndex = c.milestoneIndex !== undefined ? Number(c.milestoneIndex) : 0;
+          const colorVar = c.category === 'seal' ? 'var(--accent-gold)' : 'var(--accent-blue)';
+          const bgVar = c.category === 'seal' ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)';
+          milestoneHtml = `<span style="font-size:0.75rem;color:${colorVar};background:${bgVar};padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:600">🏁 進捗: ${mIndex}/3</span>`;
+
+          // 車庫証明の所在図・配置図バッジ判定
+          let syakoMapBadgeHtml = '';
+          if (this.isSyakoCase(c)) {
+            const hasMap = this.hasMapData(c.id);
+            syakoMapBadgeHtml = hasMap
+              ? `<span class="syako-map-badge map-done" onclick="event.stopPropagation(); Cases.openSyakoMapMaker('${c.id}')" title="クリックで作図ツールを開く（作成済）" style="font-size:0.75rem; background:#dcfce7; color:#15803d; border:1px solid #86efac; border-radius:4px; padding:2px 6px; font-weight:600; cursor:pointer; margin-left:6px; display:inline-flex; align-items:center; gap:2px;">🟢 図面済</span>`
+              : `<span class="syako-map-badge map-pending" onclick="event.stopPropagation(); Cases.openSyakoMapMaker('${c.id}')" title="クリックで作図ツールを起動（未作成）" style="font-size:0.75rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:4px; padding:2px 6px; font-weight:bold; cursor:pointer; margin-left:6px; display:inline-flex; align-items:center; gap:2px;">🟡 図面未作成</span>`;
+          }
+
+          return `
+                <div class="case-list-item ${deadlineClass}" onclick="Cases.showEditModal('${c.id}')">
+                  <div class="case-list-top">
+                    <span class="category-tag category-${c.category}">${catLabel ? catLabel.label : ''}</span>
+                    ${c.isUsedCar ? `<span style="font-size:0.72rem; background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:1px 6px; border-radius:3px; font-weight:bold; margin-left:4px;">🚙 中古</span>` : ''}
+                    ${c.subCategory ? `<span style="font-size:0.75rem;background:rgba(0,0,0,0.05);padding:2px 6px;border-radius:4px;margin-left:4px;color:var(--text-secondary)">${c.subCategory}</span>` : ''}
+                    ${syakoMapBadgeHtml}
+                    ${c.partnerId && typeof Store !== 'undefined' && Store.getPartner(c.partnerId) ? `
+                      <span style="font-size:0.72rem; background:rgba(56,189,248,0.15); color:#0284c7; border:1px solid rgba(56,189,248,0.4); padding:1px 6px; border-radius:3px; font-weight:bold; margin-left:4px; display:inline-flex; align-items:center; gap:2px;" title="外注提携先：${Store.getPartner(c.partnerId).officeName}">
+                        🤝 提携: ${Store.getPartner(c.partnerId).officeName.replace(/行政書士事務所|事務所/g, '')}${Store.getPartner(c.partnerId).feeRegistration ? ` (代行: ¥${Number(Store.getPartner(c.partnerId).feeRegistration).toLocaleString()})` : ''}
+                      </span>
+                    ` : ''}
+                    <span class="status-badge status-${c.status}">${statusInfo ? statusInfo.icon + ' ' + statusInfo.label : ''}</span>
+                    ${milestoneHtml}
+                  </div>
+                  <div class="case-list-title">${c.title}</div>
+                    <div class="case-list-meta">
+                      ${client ? `<span>🏢 ${client.name}</span>` : ''}
+                      ${c.carName ? `<span style="color:#0369a1; font-weight:600">👤 ${c.carName} 様</span>` : ''}
+                      ${(c.carNumber || c.oldCarNumber || c.vin) ? `<span style="color:var(--text-secondary)">🚗 ${c.carNumber || c.oldCarNumber || ''}${c.vin ? ` (${c.vin})` : ''}</span>` : ''}
+                      ${c.staffId ? `<span>🏷️ ${Store.getStaffName(c.staffId)}</span>` : ''}
+                      ${locationsHtml}
+                      ${c.orderNo ? `<span>🎫 ${c.orderNo}</span>` : ''}
+                      ${c.createdAt ? `<span>📋 ${c.createdAt.slice(0, 10)}</span>` : ''}
+                      ${c.deadline ? `<span>📅 ${c.deadline}</span>` : ''}
+                      ${c.registrationDate ? `<span style="color:#d97706;font-weight:600">🚗 登録: ${c.registrationDate.slice(5)}</span>` : ''}
+                      ${c.policeDeliveryDate ? `<span style="color:#2563eb;font-weight:600">🚔 交付: ${c.policeDeliveryDate.slice(5)}</span>` : ''}
+                      ${c.storeDeliveryDate ? `<span style="color:#8b5cf6;font-weight:600">🚚 店届: ${c.storeDeliveryDate.slice(5)}</span>` : ''}
+                      ${c.fee ? `<span>💰 ${Number(c.fee).toLocaleString()}円</span>` : ''}
+                    </div>
+                  ${(c.memo && typeof c.memo === 'string' && c.memo.trim()) ? `<div class="case-list-memo" style="font-size:0.78rem;color:var(--text-muted);background:rgba(241,245,249,0.8);border-left:3px solid var(--primary);padding:4px 8px;margin-top:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;">📝 ${String(c.memo).trim()}</div>` : ''}
+                  <div class="case-list-status-controls">
+                    ${this.STATUSES.map(s => `
+                      <button class="status-step-btn ${c.status === s.key ? 'active' : ''}"
+                        onclick="event.stopPropagation(); Cases.changeStatus('${c.id}', '${s.key}')"
+                        title="${s.label}">${s.icon}</button>
+                    `).join('')}
+                  </div>
+                </div>
+              `;
+        }).join('')
+      }
+      </div>
+    `;
+  },
+
+  renderModal() {
+    const clients = Store.getClients();
+    const staffList = Store.getStaff();
+    const today = Store.getLocalDateStr();
+    return `
+      <div id="caseModal" class="modal" style="display:none">
+        <div class="modal-overlay" onclick="Cases.closeModal()"></div>
+        <div class="modal-content" id="caseModalContent" style="max-width: 720px; width: 94%; max-height: 92vh; display:flex; flex-direction:column; transition: max-width 0.25s ease;">
+          <div class="modal-header" style="flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <h2 id="caseModalTitle" style="margin:0;">案件登録</h2>
+              <button type="button" id="casePreviewToggleBtn" class="btn btn-secondary btn-small" style="display:none; font-size:0.75rem; padding:3px 8px;" onclick="Cases.toggleAttachmentSplitView()">
+                📑 添付プレビュー切替
+              </button>
+            </div>
+            <button class="modal-close" onclick="Cases.closeModal()">✕</button>
+          </div>
+
+          <div id="caseModalSplitBody" style="display:flex; flex-direction:row !important; flex-wrap:nowrap !important; gap:16px; flex:1; min-height:0; overflow:hidden; padding: 4px 0;">
+            
+            <!-- ─── 👈 左側: 添付ファイルプレビューワー（FAX・依頼書・車検証） ─── -->
+            <div id="caseAttachmentPane" style="display:none; flex:1.2; min-width:340px; background:var(--bg-secondary, #0f172a); border:1px solid var(--border-color, #334155); border-radius:8px; overflow:hidden; flex-direction:column !important; max-height:78vh; transition: flex 0.2s ease;">
+              <!-- ツールバー / ページタブ -->
+              <div style="background:rgba(0,0,0,0.3); border-bottom:1px solid var(--border-color, #334155); padding:6px 10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; flex-shrink:0;">
+                <div id="caseAttTabs" style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+                  <span style="font-size:0.75rem; font-weight:bold; color:var(--accent-gold, #f59e0b);">📄 表示:</span>
+                  <div id="caseAttTabList" style="display:flex; gap:4px; flex-wrap:wrap;"></div>
+                </div>
+                <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#475569;" onclick="Cases.rotateViewer()" title="90度回転（横向き・縦向き切り替え）">🔄 90°回転</button>
+                  <button type="button" class="btn btn-secondary btn-small" id="btnSaveRotatedToDrive" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#38bdf8; color:#38bdf8;" onclick="Cases.saveCurrentRotatedImageToDrive()" title="現在の回転角度・表示状態の画像をそのままGoogle Driveに保存">💾 向きをDrive保存</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 7px; font-size:0.75rem; font-weight:bold; background:#1e293b; border-color:#f59e0b; color:#f59e0b;" onclick="Cases.openCorrectionTapeForCurrentViewer()" title="この書類の左端FAX耳や不要箇所をデジタル修正テープで白消し">🩹 修正テープ</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem; background:#1e293b; border-color:#475569;" onclick="Cases.fitWidthViewer()" title="横幅に合わせて最大フィット">↕ 幅フィット</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.zoomViewer(0.25)" title="拡大">🔍＋</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.zoomViewer(-0.25)" title="縮小">🔍−</button>
+                  <button type="button" class="btn btn-secondary btn-small" id="caseViewerWideBtn" style="padding:2px 7px; font-size:0.75rem; color:#38bdf8; border-color:#0284c7;" onclick="Cases.toggleWidePreview()" title="プレビュー枠を大きく拡大（7:3比率）">⛶ プレビュー拡大</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.openViewerInNewTab()" title="別タブで原本を最大表示">↗ 別窓</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem;" onclick="Cases.resetViewer()" title="リセット">⤢</button>
+                  <input type="file" id="caseViewerFileInput" accept=".tif,.tiff,image/*,.pdf" style="display:none;" onchange="Cases.handleViewerFileSelect(event)">
+                  <button type="button" class="btn btn-secondary btn-small" style="padding:2px 6px; font-size:0.75rem; background:#334155;" onclick="document.getElementById('caseViewerFileInput').click()" title="手元のTIF/PDFを選択">📁開く</button>
+                </div>
+              </div>
+              <!-- ページ選択・範囲指定バー（同一FAX複数顧客の切り出し保存対応） -->
+              <div id="casePageSelectBar" style="background:rgba(30,41,59,0.95); border-bottom:1px solid var(--border-color, #334155); padding:6px 10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span style="font-size:0.75rem; font-weight:bold; color:#38bdf8;">📌 案件に保存するページ:</span>
+                  <div id="casePageCheckboxes" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+                </div>
+                <div style="display:flex; align-items:center; gap:4px;">
+                  <span style="font-size:0.72rem; color:var(--text-muted);">範囲:</span>
+                  <input type="number" id="casePageRangeFrom" min="1" style="width:38px; font-size:0.75rem; padding:2px; text-align:center; background:#0f172a; color:#fff; border:1px solid #475569; border-radius:4px;" value="1">
+                  <span style="font-size:0.72rem; color:var(--text-muted);">〜</span>
+                  <input type="number" id="casePageRangeTo" min="1" style="width:38px; font-size:0.75rem; padding:2px; text-align:center; background:#0f172a; color:#fff; border:1px solid #475569; border-radius:4px;">
+                  <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.applyPageRange()">範囲適用</button>
+                  <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.selectAllPages()">全選択</button>
+                </div>
+              </div>
+              <!-- ビューワー本文 -->
+              <div id="caseViewerContainer" style="flex:1; overflow:auto; position:relative; background:#0f172a; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:12px; min-height:420px; cursor:grab; user-select:none;"
+                   ondragover="event.preventDefault(); this.style.borderColor='var(--accent-gold, #f59e0b)'"
+                   ondrop="event.preventDefault(); if(event.dataTransfer.files[0]) Cases.loadLocalFileToViewer(event.dataTransfer.files[0])">
+                <div id="caseViewerLoading" style="display:none; text-align:center; color:#94a3b8; margin:auto;">
+                  <div class="spinner" style="width:36px; height:36px; border:3px solid rgba(245,158,11,0.2); border-top-color:#f59e0b; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px;"></div>
+                  <div style="font-size:0.85rem; font-weight:bold;">添付ファイル（TIF/PDF）を読み込み中...</div>
+                </div>
+                <div id="caseViewerImgWrapper" style="display:none; position:relative; align-items:center; justify-content:center; margin:auto; transition:width 0.15s ease, height 0.15s ease;">
+                  <img id="caseViewerImg" src="" style="display:block; border-radius:4px; box-shadow:0 6px 20px rgba(0,0,0,0.6); transform-origin:center center; transition:transform 0.15s ease;">
+                </div>
+                <iframe id="caseViewerIframe" src="" style="display:none; width:100%; height:100%; min-height:500px; border:none; border-radius:4px;"></iframe>
+                <div id="caseViewerEmpty" style="text-align:center; color:var(--text-muted, #94a3b8); padding:50px 16px; margin:auto;">
+                  <div style="font-size:2.4rem; margin-bottom:8px;">📄 🔍</div>
+                  <div style="font-size:0.95rem; font-weight:bold; color:#e2e8f0;">FAX・注文書・車検証 プレビュー</div>
+                  <div style="font-size:0.75rem; margin-top:6px; color:#94a3b8;">手元のTIF/PDFファイルをドラッグ＆ドロップして表示することも可能です</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ─── 👉 右側: 案件登録フォーム ─── -->
+            <div id="caseFormPane" style="flex:1; min-width:0; max-height:78vh; overflow-y:auto; padding-right:8px;">
+              <form id="caseForm" onsubmit="Cases.onSubmit(event)" onkeydown="if(event.key==='Enter' && event.target.tagName==='INPUT'){event.preventDefault();}">
+                <!-- ─── 1. 🏢 顧客情報（顧客店舗・店舗担当者） ─── -->
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>顧客店舗 <span class="required">*</span></label>
+                    <select name="clientId" id="csf_clientId" class="form-select" onchange="Cases.onClientChange(this.value)">
+                      <option value="">未選択</option>
+                      ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <label style="margin:0;">顧客担当者（店舗担当）</label>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.7rem; padding:1px 6px;" onclick="Cases.quickAddContact()" title="店舗担当者を新規登録">＋ 担当者追加</button>
+                    </div>
+                    <select name="clientContactId" id="csf_clientContactId" class="form-select">
+                      <option value="">— 未選択 —</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- ─── 2. 📋 案件の基本・種別 ─── -->
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>カテゴリ <span class="required">*</span></label>
+                    <select name="category" id="csf_category" required class="form-select" onchange="Cases.toggleCategoryFields(this.value); if(!Cases.editingId) CaseTemplates.applyTemplate(this.value); Cases.updateSuggestedTitle();">
+                      ${this.CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>ステータス</label>
+                    <select name="status" id="csf_status" class="form-select">
+                      ${this.STATUSES.map(s => `<option value="${s.key}">${s.icon} ${s.label}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+
+                <!-- 登録種別（やること）サブカテゴリ ＆ 封印事由 -->
+                <div class="form-row" id="csf_subCategory_group" style="display:none">
+                  <div class="form-group" style="flex:1">
+                    <label>登録種別（やること）</label>
+                    <select name="subCategory" id="csf_subCategory" class="form-select" onchange="Cases.onSubCategoryChange(this.value)">
+                      ${this.SUB_CATEGORIES.map(sc => `<option value="${sc.key}">${sc.label}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group" style="flex:1" id="csf_regType_group">
+                    <label>封印事由・登録区分 <span style="font-size:0.7rem;color:#10b981;font-weight:bold;">※監査台帳用</span></label>
+                    <select name="regType" id="csf_regType" class="form-select">
+                      <option value="">— 自動判定 —</option>
+                      <option value="new">🚗 新規登録（新車・中古新規）</option>
+                      <option value="transfer">🔄 移転登録（名義変更＋番号変更）</option>
+                      <option value="change">📍 変更登録（住所変更等＋番号変更）</option>
+                      <option value="reseal">🔩 再封印（修繕・破損・再取付）</option>
+                      <option value="plate_change">⭐ 番号変更（希望番号・図柄ナンバー）</option>
+                      <option value="jyuminhyo">📄 住民票</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group" style="flex:2">
+                    <label>案件名 <span class="required">*</span></label>
+                    <input type="text" name="title" id="csf_title" required placeholder="例：ATW開明 OSS 横田 清" oninput="Cases.onTitleManualInput(this.value)">
+                  </div>
+                  <div class="form-group" style="flex:1">
+                    <label>注文書№</label>
+                    <input type="text" name="orderNo" id="csf_orderNo" placeholder="例：57500855">
+                  </div>
+                </div>
+
+                <!-- マイルストーン表示エリア -->
+                <div id="csf_milestone_stepper_wrap" style="display:none; margin-bottom: 20px;"></div>
+
+                <!-- ─── 4. 📅 日程・申請先 ─── -->
+                <!-- 申請先、申請日 -->
+                <div class="form-row" id="csf_garageDates_group_police_apply">
+                  <div class="form-group">
+                    <label>申請先（警察署など）</label>
+                    <select name="policeLocationId" id="csf_policeLocationId" class="form-select" onchange="Cases.onPoliceLocationChange(this.value)">
+                      <option value="">— 未選択 —</option>
+                      ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}${(l.syakoFee && Number(l.syakoFee) > 0) ? ' (¥' + Number(l.syakoFee).toLocaleString() + ')' : ''}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>申請日</label>
+                    <input type="date" name="applyDate" id="csf_applyDate">
+                  </div>
+                </div>
+
+                <!-- 交付予定日 -->
+                <div class="form-row" id="csf_garageDates_group_police_delivery">
+                  <div class="form-group">
+                    <label>交付予定日（受取日）</label>
+                    <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
+                  </div>
+                </div>
+
+                <!-- 登録先、登録予定日 -->
+                <div class="form-row" id="csf_garageDates_group_land_transport">
+                  <div class="form-group">
+                    <label>登録先（陸運支局・軽検協）</label>
+                    <select name="landTransportLocationId" id="csf_landTransportLocationId" class="form-select">
+                      <option value="">— 未選択 —</option>
+                      ${Store.getLocations().map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>登録予定日</label>
+                    <input type="date" name="registrationDate" id="csf_registrationDate">
+                  </div>
+                </div>
+
+                <!-- 🤝 県外登録・外注提携先（提携行政書士）＆ 代行料・対応評価即時表示 -->
+                <div class="form-group" id="csf_partner_group" style="margin-bottom:14px; background:rgba(30,41,59,0.5); padding:12px 14px; border-radius:8px; border:1.5px solid rgba(56,189,248,0.35);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <label style="margin:0; font-size:0.96rem; font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:1.15rem;">🤝</span> 県外外注先（提携行政書士）
+                    </label>
+                    <button type="button" class="btn btn-ghost btn-small" onclick="App.navigate('partners')" style="font-size:0.85rem; color:#94a3b8; padding:3px 8px; text-decoration:underline;">マスター管理 ↗</button>
+                  </div>
+                  <select name="partnerId" id="csf_partnerId" class="form-select" onchange="Cases.onPartnerChange(this.value)" style="width:100%; font-size:0.95rem; font-weight:600; padding:8px 10px;">
+                    <option value="">— 自所対応 / 県内通常（提携先なし） —</option>
+                    ${typeof Store !== 'undefined' && Store.getPartners ? Store.getPartners().map(p => `
+                      <option value="${p.id}">【${p.prefecture || '県外'}】${p.officeName} （${p.representative || '代表'}・${p.rating || '提携'}）</option>
+                    `).join('') : ''}
+                  </select>
+
+                  <!-- 提携先の代行料・対応評価プレビューカード（選択時に即時展開） -->
+                  <div id="csf_partner_preview" style="display:none; margin-top:10px;"></div>
+                </div>
+
+                <!-- 店舗届ける予定日、店舗届ける時間帯 -->
+                <div class="form-row" id="csf_garageDates_group2">
+                  <div class="form-group">
+                    <label>店舗届ける予定日</label>
+                    <input type="date" name="storeDeliveryDate" id="csf_storeDeliveryDate">
+                  </div>
+                  <div class="form-group">
+                    <label>店舗届ける時間帯</label>
+                    <input type="text" name="storeDeliveryTime" id="csf_storeDeliveryTime" placeholder="例：午前中、15:00まで">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>自所 担当者</label>
+                    <select name="staffId" id="csf_staffId" class="form-select">
+                      <option value="">未定</option>
+                      ${staffList.map(s => `<option value="${s.id}">${s.name}${s.role ? ' (' + s.role + ')' : ''}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>受任日</label>
+                    <input type="date" name="registeredAt" id="csf_registeredAt" value="${today}">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>期日（締切）</label>
+                    <input type="date" name="deadline" id="csf_deadline">
+                  </div>
+                  <div class="form-group">
+                    <label>完了日 <span style="font-size:0.72rem;color:var(--accent-blue, #3b82f6);font-weight:bold;">(請求書明細の日付)</span></label>
+                    <input type="date" name="completedAt" id="csf_completedAt" title="請求書の別紙明細に印字される完了日です。未入力時は完了にした日付が自動採用されます">
+                  </div>
+                </div>
+
+                <!-- ─── 3. 🚗 車両・保管場所情報 ─── -->
+                <div id="csf_car_fields" style="background:rgba(59,130,246,0.05); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:12px; margin-bottom:16px">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                    <span style="font-weight:600; font-size:0.9rem; color:var(--primary-color)">🚗 車両・保管場所情報</span>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                      <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openExternalMap('its-mo')" style="font-size:0.75rem; background:var(--bg-secondary); color:#0284c7; border-color:#0284c7; font-weight:600;" title="いつもNAVI（ゼンリン詳細地図）で周辺の目印（店舗・施設・交差点等）を調査（別窓）">🌐 いつもNAVI</button>
+                      <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openExternalMap('google')" style="font-size:0.75rem; background:var(--bg-secondary); color:#16a34a; border-color:#16a34a; font-weight:600;" title="Googleマップで距離・出入口・道路幅を測定（別窓）">🗺️ Googleマップ</button>
+                      <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openSyakoMapMaker()" style="font-size:0.75rem; background:#2563eb; color:#fff; border-color:#2563eb; font-weight:bold;">
+                        🗺️ 所在図・配置図を作成
+                      </button>
+                    </div>
+                  </div>
+                  <!-- 車両区分（新車 / 中古車）選択 -->
+                  <div style="margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; background:var(--bg-card); padding:8px 12px; border-radius:6px; border:1px solid rgba(59,130,246,0.25);">
+                    <label style="display:inline-flex; align-items:center; gap:8px; margin:0; cursor:pointer; font-weight:600; font-size:0.88rem; color:var(--text-primary);">
+                      <input type="checkbox" name="isUsedCar" id="csf_isUsedCar" style="width:18px; height:18px; cursor:pointer; accent-color:#f59e0b;">
+                      <span>🚙 中古車（U-Car案件）</span>
+                    </label>
+                    <span style="font-size:0.73rem; color:var(--text-muted);">※ チェック時は中古車、未チェック時は新車として請求書を分離できます</span>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>名前（申請者・使用者）</label>
+                      <input type="text" name="carName" id="csf_carName" placeholder="例：横田 清" oninput="Cases.updateSuggestedTitle()" onchange="Cases.updateSuggestedTitle()">
+                    </div>
+                    <div class="form-group">
+                      <label>使用の本拠の位置（自宅住所）</label>
+                      <input type="text" name="carAddress" id="csf_carAddress" placeholder="例：一宮市三条 字墓北94-3" oninput="Cases.onAddressInput(this.value, 'carAddress')" onchange="Cases.onAddressInput(this.value, 'carAddress')">
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>保管場所の位置（車庫住所） <span style="font-size:0.72rem;color:var(--text-muted)">(空欄時は自宅と同上)</span></label>
+                      <input type="text" name="parkingAddress" id="csf_parkingAddress" placeholder="例：一宮市三条 字墓北94-3 (空欄時は同上)" oninput="Cases.onAddressInput(this.value, 'parkingAddress')" onchange="Cases.onAddressInput(this.value, 'parkingAddress')">
+                    </div>
+                    <div class="form-group">
+                      <label>所轄警察署</label>
+                      <select name="carPolice" id="csf_carPolice" class="form-select" onchange="Cases.onCarPoliceChange(this.value)">
+                        <option value="">— 選択（任意） —</option>
+                        ${(() => {
+                          const pLocs = (typeof Store !== 'undefined' && Store.getLocations) ? Store.getLocations().filter(l => l && l.name && l.name.includes('警察署')) : [];
+                          if (pLocs.length > 0) {
+                            return pLocs.map(l => `<option value="${l.name}">${l.name}</option>`).join('');
+                          }
+                          return typeof Briefing !== 'undefined' ? Briefing.PRESETS.filter(p => p.group === '警察署').map(p => `<option value="${p.label}">${p.label}</option>`).join('') : '';
+                        })()}
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>自動車登録番号（新ナンバー）</label>
+                      <input type="text" name="carNumber" id="csf_carNumber" placeholder="例：尾張小牧300自1234">
+                    </div>
+                    <div class="form-group">
+                      <label>旧登録番号（旧ナンバー / 返納対象）</label>
+                      <input type="text" name="oldCarNumber" id="csf_oldCarNumber" placeholder="例：名古屋500さ5678 (名変・変更時)">
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>車台番号（VIN）</label>
+                      <input type="text" name="vin" id="csf_vin" placeholder="例：ZWR90-0123456">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ─── 5. 💰 報酬額・立替金 ─── -->
+                <div class="form-row">
+                  <div class="form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; flex-wrap:wrap; gap:4px;">
+                      <label style="margin:0;">報酬額（円）</label>
+                      <span id="csf_fee_hint" style="font-size:0.75rem;"></span>
+                    </div>
+                    <input type="number" name="fee" id="csf_fee" placeholder="例：4000" min="0" step="1">
+                  </div>
+                </div>
+
+                <!-- 立替金入力エリア -->
+                <div class="advances-section" style="margin-bottom:16px; border:1px solid var(--border-color); border-radius:6px; padding:12px; background:var(--bg-secondary)">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                    <label style="font-weight:600; margin:0">💰 立替金（区分・内容・金額）</label>
+                    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('証紙代', '車庫証明証紙代', 2300)">＋ 証紙2,300円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('証紙代', '軽届出証紙代', 700)">＋ 軽700円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('印紙代', '登録印紙代', 700)">＋ 印紙700円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('送料', 'レターパックプラス送料', 600)">＋ 送料600円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('プレート代', 'ナンバープレート代', 1440)">＋ プレート1,440円</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('法定費用', '', '')">＋ 法定費用</button>
+                      <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow('その他', '', '')">＋ 追加</button>
+                    </div>
+                  </div>
+                  <div id="advancesRowsContainer"></div>
+                </div>
+
+                <div class="form-group">
+                  <label>Google Drive フォルダURL</label>
+                  <div style="display:flex; gap:6px">
+                    <input type="url" name="driveFolderUrl" id="csf_driveFolderUrl"
+                      placeholder="https://drive.google.com/..." style="flex:1">
+                    <button type="button" class="btn btn-secondary btn-small" onclick="Cases.openDriveFolder()" title="フォルダを開く">📂</button>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>📝 メモ・特記事項</label>
+                  <textarea name="memo" id="csf_memo" rows="4" style="min-height:90px;resize:vertical;font-size:0.88rem;line-height:1.5;width:100%;box-sizing:border-box" placeholder="案件に関するメモ、特記事項、連絡事項など..."></textarea>
+                </div>
+                <div id="caseExtArea"></div>
+                <div class="form-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:20px;">
+                  <button type="button" class="btn btn-danger" id="caseDeleteBtn" style="display:none; margin-right:auto"
+                    onclick="Cases.onDelete()">🗑️ 削除</button>
+                  <button type="button" class="btn btn-secondary" onclick="Cases.closeModal()" style="margin-right:auto;">✕ 閉じる</button>
+                  <button type="button" class="btn btn-secondary" onclick="Cases.saveCase('keep')" style="background:#334155; color:#fff; font-weight:600;" title="現在の入力内容を保存し、そのまま編集を続けます">💾 途中保存</button>
+                  <button type="button" class="btn btn-primary" id="caseSaveAndNextBtn" onclick="Cases.saveCase('continueNext')" style="background:#0284c7; border-color:#0284c7; color:#fff; font-weight:bold;" title="この案件を登録して、左側のFAX原本を見ながらそのまま次の案件（2台目）を入力します">📑 保存して「同じFAXから続けて登録」</button>
+                  <button type="button" class="btn btn-primary" onclick="Cases.saveCase('close')" style="background:#16a34a; border-color:#16a34a; font-weight:bold;">✅ 保存して閉じる</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  // ─── 📑 添付ファイル（FAX/依頼書/車検証）スプリットビューワー ───
+  viewerState: {
+    attachments: [],
+    currentIndex: 0,
+    zoom: 1.0,
+    rotation: 0,
+    isOpen: false,
+    selectedPageIndices: [] // 案件に保存する対象ページのインデックス一覧
+  },
+
+  initAttachmentViewer(attachments = [], preselectIdx = 0, initialPageRange = null) {
+    this.viewerState.attachments = attachments || [];
+    this.viewerState.currentIndex = preselectIdx;
+    this.viewerState.zoom = 1.0;
+    this.viewerState.rotation = 0;
+
+    const pane = document.getElementById('caseAttachmentPane');
+    const content = document.getElementById('caseModalContent');
+    const toggleBtn = document.getElementById('casePreviewToggleBtn');
+    const tabList = document.getElementById('caseAttTabList');
+
+    if (!pane || !content) return;
+
+    if (attachments && attachments.length > 0) {
+      this.viewerState.isOpen = true;
+      pane.style.display = 'flex';
+      content.style.maxWidth = '1360px';
+      content.style.width = '96vw';
+      if (toggleBtn) toggleBtn.style.display = 'inline-flex';
+
+      // 保存対象ページの初期化
+      if (initialPageRange && initialPageRange.from) {
+        const from = Math.max(1, initialPageRange.from);
+        const to = initialPageRange.to ? Math.min(attachments.length, initialPageRange.to) : attachments.length;
+        this.viewerState.selectedPageIndices = [];
+        for (let i = from - 1; i < to; i++) {
+          if (i >= 0 && i < attachments.length) this.viewerState.selectedPageIndices.push(i);
+        }
+        const fromInput = document.getElementById('casePageRangeFrom');
+        if (fromInput) fromInput.value = from;
+        const toInput = document.getElementById('casePageRangeTo');
+        if (toInput) toInput.value = to;
+      } else {
+        this.viewerState.selectedPageIndices = attachments.map((_, i) => i);
+        const fromInput = document.getElementById('casePageRangeFrom');
+        if (fromInput) fromInput.value = 1;
+        const toInput = document.getElementById('casePageRangeTo');
+        if (toInput) toInput.value = attachments.length;
+      }
+
+      // ページタブの生成
+      if (tabList) {
+        tabList.innerHTML = attachments.map((att, idx) => `
+          <button type="button" class="btn btn-small ${idx === preselectIdx ? 'btn-primary' : 'btn-secondary'}"
+            style="font-size:0.72rem; padding:2px 8px; border-radius:4px;"
+            onclick="Cases.loadAttachmentByIndex(${idx})">
+            ${idx + 1}枚目${att.name ? ' (' + att.name.replace(/^.*\./, '.') + ')' : ''}
+          </button>
+        `).join('');
+      }
+
+      this.renderPageCheckboxes();
+      this.loadAttachmentByIndex(preselectIdx);
+    } else {
+      this.viewerState.isOpen = false;
+      this.viewerState.selectedPageIndices = [];
+      pane.style.display = 'none';
+      content.style.maxWidth = '720px';
+      content.style.width = '94%';
+      if (toggleBtn) toggleBtn.style.display = 'none';
+    }
+  },
+
+  renderPageCheckboxes() {
+    const container = document.getElementById('casePageCheckboxes');
+    if (!container) return;
+    const atts = this.viewerState.attachments || [];
+    if (atts.length <= 1) {
+      container.innerHTML = `<span style="font-size:0.75rem; color:#94a3b8;">1枚のみ（全ページ保存対象）</span>`;
+      return;
+    }
+    container.innerHTML = atts.map((att, idx) => {
+      const isChecked = this.viewerState.selectedPageIndices.includes(idx);
+      return `
+        <label style="font-size:0.75rem; color:#fff; display:inline-flex; align-items:center; gap:4px; cursor:pointer; background:${isChecked ? 'rgba(56,189,248,0.25)' : 'rgba(255,255,255,0.05)'}; padding:2px 7px; border-radius:4px; border:1px solid ${isChecked ? '#38bdf8' : '#475569'}; transition:all 0.15s;">
+          <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="Cases.togglePageSelection(${idx}, this.checked)" style="accent-color:#38bdf8; margin:0; cursor:pointer;">
+          <span>${idx + 1}枚目</span>
+        </label>
+      `;
+    }).join('');
+  },
+
+  togglePageSelection(idx, checked) {
+    if (checked) {
+      if (!this.viewerState.selectedPageIndices.includes(idx)) {
+        this.viewerState.selectedPageIndices.push(idx);
+        this.viewerState.selectedPageIndices.sort((a, b) => a - b);
+      }
+    } else {
+      this.viewerState.selectedPageIndices = this.viewerState.selectedPageIndices.filter(i => i !== idx);
+    }
+    this.renderPageCheckboxes();
+    this.updatePageRangeInputs();
+  },
+
+  applyPageRange() {
+    const fromVal = parseInt(document.getElementById('casePageRangeFrom')?.value, 10) || 1;
+    const toVal = parseInt(document.getElementById('casePageRangeTo')?.value, 10) || (this.viewerState.attachments || []).length;
+    const atts = this.viewerState.attachments || [];
+    this.viewerState.selectedPageIndices = [];
+    for (let i = fromVal - 1; i < toVal; i++) {
+      if (i >= 0 && i < atts.length) {
+        this.viewerState.selectedPageIndices.push(i);
+      }
+    }
+    this.renderPageCheckboxes();
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast(`📌 保存対象を「${fromVal}〜${toVal}枚目」(${this.viewerState.selectedPageIndices.length}枚)に設定しました`);
+    }
+  },
+
+  selectAllPages() {
+    const atts = this.viewerState.attachments || [];
+    this.viewerState.selectedPageIndices = atts.map((_, i) => i);
+    const fromInput = document.getElementById('casePageRangeFrom');
+    if (fromInput) fromInput.value = 1;
+    const toInput = document.getElementById('casePageRangeTo');
+    if (toInput) toInput.value = atts.length;
+    this.renderPageCheckboxes();
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast(`📌 全${atts.length}枚を保存対象に設定しました`);
+    }
+  },
+
+  updatePageRangeInputs() {
+    const indices = this.viewerState.selectedPageIndices;
+    if (indices && indices.length > 0) {
+      const min = Math.min(...indices) + 1;
+      const max = Math.max(...indices) + 1;
+      const fromInput = document.getElementById('casePageRangeFrom');
+      if (fromInput) fromInput.value = min;
+      const toInput = document.getElementById('casePageRangeTo');
+      if (toInput) toInput.value = max;
+    }
+  },
+
+  getSelectedAttachments() {
+    const atts = this.viewerState.attachments || [];
+    if (!this.viewerState.selectedPageIndices || this.viewerState.selectedPageIndices.length === 0) {
+      return atts; // 未選択時は全ページフォールバック
+    }
+    return this.viewerState.selectedPageIndices.map(i => atts[i]).filter(Boolean);
+  },
+
+  toggleAttachmentSplitView() {
+    const pane = document.getElementById('caseAttachmentPane');
+    const content = document.getElementById('caseModalContent');
+    if (!pane || !content) return;
+
+    if (this.viewerState.isOpen) {
+      pane.style.display = 'none';
+      content.style.maxWidth = '720px';
+      content.style.width = '94%';
+      this.viewerState.isOpen = false;
+    } else {
+      pane.style.display = 'flex';
+      content.style.maxWidth = '1360px';
+      content.style.width = '96vw';
+      this.viewerState.isOpen = true;
+      if (this.viewerState.attachments.length > 0) {
+        this.loadAttachmentByIndex(this.viewerState.currentIndex);
+      }
+    }
+  },
+
+  async loadAttachmentByIndex(idx) {
+    const atts = this.viewerState.attachments;
+    if (!atts || !atts[idx]) return;
+    this.viewerState.currentIndex = idx;
+    this.viewerState.zoom = 1.0;
+    this.viewerState.rotation = 0;
+
+    // タブのアクティブ表示更新
+    const tabList = document.getElementById('caseAttTabList');
+    if (tabList) {
+      const btns = tabList.querySelectorAll('button');
+      btns.forEach((b, i) => {
+        b.className = `btn btn-small ${i === idx ? 'btn-primary' : 'btn-secondary'}`;
+      });
+    }
+
+    const att = atts[idx];
+    const loading = document.getElementById('caseViewerLoading');
+    const wrapper = document.getElementById('caseViewerImgWrapper');
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    const emptyEl = document.getElementById('caseViewerEmpty');
+
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (wrapper) wrapper.style.display = 'none';
+    if (imgEl) imgEl.style.display = 'none';
+    if (iframeEl) iframeEl.style.display = 'none';
+    if (loading) loading.style.display = 'block';
+
+    try {
+      // 0. クライアント側で生成・展開された画像データ（270°正立回転済みdataUrl）がある場合：最優先で表示！
+      if (att.dataUrl) {
+        if (loading) loading.style.display = 'none';
+        if (imgEl && wrapper) {
+          imgEl.src = att.dataUrl;
+          wrapper.style.display = 'flex';
+          imgEl.style.display = 'block';
+          imgEl.onload = () => {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          };
+          if (imgEl.complete) {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          }
+        }
+        return;
+      }
+
+      const isTiff = !!(att.name && att.name.match(/\.tiff?$/i)) || !!(att.url && att.url.match(/\.tiff?/i));
+      const isPdf = !isTiff && ((att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf')));
+      const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
+
+      // 1. Google Driveのファイル（TIFF, 通常画像, PDF）
+      if (att.url && att.url.includes('drive.google.com')) {
+        const match = att.url.match(/[-\w]{25,}/);
+        if (match) {
+          const fileId = match[0];
+          if (isPdf) {
+            // PDFの場合はiframeでGoogleプレビュー表示
+            const previewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+            if (loading) loading.style.display = 'none';
+            if (iframeEl) {
+              iframeEl.src = previewUrl;
+              iframeEl.style.display = 'block';
+            }
+            return;
+          } else {
+            // 画像（TIFF / JPG / PNG等）
+            // FAX原本（TIFF）の場合：lh3 CDNから高精細2048px画像をBlob直接取得し、Canvasで270度正立に物理回転！
+            // 302リダイレクトによるCORS遮断を完全回避し、プレビュー枠の横幅100%いっぱいに大きくクッキリ表示（所要時間わずか0.7秒）
+            if (isTiff) {
+              try {
+                const rotatedDataUrl = await this.fetchAndRotateDriveImage(fileId, 270);
+                if (rotatedDataUrl) {
+                  att.dataUrl = rotatedDataUrl;
+                  this.viewerState.rotation = 0; // 物理回転済みのためCSS回転は0度（A4フル幅表示）
+                  if (loading) loading.style.display = 'none';
+                  if (wrapper && imgEl) {
+                    imgEl.src = rotatedDataUrl;
+                    wrapper.style.display = 'flex';
+                    imgEl.style.display = 'block';
+                    this.applyViewerTransform();
+                    this.setupViewerInteractions();
+                  }
+                  return;
+                }
+              } catch (rotErr) {
+                console.warn('fetchAndRotateDriveImage failed, falling back to direct display:', rotErr);
+              }
+            }
+
+            // 通常画像（JPG/PNG）またはCanvas物理回転フォールバック：直接<img>にロード
+            if (isTiff && (!this.viewerState.rotation || this.viewerState.rotation === 0)) {
+              this.viewerState.rotation = 270;
+            }
+
+            const showImg = () => {
+              if (loading) loading.style.display = 'none';
+              if (wrapper && imgEl) {
+                wrapper.style.display = 'flex';
+                imgEl.style.display = 'block';
+                this.applyViewerTransform();
+                this.setupViewerInteractions();
+              }
+            };
+
+            if (imgEl && wrapper) {
+              imgEl.onload = () => showImg();
+              imgEl.onerror = () => {
+                // サムネイルURLフォールバック1: drive.google.com/thumbnail
+                imgEl.onerror = () => {
+                  // サムネイルURLフォールバック2: iframeプレビュー
+                  if (loading) loading.style.display = 'none';
+                  if (iframeEl) {
+                    wrapper.style.display = 'none';
+                    imgEl.style.display = 'none';
+                    iframeEl.src = `https://drive.google.com/file/d/${fileId}/preview`;
+                    iframeEl.style.display = 'block';
+                  }
+                };
+                imgEl.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2048`;
+              };
+              // 最速のlh3 CDNを優先指定
+              imgEl.src = `https://lh3.googleusercontent.com/d/${fileId}=w2048`;
+              if (imgEl.complete && imgEl.naturalWidth > 0) {
+                showImg();
+              }
+            }
+
+            // バックグラウンドでBase64を非同期キャッシュ（修正テープ等の後続機能用、UI描画は一切ブロックしない）
+            if (isTiff && gasUrl && !att.rawBase64 && !att.dataUrl) {
+              setTimeout(async () => {
+                try {
+                  const controller = new AbortController();
+                  const timer = setTimeout(() => controller.abort(), 6000);
+                  const res = await fetch(gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                      action: 'getFileBase64',
+                      fileUrl: att.url,
+                      fileId: fileId
+                    }),
+                    signal: controller.signal
+                  });
+                  clearTimeout(timer);
+                  const data = await res.json();
+                  if (data && data.success && data.base64) {
+                    att.rawBase64 = data.base64;
+                  }
+                } catch(e) {}
+              }, 300);
+            }
+            return;
+          }
+        }
+      }
+
+      // 3. ローカルまたはBlobのPDFファイルの場合
+      if (isPdf && att.url) {
+        if (loading) loading.style.display = 'none';
+        if (iframeEl) {
+          iframeEl.src = att.url.includes('#') ? att.url : `${att.url}#toolbar=0`;
+          iframeEl.style.display = 'block';
+        }
+        return;
+      }
+
+      // 3. 一般Web画像URL（Base64またはhttp画像直リンク）
+      if (att.url && (att.url.startsWith('data:') || att.url.match(/\.(png|jpe?g|webp|gif)/i))) {
+        if (loading) loading.style.display = 'none';
+        if (imgEl && wrapper) {
+          imgEl.src = att.url;
+          wrapper.style.display = 'block';
+          imgEl.style.display = 'block';
+          imgEl.onload = () => {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          };
+          if (imgEl.complete) {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          }
+        }
+        return;
+      }
+
+      // 4. フォールバック
+      if (loading) loading.style.display = 'none';
+      if (emptyEl) {
+        emptyEl.style.display = 'block';
+        emptyEl.innerHTML = `
+          <div style="font-size:2rem; margin-bottom:8px;">📄</div>
+          <div style="font-size:0.85rem; font-weight:bold; color:var(--text-dark, #fff);">${att.name || '添付ファイル'}</div>
+          <div style="font-size:0.75rem; margin:8px 0; color:#94a3b8;">Google Drive上の原本ファイルを開くか、手元のファイルを選択してください</div>
+          <div style="display:flex; gap:8px; justify-content:center; margin-top:14px;">
+            <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small" style="padding:6px 12px;">↗ Google Driveで開く</a>
+            <button type="button" class="btn btn-primary btn-small" style="padding:6px 12px; background:#f59e0b; color:#000; font-weight:bold;" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
+          </div>
+        `;
+      }
+    } catch (e) {
+      console.warn('Viewer load error:', e);
+      if (loading) loading.style.display = 'none';
+      if (emptyEl) {
+        emptyEl.style.display = 'block';
+        emptyEl.innerHTML = `
+          <div style="font-size:2rem; margin-bottom:8px;">📄</div>
+          <div style="font-size:0.85rem; font-weight:bold; color:var(--text-dark, #fff);">${att.name || '添付ファイル'}</div>
+          <div style="display:flex; gap:8px; justify-content:center; margin-top:14px;">
+            <a href="${att.url}" target="_blank" class="btn btn-secondary btn-small" style="padding:6px 12px;">↗ Google Driveで開く</a>
+            <button type="button" class="btn btn-primary btn-small" style="padding:6px 12px; background:#f59e0b; color:#000; font-weight:bold;" onclick="document.getElementById('caseViewerFileInput').click()">📁 手元のファイルを選択</button>
+          </div>
+        `;
+      }
+    }
+  },
+
+  handleViewerFileSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      this.loadLocalFileToViewer(file);
+    }
+  },
+
+  loadLocalFileToViewer(file) {
+    const loading = document.getElementById('caseViewerLoading');
+    const wrapper = document.getElementById('caseViewerImgWrapper');
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    const emptyEl = document.getElementById('caseViewerEmpty');
+
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (wrapper) wrapper.style.display = 'none';
+    if (imgEl) imgEl.style.display = 'none';
+    if (iframeEl) iframeEl.style.display = 'none';
+    if (loading) loading.style.display = 'block';
+
+    const isTiff = file.name.match(/\.tiff?$/i) || (file.type && file.type.includes('tif'));
+    const isPdf = file.name.match(/\.pdf$/i) || file.type === 'application/pdf';
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (loading) loading.style.display = 'none';
+      const result = ev.target.result;
+
+      if (isTiff) {
+        let converted = result;
+        if (typeof DealerDocumentParser !== 'undefined' && DealerDocumentParser.convertTiffToJpeg) {
+          const cJpg = DealerDocumentParser.convertTiffToJpeg(result);
+          if (cJpg) converted = cJpg;
+        }
+        if (imgEl && wrapper) {
+          imgEl.src = converted;
+          wrapper.style.display = 'block';
+          imgEl.style.display = 'block';
+          imgEl.onload = () => {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          };
+          if (imgEl.complete) {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          }
+        }
+      } else if (isPdf) {
+        if (iframeEl) {
+          iframeEl.src = result;
+          iframeEl.style.display = 'block';
+        }
+      } else {
+        if (imgEl && wrapper) {
+          imgEl.src = result;
+          wrapper.style.display = 'block';
+          imgEl.style.display = 'block';
+          imgEl.onload = () => {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          };
+          if (imgEl.complete) {
+            this.applyViewerTransform();
+            this.setupViewerInteractions();
+          }
+        }
+      }
+      App.showToast(`📄 「${file.name}」をプレビュー表示しました`);
+    };
+
+    if (isTiff) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsDataURL(file);
+    }
+  },
+
+  zoomViewer(delta) {
+    this.viewerState.zoom = Math.max(0.4, Math.min(4.0, (this.viewerState.zoom || 1.0) + delta));
+    this.applyViewerTransform();
+  },
+
+  fitWidthViewer() {
+    this.viewerState.zoom = 1.0;
+    this.applyViewerTransform();
+    App.showToast('↕ 横幅に合わせてフィットしました');
+  },
+
+  /**
+   * Google Driveの高解像度サムネイルをlh3 CDNからBlobとして直接取得し、Canvasで物理270度正立回転
+   * （302リダイレクトによるCORS遮断を回避し、A4フル幅100%の縦長正立画像データを瞬時生成）
+   */
+  async fetchAndRotateDriveImage(fileId, angle = 270) {
+    try {
+      // 1. lh3 CDNから直接fetch (302リダイレクトなし、Access-Control-Allow-Origin: * 完全対応)
+      const res = await fetch(`https://lh3.googleusercontent.com/d/${fileId}=w2048`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // 2. ローカルBlobからImage生成 (同一オリジン扱い)
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = blobUrl;
+      });
+      URL.revokeObjectURL(blobUrl);
+
+      // 3. Canvasで270度正立に物理回転
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (angle === 90 || angle === 270) {
+        canvas.width = img.naturalHeight;
+        canvas.height = img.naturalWidth;
+      } else {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+      }
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((angle * Math.PI) / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+      return canvas.toDataURL('image/jpeg', 0.95);
+    } catch (e) {
+      console.warn('fetchAndRotateDriveImage error:', e);
+      return null;
+    }
+  },
+
+  /**
+   * 画像そのものをHTML5 Canvasで物理的に90度回転（CSS変形によるレイアウト崩れ・画面回転感を完全防止）
+   */
+  rotateImageSource(imgSrc, angle = 90) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      if (!imgSrc.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (angle === 90 || angle === 270) {
+            canvas.width = img.naturalHeight;
+            canvas.height = img.naturalWidth;
+          } else {
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+          }
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angle * Math.PI) / 180);
+          ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+          resolve(canvas.toDataURL('image/jpeg', 0.95));
+        } catch (e) {
+          console.warn('Canvas rotation error (CORS):', e);
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = imgSrc;
+    });
+  },
+
+  async rotateViewer() {
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    
+    // 1. 画像が表示されている場合
+    if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
+      // data:URL（ローカル画像または展開済みBase64）の場合はCanvasによる物理回転を試行
+      if (imgEl.src.startsWith('data:')) {
+        const rotatedSrc = await this.rotateImageSource(imgEl.src, 90);
+        if (rotatedSrc) {
+          imgEl.src = rotatedSrc;
+          if (this.viewerState.attachments && this.viewerState.attachments[this.viewerState.currentIndex]) {
+            this.viewerState.attachments[this.viewerState.currentIndex].dataUrl = rotatedSrc;
+          }
+          this.viewerState.rotation = 0; // 物理回転したのでCSS回転は0に戻す
+          this.applyViewerTransform();
+          App.showToast('🔄 90°回転しました（紙面の向きを変更）');
+          return;
+        }
+      }
+
+      // Drive直結画像またはCORS制限の場合：CSS Transformで瞬時回転（0ms応答）
+      this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
+      this.applyViewerTransform();
+      App.showToast(`🔄 ${this.viewerState.rotation}° 回転しました`);
+      return;
+    }
+
+    // 2. iframe（PDF等）が表示されている場合
+    if (iframeEl && iframeEl.src && iframeEl.style.display !== 'none') {
+      this.viewerState.rotation = ((this.viewerState.rotation || 0) + 90) % 360;
+      this.applyViewerTransform();
+      App.showToast(`🔄 プレビューを ${this.viewerState.rotation}° 回転しました`);
+      return;
+    }
+
+    App.showToast('⚠️ 回転可能なファイルが開かれていません');
+  },
+
+  async saveCurrentRotatedImageToDrive() {
+    const imgEl = document.getElementById('caseViewerImg');
+    if (!imgEl || !imgEl.src || imgEl.style.display === 'none') {
+      App.showToast('⚠️ 保存可能な画像が表示されていません');
+      return;
+    }
+    const caseId = this.editingId || this._currentOpeningCaseId;
+    if (!caseId) {
+      App.showToast('⚠️ 保存先案件が特定できません（新規登録時は保存後に実行してください）');
+      return;
+    }
+    const c = Store.getCase(caseId);
+    if (!c) {
+      App.showToast('⚠️ 案件データが見つかりません');
+      return;
+    }
+
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
+      App.showToast('⚠️ Google Drive連携が設定されていません');
+      return;
+    }
+
+    App.showToast('☁️ 現在の向き（回転状態）の画像をGoogle Driveへ保管中...');
+    try {
+      let dataUrl = imgEl.src;
+      if (this.viewerState.rotation && this.viewerState.rotation !== 0) {
+        const baked = await this.rotateImageSource(imgEl.src, this.viewerState.rotation);
+        if (baked) dataUrl = baked;
+      }
+
+      const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      const client = c.clientId ? Store.getClient(c.clientId) : null;
+      const clientName = client ? (client.companyName || client.name) : 'お客様';
+      const fileName = `FAX原本_正立回転済_${Date.now().toString(36)}.jpg`;
+
+      const res = await SpreadsheetSync.push('saveCaseDocument', {
+        caseId: c.id,
+        caseTitle: c.title || '車庫証明案件',
+        clientName: clientName,
+        fileName: fileName,
+        mimeType: 'image/jpeg',
+        base64Data: b64,
+        folderUrl: c.driveFolderUrl || undefined
+      });
+
+      if (res && res.success) {
+        const docMeta = {
+          id: 'doc_' + Date.now().toString(36),
+          name: fileName,
+          driveUrl: res.url || '',
+          driveId: res.fileId || '',
+          mimeType: 'image/jpeg',
+          size: Math.round(b64.length * 0.75),
+          uploadedAt: new Date().toISOString()
+        };
+        const docs = Array.isArray(c.docs) ? [...c.docs, docMeta] : [docMeta];
+        Store.updateCase(c.id, { docs });
+        App.showToast(`✅ 正立した画像をGoogle Drive（${fileName}）へ保存しました！`);
+      } else {
+        App.showToast(`❌ Drive保存失敗: ${res?.error || '不明なエラー'}`);
+      }
+    } catch(err) {
+      console.error('saveCurrentRotatedImageToDrive error:', err);
+      App.showToast('❌ 保存エラー: ' + err.message);
+    }
+  },
+
+  openCorrectionTapeForCurrentViewer() {
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    const curAtt = (this.viewerState.attachments && this.viewerState.attachments.length > 0) 
+      ? this.viewerState.attachments[this.viewerState.currentIndex] 
+      : null;
+
+    let fileName = curAtt ? (curAtt.name || '書類_白消し.pdf') : '書類_白消し.pdf';
+    // 展開済み画像DataURL（正立270度回転済み）を最優先で渡すことで0秒表示＆CORS完全回避
+    let targetDataUrl = curAtt?.dataUrl || (imgEl && imgEl.src && imgEl.src.startsWith('data:') ? imgEl.src : null);
+    let targetUrl = curAtt?.url || '';
+    let targetFile = curAtt?.file || null;
+    let rawBase64 = curAtt?.rawBase64 || curAtt?.base64 || '';
+
+    if (typeof DigitalCorrectionTape !== 'undefined') {
+      DigitalCorrectionTape.open({
+        file: targetFile,
+        dataUrl: targetDataUrl,
+        url: targetUrl,
+        rawBase64: rawBase64,
+        fileName: fileName,
+        caseId: this.editingId || null,
+        onApply: ({ dataUrl, pages }) => {
+          if (curAtt) {
+            curAtt.dataUrl = dataUrl;
+            curAtt.isCleaned = true;
+            if (!curAtt.name.includes('白消し')) {
+              curAtt.name = curAtt.name.replace(/\.[^.]+$/, '') + '_白消し済.jpg';
+            }
+          }
+          if (imgEl) {
+            imgEl.src = dataUrl;
+            imgEl.style.display = 'block';
+            this.applyViewerTransform();
+          }
+          // もし単一添付のマルチページTIFFから複数ページが展開・白消しされた場合、タブに追加
+          if (pages && pages.length > 1 && (!this.viewerState.attachments || this.viewerState.attachments.length === 1)) {
+            this.viewerState.attachments = pages.map((p, i) => ({
+              name: `FAX原本_P${i + 1}_白消し済.jpg`,
+              dataUrl: p.dataUrl,
+              isCleaned: true
+            }));
+            this.viewerState.currentIndex = 0;
+            this.renderAttachmentTabs();
+          }
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast('✨ 白消し修正を案件プレビューに反映しました！');
+          }
+        }
+      });
+    } else {
+      alert('デジタル修正テープ機能が利用できません');
+    }
+  },
+
+  toggleWidePreview() {
+    const pane = document.getElementById('caseAttachmentPane');
+    const formPane = document.getElementById('caseFormPane');
+    const content = document.getElementById('caseModalContent');
+    const btn = document.getElementById('caseViewerWideBtn');
+    if (!pane || !formPane || !content) return;
+
+    this.viewerState.isWideMode = !this.viewerState.isWideMode;
+    if (this.viewerState.isWideMode) {
+      pane.style.flex = '2.4';
+      formPane.style.flex = '1';
+      content.style.maxWidth = '98vw';
+      content.style.width = '98vw';
+      if (btn) btn.innerHTML = '⛶ 標準比率';
+      App.showToast('⛶ プレビュー枠を最大化しました（7:3比率）');
+    } else {
+      pane.style.flex = '1.3';
+      formPane.style.flex = '1';
+      content.style.maxWidth = '1360px';
+      content.style.width = '96vw';
+      if (btn) btn.innerHTML = '⛶ プレビュー拡大';
+      App.showToast('⛶ 標準比率に戻しました（5.5:4.5比率）');
+    }
+    setTimeout(() => this.applyViewerTransform(), 150);
+  },
+
+  openViewerInNewTab() {
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    const rotation = this.viewerState.rotation || 0;
+    if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
+      const w = window.open('', '_blank');
+      if (w) {
+        w.document.write(`
+          <!DOCTYPE html>
+          <html lang="ja">
+            <head>
+              <meta charset="utf-8">
+              <title>原本プレビュー</title>
+              <style>
+                body { margin:0; background:#0f172a; display:flex; justify-content:center; align-items:center; min-height:100vh; overflow:auto; padding:20px; box-sizing:border-box; }
+                img { max-width:96vw; max-height:96vh; object-fit:contain; box-shadow:0 8px 30px rgba(0,0,0,0.8); border-radius:4px; transform: rotate(${rotation}deg); }
+              </style>
+            </head>
+            <body>
+              <img src="${imgEl.src}">
+            </body>
+          </html>
+        `);
+        w.document.close();
+      }
+    } else if (iframeEl && iframeEl.style.display !== 'none' && iframeEl.src) {
+      window.open(iframeEl.src, '_blank');
+    } else if (this.viewerState.attachments && this.viewerState.attachments[this.viewerState.currentIndex]?.url) {
+      window.open(this.viewerState.attachments[this.viewerState.currentIndex].url, '_blank');
+    }
+  },
+
+  resetViewer() {
+    this.viewerState.zoom = 1.0;
+    this.viewerState.rotation = 0;
+    this.applyViewerTransform();
+  },
+
+  applyViewerTransform() {
+    const wrapper = document.getElementById('caseViewerImgWrapper');
+    const imgEl = document.getElementById('caseViewerImg');
+    const iframeEl = document.getElementById('caseViewerIframe');
+    const zoom = this.viewerState.zoom || 1.0;
+    const rotation = this.viewerState.rotation || 0;
+
+    if (imgEl && imgEl.src && imgEl.style.display !== 'none') {
+      const isSideways = (rotation === 90 || rotation === 270);
+      wrapper.style.display = 'flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.justifyContent = 'center';
+      wrapper.style.width = '100%';
+      wrapper.style.minHeight = '100%';
+      wrapper.style.overflow = 'visible';
+      wrapper.style.padding = isSideways ? '20px 0' : '0';
+
+      imgEl.style.display = 'block';
+      imgEl.style.margin = 'auto';
+      imgEl.style.boxShadow = '0 6px 25px rgba(0,0,0,0.6)';
+      imgEl.style.borderRadius = '4px';
+
+      // プレビュー枠の横幅いっぱいに最大表示（縮小制限を解除して大きく読みやすく表示）
+      imgEl.style.maxWidth = '100%';
+      imgEl.style.width = '100%';
+      imgEl.style.maxHeight = 'none';
+      imgEl.style.height = 'auto';
+
+      imgEl.style.transform = `scale(${zoom}) rotate(${rotation}deg)`;
+      imgEl.style.transformOrigin = 'center center';
+      imgEl.style.transition = 'transform 0.15s ease';
+    } else if (iframeEl && iframeEl.style.display !== 'none') {
+      iframeEl.style.transform = `rotate(${rotation}deg)`;
+      iframeEl.style.transformOrigin = 'center center';
+      iframeEl.style.transition = 'transform 0.15s ease';
+    }
+  },
+
+  setupViewerInteractions() {
+    const container = document.getElementById('caseViewerContainer');
+    if (!container || container._hasInteractions) return;
+    container._hasInteractions = true;
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let scrollLeft = 0, scrollTop = 0;
+
+    container.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'A') return;
+      isDragging = true;
+      container.style.cursor = 'grabbing';
+      startX = e.pageX - container.offsetLeft;
+      startY = e.pageY - container.offsetTop;
+      scrollLeft = container.scrollLeft;
+      scrollTop = container.scrollTop;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        if (container) container.style.cursor = 'grab';
+      }
+    });
+
+    container.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      const y = e.pageY - container.offsetTop;
+      const walkX = (x - startX) * 1.3;
+      const walkY = (y - startY) * 1.3;
+      container.scrollLeft = scrollLeft - walkX;
+      container.scrollTop = scrollTop - walkY;
+    });
+
+    container.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.2 : -0.2;
+        Cases.zoomViewer(delta);
+      }
+    }, { passive: false });
+  },
+
+  onSubCategoryChange(val) {
+    if (!val) return;
+    const titleInput = document.getElementById('csf_title');
+    if (titleInput && (!titleInput.value || titleInput.value.startsWith('【'))) {
+      const clientSelect = document.getElementById('csf_clientId');
+      const clientName = clientSelect && clientSelect.selectedIndex > 0 ? clientSelect.options[clientSelect.selectedIndex].text : '';
+      titleInput.value = `【${val}】${clientName ? clientName + ' ' : ''}`;
+    }
+    const regTypeEl = document.getElementById('csf_regType');
+    if (regTypeEl && !regTypeEl.value) {
+      if (val === '番号変更') regTypeEl.value = 'plate_change';
+      else if (val === '新規登録') regTypeEl.value = 'new';
+      else if (val.includes('移転登録')) regTypeEl.value = 'transfer';
+      else if (val.includes('変更登録')) regTypeEl.value = 'change';
+    }
+  },
+
+  getDeadlineClass(deadline, status) {
+    if (!deadline || status === 'done' || status === 'applying') return '';
+    const diff = Store.getDiffDays(deadline);
+    if (diff < 0) return 'deadline-overdue';
+    if (diff <= 3) return 'deadline-urgent';
+    if (diff <= 7) return 'deadline-soon';
+    return '';
+  },
+
+  onClientChange(clientId, preSelectContactId) {
+    const sel = document.getElementById('csf_clientContactId');
+    if (!sel) return;
+    const contacts = clientId ? Store.getClientContacts(clientId) : [];
+    sel.innerHTML = '<option value="">— 未選択 —</option>' +
+      contacts.map(c => {
+        const cid = c.id || ('cnt_' + (clientId || '') + '_' + encodeURIComponent(c.name || ''));
+        return `<option value="${cid}">${c.name}${c.phone ? ' (' + c.phone + ')' : ''}</option>`;
+      }).join('');
+    if (preSelectContactId) {
+      sel.value = preSelectContactId;
+      // ID不一致でも名前で部分一致すれば自動選択
+      if (!sel.value && typeof preSelectContactId === 'string') {
+        const opt = Array.from(sel.options).find(o => o.text && (o.text.startsWith(preSelectContactId) || preSelectContactId.startsWith(o.text.split(' ')[0])));
+        if (opt) sel.value = opt.value;
+      }
+    }
+
+    // 顧客切り替え時の車庫証明報酬（一般）の連動制御
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+    if (cat === 'garage_paper' && !this.editingId) {
+      const isToyota = this._isAichiToyotaSelected();
+      const feeEl = document.getElementById('csf_fee');
+      if (isToyota) {
+        // 愛知トヨタの場合、警察署が選択済みならマスタ単価を自動反映
+        const polEl = document.getElementById('csf_policeLocationId');
+        if (polEl && polEl.value && typeof Store !== 'undefined' && Store.getLocation) {
+          const loc = Store.getLocation(polEl.value);
+          if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && feeEl) {
+            feeEl.value = loc.syakoFee;
+          }
+        }
+      } else {
+        // 愛知トヨタ以外（日産・三菱など）の場合、トヨタ由来の単価が入っていたらクリアして手動入力可能にする
+        if (feeEl && feeEl.value) {
+          const val = feeEl.value;
+          const locs = (typeof Store !== 'undefined' && Store.getLocations) ? Store.getLocations() : [];
+          const isToyotaFee = val === '3500' || locs.some(l => String(l.syakoFee) === String(val));
+          if (isToyotaFee) {
+            feeEl.value = '';
+          }
+        }
+      }
+      this.updateFeeHint();
+    }
+
+    // 顧客店舗変更時の案件名テンプレート自動連動
+    this.updateSuggestedTitle();
+  },
+
+  // ─── 案件名テンプレート自動生成ロジック（ATW[店名] [カテゴリ] [顧客名]） ───
+  isTitleManuallyEdited: false,
+
+  onTitleManualInput(val) {
+    const suggested = this.generateSuggestedTitle();
+    // 入力内容が空なら自動連動を再開、提案と異なる入力なら手動入力を固定
+    this.isTitleManuallyEdited = (val.trim() !== '' && val !== suggested);
+  },
+
+  generateSuggestedTitle() {
+    const clientSelect = document.getElementById('csf_clientId');
+    const clientId = clientSelect ? clientSelect.value : '';
+    const catEl = document.getElementById('csf_category');
+    const category = catEl ? catEl.value : '';
+    const carNameEl = document.getElementById('csf_carName');
+    const carName = carNameEl ? carNameEl.value.trim() : '';
+
+    if (!clientId && !carName) return '';
+
+    let storePart = '';
+    if (clientId && typeof Store !== 'undefined' && Store.getClient) {
+      const client = Store.getClient(clientId);
+      if (client) {
+        const rawName = (client.name || client.companyName || '').trim();
+        if (rawName.includes('トヨタ') || rawName.includes('WEST') || rawName.includes('ATW')) {
+          let st = rawName.replace(/愛知トヨタ(WEST)?/gi, '').trim();
+          if (st.endsWith('店') && !st.endsWith('支店')) {
+            st = st.slice(0, -1).trim();
+          }
+          // 短縮表記マッピング（一宮開明 -> 開明、一宮三条 -> 三条 等の実績ルール）
+          const SHORT_MAP = {
+            '一宮開明': '開明',
+            '一宮三条': '三条',
+            '稲沢おりづマイカーセンター': 'おりづマイカー',
+          };
+          const cleanSt = SHORT_MAP[st] || st;
+          storePart = cleanSt.startsWith('キャラット') ? cleanSt : `ATW${cleanSt}`;
+        } else if (rawName.includes('三菱') || rawName.includes('ふそう')) {
+          let st = rawName.replace(/三菱ふそう(トラック・バス)?/gi, '').trim();
+          storePart = `三菱ふそう ${st}`;
+        } else if (rawName.includes('日産')) {
+          let st = rawName.replace(/日産(愛知)?/gi, '').trim();
+          storePart = `日産 ${st}`;
+        } else {
+          storePart = rawName;
+        }
+      }
+    }
+
+    // カテゴリ略称（OSS、封印、車庫、登録、軽登録 等）
+    let catPart = '';
+    if (category === 'garage_oss') {
+      catPart = 'OSS';
+    } else if (category === 'seal') {
+      catPart = '封印';
+    } else if (category === 'garage_paper') {
+      catPart = '車庫';
+    } else if (category === 'car_reg_standard') {
+      catPart = '登録';
+    } else if (category === 'car_reg_light') {
+      catPart = '軽登録';
+    } else if (category === 'inheritance') {
+      catPart = '相続';
+    }
+
+    // 顧客名（個人なら名字優先、法人なら法人名）
+    let custPart = '';
+    if (carName) {
+      const isCompany = /[(（](株|有|名|合|財|社)[)）]|株式会社|有限会社|合同会社/.test(carName);
+      if (isCompany) {
+        custPart = carName;
+      } else {
+        const parts = carName.split(/[\s　]+/);
+        custPart = parts[0] || carName;
+      }
+    }
+
+    const parts = [storePart, catPart, custPart].filter(Boolean);
+    return parts.join(' ');
+  },
+
+  updateSuggestedTitle() {
+    if (this.editingId) return; // 既存案件の編集時は自動上書きしない
+    const titleInput = document.getElementById('csf_title');
+    if (!titleInput) return;
+    if (this.isTitleManuallyEdited && titleInput.value.trim() !== '') return;
+
+    const suggested = this.generateSuggestedTitle();
+    if (suggested) {
+      titleInput.value = suggested;
+    }
+  },
+
+  quickAddContact() {
+    const clientSelect = document.getElementById('csf_clientId');
+    const clientId = clientSelect ? clientSelect.value : '';
+    if (!clientId) {
+      App.showToast('⚠️ 先に「顧客店舗」を選択してください');
+      return;
+    }
+    const clientName = clientSelect.options[clientSelect.selectedIndex]?.text || '';
+    const name = prompt(`【${clientName}】の担当者名を入力してください:`);
+    if (!name || !name.trim()) return;
+    const phone = prompt('担当者の電話番号（空欄可）:', '');
+    const newContact = Store.addClientContact({
+      clientId: clientId,
+      name: name.trim(),
+      phone: phone ? phone.trim() : ''
+    });
+    this.onClientChange(clientId, newContact.id);
+    App.showToast(`✅ 担当者「${name.trim()}」を登録・選択しました`);
+  },
+
+  onFilterChange() {
+    this.filterCategory = document.getElementById('filterCategory').value;
+    this.filterStatus = document.getElementById('filterStatus').value;
+    try {
+      sessionStorage.setItem('gyosei_cases_cat', this.filterCategory);
+      sessionStorage.setItem('gyosei_cases_status', this.filterStatus);
+    } catch(e) {}
+    App.refreshView();
+  },
+
+  onDrop(event, newStatus) {
+    event.preventDefault();
+    const caseId = event.dataTransfer.getData('text/plain');
+    Store.updateCase(caseId, { status: newStatus });
+    App.refreshView();
+    App.showToast('ステータスを更新しました');
+  },
+
+  changeStatus(id, newStatus) {
+    Store.updateCase(id, { status: newStatus });
+    App.refreshView();
+    App.showToast('ステータスを更新しました');
+  },
+
+  // 個別案件の請求取消（未請求に戻す）
+  async cancelSingleCaseInvoice(caseId) {
+    const c = Store.getCase(caseId);
+    if (!c || !c.invoiceNo) return;
+    if (!confirm(`案件「${c.title}」の請求書（${c.invoiceNo}）を取り消して「未請求」に戻しますか？\n（全端末に反映されます。請求書の合計金額も減額されます）`)) return;
+    const reason = prompt('取消の理由（任意）', '');
+    if (reason === null) return;
+    try {
+      await InvoiceSync.cancelCase(c.invoiceNo, caseId, reason);
+    } catch (err) {
+      alert('請求を取り消せませんでした。\n\n' + InvoiceSync.describeError(err));
+      return;
+    }
+    this.closeModal();
+    App.refreshView();
+    App.showToast(`✅ 案件「${c.title}」を未請求状態に戻しました`);
+  },
+
+  showAddModal(prefills, returnPage = null, returnTab = null) {
+    this.editingId = null;
+    this.returnPage = returnPage !== null ? returnPage : (prefills && (prefills.inboxId || prefills.faxId) ? 'inbox' : (typeof App !== 'undefined' ? App.currentPage : 'cases'));
+    this.returnTab = returnTab;
+    this.returnClientId = null;
+
+    this.ensureModalInDOM(true);
+
+    const modal = document.getElementById('caseModal');
+    if (!modal) {
+      setTimeout(() => this.showAddModal(prefills, returnPage, returnTab), 50);
+      return;
+    }
+
+    const titleEl = document.getElementById('caseModalTitle');
+    if (titleEl) titleEl.textContent = '案件登録';
+    const formEl = document.getElementById('caseForm');
+    if (formEl) formEl.reset();
+    const deleteBtn = document.getElementById('caseDeleteBtn');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    modal.style.display = 'flex';
+    this.advanceDraft = [];
+    this.renderAdvanceRows();
+    this.onClientChange('');
+
+    // 提携行政書士の初期化
+    this.updatePartnerSelectOptions();
+    const partnerEl = document.getElementById('csf_partnerId');
+    if (partnerEl) {
+      partnerEl.value = (prefills && prefills.partnerId) || '';
+      this.onPartnerChange(partnerEl.value);
+    }
+
+    // 注文書№ 初期値（依頼書・注文書実物を見て手入力するため、自動PO連番は廃止し空欄をデフォルト化）
+    const compEl = document.getElementById('csf_completedAt');
+    if (compEl) compEl.value = '';
+    const orderNoEl = document.getElementById('csf_orderNo');
+    if (orderNoEl) {
+      const rawOrderNo = (prefills && prefills.orderNo) ? String(prefills.orderNo).trim() : '';
+      orderNoEl.value = (rawOrderNo && !rawOrderNo.startsWith('PO-')) ? rawOrderNo : '';
+    }
+    this.isTitleManuallyEdited = false;
+
+    // 添付ファイルプレビューワーの初期化（横並び表示）
+    if (prefills && prefills.attachments && prefills.attachments.length > 0) {
+      this.initAttachmentViewer(prefills.attachments, 0, prefills.pageRange || null);
+    } else {
+      this.initAttachmentViewer([]);
+    }
+
+    // 受信FAX/メールインボックスからの自動入力（プリフィル）
+    const isUsedCarEl = document.getElementById('csf_isUsedCar');
+    if (isUsedCarEl) {
+      if (prefills && prefills.isUsedCar !== undefined) {
+        isUsedCarEl.checked = !!prefills.isUsedCar;
+      } else if (prefills && (
+        (prefills.title && (prefills.title.includes('中古') || prefills.title.includes('U-Car') || prefills.title.includes('UCAR'))) ||
+        (prefills.memo && (prefills.memo.includes('中古') || prefills.memo.includes('U-Car')))
+      )) {
+        isUsedCarEl.checked = true;
+      } else {
+        isUsedCarEl.checked = false;
+      }
+    }
+
+    if (prefills) {
+      if (prefills.clientId) {
+        const cEl = document.getElementById('csf_clientId');
+        if (cEl) cEl.value = prefills.clientId;
+        this.onClientChange(prefills.clientId);
+      }
+      if (prefills.category) {
+        const catEl = document.getElementById('csf_category');
+        if (catEl) catEl.value = prefills.category;
+      }
+      if (prefills.carPolice) {
+        const polEl = document.getElementById('csf_carPolice');
+        if (polEl) polEl.value = prefills.carPolice;
+        // 警察署マスタに一致するものがあれば自動選択＆車庫一般なら単価連動
+        const polLocSelect = document.getElementById('csf_policeLocationId');
+        if (polLocSelect && !polLocSelect.value && typeof Store !== 'undefined') {
+          const locs = Store.getLocations();
+          const pName = prefills.carPolice.replace(/\s+/g, '');
+          const matched = locs.find(l => pName.includes(l.name.replace('警察署', '')) || l.name.includes(pName));
+          if (matched) {
+            polLocSelect.value = matched.id;
+            this.onPoliceLocationChange(matched.id);
+          }
+        }
+      }
+      if (prefills.applicantName || prefills.carName) {
+        const carNameEl = document.getElementById('csf_carName');
+        if (carNameEl) carNameEl.value = prefills.applicantName || prefills.carName;
+      }
+      if (prefills.applicantAddress || prefills.carAddress) {
+        const carAddrEl = document.getElementById('csf_carAddress');
+        if (carAddrEl) carAddrEl.value = prefills.applicantAddress || prefills.carAddress;
+      }
+      if (prefills.garageAddress || prefills.parkingAddress) {
+        const parkAddrEl = document.getElementById('csf_parkingAddress');
+        if (parkAddrEl) parkAddrEl.value = prefills.garageAddress || prefills.parkingAddress;
+      }
+      if (prefills.carNumber) {
+        const carNumEl = document.getElementById('csf_carNumber');
+        if (carNumEl) carNumEl.value = prefills.carNumber;
+      }
+      if (prefills.oldCarNumber) {
+        const oldCarNumEl = document.getElementById('csf_oldCarNumber');
+        if (oldCarNumEl) oldCarNumEl.value = prefills.oldCarNumber;
+      }
+      if (prefills.vin) {
+        const vinEl = document.getElementById('csf_vin');
+        if (vinEl) vinEl.value = prefills.vin;
+      }
+      if (prefills.regType) {
+        const regTypeEl = document.getElementById('csf_regType');
+        if (regTypeEl) regTypeEl.value = prefills.regType;
+      }
+      if (prefills.subCategory) {
+        const subCatEl = document.getElementById('csf_subCategory');
+        if (subCatEl) subCatEl.value = prefills.subCategory;
+      }
+      if (prefills.deadline) {
+        const dlEl = document.getElementById('csf_deadline');
+        if (dlEl) dlEl.value = prefills.deadline;
+      }
+      if (prefills.memo) {
+        const memoEl = document.getElementById('csf_memo');
+        if (memoEl) memoEl.value = prefills.memo;
+      }
+      if (prefills.applyDate) {
+        const el = document.getElementById('csf_applyDate');
+        if (el) el.value = prefills.applyDate;
+      }
+      if (prefills.policeDeliveryDate) {
+        const el = document.getElementById('csf_policeDeliveryDate');
+        if (el) el.value = prefills.policeDeliveryDate;
+      }
+      if (prefills.storeDeliveryDate) {
+        const el = document.getElementById('csf_storeDeliveryDate');
+        if (el) el.value = prefills.storeDeliveryDate;
+      }
+      if (prefills.storeDeliveryTime) {
+        const el = document.getElementById('csf_storeDeliveryTime');
+        if (el) el.value = prefills.storeDeliveryTime;
+      }
+      if (prefills.registrationDate) {
+        const el = document.getElementById('csf_registrationDate');
+        if (el) el.value = prefills.registrationDate;
+      }
+      if (prefills.registeredAt || prefills.receivedDate) {
+        const el = document.getElementById('csf_registeredAt');
+        if (el) el.value = prefills.registeredAt || prefills.receivedDate;
+      }
+      
+      let faxInput = document.getElementById('csf_faxId');
+      if (!faxInput && formEl) {
+        faxInput = document.createElement('input');
+        faxInput.type = 'hidden';
+        faxInput.name = 'faxId';
+        faxInput.id = 'csf_faxId';
+        formEl.appendChild(faxInput);
+      }
+      if (faxInput) faxInput.value = prefills.faxId || '';
+
+      let inboxInput = document.getElementById('csf_inboxId');
+      if (!inboxInput && formEl) {
+        inboxInput = document.createElement('input');
+        inboxInput.type = 'hidden';
+        inboxInput.name = 'inboxId';
+        inboxInput.id = 'csf_inboxId';
+        formEl.appendChild(inboxInput);
+      }
+      if (inboxInput) inboxInput.value = prefills.inboxId || '';
+      
+      // 警察署が未選択の場合、住所から自動マッチング
+      const polLocSelect = document.getElementById('csf_policeLocationId');
+      if (polLocSelect && !polLocSelect.value) {
+        const addrToTry = prefills.garageAddress || prefills.parkingAddress || prefills.applicantAddress || prefills.carAddress;
+        if (addrToTry) {
+          this.onAddressInput(addrToTry, 'parkingAddress');
+        }
+      }
+    } else {
+      const faxInput = document.getElementById('csf_faxId');
+      if (faxInput) faxInput.value = '';
+      const inboxInput = document.getElementById('csf_inboxId');
+      if (inboxInput) inboxInput.value = '';
+    }
+    const wrap = document.getElementById('csf_milestone_stepper_wrap');
+    if (wrap) wrap.style.display = 'none';
+    const catVal = catEl ? catEl.value : 'garage_oss';
+    Cases.toggleCategoryFields(catVal);
+    if (typeof CaseTemplates !== 'undefined' && CaseTemplates.applyTemplate) {
+      CaseTemplates.applyTemplate(catVal);
+    }
+    // 案件名: カスタムタイトルが指定されていれば尊重、それ以外（またはFAX/メール初期値）はテンプレートから自動生成
+    const tEl = document.getElementById('csf_title');
+    if (prefills && prefills.title && !prefills.title.startsWith('FAX依頼:') && !prefills.title.startsWith('メール依頼:')) {
+      if (tEl) tEl.value = prefills.title;
+      this.isTitleManuallyEdited = true;
+    } else {
+      this.isTitleManuallyEdited = false;
+      this.updateSuggestedTitle();
+    }
+  },
+
+  showEditModal(id, returnPage = null, returnTab = null, returnClientId = null) {
+    this.editingId = id;
+    this.returnPage = returnPage !== null ? returnPage : (typeof App !== 'undefined' ? App.currentPage : 'cases');
+    this.returnTab = returnTab;
+    this.returnClientId = returnClientId;
+    const c = Store.getCase(id);
+    if (!c) return;
+
+    this.ensureModalInDOM(true);
+
+    const modal = document.getElementById('caseModal');
+    if (!modal) {
+      setTimeout(() => this.showEditModal(id, returnPage, returnTab, returnClientId), 50);
+      return;
+    }
+
+    const invBadge = c.invoiceNo 
+      ? `<span style="font-size:0.75rem; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; margin-left:10px; font-weight:normal; display:inline-flex; align-items:center; gap:4px;">
+          📄 請求済: <strong>${c.invoiceNo}</strong>
+          <button type="button" onclick="Cases.cancelSingleCaseInvoice('${id}')" style="background:#dc2626; color:#fff; border:none; border-radius:3px; padding:1px 6px; font-size:0.7rem; cursor:pointer; font-weight:bold;" title="この案件の請求を取り消して未請求に戻す">❌ 請求取消</button>
+         </span>`
+      : '';
+    document.getElementById('caseModalTitle').innerHTML = '案件編集' + invBadge;
+      document.getElementById('csf_title').value = c.title || '';
+      this.isTitleManuallyEdited = true;
+      const isUsedCarEl = document.getElementById('csf_isUsedCar');
+      if (isUsedCarEl) isUsedCarEl.checked = !!c.isUsedCar;
+      document.getElementById('csf_orderNo').value = c.orderNo || c['注文書№'] || c['注文書No'] || c['注文番号'] || '';
+      document.getElementById('csf_clientId').value = c.clientId || '';
+      Cases.onClientChange(c.clientId || '', c.clientContactId || '');
+      document.getElementById('csf_staffId').value = c.staffId || '';
+      document.getElementById('csf_registeredAt').value = c.registeredAt || c.createdAt?.slice(0, 10) || '';
+      document.getElementById('csf_category').value = c.category || 'garage_oss';
+      const subCatEl = document.getElementById('csf_subCategory');
+      if (subCatEl) subCatEl.value = c.subCategory || '';
+      const regTypeEl = document.getElementById('csf_regType');
+      if (regTypeEl) regTypeEl.value = c.regType || '';
+      document.getElementById('csf_status').value = c.status || 'received';
+      this.updatePartnerSelectOptions();
+      const partnerEditEl = document.getElementById('csf_partnerId');
+      if (partnerEditEl) {
+        partnerEditEl.value = c.partnerId || '';
+        this.onPartnerChange(c.partnerId || '');
+      }
+      const deadlineEl = document.getElementById('csf_deadline');
+      if (deadlineEl) deadlineEl.value = c.deadline || '';
+      document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
+      // 警察署の特定（ID未指定なら所轄警察署テキストまたは住所から自動マッチ）
+      let resolvedPolId = c.policeLocationId || '';
+      if (!resolvedPolId && c.carPolice && typeof Store !== 'undefined') {
+        const locs = Store.getLocations();
+        const pClean = c.carPolice.replace(/\s+/g, '');
+        const matched = locs.find(l => {
+          const lClean = l.name.replace(/\s+/g, '');
+          return pClean.includes(lClean.replace('警察署', '')) || lClean.includes(pClean.replace('警察署', ''));
+        });
+        if (matched) resolvedPolId = matched.id;
+      }
+      if (!resolvedPolId && (c.parkingAddress || c.carAddress)) {
+        const matched = this.autoDetectPoliceFromAddress(c.parkingAddress || c.carAddress);
+        if (matched) resolvedPolId = matched.id;
+      }
+      const policeLocationIdEl = document.getElementById('csf_policeLocationId');
+      if (policeLocationIdEl) policeLocationIdEl.value = resolvedPolId;
+
+      // 報酬額の反映（一般車庫・軽登録の警察署マスタ単価を自動補完、OSSは所轄単価対象外・一律3,500円）
+      let curFee = c.fee;
+      const isGaragePaper = c.category === 'garage_paper';
+      const isGarageOss = c.category === 'garage_oss';
+      const isCarRegLight = c.category === 'car_reg_light';
+      // 愛知トヨタの場合のみ警察署マスタ単価を自動補完（他の得意先は手動入力）
+      const isAichiToyota = (typeof Store !== 'undefined' && Store.isAichiToyotaClient)
+        ? Store.isAichiToyotaClient(c.clientId)
+        : !!(c.clientId && Store.getClient(c.clientId)?.name?.includes('愛知トヨタ'));
+      if (isGaragePaper && resolvedPolId && typeof Store !== 'undefined' && isAichiToyota) {
+        const loc = Store.getLocation(resolvedPolId);
+        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+          if (!curFee || Number(curFee) === 0 || Number(curFee) === 3500) {
+            curFee = loc.syakoFee;
+          }
+        }
+      } else if (isCarRegLight && resolvedPolId && typeof Store !== 'undefined' && isAichiToyota) {
+        const loc = Store.getLocation(resolvedPolId);
+        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+          const halfFee = Math.round(Number(loc.syakoFee) / 2) + 1000;
+          if (!curFee || Number(curFee) === 0 || Number(curFee) === 5500 || Number(curFee) === 2000 || Number(curFee) === Number(loc.syakoFee)) {
+            curFee = halfFee;
+          }
+        }
+      } else if (isGarageOss) {
+        if (!curFee || Number(curFee) === 0) {
+          curFee = 3500;
+        }
+      }
+      document.getElementById('csf_fee').value = curFee || '';
+      Cases.updateFeeHint(resolvedPolId);
+
+      const locSel = document.getElementById('csf_locationId');
+      if (locSel) locSel.value = c.locationId || '';
+      document.getElementById('csf_memo').value = c.memo || '';
+      document.getElementById('csf_carName').value = c.carName || '';
+      document.getElementById('csf_carAddress').value = c.carAddress || '';
+      const parkAddrEl = document.getElementById('csf_parkingAddress');
+      if (parkAddrEl) parkAddrEl.value = c.parkingAddress || '';
+      document.getElementById('csf_carNumber').value = c.carNumber || '';
+      const oldCarNumEl = document.getElementById('csf_oldCarNumber');
+      if (oldCarNumEl) oldCarNumEl.value = c.oldCarNumber || '';
+      const vinEl = document.getElementById('csf_vin');
+      if (vinEl) vinEl.value = c.vin || '';
+      document.getElementById('csf_carPolice').value = c.carPolice || '';
+      document.getElementById('caseDeleteBtn').style.display = 'block';
+      modal.style.display = 'flex';
+      // 立替金を読み込み
+      this.advanceDraft = Array.isArray(c.advances) ? JSON.parse(JSON.stringify(c.advances)) : [];
+      this.renderAdvanceRows();
+
+      // カテゴリに応じたフィールド表示制御（警察署ID設定後に呼出）
+      Cases.toggleCategoryFields(c.category || 'garage_oss');
+
+      const deathDateEl = document.getElementById('csf_deathDate');
+      if (deathDateEl) deathDateEl.value = c.deathDate || '';
+
+      const surveyDateEl = document.getElementById('csf_surveyDate');
+      if (surveyDateEl) surveyDateEl.value = c.surveyDate || '';
+      const surveyLocationIdEl = document.getElementById('csf_surveyLocationId');
+      if (surveyLocationIdEl) surveyLocationIdEl.value = c.surveyLocationId || '';
+      const applyDateEl = document.getElementById('csf_applyDate');
+      if (applyDateEl) applyDateEl.value = c.applyDate || '';
+      const policeDeliveryDateEl = document.getElementById('csf_policeDeliveryDate');
+      if (policeDeliveryDateEl) policeDeliveryDateEl.value = c.policeDeliveryDate || '';
+      const registrationDateEl = document.getElementById('csf_registrationDate');
+      if (registrationDateEl) registrationDateEl.value = c.registrationDate || '';
+      const landTransportLocationIdEl = document.getElementById('csf_landTransportLocationId');
+      if (landTransportLocationIdEl) landTransportLocationIdEl.value = c.landTransportLocationId || '';
+      const storeDeliveryDateEl = document.getElementById('csf_storeDeliveryDate');
+      if (storeDeliveryDateEl) storeDeliveryDateEl.value = c.storeDeliveryDate || '';
+      const storeDeliveryTimeEl = document.getElementById('csf_storeDeliveryTime');
+      if (storeDeliveryTimeEl) storeDeliveryTimeEl.value = c.storeDeliveryTime || '';
+      const completedAtEl = document.getElementById('csf_completedAt');
+      if (completedAtEl) completedAtEl.value = c.completedAt ? c.completedAt.slice(0, 10) : '';
+
+      // マイルストーン表示制御
+      Cases.renderMilestoneStepper(id);
+
+      // 対応履歴・チェックリスト・期限アラートを追加
+      const extArea = document.getElementById('caseExtArea');
+      if (extArea) {
+        let extHtml = '';
+        
+        // 所在図・配置図（地図メーカー）ウィジェットを最上部に追加
+        extHtml += Cases.renderMapWidget(id);
+
+        // 書類添付パネル
+        if (typeof CaseDocs !== 'undefined') {
+          extHtml += CaseDocs.renderPanel(id);
+        }
+        extHtml += DocChecklist.renderChecklist(id) + ActivityLog.renderWidget('case', id);
+        if (c.category === 'inheritance' && c.deathDate && typeof InheritanceDeadlines !== 'undefined') {
+          extHtml = InheritanceDeadlines.renderDeadlinePanel(c.deathDate) + extHtml;
+        }
+        if (c.category === 'inheritance') {
+          extHtml = `
+            <div class="checklist-widget" style="margin-top:12px; border-left:4px solid var(--accent-purple); padding:12px; border-radius:6px; background:rgba(139,92,246,0.03); border:1px solid var(--border-color)">
+              <h4 style="margin:0 0 8px;font-size:0.9rem">🌳 相続関係説明図</h4>
+              <button type="button" class="btn btn-secondary btn-small" onclick="FamilyTreeMaker.show('${id}')" style="width:100%;font-weight:600">関係図エディタを開く</button>
+            </div>
+          ` + extHtml;
+        }
+
+        // 出張封印案件の場合：封印取付報告書（個別A4縦）および監査管理簿（全体A4横）への連携ウィジェット
+        if (c.category === 'seal' || (c.subCategory && c.subCategory.includes('封印')) || (c.title && c.title.includes('封印'))) {
+          extHtml = `
+            <div class="checklist-widget" style="margin-top:12px; border-left:4px solid #10b981; padding:12px; border-radius:6px; background:rgba(16,185,129,0.05); border:1px solid var(--border-color)">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <h4 style="margin:0; font-size:0.88rem; color:#10b981; display:flex; align-items:center; gap:4px;">
+                  🔩 封印取付報告書・監査管理簿
+                </h4>
+                <span style="font-size:0.7rem; background:#059669; color:#fff; padding:1px 6px; border-radius:3px; font-weight:bold;">2年保存義務</span>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-primary btn-small" onclick="SealReportManager.printSingleReport('${id}')" style="flex:1; font-weight:bold; font-size:0.78rem; background:#2563eb; color:#fff;">
+                  📄 個別完了報告書 (A4縦)
+                </button>
+                <button type="button" class="btn btn-secondary btn-small" onclick="SealReportManager.showLedgerModal()" style="flex:1; font-size:0.78rem;">
+                  📋 全体管理簿 (A4横)
+                </button>
+              </div>
+            </div>
+          ` + extHtml;
+        }
+
+        extArea.innerHTML = extHtml;
+      }
+  },
+
+  _submitMode: 'close',
+
+  saveCase(mode = 'close') {
+    this._submitMode = mode;
+    const form = document.getElementById('caseForm');
+    if (!form) return;
+    if (!form.reportValidity()) return;
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
+  },
+
+  closeModal() {
+    const modal = document.getElementById('caseModal');
+    if (modal) modal.style.display = 'none';
+    this.editingId = null;
+    this._submitMode = 'close';
+
+    const retClientId = this.returnClientId;
+    this.returnClientId = null;
+
+    const page = this.returnPage;
+    const tab = this.returnTab;
+    this.returnPage = null;
+    this.returnTab = null;
+
+    if (page) {
+      if (typeof App !== 'undefined') {
+        if (page !== App.currentPage) {
+          App.navigate(page);
+        } else {
+          App.refreshView();
+        }
+      }
+      if (page === 'inbox' && tab && typeof InboxManager !== 'undefined') {
+        InboxManager.switchTab(tab);
+      }
+    } else {
+      if (typeof App !== 'undefined') {
+        App.refreshView();
+      }
+    }
+
+    if (retClientId && typeof Clients !== 'undefined' && typeof Clients.showDetail === 'function') {
+      Clients.showDetail(retClientId);
+    }
+  },
+
+  onSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const isExisting = !!this.editingId;
+    const data = {
+      title: form.title.value.trim(),
+      orderNo: form.orderNo ? form.orderNo.value.trim() : '',
+      clientId: form.clientId.value,
+      clientContactId: form.clientContactId ? form.clientContactId.value : '',
+      staffId: form.staffId.value,
+      locationId: form.locationId ? form.locationId.value : '',
+      registeredAt: form.registeredAt.value,
+      category: form.category.value,
+      subCategory: form.subCategory ? form.subCategory.value : '',
+      regType: form.regType ? form.regType.value : '',
+      status: form.status.value,
+      deadline: (form.deadline && form.deadline.value) ? form.deadline.value : '',
+      driveFolderUrl: (form.driveFolderUrl && form.driveFolderUrl.value) ? form.driveFolderUrl.value.trim() : '',
+      fee: form.fee ? form.fee.value : '',
+      advances: this.advanceDraft.filter(a => a.label || Number(a.amount) > 0),
+      deathDate: (form.deathDate && form.deathDate.value) ? form.deathDate.value : (document.getElementById('csf_deathDate') ? document.getElementById('csf_deathDate').value : ''),
+      surveyDate: (form.surveyDate && form.surveyDate.value) ? form.surveyDate.value : (document.getElementById('csf_surveyDate') ? document.getElementById('csf_surveyDate').value : ''),
+      surveyLocationId: (form.surveyLocationId && form.surveyLocationId.value) ? form.surveyLocationId.value : (document.getElementById('csf_surveyLocationId') ? document.getElementById('csf_surveyLocationId').value : ''),
+      applyDate: (form.applyDate && form.applyDate.value) ? form.applyDate.value : '',
+      policeDeliveryDate: (form.policeDeliveryDate && form.policeDeliveryDate.value) ? form.policeDeliveryDate.value : '',
+      storeDeliveryDate: (form.storeDeliveryDate && form.storeDeliveryDate.value) ? form.storeDeliveryDate.value : (document.getElementById('csf_storeDeliveryDate') ? document.getElementById('csf_storeDeliveryDate').value : ''),
+      storeDeliveryTime: (form.storeDeliveryTime && form.storeDeliveryTime.value) ? form.storeDeliveryTime.value.trim() : (document.getElementById('csf_storeDeliveryTime') ? document.getElementById('csf_storeDeliveryTime').value.trim() : ''),
+      policeLocationId: form.policeLocationId ? form.policeLocationId.value : '',
+      registrationDate: form.registrationDate ? form.registrationDate.value : '',
+      completedAt: (form.completedAt && form.completedAt.value) ? form.completedAt.value : undefined,
+      landTransportLocationId: form.landTransportLocationId ? form.landTransportLocationId.value : '',
+      partnerId: form.partnerId ? form.partnerId.value : (document.getElementById('csf_partnerId') ? document.getElementById('csf_partnerId').value : ''),
+      carName: form.carName ? form.carName.value.trim() : '',
+      carAddress: form.carAddress ? form.carAddress.value.trim() : '',
+      parkingAddress: form.parkingAddress ? form.parkingAddress.value.trim() : '',
+      carNumber: form.carNumber ? form.carNumber.value.trim() : '',
+      oldCarNumber: form.oldCarNumber ? form.oldCarNumber.value.trim() : '',
+      vin: form.vin ? form.vin.value.trim() : '',
+      carPolice: form.carPolice ? form.carPolice.value.trim() : '',
+      isUsedCar: !!(form.isUsedCar && form.isUsedCar.checked),
+      faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',
+      inboxId: document.getElementById('csf_inboxId') ? document.getElementById('csf_inboxId').value : '',
+      memo: (form.memo && form.memo.value) ? form.memo.value.trim() : '',
+    };
+
+    // ナンバーと車台番号の混同・重複防止ガード
+    const isPlateCheck = (s) => Boolean(s && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(s) || /^\d{1,4}$/.test(String(s).trim())));
+    if (data.carNumber && data.vin && data.carNumber === data.vin) {
+      if (isPlateCheck(data.vin)) {
+        data.vin = '';
+      } else {
+        data.carNumber = '';
+      }
+    } else if (data.vin && isPlateCheck(data.vin)) {
+      if (!data.carNumber) data.carNumber = data.vin;
+      data.vin = '';
+    }
+
+    // 添付書類（docs）の保持とインボックス添付ファイルの自動登録
+    let initialDocs = [];
+    if (this.editingId) {
+      const existing = Store.getCase(this.editingId);
+      initialDocs = (existing && Array.isArray(existing.docs)) ? [...existing.docs] : [];
+      if (existing && existing.detachedDocIds) {
+        data.detachedDocIds = existing.detachedDocIds;
+      }
+    }
+    const incomingAtts = this.getSelectedAttachments();
+    if (incomingAtts.length > 0) {
+      incomingAtts.forEach((att, idx) => {
+        const attName = att.name || `受信添付書類_P${(att.pageNumber || idx + 1)}`;
+        const exists = initialDocs.some(d => d.name === attName || (d.driveUrl && att.url && d.driveUrl === att.url));
+        if (!exists) {
+          initialDocs.push({
+            id: 'doc_att_' + Date.now().toString(36) + '_' + idx,
+            name: attName,
+            driveUrl: att.url || '',
+            driveId: (att.url && att.url.match(/[-\w]{25,}/)) ? att.url.match(/[-\w]{25,}/)[0] : '',
+            mimeType: att.mimeType || (attName.toLowerCase().endsWith('.tif') ? 'image/tiff' : (attName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')),
+            size: att.size || 0,
+            uploadedAt: new Date().toISOString(),
+            source: 'inbox'
+          });
+        }
+      });
+    }
+    data.docs = initialDocs;
+
+    // マイルストーン同期ロジック (全カテゴリ)
+    let milestoneVal = 0;
+    const totalSteps = 3;
+
+    if (this.editingId) {
+      const existing = Store.getCase(this.editingId);
+      const oldMilestone = (existing && existing.milestoneIndex !== undefined) ? Number(existing.milestoneIndex) : 0;
+      
+      if (existing && existing.category !== data.category) {
+        milestoneVal = data.status === 'done' ? totalSteps : 0;
+      } else {
+        if (data.status === 'done') {
+          milestoneVal = totalSteps;
+        } else if (existing && existing.status === 'done' && data.status !== 'done') {
+          milestoneVal = totalSteps - 1; // 完了から戻した場合は1段階戻す
+        } else {
+          milestoneVal = oldMilestone;
+        }
+      }
+    } else {
+      milestoneVal = data.status === 'done' ? totalSteps : 0;
+    }
+    data.milestoneIndex = milestoneVal;
+
+    let savedCase;
+    if (this.editingId) {
+      savedCase = Store.updateCase(this.editingId, data);
+    } else {
+      savedCase = Store.addCase(data);
+      // インボックスからの移行の場合、ステータスを更新 ＆ 送信元メールを顧客マスタへ自動学習
+      if (data.inboxId && typeof Store.updateInboxStatus === 'function') {
+        const isContinuing = this._submitMode === 'continueNext';
+        const hasUnselectedPages = this.viewerState.attachments && this.viewerState.attachments.length > (this.viewerState.selectedPageIndices || []).length;
+        const newStatus = (isContinuing || hasUnselectedPages) ? '対応中' : '対応済';
+        Store.updateInboxStatus(data.inboxId, newStatus, savedCase.id);
+
+        // 顧客マスタへの送信元メール自動学習処理
+        const inbox = Store.getInbox ? Store.getInbox() : [];
+        const inboxItem = inbox.find(i => i.id === data.inboxId);
+        if (inboxItem && savedCase.clientId) {
+          const client = Store.getClient(savedCase.clientId);
+          if (client) {
+            let parsed = { email: '', contactName: '' };
+            if (typeof InboxManager !== 'undefined' && typeof InboxManager.parseDealerSender === 'function') {
+              parsed = InboxManager.parseDealerSender(inboxItem.sender);
+            } else {
+              const emailMatch = (inboxItem.sender || '').match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+              if (emailMatch) parsed.email = emailMatch[0].toLowerCase();
+            }
+
+            if (parsed.email) {
+              const existingEmails = (client.email || '').split(/[\s,;\n]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
+              if (!existingEmails.includes(parsed.email.toLowerCase())) {
+                const newEmailStr = client.email ? `${client.email}, ${parsed.email}` : parsed.email;
+                Store.updateClient(client.id, { email: newEmailStr });
+                setTimeout(() => {
+                  App.showToast(`💡 顧客「${client.companyName || client.name}」にメール「${parsed.email}」を自動登録しました`);
+                }, 400);
+              }
+            }
+
+            // 担当者名があれば顧客担当者マスターにも未登録なら追加
+            if (parsed.contactName && typeof Store.getClientContacts === 'function' && typeof Store.addClientContact === 'function') {
+              const contacts = Store.getClientContacts(client.id);
+              const exists = contacts.some(c => c.name && (c.name.includes(parsed.contactName) || parsed.contactName.includes(c.name)));
+              if (!exists) {
+                const newContact = Store.addClientContact({
+                  clientId: client.id,
+                  name: parsed.contactName,
+                  email: parsed.email || ''
+                });
+                if (newContact && !savedCase.clientContactId) {
+                  Store.updateCase(savedCase.id, { clientContactId: newContact.id });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // フォルダ未作成の場合は裏側でGAS連携してフォルダ作成＆添付ファイルの自動保管（選択ページのみ）
+    if (!data.driveFolderUrl && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      const client = Store.getClient(savedCase.clientId);
+      const clientName = client ? (client.companyName || client.name) : 'お客様';
+      const contact = savedCase.clientContactId ? (typeof Store.getClientContact === 'function' ? Store.getClientContact(savedCase.clientContactId) : null) : null;
+      const contactName = contact ? contact.name : (savedCase.contactName || '');
+      const atts = this.getSelectedAttachments();
+      const folderData = {
+        ...savedCase,
+        clientName: clientName,
+        contactName: contactName,
+        attachments: atts,
+        inboxId: data.inboxId || ''
+      };
+      
+      // 非同期で実行（UIはブロックしない）
+      SpreadsheetSync.push('createCaseFolder', folderData).then(res => {
+        if (res && res.success && res.folderUrl) {
+          Store.updateCase(savedCase.id, { driveFolderUrl: res.folderUrl });
+          // もし現在該当案件のモーダルが開いている場合はDOMを壊さず入力欄のURLだけ直接更新
+          if (Cases.editingId === savedCase.id) {
+            const driveInput = document.getElementById('csf_driveFolderUrl');
+            if (driveInput) driveInput.value = res.folderUrl;
+          }
+          if (typeof App !== 'undefined' && typeof App.refreshView === 'function') {
+            App.refreshView();
+          }
+          if (res.copiedFilesCount > 0) {
+            App.showToast(`📁 Google Driveに案件フォルダを作成し、添付書類(${res.copiedFilesCount}件)を保管しました`);
+          }
+        }
+      }).catch(err => console.warn('Google Drive フォルダ自動生成に失敗しました:', err));
+    }
+
+    // Googleカレンダーへ案件日程を自動同期
+    this.syncCaseDatesToCalendar(savedCase);
+
+    const mode = this._submitMode || 'close';
+    this._submitMode = 'close'; // reset
+
+    if (mode === 'close') {
+      const hadReturn = !!this.returnPage;
+      this.closeModal();
+      if (!hadReturn) {
+        App.refreshView();
+      }
+      if (!isExisting && data.inboxId) {
+        App.showToast('✅ 案件を登録しました');
+      } else {
+        App.showToast(isExisting ? '案件を更新しました' : '案件を登録しました');
+      }
+    } else if (mode === 'continueNext') {
+      // 画面を閉じずに、店舗や日付・添付プレビューを保持したまま次の車両入力へ移行
+      this.editingId = null;
+
+      const client = Store.getClient(data.clientId);
+      const clientName = client ? (client.companyName || client.name) : '';
+
+      this.isTitleManuallyEdited = false;
+      document.getElementById('csf_orderNo').value = '';
+      this.updateSuggestedTitle();
+      document.getElementById('csf_carName').value = '';
+      document.getElementById('csf_carAddress').value = '';
+      document.getElementById('csf_parkingAddress').value = '';
+      document.getElementById('csf_carNumber').value = '';
+      const oldCarNumEl = document.getElementById('csf_oldCarNumber');
+      if (oldCarNumEl) oldCarNumEl.value = '';
+      document.getElementById('csf_vin').value = '';
+      document.getElementById('csf_memo').value = '';
+
+      // 立替金のリセット
+      this.advanceDraft = [];
+      this.renderAdvanceRows();
+
+      // 報酬額テンプレートの再適用
+      if (typeof CaseTemplates !== 'undefined') {
+        CaseTemplates.applyTemplate(data.category);
+      }
+
+      // タイトル表示の更新
+      const titleEl = document.getElementById('caseModalTitle');
+      if (titleEl) {
+        titleEl.innerHTML = '案件登録 <span style="font-size:0.75rem; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:4px; font-weight:bold; margin-left:8px;">📑 同じFAXから続けて登録中</span>';
+      }
+
+      const deleteBtn = document.getElementById('caseDeleteBtn');
+      if (deleteBtn) deleteBtn.style.display = 'none';
+
+      // 車両情報・申請者入力欄にフォーカス
+      const carNameEl = document.getElementById('csf_carName');
+      if (carNameEl) {
+        carNameEl.focus();
+      }
+
+      // 次の案件用に保存対象ページを自動繰り上げ
+      const totalPages = (this.viewerState.attachments || []).length;
+      const currentSelected = this.viewerState.selectedPageIndices || [];
+      const maxSelected = currentSelected.length > 0 ? Math.max(...currentSelected) : 0;
+      const nextFrom = maxSelected + 2; // 例: 1〜2枚目(index 0,1)を選択していた場合、次は3枚目(index 2)〜
+      if (nextFrom <= totalPages) {
+        this.viewerState.selectedPageIndices = [];
+        for (let i = nextFrom - 1; i < totalPages; i++) {
+          this.viewerState.selectedPageIndices.push(i);
+        }
+        const fromInput = document.getElementById('casePageRangeFrom');
+        if (fromInput) fromInput.value = nextFrom;
+        const toInput = document.getElementById('casePageRangeTo');
+        if (toInput) toInput.value = totalPages;
+        this.renderPageCheckboxes();
+        this.loadAttachmentByIndex(nextFrom - 1);
+        App.showToast(`📑 1件目を登録しました！続けて「${nextFrom}枚目〜」の2件目を入力できます`);
+      } else {
+        App.showToast('✅ 案件を登録しました！そのまま2件目を入力できます');
+      }
+    } else {
+      // mode === 'keep'（途中保存）
+      this.editingId = savedCase.id;
+      const titleEl = document.getElementById('caseModalTitle');
+      if (titleEl) {
+        const invBadge = savedCase.invoiceNo 
+          ? `<span style="font-size:0.75rem; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; margin-left:10px; font-weight:normal; display:inline-flex; align-items:center; gap:4px;">
+              📄 請求済: <strong>${savedCase.invoiceNo}</strong>
+              <button type="button" onclick="Cases.cancelSingleCaseInvoice('${savedCase.id}')" style="background:#dc2626; color:#fff; border:none; border-radius:3px; padding:1px 6px; font-size:0.7rem; cursor:pointer; font-weight:bold;" title="この案件の請求を取り消して未請求に戻す">❌ 請求取消</button>
+             </span>`
+          : '';
+        titleEl.innerHTML = '案件編集' + invBadge;
+      }
+      const deleteBtn = document.getElementById('caseDeleteBtn');
+      if (deleteBtn) deleteBtn.style.display = 'block';
+      App.showToast('💾 案件データを保存しました（続けて入力できます）');
+    }
+  },
+
+  // 提携行政書士選択肢の動的更新
+  updatePartnerSelectOptions() {
+    const sel = document.getElementById('csf_partnerId');
+    if (!sel) return;
+    const curVal = sel.value;
+    const partners = typeof Store !== 'undefined' && Store.getPartners ? Store.getPartners() : [];
+    sel.innerHTML = `
+      <option value="">— 自所対応 / 県内通常（提携先なし） —</option>
+      ${partners.map(p => `
+        <option value="${p.id}">【${p.prefecture || '県外'}】${p.officeName} （${p.representative || '代表'}・${p.rating || '提携'}）</option>
+      `).join('')}
+    `;
+    if (curVal) sel.value = curVal;
+  },
+
+  // 提携行政書士が選択された時の即時プレビュー（代行料・対応評価・送付先）
+  onPartnerChange(partnerId) {
+    const previewEl = document.getElementById('csf_partner_preview');
+    if (!previewEl) return;
+    if (!partnerId) {
+      previewEl.style.display = 'none';
+      previewEl.innerHTML = '';
+      return;
+    }
+    const p = typeof Store !== 'undefined' && Store.getPartner ? Store.getPartner(partnerId) : null;
+    if (!p) {
+      previewEl.style.display = 'none';
+      previewEl.innerHTML = '';
+      return;
+    }
+
+    // 評価バッジ
+    let ratingBadge = '';
+    const r = p.rating || '';
+    if (r.includes('◎') || r.includes('迅速') || p.ratingLevel >= 5) {
+      ratingBadge = `<span style="background:rgba(16,185,129,0.18); color:#10b981; border:1px solid rgba(16,185,129,0.4); font-size:0.84rem; padding:3px 8px; border-radius:4px; font-weight:bold;">⭐ ${p.rating || '対応◎・迅速'}</span>`;
+    } else if (r.includes('丁寧') || r.includes('安心')) {
+      ratingBadge = `<span style="background:rgba(59,130,246,0.18); color:#38bdf8; border:1px solid rgba(59,130,246,0.4); font-size:0.84rem; padding:3px 8px; border-radius:4px; font-weight:bold;">⭐ ${p.rating || '丁寧・安心'}</span>`;
+    } else {
+      ratingBadge = `<span style="background:rgba(245,158,11,0.18); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); font-size:0.84rem; padding:3px 8px; border-radius:4px; font-weight:bold;">★ ${p.rating || '標準'}</span>`;
+    }
+
+    // 各代行料金
+    const regFee = p.feeRegistration ? `¥${Number(p.feeRegistration).toLocaleString()}` : '<span style="color:#94a3b8;font-weight:normal;font-size:0.92rem;">要問合せ</span>';
+    const lightFee = p.feeLight ? `¥${Number(p.feeLight).toLocaleString()}` : '<span style="color:#94a3b8;font-weight:normal;font-size:0.92rem;">要問合せ</span>';
+    const garageFee = p.feeGarage ? `¥${Number(p.feeGarage).toLocaleString()}` : '<span style="color:#94a3b8;font-weight:normal;font-size:0.92rem;">要問合せ</span>';
+    const sealFee = p.feeSeal ? `¥${Number(p.feeSeal).toLocaleString()}` : '<span style="color:#94a3b8;font-weight:normal;font-size:0.92rem;">要問合せ</span>';
+
+    previewEl.style.display = 'block';
+    previewEl.innerHTML = `
+      <div style="background:var(--bg-card, #1e293b); border:1.5px solid #0284c7; border-radius:8px; padding:14px; font-size:0.92rem; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-top:8px;">
+        <!-- ヘッダー：事務所名 & 評価 -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+              <span style="background:#0284c7; color:#fff; font-size:0.84rem; font-weight:bold; padding:3px 8px; border-radius:4px;">${p.prefecture || '県外'}</span>
+              <strong style="color:#ffffff; font-size:1.15rem; font-weight:700;">${p.officeName}</strong>
+              ${ratingBadge}
+            </div>
+            <div style="color:#cbd5e1; font-size:0.86rem; display:flex; gap:10px; flex-wrap:wrap; margin-top:2px;">
+              ${p.representative ? `<span>${p.representative}</span>` : ''}
+              ${p.branches ? `<span style="color:#38bdf8; font-weight:600;">🏛️ ${p.branches}</span>` : ''}
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-small" onclick="Partners.copyLetterpack('${p.id}')" style="font-size:0.82rem; padding:4px 10px; font-weight:600; color:#38bdf8; border-color:#38bdf8;" title="レターパック送付先宛名をクリップボードにコピー">
+              📋 宛名コピー
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="Partners.copyBank('${p.id}')" style="font-size:0.82rem; padding:4px 10px; font-weight:600; color:#10b981; border-color:#10b981;" title="振込先口座をクリップボードにコピー">
+              🏦 口座コピー
+            </button>
+          </div>
+        </div>
+
+        <!-- 💰 代行料ハイライトボックス -->
+        <div style="background:rgba(2,132,199,0.1); border:1px solid rgba(56,189,248,0.35); border-radius:6px; padding:10px 12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:4px;">
+            <span style="font-weight:bold; color:#38bdf8; font-size:0.92rem;">💰 外注代行料目安（この先生の代行料金）</span>
+            ${p.feeNote ? `<span style="font-size:0.82rem; color:#cbd5e1;">${p.feeNote}</span>` : ''}
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; text-align:center;">
+            <div style="background:var(--bg-secondary, #0f172a); padding:8px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.82rem; font-weight:600; color:#94a3b8;">🚗 普通車登録</div>
+              <div style="font-size:1.08rem; font-weight:bold; color:#ffffff; margin-top:3px;">${regFee}</div>
+            </div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:8px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.82rem; font-weight:600; color:#94a3b8;">🚙 軽自動車</div>
+              <div style="font-size:1.08rem; font-weight:bold; color:#ffffff; margin-top:3px;">${lightFee}</div>
+            </div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:8px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.82rem; font-weight:600; color:#94a3b8;">🅿️ 車庫証明</div>
+              <div style="font-size:1.08rem; font-weight:bold; color:#ffffff; margin-top:3px;">${garageFee}</div>
+            </div>
+            <div style="background:var(--bg-secondary, #0f172a); padding:8px 4px; border-radius:4px; border:1px solid var(--border-color);">
+              <div style="font-size:0.82rem; font-weight:600; color:#94a3b8;">🔩 出張封印</div>
+              <div style="font-size:1.08rem; font-weight:bold; color:#fbbf24; margin-top:3px;">${sealFee}</div>
+            </div>
+          </div>
+          <!-- 立替金へのワンクリック追加アシスト -->
+          <div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap;">
+            <span style="font-size:0.82rem; font-weight:600; color:#cbd5e1;">立替金への反映:</span>
+            ${p.feeRegistration ? `
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '登録代行料', ${p.feeRegistration})" style="font-size:0.82rem; padding:4px 9px; font-weight:600; color:#38bdf8; border-color:rgba(56,189,248,0.4);">
+                ＋普通車代行(${Number(p.feeRegistration).toLocaleString()}円)
+              </button>
+            ` : ''}
+            ${p.feeLight ? `
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '軽登録代行料', ${p.feeLight})" style="font-size:0.82rem; padding:4px 9px; font-weight:600; color:#38bdf8; border-color:rgba(56,189,248,0.4);">
+                ＋軽登録(${Number(p.feeLight).toLocaleString()}円)
+              </button>
+            ` : ''}
+            ${p.feeGarage ? `
+              <button type="button" class="btn btn-secondary btn-small" onclick="Cases.applyPartnerFeeToAdvance('${p.officeName}', '車庫代行料', ${p.feeGarage})" style="font-size:0.82rem; padding:4px 9px; font-weight:600; color:#38bdf8; border-color:rgba(56,189,248,0.4);">
+                ＋車庫(${Number(p.feeGarage).toLocaleString()}円)
+              </button>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- ⏰ 締切 & 💡 対応メモ -->
+        ${(p.deadlineNote || p.ratingNote || p.memo) ? `
+          <div style="background:rgba(245,158,11,0.08); border:1px dashed rgba(245,158,11,0.35); border-radius:6px; padding:8px 12px; font-size:0.88rem; color:#fef08a; line-height:1.55; margin-bottom:8px;">
+            ${p.deadlineNote ? `<div><strong>⏰ 締切時間:</strong> ${p.deadlineNote}</div>` : ''}
+            ${p.ratingNote ? `<div><strong>💡 対応の評判:</strong> ${p.ratingNote}</div>` : ''}
+            ${p.memo ? `<div style="color:#cbd5e1; font-size:0.85rem; margin-top:2px;">📝 ${p.memo}</div>` : ''}
+          </div>
+        ` : ''}
+
+        <!-- 📭 送付先 & TEL短縮表示 -->
+        <div style="font-size:0.86rem; color:#cbd5e1; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.08);">
+          <div>
+            <span>📭 ${p.zip ? `〒${p.zip} ` : ''}${p.address || ''}</span>
+            ${p.phone ? `<span style="margin-left:10px;">TEL: <strong style="color:#ffffff; font-size:0.95rem;">${p.phone}</strong></span>` : ''}
+            ${p.mobile ? `<span style="margin-left:8px; color:#fef08a; font-weight:600;">携帯: ${p.mobile}</span>` : ''}
+          </div>
+          <div>
+            <a href="javascript:void(0)" onclick="Partners.showModal('${p.id}')" style="color:#38bdf8; text-decoration:underline; font-size:0.86rem; font-weight:600;">提携先詳細・編集 ❯</a>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  // 提携先の外注代行料を案件の立替金にワンクリック追加
+  applyPartnerFeeToAdvance(officeName, typeName, amount) {
+    if (!amount) return;
+    const shortName = (officeName || '').replace(/行政書士事務所|事務所/g, '');
+    const label = `外注${typeName}（${shortName}）`;
+    // 既に同じラベルの行があるかチェック
+    const exists = (this.advanceDraft || []).some(a => a.label === label);
+    if (exists) {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('既に立替金に同じ外注費が追加されています');
+      }
+      return;
+    }
+    this.addAdvanceRow('その他', label, amount);
+    if (typeof App !== 'undefined' && App.showToast) {
+      App.showToast(`✅ ${label}（¥${Number(amount).toLocaleString()}）を立替金に追加しました`);
+    }
+  },
+
+  // 案件の各日程をGoogleカレンダーに自動同期する（Promiseを返す）
+  syncCaseDatesToCalendar(caseData) {
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) return Promise.resolve();
+    
+    // 最新の案件データを読み直す（calendarEventIdsが更新されている可能性）
+    const latestCase = Store.getCase(caseData.id) || caseData;
+
+    // 日付が1つも設定されていなければスキップ
+    const hasAnyDate = latestCase.surveyDate || latestCase.applyDate || 
+                       latestCase.policeDeliveryDate || latestCase.storeDeliveryDate || 
+                       latestCase.registrationDate;
+    const hasExistingIds = latestCase.calendarEventIds && Object.values(latestCase.calendarEventIds).some(id => id);
+    
+    if (!hasAnyDate && !hasExistingIds) return Promise.resolve();
+
+    const client = Store.getClient(latestCase.clientId);
+    const clientName = client ? (client.companyName || client.name) : '';
+
+    const resolveLoc = (locId) => {
+      if (!locId) return '';
+      const loc = Store.getLocation(locId);
+      return loc ? loc.name : '';
+    };
+
+    const syncData = {
+      caseId: latestCase.id,
+      caseTitle: latestCase.title,
+      clientName: clientName,
+      calendarEventIds: latestCase.calendarEventIds || {},
+      surveyDate: latestCase.surveyDate || '',
+      applyDate: latestCase.applyDate || '',
+      policeDeliveryDate: latestCase.policeDeliveryDate || '',
+      storeDeliveryDate: latestCase.storeDeliveryDate || '',
+      storeDeliveryTime: latestCase.storeDeliveryTime || '',
+      registrationDate: latestCase.registrationDate || '',
+      surveyLocationName: resolveLoc(latestCase.surveyLocationId),
+      policeLocationName: resolveLoc(latestCase.policeLocationId),
+      locationName: resolveLoc(latestCase.locationId),
+      landTransportLocationName: resolveLoc(latestCase.landTransportLocationId),
+    };
+
+    return SpreadsheetSync.push('syncCaseCalendar', syncData).then(res => {
+      if (res && res.success && res.calendarEventIds) {
+        // calendarEventIdsの保存はlocalStorageに直接書き込む
+        // （Store.updateCaseを使うとupsertCaseがGASに再送されてawaitが崩れるため）
+        const cases = JSON.parse(localStorage.getItem('gyosei_cases') || '[]');
+        const idx = cases.findIndex(c => c.id === latestCase.id);
+        if (idx !== -1) {
+          cases[idx].calendarEventIds = res.calendarEventIds;
+          localStorage.setItem('gyosei_cases', JSON.stringify(cases));
+        }
+        console.log('📅 タスク同期完了:', latestCase.title, res.calendarEventIds);
+      }
+    }).catch(err => console.warn('案件タスク同期に失敗:', err));
+  },
+
+  // 全案件を一括でGoogleカレンダーに同期（応答を待ってから次へ進む）
+  async syncAllCasesToCalendar() {
+    if (typeof SpreadsheetSync === 'undefined' || !SpreadsheetSync.isConfigured()) {
+      App.showToast('⚠️ スプレッドシート連携が未設定です');
+      return;
+    }
+    const allCases = Store.getCases().filter(c => c.status !== 'done');
+    const targets = allCases.filter(c =>
+      c.surveyDate || c.applyDate || c.policeDeliveryDate || c.storeDeliveryDate || c.registrationDate
+    );
+
+    if (targets.length === 0) {
+      App.showToast('日程が設定されている案件がありません');
+      return;
+    }
+
+    if (!confirm(`進行中の ${targets.length} 件の案件日程をGoogleカレンダーに一括同期します。\nよろしいですか？`)) return;
+
+    App.showToast(`📅 ${targets.length} 件の案件を同期中...しばらくお待ちください`);
+    let successCount = 0;
+
+    for (const c of targets) {
+      try {
+        // GASの応答を完全に待ってからcalendarEventIdsを保存 → 次へ
+        await this.syncCaseDatesToCalendar(c);
+        successCount++;
+      } catch (err) {
+        console.warn(`案件 ${c.title} の同期に失敗:`, err);
+      }
+    }
+
+    App.showToast(`📅 ${successCount}/${targets.length} 件の案件をカレンダーに同期しました！`);
+  },
+
+  onDelete() {
+    if (!this.editingId) return;
+    if (confirm('この案件を削除してもよろしいですか？')) {
+      const existing = Store.getCase(this.editingId);
+      
+      // Googleカレンダーから案件の予定を一括削除
+      if (existing && existing.calendarEventIds && typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+        const hasIds = Object.values(existing.calendarEventIds).some(id => id);
+        if (hasIds) {
+          SpreadsheetSync.push('deleteCaseCalendarEvents', {
+            calendarEventIds: existing.calendarEventIds
+          }).then(res => {
+            if (res && res.success) console.log('📅 案件のカレンダー予定を一括削除しました');
+          }).catch(err => console.warn('案件カレンダー削除に失敗:', err));
+        }
+      }
+      
+      Store.deleteCase(this.editingId);
+      this.closeModal();
+      App.refreshView();
+      App.showToast('案件を削除しました');
+    }
+  },
+
+  // 住所文字列から警察署マスタを自動検出
+  autoDetectPoliceFromAddress(address) {
+    if (!address || typeof address !== 'string') return null;
+    const cleanAddr = address.replace(/\s+/g, '').trim();
+    if (!cleanAddr || cleanAddr === '同上' || cleanAddr === '別紙' || cleanAddr === '-') return null;
+
+    if (typeof Store === 'undefined' || typeof Store.getLocations !== 'function') return null;
+    const locations = Store.getLocations() || [];
+    if (locations.length === 0) return null;
+
+    // 1. 警察署名が直接住所に含まれている場合 (例: "一宮警察署管轄", "一宮署")
+    for (const loc of locations) {
+      if (!loc || !loc.name) continue;
+      const pureName = loc.name.replace(/\s+/g, '').replace('警察署', '');
+      if (pureName && pureName.length >= 2) {
+        if (cleanAddr.includes(pureName + '警察署') || cleanAddr.includes(pureName + '署')) {
+          return loc;
+        }
+      }
+    }
+
+    // 2. 市区町村・行政区から警察署への高精度マッピングルール（最長一致）
+    const jurisdictionRules = [
+      // 愛知県 尾張・海部・知多・三河
+      { keywords: ['一宮市', '一宮', '木曽川町', '木曽川', '尾西'], police: '一宮' },
+      { keywords: ['江南市', '江南', '岩倉市', '岩倉', '大口町', '丹羽郡大口町', '大口'], police: '江南' },
+      { keywords: ['稲沢市', '稲沢', '祖父江町', '祖父江', '平和町'], police: '稲沢' },
+      { keywords: ['小牧市', '小牧'], police: '小牧' },
+      { keywords: ['犬山市', '犬山', '扶桑町', '丹羽郡扶桑町', '扶桑'], police: '犬山' },
+      { keywords: ['清須市', '清須', '北名古屋市', '北名古屋', '豊山町', '西春日井郡', '西枇杷島'], police: '西枇杷島' },
+      { keywords: ['津島市', '津島', '愛西市', '愛西', 'あま市', 'あま', '大治町', '海部郡大治町', '大治', '甚目寺', '七宝', '美和'], police: '津島' },
+      { keywords: ['海部郡蟹江町', '蟹江町', '蟹江', '弥富市', '弥富', '飛島村', '海部郡飛島村', '飛島'], police: '蟹江' },
+      { keywords: ['春日井市', '春日井'], police: '春日井' },
+      { keywords: ['瀬戸市', '瀬戸', '尾張旭市', '尾張旭'], police: '瀬戸' },
+      { keywords: ['東郷町', '愛知郡東郷町', '東郷', '日進市', '日進', 'みよし市', 'みよし', '豊明市', '豊明'], police: '愛知' },
+      { keywords: ['東海市', '東海', '大府市', '大府'], police: '東海' },
+      { keywords: ['刈谷市', '刈谷', '知立市', '知立'], police: '刈谷' },
+      { keywords: ['豊田市', '豊田'], police: '豊田' },
+      { keywords: ['知多市', '知多'], police: '知多' },
+      { keywords: ['岡崎市', '岡崎', '幸田町', '額田郡'], police: '岡崎' },
+      { keywords: ['安城市', '安城'], police: '安城' },
+      { keywords: ['西尾市', '西尾'], police: '西尾' },
+      { keywords: ['常滑市', '常滑'], police: '常滑' },
+      { keywords: ['半田市', '半田', '阿久比町', '阿久比', '武豊町', '武豊', '東浦町', '東浦', '南知多町', '南知多', '美浜町', '知多郡'], police: '半田' },
+      { keywords: ['碧南市', '碧南', '高浜市', '高浜'], police: '碧南' },
+      { keywords: ['豊川市', '豊川'], police: '豊川' },
+      { keywords: ['豊橋市', '豊橋'], police: '豊橋' },
+
+      // 名古屋市内（区名）
+      { keywords: ['名古屋市中区', '中区'], police: '中警察署' },
+      { keywords: ['名古屋市北区', '北区'], police: '名古屋北' },
+      { keywords: ['名古屋市西区', '西区'], police: '名古屋西' },
+      { keywords: ['名古屋市東区', '東区'], police: '名古屋東' },
+      { keywords: ['名古屋市南区', '南区'], police: '名古屋南' },
+      { keywords: ['名古屋市中村区', '中村区'], police: '中村' },
+      { keywords: ['名古屋市中川区', '中川区'], police: '中川' },
+      { keywords: ['名古屋市千種区', '千種区'], police: '千種' },
+      { keywords: ['名古屋市熱田区', '熱田区'], police: '熱田' },
+      { keywords: ['名古屋市名東区', '名東区'], police: '名東' },
+      { keywords: ['名古屋市瑞穂区', '瑞穂区'], police: '瑞穂' },
+      { keywords: ['名古屋市昭和区', '昭和区'], police: '昭和' },
+      { keywords: ['名古屋市守山区', '守山区'], police: '守山' },
+      { keywords: ['名古屋市天白区', '天白区'], police: '天白' },
+      { keywords: ['名古屋市港区', '港区'], police: '港警察署' },
+      { keywords: ['名古屋市緑区', '緑区'], police: '緑警察署' },
+
+      // 岐阜県
+      { keywords: ['羽島市', '羽島', '笠松町', '笠松', '岐南町', '岐南', '羽島郡'], police: '岐阜羽島' },
+      { keywords: ['各務原市', '各務原'], police: '各務原' },
+      { keywords: ['北方町', '北方', '本巣市', '本巣', '瑞穂市', '瑞穂', '本巣郡'], police: '北方' },
+      { keywords: ['山県市', '山県'], police: '山県' },
+      { keywords: ['大垣市', '大垣', '安八町', '安八', '輪之内町', '輪之内', '神戸町', '安八郡'], police: '大垣' },
+      { keywords: ['関市', '美濃市'], police: '関警察署' },
+      { keywords: ['海津市', '海津'], police: '海津' },
+      { keywords: ['養老町', '養老', '養老郡', '上石津町'], police: '養老' },
+      { keywords: ['垂井町', '垂井', '関ケ原町', '関ヶ原', '不破郡'], police: '垂井' },
+      { keywords: ['美濃加茂市', '美濃加茂', '坂祝町', '富加町', '川辺町', '七宗町', '八百津町', '白川町', '加茂郡'], police: '加茂' },
+      { keywords: ['揖斐川町', '揖斐川', '大野町', '池田町', '揖斐郡'], police: '揖斐' },
+      { keywords: ['可児市', '可児', '御嵩町', '可児郡'], police: '可児' },
+      { keywords: ['多治見市', '多治見', '土岐市', '土岐', '瑞浪市', '瑞浪'], police: '多治見' },
+      { keywords: ['岐阜市', '岐阜'], police: '岐阜中' },
+
+      // 三重県（近隣）
+      { keywords: ['桑名市', '桑名', '木曽岬町', '木曽岬', 'いなべ市', 'いなべ', '東員町', '東員', '桑名郡', '員弁郡'], police: '桑名' },
+      { keywords: ['四日市市', '四日市', '川越町', '朝日町', '三重郡'], police: '四日市北' }
+    ];
+
+    // 長いキーワードから順にマッチング
+    const flattened = [];
+    for (const rule of jurisdictionRules) {
+      for (const kw of rule.keywords) {
+        flattened.push({ kw, target: rule.police });
+      }
+    }
+    flattened.sort((a, b) => b.kw.length - a.kw.length);
+
+    for (const item of flattened) {
+      if (cleanAddr.includes(item.kw)) {
+        // 完全一致・警察署名一致を優先、なければ包含照合
+        const found = locations.find(l => {
+          if (!l || !l.name) return false;
+          const pureL = l.name.replace(/\s+/g, '').replace('警察署', '');
+          return pureL === item.target || l.name.replace(/\s+/g, '') === (item.target + '警察署');
+        }) || locations.find(l => {
+          if (!l || !l.name) return false;
+          const pureL = l.name.replace(/\s+/g, '').replace('警察署', '');
+          return item.target.length >= 2 && (pureL.includes(item.target) || item.target.includes(pureL));
+        });
+        if (found) return found;
+      }
+    }
+
+    // 3. マスタの名称やメモ・住所から直接フォールバック照合
+    for (const loc of locations) {
+      if (!loc || !loc.name) continue;
+      const pName = loc.name.replace('警察署', '').replace(/\s+/g, '');
+      if (pName && pName.length >= 2 && cleanAddr.includes(pName)) {
+        return loc;
+      }
+      if (loc.memo) {
+        const mClean = loc.memo.replace(/\s+/g, '');
+        if (mClean.includes(cleanAddr) || cleanAddr.split(/[市区町村]/).some(part => part && part.length >= 2 && mClean.includes(part))) {
+          return loc;
+        }
+      }
+    }
+
+    return null;
+  },
+
+  // 保管場所または使用の本拠住所入力時の自動判定ハンドラ
+  onAddressInput(value, fieldType) {
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+    // 車庫証明（一般・OSS）または自動車登録関連案件を対象（相続・その他除外）
+    if (cat && cat !== 'garage_paper' && cat !== 'garage_oss' && cat !== 'seal' && !cat.startsWith('car_reg')) return;
+
+    // 保管場所住所を優先、なければ自宅住所
+    const parkAddrEl = document.getElementById('csf_parkingAddress');
+    const carAddrEl = document.getElementById('csf_carAddress');
+    let parkVal = parkAddrEl ? parkAddrEl.value.trim() : '';
+    let carVal = carAddrEl ? carAddrEl.value.trim() : '';
+
+    let effectiveAddr = parkVal;
+    if (!effectiveAddr || effectiveAddr === '同上' || effectiveAddr === '別紙') {
+      effectiveAddr = carVal;
+    }
+    if (!effectiveAddr && value) {
+      effectiveAddr = value.trim();
+    }
+    if (!effectiveAddr || effectiveAddr === '同上' || effectiveAddr === '別紙') return;
+
+    const matchedLoc = this.autoDetectPoliceFromAddress(effectiveAddr);
+    if (matchedLoc) {
+      const polLocSelect = document.getElementById('csf_policeLocationId');
+      if (polLocSelect) {
+        // ID一致、または名前一致で安全にoptionを選択（ID不整合による誤選択を完全防止）
+        let targetOpt = Array.from(polLocSelect.options).find(o => o.value === matchedLoc.id);
+        if (!targetOpt) {
+          const pureMatchName = matchedLoc.name.replace(/\s+/g, '').replace('警察署', '');
+          targetOpt = Array.from(polLocSelect.options).find(o => {
+            const pureText = o.text.replace(/\s+/g, '').replace(/（.*）|\(.*\)/, '');
+            return pureText.includes(pureMatchName) || pureMatchName.includes(pureText.replace('警察署', ''));
+          });
+        }
+        if (targetOpt && polLocSelect.value !== targetOpt.value) {
+          polLocSelect.value = targetOpt.value;
+          this.onPoliceLocationChange(targetOpt.value);
+        }
+      }
+      const carPoliceSelect = document.getElementById('csf_carPolice');
+      if (carPoliceSelect) {
+        const pureName = matchedLoc.name.replace('警察署', '');
+        const matchedOpt = Array.from(carPoliceSelect.options).find(o => o.value === matchedLoc.name || (pureName && o.value.includes(pureName)));
+        if (matchedOpt) {
+          carPoliceSelect.value = matchedOpt.value;
+        }
+      }
+    }
+  },
+
+  // 現在選択中の顧客が「愛知トヨタ」系列かどうかを判定するヘルパー
+  _isAichiToyotaSelected() {
+    const clientEl = document.getElementById('csf_clientId');
+    if (!clientEl || !clientEl.value || typeof Store === 'undefined') return false;
+    if (typeof Store.isAichiToyotaClient === 'function') {
+      return Store.isAichiToyotaClient(clientEl.value);
+    }
+    const client = Store.getClient(clientEl.value);
+    const name = client ? ((client.companyName || '') + ' ' + (client.name || '') + ' ' + (client.tradeName || '')) : '';
+    return name.includes('愛知トヨタ');
+  },
+
+  // 所轄警察署（csf_carPolice）セレクトボックス変更時ハンドラ
+  onCarPoliceChange(policeName) {
+    if (!policeName || typeof Store === 'undefined') return;
+    const locations = Store.getLocations() || [];
+    const pClean = policeName.replace(/\s+/g, '').replace('警察署', '');
+    const matched = locations.find(l => l && l.name && (l.name.replace(/\s+/g, '').replace('警察署', '') === pClean || l.name.includes(pClean)));
+    if (matched) {
+      const polLocSelect = document.getElementById('csf_policeLocationId');
+      if (polLocSelect) {
+        let targetOpt = Array.from(polLocSelect.options).find(o => o.value === matched.id);
+        if (!targetOpt) {
+          targetOpt = Array.from(polLocSelect.options).find(o => o.text.includes(matched.name));
+        }
+        const targetVal = targetOpt ? targetOpt.value : matched.id;
+        if (polLocSelect.value !== targetVal) {
+          polLocSelect.value = targetVal;
+          this.onPoliceLocationChange(targetVal);
+        }
+      }
+    }
+  },
+
+  // 申請先警察署の変更時ハンドラ（所轄で単価が変わるのは「車庫証明（一般）」のみ）
+  onPoliceLocationChange(locationId) {
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+
+    // 所轄警察署セレクト（csf_carPolice）も連動
+    const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
+    if (loc && loc.name) {
+      const carPoliceSelect = document.getElementById('csf_carPolice');
+      if (carPoliceSelect) {
+        const pureName = loc.name.replace('警察署', '');
+        const matchedOpt = Array.from(carPoliceSelect.options).find(o => o.value === loc.name || (pureName && o.value.includes(pureName)));
+        if (matchedOpt) {
+          carPoliceSelect.value = matchedOpt.value;
+        }
+      }
+    }
+
+    if (cat === 'garage_paper') {
+      if (!locationId) {
+        this.updateFeeHint('');
+        return;
+      }
+      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && this._isAichiToyotaSelected()) {
+        const feeEl = document.getElementById('csf_fee');
+        if (feeEl) {
+          feeEl.value = loc.syakoFee;
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast(`📍 ${loc.name}の車庫証明（一般）報酬（¥${Number(loc.syakoFee).toLocaleString()}）を反映しました`);
+          }
+        }
+      }
+      this.updateFeeHint(locationId);
+    } else if (cat === 'garage_oss') {
+      // 車庫証明（OSS）は警察署に出頭しないため所轄単価を適用せず、一律3,500円
+      const feeEl = document.getElementById('csf_fee');
+      if (feeEl && (!feeEl.value || Number(feeEl.value) === 0)) {
+        feeEl.value = 3500;
+      }
+      this.updateFeeHint(locationId);
+    } else if (cat === 'car_reg_light') {
+      // ★軽自動車登録: 管轄警察署単価の半額＋一律1,000円（4000円なら3000円）
+      if (!locationId) {
+        this.updateFeeHint('');
+        return;
+      }
+      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && this._isAichiToyotaSelected()) {
+        const feeEl = document.getElementById('csf_fee');
+        const halfFee = Math.round(Number(loc.syakoFee) / 2) + 1000;
+        if (feeEl) {
+          feeEl.value = halfFee;
+          if (typeof App !== 'undefined' && App.showToast) {
+            App.showToast(`📍 ${loc.name}の軽自動車登録報酬（半額+1,000円: ¥${halfFee.toLocaleString()}）を反映しました`);
+          }
+        }
+      }
+      this.updateFeeHint(locationId);
+    }
+  },
+
+  updateFeeHint(locationId) {
+    const hintEl = document.getElementById('csf_fee_hint');
+    if (!hintEl) return;
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+
+    if (cat === 'garage_oss') {
+      const clientSelect = document.getElementById('csf_clientId');
+      const curClientId = clientSelect ? clientSelect.value : '';
+      const isToyota = (typeof Store !== 'undefined' && Store.isToyotaClient) ? Store.isToyotaClient(curClientId) : true;
+      hintEl.innerHTML = `
+        <span style="color:var(--text-secondary); font-size:0.75rem;">
+          🚗 OSS車庫証明: ${isToyota ? '<strong style="color:var(--accent-primary, #4f46e5)">トヨタ標準¥3,500</strong>' : '<strong style="color:var(--accent-primary, #4f46e5)">ディーラー個別単価</strong>（手動設定可能）'}（警察署出頭なし）
+        </span>
+      `;
+      return;
+    }
+
+    if (cat === 'car_reg_light') {
+      if (!locationId && typeof Store !== 'undefined') {
+        const polEl = document.getElementById('csf_policeLocationId');
+        if (polEl && polEl.value) locationId = polEl.value;
+      }
+      const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
+      if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+        const halfFee = Math.round(Number(loc.syakoFee) / 2) + 1000;
+        const currentFee = document.getElementById('csf_fee')?.value;
+        const isDiff = Number(currentFee) !== halfFee;
+        hintEl.innerHTML = `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            🚗 軽登録マスタ: <strong style="color:var(--accent-primary, #4f46e5)">¥${halfFee.toLocaleString()}</strong>（所轄¥${Number(loc.syakoFee).toLocaleString()}の半額+¥1,000）
+          </span>
+          ${isDiff ? `<button type="button" class="btn btn-secondary btn-small" style="font-size:0.68rem; padding:1px 6px; margin-left:4px;" onclick="Cases.applyPoliceFeeToForm(${halfFee})">半額+1000円を適用</button>` : ' <span style="color:#10b981; font-size:0.72rem;">✓ 反映済</span>'}
+        `;
+      } else {
+        hintEl.innerHTML = `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            🚗 軽登録標準: <strong style="color:var(--accent-primary, #4f46e5)">¥3,000</strong>（管轄警察署の半額+¥1,000）
+          </span>
+        `;
+      }
+      return;
+    }
+
+    if (!locationId && typeof Store !== 'undefined') {
+      const polEl = document.getElementById('csf_policeLocationId');
+      if (polEl && polEl.value) locationId = polEl.value;
+    }
+    const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
+    if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && cat === 'garage_paper') {
+      const isToyota = this._isAichiToyotaSelected();
+      if (isToyota) {
+        const currentFee = document.getElementById('csf_fee')?.value;
+        const isDiff = Number(currentFee) !== Number(loc.syakoFee);
+        hintEl.innerHTML = `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            📍 警察署マスタ: <strong style="color:var(--accent-primary, #4f46e5)">¥${Number(loc.syakoFee).toLocaleString()}</strong>
+          </span>
+          ${isDiff ? `<button type="button" class="btn btn-secondary btn-small" style="font-size:0.68rem; padding:1px 6px; margin-left:4px;" onclick="Cases.applyPoliceFeeToForm(${loc.syakoFee})">最新単価を適用</button>` : ' <span style="color:#10b981; font-size:0.72rem;">✓ 反映済</span>'}
+        `;
+      } else {
+        hintEl.innerHTML = `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            🏷️ 愛知トヨタ外（店舗別個別単価のため手動入力）
+          </span>
+        `;
+      }
+    } else {
+      hintEl.innerHTML = '';
+    }
+  },
+
+  applyPoliceFeeToForm(fee) {
+    const catEl = document.getElementById('csf_category');
+    const cat = catEl ? catEl.value : '';
+    if (cat === 'garage_oss') {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('ℹ️ 車庫証明（OSS）は警察署出頭がないため、所轄単価ではなく一律3,500円が適用されます');
+      }
+      return;
+    }
+    if (!this._isAichiToyotaSelected()) {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('ℹ️ 警察署単価の自動反映は愛知トヨタ専用です（他の得意先は手動入力してください）');
+      }
+      return;
+    }
+    const feeEl = document.getElementById('csf_fee');
+    if (feeEl && fee) {
+      feeEl.value = fee;
+      this.updateFeeHint();
+      if (typeof App !== 'undefined' && App.showToast) {
+        const label = cat === 'car_reg_light' ? '軽自動車登録報酬（半額+1,000円）' : 'マスタ単価';
+        App.showToast(`📍 報酬額を${label}（¥${Number(fee).toLocaleString()}）に更新しました`);
+      }
+    }
+  },
+
+  promptApplyLatestPoliceFees() {
+    if (typeof CaseTemplates === 'undefined' || typeof CaseTemplates.applyLatestPoliceFeesToCases !== 'function') return;
+    const res = CaseTemplates.applyLatestPoliceFeesToCases(true);
+    if (res.count > 0) {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast(`📍 ${res.count}件の案件に警察署の最新単価を反映しました！（帳簿・請求書も自動連動）`);
+      }
+      App.refreshView();
+    } else {
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('すべての車庫証明案件はすでに最新単価に一致しています');
+      }
+    }
+  },
+
+  toggleCategoryFields(category) {
+    const isCarRegOrSeal = ['car_reg_standard', 'car_reg_light', 'seal'].includes(category);
+    const subCatGroup = document.getElementById('csf_subCategory_group');
+    if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
+
+    // 車庫証明（一般）に切り替えた場合、警察署が選択済みならその警察署の単価を反映
+    if (category === 'garage_paper') {
+      // 愛知トヨタの場合のみ警察署マスタ単価を自動反映
+      if (this._isAichiToyotaSelected()) {
+        const polEl = document.getElementById('csf_policeLocationId');
+        if (polEl && polEl.value) {
+          this.onPoliceLocationChange(polEl.value);
+        } else {
+          this.onAddressInput('', 'parkingAddress');
+        }
+      } else {
+        // 愛知トヨタ以外（日産等）に切り替えた場合、もしテンプレート単価が入っていればクリア
+        if (!this.editingId) {
+          const feeEl = document.getElementById('csf_fee');
+          if (feeEl && feeEl.value) {
+            const locs = (typeof Store !== 'undefined' && Store.getLocations) ? Store.getLocations() : [];
+            const isToyotaFee = feeEl.value === '3500' || locs.some(l => String(l.syakoFee) === String(feeEl.value));
+            if (isToyotaFee) feeEl.value = '';
+          }
+        }
+      }
+    } else if (category === 'garage_oss') {
+      // 車庫証明（OSS）新規時または未設定時のみ初期値3,500円をセット（既存案件の手動設定単価は保護）
+      const feeEl = document.getElementById('csf_fee');
+      if (feeEl && (!this.editingId || !feeEl.value || Number(feeEl.value) === 0)) {
+        feeEl.value = 3500;
+      }
+      this.updateFeeHint();
+    } else if (category === 'car_reg_light') {
+      // 軽自動車登録に切り替えた場合、警察署が選択済みならその半額+1000円単価を反映
+      const polEl = document.getElementById('csf_policeLocationId');
+      if (polEl && polEl.value) {
+        this.onPoliceLocationChange(polEl.value);
+      } else {
+        const feeEl = document.getElementById('csf_fee');
+        if (feeEl && (!this.editingId || !feeEl.value || Number(feeEl.value) === 0 || feeEl.value === '5500' || feeEl.value === '2000')) {
+          feeEl.value = 3000;
+        }
+      }
+      this.updateFeeHint();
+    }
+
+    // マイルストーン表示の動的切り替え
+    const wrap = document.getElementById('csf_milestone_stepper_wrap');
+    if (wrap) {
+      if (this.editingId) {
+        this.renderMilestoneStepper(this.editingId);
+      } else {
+        wrap.style.display = 'none';
+      }
+    }
+  },
+
+  renderMilestoneStepper(caseId) {
+    const wrap = document.getElementById('csf_milestone_stepper_wrap');
+    if (!wrap) return;
+    const c = Store.getCase(caseId);
+    if (!c) {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    let steps = [];
+    if (c.category === 'seal') {
+      steps = ['書類受領', '日程調整', '施封完了'];
+    } else if (['car_reg_standard', 'car_reg_light'].includes(c.category)) {
+      steps = ['書類確認', '陸事申請/登録', '納品完了'];
+    } else {
+      steps = ['配置図作成', '警察署申請', '交付受取'];
+    }
+
+    const totalSteps = steps.length;
+    const mIndex = c.milestoneIndex !== undefined ? Number(c.milestoneIndex) : 0;
+    
+    let pct = 0;
+    if (mIndex > 0) {
+      pct = Math.round(((mIndex - 1) / (totalSteps - 1)) * 100);
+      if (mIndex === totalSteps) pct = 100;
+    }
+    
+    const activeColor = c.category === 'seal' ? 'var(--accent-gold)' : 'var(--accent-blue)';
+
+    wrap.innerHTML = `
+      <label style="font-size:0.8rem;color:var(--text-secondary);font-weight:600">🏁 進捗マイルストーン (クリックして進捗を更新)</label>
+      <div class="milestone-stepper">
+        <div class="stepper-line">
+          <div class="stepper-line-fill" style="width:${pct}%; background-color:${activeColor}"></div>
+        </div>
+        ${steps.map((label, idx) => {
+          const isCompleted = idx < mIndex;
+          const isActive = idx === mIndex || (mIndex === totalSteps && idx === totalSteps - 1);
+          let stateClass = '';
+          if (isActive) stateClass = 'active';
+          else if (isCompleted) stateClass = 'completed';
+          
+          return `
+            <div class="step-node ${stateClass}" onclick="Cases.setMilestone('${caseId}', ${idx + 1})">
+              <div class="step-circle" style="${isActive || isCompleted ? `border-color:${activeColor}; color:${isActive ? '#fff' : activeColor}; background-color:${isActive ? activeColor : 'var(--bg-card)'}` : ''}">${idx + 1}</div>
+              <div class="step-label" style="${isActive ? `color:var(--text-primary); font-weight:700` : ''}">${label}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  },
+
+  setMilestone(caseId, milestoneVal) {
+    const c = Store.getCase(caseId);
+    if (!c) return;
+
+    const totalSteps = 3;
+    const updates = { milestoneIndex: milestoneVal };
+    if (milestoneVal === totalSteps) {
+      updates.status = 'done';
+    } else {
+      if (c.status === 'done') {
+        updates.status = 'applying'; // Doneから戻した場合は申請中にする
+      }
+    }
+    Store.updateCase(caseId, updates);
+    this.renderMilestoneStepper(caseId);
+    
+    // フォームが開いていたらステータスプルダウンも同期
+    const statusSel = document.getElementById('csf_status');
+    if (statusSel && updates.status) {
+      statusSel.value = updates.status;
+    }
+    
+    App.showToast(`マイルストーンを更新しました: ${milestoneVal}/${totalSteps}`);
+    App.refreshView();
+  },
+
+  openDriveFolder() {
+    const input = document.getElementById('csf_driveFolderUrl');
+    const url = input ? input.value.trim() : '';
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      App.showToast('⚠️ Google DriveのフォルダURLが登録されていません');
+    }
+  },
+
+  openSyakoMapMaker(caseId) {
+    let targetCase = null;
+    if (caseId) {
+      targetCase = Store.getCase(caseId);
+    } else if (this.editingId) {
+      targetCase = Store.getCase(this.editingId);
+    }
+
+    const modal = document.getElementById('caseModal');
+    const isModalOpen = modal && modal.style.display !== 'none';
+
+    const params = new URLSearchParams();
+    let storeInfo = '';
+
+    if (targetCase) {
+      params.set('caseId', targetCase.id);
+      const title = (isModalOpen && document.getElementById('csf_title')?.value) || targetCase.title || '';
+      const home = (isModalOpen && document.getElementById('csf_carAddress')?.value) || targetCase.carAddress || '';
+      const parking = (isModalOpen && document.getElementById('csf_parkingAddress')?.value) || targetCase.parkingAddress || '';
+      const name = (isModalOpen && document.getElementById('csf_carName')?.value) || targetCase.carName || '';
+      const orderNo = (isModalOpen && document.getElementById('csf_orderNo')?.value) || targetCase.orderNo || '';
+      const regNo = (isModalOpen && document.getElementById('csf_carNumber')?.value) || targetCase.carNumber || '';
+      const folderUrl = (isModalOpen && document.getElementById('csf_driveFolderUrl')?.value) || targetCase.driveFolderUrl || '';
+      const contactName = targetCase.contactName || '';
+
+      if (title) params.set('title', title);
+      if (home) params.set('home', home);
+      if (parking) params.set('parking', parking);
+      if (name) params.set('name', name);
+      if (orderNo) params.set('orderNo', orderNo);
+      if (regNo) params.set('regNo', regNo);
+      if (folderUrl) params.set('folderUrl', folderUrl);
+      if (contactName) params.set('contact', contactName);
+      else if (targetCase.clientContactId && typeof Store !== 'undefined' && typeof Store.getClientContact === 'function') {
+        const ct = Store.getClientContact(targetCase.clientContactId);
+        if (ct && ct.name) params.set('contact', ct.name);
+      }
+
+      // 顧客マスターから店舗情報を取得
+      const clientId = (isModalOpen && document.getElementById('csf_clientId')?.value) || targetCase.clientId;
+      if (clientId && typeof Store !== 'undefined') {
+        const client = Store.getClient(clientId);
+        if (client) {
+          const company = client.companyName || client.name || '';
+          const branch = client.branchName || client.tradeName || client.department || '';
+          const phone = client.phone || client.tel || '';
+          storeInfo = [company, branch].filter(Boolean).join(' ');
+        }
+      }
+      if (storeInfo) params.set('storeInfo', storeInfo);
+    } else {
+      const title = document.getElementById('csf_title')?.value || '';
+      const addr = document.getElementById('csf_carAddress')?.value || '';
+      const parkAddr = document.getElementById('csf_parkingAddress')?.value || '';
+      const name = document.getElementById('csf_carName')?.value || '';
+      const orderNo = document.getElementById('csf_orderNo')?.value || '';
+      const carNo = document.getElementById('csf_carNumber')?.value || '';
+      const clientId = document.getElementById('csf_clientId')?.value || '';
+      const folderUrl = document.getElementById('csf_driveFolderUrl')?.value || '';
+      const contactId = document.getElementById('csf_clientContactId')?.value || '';
+      if (title) params.set('title', title);
+      if (addr) params.set('home', addr);
+      if (parkAddr) params.set('parking', parkAddr);
+      if (name) params.set('name', name);
+      if (orderNo) params.set('orderNo', orderNo);
+      if (carNo) params.set('regNo', carNo);
+      if (folderUrl) params.set('folderUrl', folderUrl);
+      if (contactId && typeof Store !== 'undefined' && typeof Store.getClientContact === 'function') {
+        const ct = Store.getClientContact(contactId);
+        if (ct && ct.name) params.set('contact', ct.name);
+      }
+
+      if (clientId && typeof Store !== 'undefined') {
+        const client = Store.getClient(clientId);
+        if (client) {
+          const company = client.companyName || client.name || '';
+          const branch = client.branchName || client.tradeName || client.department || '';
+          storeInfo = [company, branch].filter(Boolean).join(' ');
+        }
+      }
+      if (storeInfo) params.set('storeInfo', storeInfo);
+    }
+
+    params.set('_v', Date.now());
+    window.open('syako_map_maker.html?' + params.toString(), '_blank');
+  },
+
+  /**
+   * 外部地図（いつもNAVI・Googleマップ）を別窓で開く
+   * @param {'its-mo'|'google'} service 
+   * @param {string} [caseId] 
+   */
+  openExternalMap(service, caseId) {
+    let targetCase = null;
+    if (caseId) {
+      targetCase = Store.getCase(caseId);
+    } else if (this.editingId) {
+      targetCase = Store.getCase(this.editingId);
+    }
+
+    const modal = document.getElementById('caseModal');
+    const isModalOpen = modal && modal.style.display !== 'none';
+
+    let parkAddr = (isModalOpen && document.getElementById('csf_parkingAddress')?.value) || (targetCase && targetCase.parkingAddress) || '';
+    let carAddr = (isModalOpen && document.getElementById('csf_carAddress')?.value) || (targetCase && targetCase.carAddress) || '';
+
+    let addr = parkAddr.trim();
+    if (!addr || addr === '同上') {
+      addr = carAddr.trim();
+    }
+
+    if (!addr) {
+      alert('住所が入力されていません。「使用の本拠の位置（自宅）」または「保管場所の位置（車庫）」を入力してください。');
+      return;
+    }
+
+    let url = '';
+    if (service === 'its-mo') {
+      // いつもNAVI（ゼンリン詳細地図）：目印・施設調査用
+      url = `https://www.its-mo.com/search/all/?keyword=${encodeURIComponent(addr)}`;
+    } else if (service === 'google') {
+      // Googleマップ：距離・出入口幅・前面道路の測定用
+      url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+    }
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  },
+
+  renderMapWidget(caseId) {
+    const mapPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
+    const hasMapData = !!localStorage.getItem('syako_case_map_' + caseId);
+    
+    let mapPreviewHtml = '';
+    if (mapPng || hasMapData) {
+      mapPreviewHtml = `
+        ${mapPng ? `
+        <div style="position:relative; margin-bottom:8px; border:1px solid var(--border-color); border-radius:6px; overflow:hidden; background:#0f172a; display:flex; align-items:center; justify-content:center; max-height:200px; padding:6px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.15);" onclick="Cases.showFullMapModal('${caseId}')" title="クリックして全画面拡大プレビュー">
+          <img src="${mapPng}" style="max-width:100%; max-height:190px; object-fit:contain; border-radius:4px; transition:transform 0.2s ease;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1.0)'" />
+          <div style="position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,0.75); color:white; font-size:0.75rem; padding:4px 10px; border-radius:20px; backdrop-filter:blur(4px); display:flex; align-items:center; gap:4px; pointer-events:none; border:1px solid rgba(255,255,255,0.2);">
+            🔍 全画面で拡大表示
+          </div>
+        </div>` : '<div style="font-size:0.75rem; color:#059669; font-weight:bold; margin-bottom:6px;">✅ 作図データが保存されています</div>'}
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}')" style="flex:2; font-size:0.78rem; padding:5px 8px; font-weight:bold;">🗺️ 作図ツールで再編集</button>
+          ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.showFullMapModal('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">🔍 拡大</button>` : ''}
+          ${mapPng ? `<button type="button" class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')" style="flex:1; font-size:0.75rem; padding:5px 8px;">📥 保存</button>` : ''}
+          <input type="file" id="mapPdfFileInput_${caseId}" accept=".pdf,image/*,.tif" style="display:none;" onchange="Cases.handleMapPdfUpload(event, '${caseId}')">
+          <button type="button" class="btn btn-secondary btn-small" onclick="document.getElementById('mapPdfFileInput_${caseId}').click()" style="flex:1.5; font-size:0.75rem; padding:5px 8px; background:#334155; color:#fff;" title="手元のPDFや画像ファイルをGoogle Drive案件フォルダに保存">📎 PDF/図面をフォルダ保存</button>
+          <button type="button" class="btn btn-danger btn-small" onclick="Cases.deleteAttachedMap('${caseId}')" style="font-size:0.75rem; padding:5px 8px;" title="削除">🗑️</button>
+        </div>
+      `;
+    } else {
+      mapPreviewHtml = `
+        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; line-height:1.4;">
+          案件の住所（本拠・車庫）を引き継いで、車庫証明の所在図・配置図をブラウザ上で作成・保存できます。
+        </p>
+        <button type="button" class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}')" style="width:100%; font-weight:bold; font-size:0.82rem; padding:7px; background:#2563eb; color:#fff;">
+          🗺️ 車庫証明 作図ツールを起動 ➔
+        </button>
+      `;
+    }
+
+    return `
+      <div class="checklist-widget" style="margin-top:12px; border-left:4px solid var(--accent-orange); padding:12px; border-radius:6px; background:rgba(249,115,22,0.02); border:1px solid var(--border-color)">
+        <h4 style="margin:0 0 8px; font-size:0.88rem; display:flex; align-items:center; justify-content:space-between; color:var(--text-dark)">
+          <span style="display:flex;align-items:center;gap:6px;">🚗 車庫証明 所在図・配置図</span>
+          ${hasMapData ? '<span style="font-size:0.72rem;background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;font-weight:bold;">作図済</span>' : ''}
+        </h4>
+        ${mapPreviewHtml}
+        <div style="margin-top:12px; padding-top:10px; border-top:1px dashed var(--border-color);">
+          <div style="font-size:0.78rem; font-weight:bold; color:var(--text-color); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
+            <span>📑 OSS正式様式パック（DocuWorks完全一致）</span>
+            <span style="font-size:0.68rem; color:#f59e0b; background:rgba(245,158,11,0.1); padding:1px 6px; border-radius:4px; border:1px solid rgba(245,158,11,0.3);">DW 1ドット狂いなし</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;">
+            <button type="button" class="btn btn-primary btn-small" onclick="OssDocuWorks.openExportModal('${caseId}')" style="grid-column:1/-1; font-size:0.78rem; padding:8px; background:linear-gradient(135deg, #0284c7, #2563eb); color:#fff; font-weight:bold; border:none; display:flex; align-items:center; justify-content:center; gap:6px;" title="書類確認書・所在図・配置図・FAX原本(耳消し済)が1冊にまとまった完全フルパックPDF">
+              📦 完全フルパックPDF (確認書+地図+FAX耳消し)
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'kakunin_pdf')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#38bdf8; border-color:#38bdf8; font-weight:bold;" title="原本サンプル完全再現のA4横 書類確認書（単体PDF）を出力">
+              📄 確認書 (PDF)
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'pdf')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#38bdf8; border-color:#38bdf8; font-weight:bold;" title="1ドットの狂いもないDocuWorks完全一致のPDF（所在図+配置図）を出力">
+              🗺️ 所在図・配置図
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'excel')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#10b981; border-color:#10b981; font-weight:bold;" title="従来の書類確認書（Excel）を出力">
+              📊 確認書 (Excel)
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.generateAndDownload('${caseId}', 'xdw')" style="font-size:0.74rem; padding:6px; background:#1e293b; color:#a855f7; border-color:#a855f7; font-weight:bold;" title="DocuWorksネイティブ形式（.xdw）を出力">
+              📑 DocuWorks (xdw)
+            </button>
+            <button type="button" class="btn btn-secondary btn-small" onclick="OssDocuWorks.saveAllToDrive('${caseId}')" style="grid-column:1/-1; font-size:0.74rem; padding:6px; background:#1e293b; color:#f59e0b; border-color:#f59e0b; font-weight:bold;" title="案件のGoogle DriveフォルダへフルパックPDF等を一括自動保存">
+              ☁️ Drive一括保存 (フルパックPDF・確認書・地図)
+            </button>
+          </div>
+          <button type="button" class="btn btn-primary btn-small" onclick="OssDocuWorks.openEmailModal('${caseId}')" style="width:100%; font-size:0.78rem; padding:6px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:6px;">
+            📧 ディーラー客先メール作成・送信 (メーラー & Gmail対応)
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
+  showFullMapModal(caseId) {
+    const mapPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
+    if (!mapPng) return;
+    const targetCase = Store.getCase(caseId);
+    const title = targetCase ? (targetCase.title || '車庫証明 所在図・配置図') : '車庫証明 所在図・配置図';
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'fullMapModal';
+    modal.style.display = 'flex';
+    modal.style.zIndex = '99999';
+    modal.innerHTML = `
+      <div class="modal-overlay" onclick="document.getElementById('fullMapModal').remove()" style="background:rgba(0,0,0,0.85); backdrop-filter:blur(5px); position:fixed; inset:0;"></div>
+      <div class="modal-content" style="max-width:92vw; max-height:92vh; width:1100px; padding:20px; display:flex; flex-direction:column; background:var(--card-bg, #1e293b); border:1px solid var(--border-color); border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.6); z-index:100000; position:relative;">
+        <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--border-color);">
+          <h2 style="margin:0; font-size:1.1rem; display:flex; align-items:center; gap:8px; color:var(--text-color, #fff);">
+            🗺️ ${title} <span style="font-size:0.8rem; color:var(--text-muted); font-weight:normal;">(配置図プレビュー)</span>
+          </h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary btn-small" onclick="Cases.openSyakoMapMaker('${caseId}'); document.getElementById('fullMapModal').remove();">✏️ 所在図・配置図を再編集</button>
+            <button class="btn btn-secondary btn-small" onclick="Cases.downloadAttachedMap('${caseId}')">📥 画像保存</button>
+            <button class="btn btn-secondary btn-small" onclick="const win=window.open('','_blank'); win.document.write('<img src=\\'${mapPng}\\' style=\\'width:100%;height:auto;display:block;margin:auto;\\' />'); setTimeout(()=>win.print(),200);">🖨️ 印刷</button>
+            <button class="modal-close" onclick="document.getElementById('fullMapModal').remove()" style="font-size:1.4rem; cursor:pointer; background:none; border:none; color:var(--text-color, #fff); margin-left:8px;" title="閉じる">✕</button>
+          </div>
+        </div>
+        <div style="flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; background:#0f172a; border-radius:8px; padding:12px; min-height:450px;">
+          <img src="${mapPng}" style="max-width:100%; max-height:75vh; object-fit:contain; border-radius:4px; box-shadow:0 4px 20px rgba(0,0,0,0.5);" alt="所在図・配置図" />
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  },
+
+  handleMapPdfUpload(event, caseId) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (typeof CaseDocs !== 'undefined') {
+      App.showToast('⏳ 所在図・配置図ファイルをGoogle Driveへアップロード中...');
+      CaseDocs.upload(caseId, file).then(docMeta => {
+        if (docMeta) {
+          App.showToast(`✅ ${file.name} を案件フォルダに保存しました`);
+          Cases.showEditModal(caseId);
+        }
+      });
+    } else {
+      App.showToast('⚠️ 書類アップロードモジュールが利用できません');
+    }
+  },
+
+  downloadAttachedMap(caseId) {
+    const mapPng = localStorage.getItem('gyosei_case_map_png_' + caseId);
+    if (!mapPng) return;
+    const a = document.createElement('a');
+    a.href = mapPng;
+    a.download = `車庫証明図面_案件_${caseId}.png`;
+    a.click();
+  },
+
+  deleteAttachedMap(caseId) {
+    if (confirm('保存された所在図・配置図データを削除しますか？')) {
+      localStorage.removeItem('gyosei_case_map_png_' + caseId);
+      localStorage.removeItem('syako_case_map_' + caseId);
+      Cases.showEditModal(caseId);
+      App.showToast('作図データを削除しました');
+    }
+  }
+};
+
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'MAP_SAVED') {
+    const { caseId } = e.data;
+    if (typeof Cases !== 'undefined' && Cases.editingId === caseId) {
+      Cases.showEditModal(caseId);
+    }
+    if (typeof App !== 'undefined') {
+      App.refreshView();
+      App.showToast('✅ 所在図・配置図が案件に保存されました');
+    }
+  }
+});

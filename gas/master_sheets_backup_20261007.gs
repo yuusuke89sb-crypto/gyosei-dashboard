@@ -1675,15 +1675,37 @@ function createCaseFolder_(data) {
     if (attList && attList.length > 0) {
       attList.forEach((att, idx) => {
         try {
-          // A. 既存Drive原本（PDF/TIFF等）がある場合：原本を丸ごと案件フォルダへ完全複製（2ページ目以降の欠落・画質劣化を完全防止）
-          const fileUrl = att.origUrl || att.url || '';
-          const isCleanedOrSliced = !!(att.isCleaned || (att.pageNumber && att.dataUrl && !fileUrl));
-          if (fileUrl && !isCleanedOrSliced) {
-            const match = String(fileUrl).match(/[-\w]{25,}/);
+          // A. クライアント側で切り出された個別ページ画像（dataUrl/base64）の場合
+          if (att.dataUrl || att.base64Data) {
+            const rawData = att.dataUrl || att.base64Data;
+            const b64 = rawData.includes(',') ? rawData.split(',')[1] : rawData;
+            const mime = att.mimeType || 'image/jpeg';
+            const ext = mime.includes('png') ? '.png' : '.jpg';
+            let targetName = '';
+            const pageSuffix = att.pageNumber ? `_P${att.pageNumber}` : (att.name ? `_${att.name}` : `_${idx + 1}`);
+            if (orderNo && applicant) {
+              targetName = `【${orderNo}】${applicant}${pageSuffix}${ext}`;
+            } else if (applicant) {
+              targetName = `${applicant}${pageSuffix}${ext}`;
+            } else if (orderNo) {
+              targetName = `【${orderNo}】書類${pageSuffix}${ext}`;
+            } else {
+              targetName = `書類${pageSuffix}${ext}`;
+            }
+            targetName = targetName.replace(/[\\/:*?"<>|]/g, '_');
+            const blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, targetName);
+            caseFolder.createFile(blob);
+            copiedFilesCount++;
+            return;
+          }
+
+          // B. 既存Driveファイル（PDF/TIFF等）の場合
+          if (att.url) {
+            const match = att.url.match(/[-\w]{25,}/);
             if (match) {
               const srcFile = DriveApp.getFileById(match[0]);
               if (srcFile) {
-                const origName = att.origName || att.name || srcFile.getName();
+                const origName = att.name || srcFile.getName();
                 const ext = origName.includes('.') ? origName.substring(origName.lastIndexOf('.')) : '';
                 const baseName = origName.replace(ext, '');
                 
@@ -1706,33 +1728,8 @@ function createCaseFolder_(data) {
                   srcFile.makeCopy(targetName, caseFolder);
                   copiedFilesCount++;
                 }
-                return;
               }
             }
-          }
-
-          // B. クライアント側で切り出された個別ページ画像（dataUrl/base64）の場合
-          if (att.dataUrl || att.base64Data) {
-            const rawData = att.dataUrl || att.base64Data;
-            const b64 = rawData.includes(',') ? rawData.split(',')[1] : rawData;
-            const mime = att.mimeType || 'image/jpeg';
-            const ext = mime.includes('png') ? '.png' : '.jpg';
-            let targetName = '';
-            const pageSuffix = att.pageNumber ? `_P${att.pageNumber}` : (att.name ? `_${att.name}` : `_${idx + 1}`);
-            if (orderNo && applicant) {
-              targetName = `【${orderNo}】${applicant}${pageSuffix}${ext}`;
-            } else if (applicant) {
-              targetName = `${applicant}${pageSuffix}${ext}`;
-            } else if (orderNo) {
-              targetName = `【${orderNo}】書類${pageSuffix}${ext}`;
-            } else {
-              targetName = `書類${pageSuffix}${ext}`;
-            }
-            targetName = targetName.replace(/[\\/:*?"<>|]/g, '_');
-            const blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, targetName);
-            caseFolder.createFile(blob);
-            copiedFilesCount++;
-            return;
           }
         } catch (copyErr) {
           Logger.log('添付ファイル案件フォルダへのコピー失敗: ' + copyErr.message);

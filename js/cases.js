@@ -1019,17 +1019,7 @@ const Cases = {
       }
 
       // ページタブの生成
-      if (tabList) {
-        tabList.innerHTML = attachments.map((att, idx) => `
-          <button type="button" class="btn btn-small ${idx === preselectIdx ? 'btn-primary' : 'btn-secondary'}"
-            style="font-size:0.72rem; padding:2px 8px; border-radius:4px;"
-            onclick="Cases.loadAttachmentByIndex(${idx})">
-            ${idx + 1}枚目${att.name ? ' (' + att.name.replace(/^.*\./, '.') + ')' : ''}
-          </button>
-        `).join('');
-      }
-
-      this.renderPageCheckboxes();
+      this.renderAttachmentTabs();
       this.loadAttachmentByIndex(preselectIdx);
     } else {
       this.viewerState.isOpen = false;
@@ -1039,6 +1029,23 @@ const Cases = {
       content.style.width = '94%';
       if (toggleBtn) toggleBtn.style.display = 'none';
     }
+  },
+
+  renderAttachmentTabs() {
+    const tabList = document.getElementById('caseAttTabList');
+    const atts = this.viewerState.attachments || [];
+    const preselectIdx = this.viewerState.currentIndex || 0;
+    if (tabList) {
+      tabList.innerHTML = atts.map((att, idx) => `
+        <button type="button" class="btn btn-small ${idx === preselectIdx ? 'btn-primary' : 'btn-secondary'}"
+          style="font-size:0.72rem; padding:2px 8px; border-radius:4px;"
+          onclick="Cases.loadAttachmentByIndex(${idx})">
+          ${idx + 1}枚目${att.name ? ' (' + att.name.replace(/^.*\./, '.') + ')' : ''}
+        </button>
+      `).join('');
+    }
+    this.renderPageCheckboxes();
+    this.updatePageRangeInputs();
   },
 
   renderPageCheckboxes() {
@@ -1173,8 +1180,14 @@ const Cases = {
     if (loading) loading.style.display = 'block';
 
     try {
-      // 0. クライアント側で生成・展開された画像データ（270°正立回転済みdataUrl）がある場合：最優先で表示！
-      if (att.dataUrl) {
+      const isTiff = !!(att.name && att.name.match(/\.tiff?$/i)) || !!(att.url && att.url.match(/\.tiff?/i)) || !!(att.mimeType && att.mimeType.includes('tif'));
+      const isPdf = !isTiff && ((att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf')) || (att.mimeType && att.mimeType.includes('pdf')));
+      const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
+
+      // 0. クライアント側で生成・展開された個別ページ画像（dataUrl）がある場合：最優先で表示！
+      // ※全体PDF（未スライス・未白消し原本）の場合は単一ページ画像によるハイジャックを防ぎ全ページプレビューへ通す
+      const isFullPdf = isPdf && !att.pageNumber && !att.isCleaned;
+      if (att.dataUrl && !isFullPdf) {
         if (loading) loading.style.display = 'none';
         if (imgEl && wrapper) {
           imgEl.src = att.dataUrl;
@@ -1192,17 +1205,13 @@ const Cases = {
         return;
       }
 
-      const isTiff = !!(att.name && att.name.match(/\.tiff?$/i)) || !!(att.url && att.url.match(/\.tiff?/i));
-      const isPdf = !isTiff && ((att.name && att.name.match(/\.pdf$/i)) || (att.url && att.url.includes('.pdf')));
-      const gasUrl = typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.getGasUrl ? SpreadsheetSync.getGasUrl() : '';
-
       // 1. Google Driveのファイル（TIFF, 通常画像, PDF）
       if (att.url && att.url.includes('drive.google.com')) {
         const match = att.url.match(/[-\w]{25,}/);
         if (match) {
           const fileId = match[0];
           if (isPdf) {
-            // PDFの場合はiframeでGoogleプレビュー表示
+            // PDFの場合はiframeでGoogleプレビュー表示（2ページ目以降も縦スクロール・全ページ完全閲覧可能）
             const previewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
             if (loading) loading.style.display = 'none';
             if (iframeEl) {
@@ -1210,36 +1219,104 @@ const Cases = {
               iframeEl.style.display = 'block';
             }
             return;
-          } else {
-            // 画像（TIFF / JPG / PNG等）
-            // FAX原本（TIFF）の場合：lh3 CDNから高精細2048px画像をBlob直接取得し、Canvasで270度正立に物理回転！
-            // 302リダイレクトによるCORS遮断を完全回避し、プレビュー枠の横幅100%いっぱいに大きくクッキリ表示（所要時間わずか0.7秒）
-            if (isTiff) {
-              try {
-                const rotatedDataUrl = await this.fetchAndRotateDriveImage(fileId, 270);
-                if (rotatedDataUrl) {
-                  att.dataUrl = rotatedDataUrl;
-                  this.viewerState.rotation = 0; // 物理回転済みのためCSS回転は0度（A4フル幅表示）
-                  if (loading) loading.style.display = 'none';
-                  if (wrapper && imgEl) {
-                    imgEl.src = rotatedDataUrl;
-                    wrapper.style.display = 'flex';
-                    imgEl.style.display = 'block';
-                    this.applyViewerTransform();
-                    this.setupViewerInteractions();
-                  }
-                  return;
+          } else if (isTiff) {
+            // 📑 FAX原本（TIFF）の場合：
+            // A. まずlh3 CDNから高精細2048px画像をBlob直接取得し、Canvasで270度正立に物理回転！
+            try {
+              const rotatedDataUrl = await this.fetchAndRotateDriveImage(fileId, 270);
+              if (rotatedDataUrl) {
+                att.dataUrl = rotatedDataUrl;
+                this.viewerState.rotation = 0; // 物理回転済みのためCSS回転は0度
+                if (loading) loading.style.display = 'none';
+                if (wrapper && imgEl) {
+                  imgEl.src = rotatedDataUrl;
+                  wrapper.style.display = 'flex';
+                  imgEl.style.display = 'block';
+                  this.applyViewerTransform();
+                  this.setupViewerInteractions();
                 }
-              } catch (rotErr) {
-                console.warn('fetchAndRotateDriveImage failed, falling back to direct display:', rotErr);
+                return;
+              }
+            } catch (rotErr) {
+              console.warn('fetchAndRotateDriveImage failed, falling back to GAS getFileBase64:', rotErr);
+            }
+
+            // B. lh3がCORSやCookie制限で失敗した場合：GAS getFileBase64経由で原本を取得し、UTIFで即座に展開描画！
+            // ※iframeプレビューはTIFF非対応のため絶対に送らない（「プレビューを表示できません」を完全防止）
+            if (gasUrl) {
+              try {
+                let base64 = att.rawBase64 || '';
+                if (!base64) {
+                  const res = await fetch(gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                      action: 'getFileBase64',
+                      fileUrl: att.url,
+                      fileId: fileId
+                    })
+                  });
+                  const b64Data = await res.json();
+                  if (b64Data && b64Data.success && b64Data.base64) {
+                    base64 = b64Data.base64;
+                    att.rawBase64 = base64;
+                  }
+                }
+
+                if (base64 && typeof DealerDocumentParser !== 'undefined') {
+                  // 複数ページTIFFの場合はタブに全ページ展開
+                  if (DealerDocumentParser.convertTiffToPages) {
+                    const pages = DealerDocumentParser.convertTiffToPages(base64, 270);
+                    if (pages && pages.length > 1 && (!this.viewerState.attachments || this.viewerState.attachments.length <= 1)) {
+                      this.viewerState.attachments = pages.map((p, pIdx) => ({
+                        name: `FAX原本_P${pIdx + 1}.jpg`,
+                        dataUrl: p.dataUrl,
+                        pageNumber: pIdx + 1,
+                        mimeType: 'image/jpeg',
+                        origUrl: att.url,
+                        origName: att.name
+                      }));
+                      this.renderAttachmentTabs();
+                      this.loadAttachmentByIndex(0);
+                      return;
+                    }
+                  }
+
+                  if (DealerDocumentParser.convertTiffToJpeg) {
+                    const jpg = DealerDocumentParser.convertTiffToJpeg(base64, 270);
+                    if (jpg) {
+                      att.dataUrl = jpg;
+                      this.viewerState.rotation = 0;
+                      if (loading) loading.style.display = 'none';
+                      if (wrapper && imgEl) {
+                        imgEl.src = jpg;
+                        wrapper.style.display = 'flex';
+                        imgEl.style.display = 'block';
+                        this.applyViewerTransform();
+                        this.setupViewerInteractions();
+                      }
+                      return;
+                    }
+                  }
+                }
+              } catch (gasErr) {
+                console.warn('GAS TIFF conversion failed:', gasErr);
               }
             }
 
-            // 通常画像（JPG/PNG）またはCanvas物理回転フォールバック：直接<img>にロード
-            if (isTiff && (!this.viewerState.rotation || this.viewerState.rotation === 0)) {
+            // C. 最終フォールバック：Google Driveサムネイル直接指定（270度CSS回転）
+            if (loading) loading.style.display = 'none';
+            if (imgEl && wrapper) {
+              imgEl.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2048`;
+              wrapper.style.display = 'flex';
+              imgEl.style.display = 'block';
               this.viewerState.rotation = 270;
+              this.applyViewerTransform();
+              this.setupViewerInteractions();
             }
-
+            return;
+          } else {
+            // 通常画像（JPG/PNG等）
             const showImg = () => {
               if (loading) loading.style.display = 'none';
               if (wrapper && imgEl) {
@@ -1271,31 +1348,6 @@ const Cases = {
               if (imgEl.complete && imgEl.naturalWidth > 0) {
                 showImg();
               }
-            }
-
-            // バックグラウンドでBase64を非同期キャッシュ（修正テープ等の後続機能用、UI描画は一切ブロックしない）
-            if (isTiff && gasUrl && !att.rawBase64 && !att.dataUrl) {
-              setTimeout(async () => {
-                try {
-                  const controller = new AbortController();
-                  const timer = setTimeout(() => controller.abort(), 6000);
-                  const res = await fetch(gasUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                      action: 'getFileBase64',
-                      fileUrl: att.url,
-                      fileId: fileId
-                    }),
-                    signal: controller.signal
-                  });
-                  clearTimeout(timer);
-                  const data = await res.json();
-                  if (data && data.success && data.base64) {
-                    att.rawBase64 = data.base64;
-                  }
-                } catch(e) {}
-              }, 300);
             }
             return;
           }

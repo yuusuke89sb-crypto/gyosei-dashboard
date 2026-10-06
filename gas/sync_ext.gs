@@ -293,10 +293,15 @@ function patchCases_(data, body) {
     results.push({ id: id, status: 'updated', applied: applied, rejected: rejected, fieldTs: stored });
   });
 
-  Object.keys(touched).forEach(function (r) {
-    const i = Number(r);
-    sheet.getRange(i + 2, 1, 1, lastCol).setValues([values[i]]);
-  });
+  const touchedRows = Object.keys(touched);
+  if (touchedRows.length > 2 && values.length > 0) {
+    sheet.getRange(2, 1, values.length, lastCol).setValues(values);
+  } else {
+    touchedRows.forEach(function (r) {
+      const i = Number(r);
+      sheet.getRange(i + 2, 1, 1, lastCol).setValues([values[i]]);
+    });
+  }
   if (appendRows.length) {
     sheet.getRange(sheet.getLastRow() + 1, 1, appendRows.length, lastCol).setValues(appendRows);
   }

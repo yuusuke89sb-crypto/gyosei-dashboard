@@ -36,29 +36,50 @@ const InvoiceSync = {
 
   // ---------------- 状態 ----------------
   getState() {
-    try { return JSON.parse(localStorage.getItem(this.STATE_KEY)) || { invoices: [], items: [], payments: [] }; }
-    catch (e) { return { invoices: [], items: [], payments: [] }; }
+    try {
+      const s = JSON.parse(localStorage.getItem(this.STATE_KEY)) || {};
+      return {
+        invoices: Array.isArray(s.invoices) ? s.invoices.filter(v => v && v.invoiceNo) : [],
+        items: Array.isArray(s.items) ? s.items.filter(it => it && it.invoiceNo) : [],
+        payments: Array.isArray(s.payments) ? s.payments.filter(p => p && p.invoiceNo) : [],
+        loadedAt: s.loadedAt || null,
+      };
+    } catch (e) {
+      return { invoices: [], items: [], payments: [] };
+    }
   },
   saveState(s) {
-    localStorage.setItem(this.STATE_KEY, JSON.stringify(s));
+    if (!s) return;
+    const clean = {
+      invoices: Array.isArray(s.invoices) ? s.invoices.filter(v => v && v.invoiceNo) : [],
+      items: Array.isArray(s.items) ? s.items.filter(it => it && it.invoiceNo) : [],
+      payments: Array.isArray(s.payments) ? s.payments.filter(p => p && p.invoiceNo) : [],
+      loadedAt: s.loadedAt || new Date().toISOString(),
+    };
+    localStorage.setItem(this.STATE_KEY, JSON.stringify(clean));
   },
   /** シートから請求データを一度でも取得できているか（発行の前提条件） */
   isReady() {
     return !!this.getState().loadedAt;
   },
   getInvoice(invoiceNo) {
-    return this.getState().invoices.find(v => v.invoiceNo === invoiceNo) || null;
+    return this.getState().invoices.find(v => v && v.invoiceNo === invoiceNo) || null;
   },
   activeItemByCase() {
     const m = {};
-    this.getState().items.forEach(it => { if (it.status === '有効') m[it.caseId] = it; });
+    this.getState().items.forEach(it => { if (it && it.status === '有効') m[it.caseId] = it; });
     return m;
   },
 
   // ---------------- 取得・反映 ----------------
   applyRemote(inv) {
     if (!inv || !Array.isArray(inv.invoices)) return;
-    const s = { invoices: inv.invoices, items: inv.items || [], payments: inv.payments || [], loadedAt: new Date().toISOString() };
+    const s = {
+      invoices: (inv.invoices || []).filter(v => v && v.invoiceNo),
+      items: (inv.items || []).filter(it => it && it.invoiceNo),
+      payments: (inv.payments || []).filter(p => p && p.invoiceNo),
+      loadedAt: new Date().toISOString()
+    };
     this.saveState(s);
     this.reconcileCases();
     this.rebuildPayments();
@@ -79,11 +100,12 @@ const InvoiceSync = {
   reconcileCases() {
     const s = this.getState();
     const invMap = {};
-    s.invoices.forEach(v => { invMap[v.invoiceNo] = v; });
+    (s.invoices || []).forEach(v => { if (v && v.invoiceNo) invMap[v.invoiceNo] = v; });
     const active = this.activeItemByCase();
     const cases = Store.getCases();
     let changed = 0;
     cases.forEach(c => {
+      if (!c) return;
       const it = active[c.id];
       let want;
       if (it) {
@@ -111,8 +133,8 @@ const InvoiceSync = {
     if (typeof Payments === 'undefined') return;
     const s = this.getState();
     const invMap = {};
-    s.invoices.forEach(v => { invMap[v.invoiceNo] = v; });
-    const list = s.payments.filter(p => p.status !== '取消').map(p => ({
+    (s.invoices || []).forEach(v => { if (v && v.invoiceNo) invMap[v.invoiceNo] = v; });
+    const list = (s.payments || []).filter(p => p && p.status !== '取消').map(p => ({
       id: p.paymentId,
       invoiceNo: p.invoiceNo,
       clientId: p.customerId,
@@ -170,10 +192,13 @@ const InvoiceSync = {
       issuedBy: this.operatorName(), issuedDevice: device,
       items,
     });
-    // 手元の状態にも即時反映
+    if (!res || !res.invoiceNo) {
+      throw new Error('スプレッドシートから有効な請求番号が取得できませんでした。スプレッドシートのデプロイ状態を確認してください。');
+    }
+    // 手元の状態にも即時反映（null / undefined の混入を完全に防止）
     const s = this.getState();
-    s.invoices.push(res.invoice);
-    s.items.push(...(res.items || []));
+    if (res.invoice) s.invoices.push(res.invoice);
+    if (Array.isArray(res.items)) s.items.push(...res.items);
     if (res.payment) s.payments.push(res.payment);
     this.saveState(s);
     this.reconcileCases();
@@ -187,14 +212,48 @@ const InvoiceSync = {
   async cancel(invoiceNo, reason) {
     const device = this.ensureDeviceName() || '未設定';
     const res = await this.call('cancelInvoice', { invoiceNo, canceledBy: this.operatorName(), canceledDevice: device, reason: reason || '' });
-    await this.refresh().catch(() => {});
+    // ローカル状態に即時反映（重い refresh() による画面ブロッキングを回避）
+    const s = this.getState();
+    const inv = (s.invoices || []).find(v => v.invoiceNo === invoiceNo);
+    if (inv) {
+      inv.status = '取消';
+      inv.canceledBy = this.operatorName();
+      inv.canceledDevice = device;
+      inv.canceledAt = new Date().toISOString();
+      inv.cancelReason = reason || '';
+    }
+    (s.items || []).forEach(it => {
+      if (it.invoiceNo === invoiceNo) it.status = '取消';
+    });
+    (s.payments || []).forEach(p => {
+      if (p.invoiceNo === invoiceNo) p.status = '取消';
+    });
+    this.saveState(s);
+    this.reconcileCases();
+    this.rebuildPayments();
+    // バックグラウンドで静かに再同期（画面を待たせない）
+    this.refresh().catch(() => {});
     return res;
   },
 
   async cancelCase(invoiceNo, caseId, reason) {
     const device = this.ensureDeviceName() || '未設定';
     const res = await this.call('cancelInvoiceCase', { invoiceNo, caseId, canceledBy: this.operatorName(), canceledDevice: device, reason: reason || '' });
-    await this.refresh().catch(() => {});
+    if (res && res.invoice) {
+      const s = this.getState();
+      const idx = (s.invoices || []).findIndex(v => v.invoiceNo === invoiceNo);
+      if (idx !== -1) s.invoices[idx] = res.invoice;
+      (s.items || []).forEach(it => {
+        if (it.invoiceNo === invoiceNo && String(it.caseId) === String(caseId)) it.status = '取消';
+      });
+      (s.payments || []).forEach(p => {
+        if (p.invoiceNo === invoiceNo && p.status !== '取消') p.amount = res.invoice.grandTotal;
+      });
+      this.saveState(s);
+      this.reconcileCases();
+      this.rebuildPayments();
+    }
+    this.refresh().catch(() => {});
     return res;
   },
 
@@ -203,13 +262,28 @@ const InvoiceSync = {
       invoiceNo, method: method || '振込', paidDate: paidDate || Store.getLocalDateStr(),
       paidAmount: paidAmount, updatedBy: this.getDeviceName(),
     });
-    await this.refresh().catch(() => {});
+    if (res && res.payment) {
+      const s = this.getState();
+      const idx = (s.payments || []).findIndex(p => p.invoiceNo === invoiceNo && p.status !== '取消');
+      if (idx !== -1) s.payments[idx] = res.payment;
+      else (s.payments || []).push(res.payment);
+      this.saveState(s);
+      this.rebuildPayments();
+    }
+    this.refresh().catch(() => {});
     return res;
   },
 
   async unmarkPaid(invoiceNo) {
     const res = await this.call('unmarkInvoicePaid', { invoiceNo, updatedBy: this.getDeviceName() });
-    await this.refresh().catch(() => {});
+    if (res && res.payment) {
+      const s = this.getState();
+      const idx = (s.payments || []).findIndex(p => p.invoiceNo === invoiceNo);
+      if (idx !== -1) s.payments[idx] = res.payment;
+      this.saveState(s);
+      this.rebuildPayments();
+    }
+    this.refresh().catch(() => {});
     return res;
   },
 

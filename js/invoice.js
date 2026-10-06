@@ -1129,10 +1129,21 @@ const Invoice = {
     if (reason === null) return;
 
     const cases = this.getBilledCases(clientId, invoiceNo);
+    const cancelBtn = document.getElementById('cancelInvoiceBtn');
+    const origText = cancelBtn ? cancelBtn.textContent : '';
+    if (cancelBtn) {
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = '⏳ 取消処理中（スプレッドシート更新中）…';
+    }
+
     // 取消は共有の請求データ（スプレッドシート）で行う。案件の請求済み表示は自動で戻る
     try {
       await InvoiceSync.cancel(invoiceNo, reason);
     } catch (err) {
+      if (cancelBtn) {
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = origText;
+      }
       alert('請求書を取り消せませんでした。\n\n' + InvoiceSync.describeError(err));
       return;
     }
@@ -1216,6 +1227,9 @@ const Invoice = {
 
     // 請求書：全端末共通の番号をスプレッドシートで採番して登録（二重請求はここで拒否される）
     let win = null;
+    const genBtn = document.getElementById('generateInvoiceBtn');
+    const excelBtn = document.getElementById('exportExcelOnlyBtn');
+    const origGenText = genBtn ? genBtn.textContent : '';
     if (docType === 'invoice') {
       if (!InvoiceSync.getDeviceName() && !InvoiceSync.ensureDeviceName()) {
         App.showToast('端末名が未設定のため発行を中止しました');
@@ -1225,6 +1239,12 @@ const Invoice = {
         alert('請求データをまだ取得できていません。画面左の「🔄 同期」を押してから、もう一度発行してください。');
         return;
       }
+      if (genBtn) {
+        genBtn.disabled = true;
+        genBtn.textContent = '⏳ 請求書発行中…';
+      }
+      if (excelBtn) excelBtn.disabled = true;
+
       // ポップアップブロック防止のため、先に画面だけ開いておく
       try {
         win = window.open('', '_blank');
@@ -1234,6 +1254,11 @@ const Invoice = {
         const res = await InvoiceSync.issue({ clientId, year, month, issueDate, dueDate, cases, taxRate, templateType, note });
         invoiceNo = res.invoiceNo;
       } catch (err) {
+        if (genBtn) {
+          genBtn.disabled = false;
+          genBtn.textContent = origGenText;
+        }
+        if (excelBtn) excelBtn.disabled = false;
         if (win) { try { win.close(); } catch (e) { /* noop */ } }
         alert('請求書を発行できませんでした。\n\n' + InvoiceSync.describeError(err));
         if (err && err.code === 'ALREADY_BILLED') {
@@ -1373,10 +1398,24 @@ const Invoice = {
 
     if (markBilled) {
       if (docType === 'invoice') {
+        const excelBtn = document.getElementById('exportExcelOnlyBtn');
+        const genBtn = document.getElementById('generateInvoiceBtn');
+        const origExcelText = excelBtn ? excelBtn.textContent : '';
+        if (excelBtn) {
+          excelBtn.disabled = true;
+          excelBtn.textContent = '⏳ 発行中…';
+        }
+        if (genBtn) genBtn.disabled = true;
+
         try {
           const res = await InvoiceSync.issue({ clientId, year, month, issueDate, dueDate, cases, taxRate, templateType, note });
           invoiceNo = res.invoiceNo;
         } catch (err) {
+          if (excelBtn) {
+            excelBtn.disabled = false;
+            excelBtn.textContent = origExcelText;
+          }
+          if (genBtn) genBtn.disabled = false;
           alert('請求書を発行できませんでした。\n\n' + InvoiceSync.describeError(err));
           if (err && err.code === 'ALREADY_BILLED') {
             await InvoiceSync.refresh().catch(() => {});

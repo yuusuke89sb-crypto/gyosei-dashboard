@@ -361,9 +361,47 @@ const DealerDocumentParser = {
     let previewUrl = rawAttachmentUrl || '';
     let previewHtml = '';
 
-    if (previewUrl.includes('drive.google.com')) {
-      const embedUrl = previewUrl.replace(/\/view(\?.*)?$/, '/preview');
-      previewHtml = `<iframe src="${embedUrl}" style="width:100%; height:100%; border:none; background:#fff;" allow="autoplay"></iframe>`;
+    const hasPages = parsed && parsed.attachments && parsed.attachments.length > 0 && parsed.attachments[0].dataUrl;
+    if (hasPages) {
+      this._currentOcrParsed = parsed;
+      const firstDataUrl = parsed.attachments[0].dataUrl;
+      const pageNavHtml = parsed.attachments.length > 1 ? `
+        <div style="display:flex; gap:6px; align-items:center; padding:6px 12px; background:rgba(0,0,0,0.3); border-bottom:1px solid rgba(255,255,255,0.08); overflow-x:auto;">
+          <span style="font-size:0.75rem; color:#94a3b8; font-weight:600; white-space:nowrap;">ページ切替:</span>
+          ${parsed.attachments.map((a, i) => `
+            <button type="button" id="ocr-page-btn-${i}" class="btn btn-small ${i === 0 ? 'btn-primary' : 'btn-secondary'}"
+              style="font-size:0.72rem; padding:2px 8px; border-radius:4px; white-space:nowrap;"
+              onclick="DealerDocumentParser.switchOcrPreviewPage(${i}, ${parsed.attachments.length})">
+              ${i + 1}枚目
+            </button>
+          `).join('')}
+        </div>
+      ` : '';
+
+      previewHtml = `
+        <div style="display:flex; flex-direction:column; width:100%; height:100%; overflow:hidden;">
+          ${pageNavHtml}
+          <div style="flex:1; width:100%; height:100%; display:flex; align-items:center; justify-content:center; overflow:auto; padding:8px;">
+            <img id="ocr-preview-img" src="${firstDataUrl}" style="max-width:100%; max-height:100%; object-fit:contain; display:block;" alt="原本プレビュー">
+          </div>
+        </div>
+      `;
+    } else if (previewUrl.includes('drive.google.com')) {
+      const isTiffUrl = previewUrl.match(/\.tiff?(\?.*)?$/i);
+      if (isTiffUrl) {
+        previewHtml = `
+          <div style="text-align:center; padding:40px 20px; color:var(--text-muted, #94a3b8);">
+            <span style="font-size:3rem; display:block; margin-bottom:8px;">📑</span>
+            <p style="margin:0; font-size:0.9rem;">TIFF原本ファイル</p>
+            <div style="margin-top:12px;">
+              <a href="${previewUrl}" target="_blank" class="btn btn-secondary btn-small">↗ Google Driveで原本を開く</a>
+            </div>
+          </div>
+        `;
+      } else {
+        const embedUrl = previewUrl.replace(/\/view(\?.*)?$/, '/preview');
+        previewHtml = `<iframe src="${embedUrl}" style="width:100%; height:100%; border:none; background:#fff;" allow="autoplay"></iframe>`;
+      }
     } else if (previewUrl.startsWith('data:image/') || previewUrl.match(/\.(png|jpe?g|webp|gif)(\?.*)?$/i)) {
       previewHtml = `<img src="${previewUrl}" style="max-width:100%; max-height:100%; object-fit:contain; display:block;" alt="依頼書原本">`;
     } else if (previewUrl.startsWith('data:application/pdf') || previewUrl.match(/\.pdf(\?.*)?$/i)) {
@@ -595,6 +633,18 @@ const DealerDocumentParser = {
     };
   },
 
+  switchOcrPreviewPage(idx, total) {
+    if (!this._currentOcrParsed || !this._currentOcrParsed.attachments) return;
+    const att = this._currentOcrParsed.attachments[idx];
+    if (!att || !att.dataUrl) return;
+    const img = document.getElementById('ocr-preview-img');
+    if (img) img.src = att.dataUrl;
+    for (let i = 0; i < total; i++) {
+      const btn = document.getElementById(`ocr-page-btn-${i}`);
+      if (btn) btn.className = `btn btn-small ${i === idx ? 'btn-primary' : 'btn-secondary'}`;
+    }
+  },
+
   // ─── 🔄 TIFFのページを正立回転（デフォルト270°）してCanvas描画するヘルパー ───
   _renderRotatedPageCanvas(ifd, rgba, angle = 270) {
     const origCanvas = document.createElement('canvas');
@@ -734,6 +784,58 @@ const DealerDocumentParser = {
       console.warn('TIFF convertTiffToPages failed:', e);
     }
     return [];
+  },
+
+  // ─── 📑 マルチページPDFから各ページごとの個別画像配列を生成（PDF.js活用） ───
+  async convertPdfToPages(arrayBufferOrBase64, scale = 1.5) {
+    if (typeof window === 'undefined' || !window.pdfjsLib) {
+      console.warn('PDF.js (pdfjsLib) がロードされていません');
+      return [];
+    }
+    try {
+      let uint8;
+      if (typeof arrayBufferOrBase64 === 'string') {
+        const cleanB64 = arrayBufferOrBase64.includes(',') ? arrayBufferOrBase64.split(',')[1] : arrayBufferOrBase64;
+        const binaryStr = atob(cleanB64.trim());
+        uint8 = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          uint8[i] = binaryStr.charCodeAt(i);
+        }
+      } else if (arrayBufferOrBase64 instanceof Uint8Array) {
+        uint8 = arrayBufferOrBase64;
+      } else if (arrayBufferOrBase64 instanceof ArrayBuffer) {
+        uint8 = new Uint8Array(arrayBufferOrBase64);
+      }
+      if (!uint8 || uint8.length === 0) return [];
+
+      const pdfDoc = await window.pdfjsLib.getDocument({ data: uint8 }).promise;
+      const numPages = pdfDoc.numPages;
+      const pages = [];
+
+      for (let i = 1; i <= numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const viewport = page.getViewport({ scale: scale || 1.5 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+        pages.push({
+          pageNumber: i,
+          name: `ページ ${i}`,
+          dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+          width: viewport.width,
+          height: viewport.height,
+          mimeType: 'image/jpeg'
+        });
+      }
+      console.log(`✅ マルチページPDF (${numPages}ページ) を高解像度画像として展開しました`);
+      return pages;
+    } catch (err) {
+      console.warn('PDF convertPdfToPages failed:', err);
+      return [];
+    }
   },
 
   // ─── 🤖 Gemini Vision による画像/PDFの直接超高精度AI解析 ───
