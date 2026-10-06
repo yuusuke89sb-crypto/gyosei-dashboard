@@ -1219,105 +1219,20 @@ const Cases = {
               iframeEl.style.display = 'block';
             }
             return;
-          } else if (isTiff) {
-            // 📑 FAX原本（TIFF）の場合：
-            // A. まずlh3 CDNから高精細2048px画像をBlob直接取得し、Canvasで270度正立に物理回転！
-            try {
-              const rotatedDataUrl = await this.fetchAndRotateDriveImage(fileId, 270);
-              if (rotatedDataUrl) {
-                att.dataUrl = rotatedDataUrl;
-                this.viewerState.rotation = 0; // 物理回転済みのためCSS回転は0度
-                if (loading) loading.style.display = 'none';
-                if (wrapper && imgEl) {
-                  imgEl.src = rotatedDataUrl;
-                  wrapper.style.display = 'flex';
-                  imgEl.style.display = 'block';
-                  this.applyViewerTransform();
-                  this.setupViewerInteractions();
-                }
-                return;
-              }
-            } catch (rotErr) {
-              console.warn('fetchAndRotateDriveImage failed, falling back to GAS getFileBase64:', rotErr);
-            }
-
-            // B. lh3がCORSやCookie制限で失敗した場合：GAS getFileBase64経由で原本を取得し、UTIFで即座に展開描画！
-            // ※iframeプレビューはTIFF非対応のため絶対に送らない（「プレビューを表示できません」を完全防止）
-            if (gasUrl) {
-              try {
-                let base64 = att.rawBase64 || '';
-                if (!base64) {
-                  const res = await fetch(gasUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                      action: 'getFileBase64',
-                      fileUrl: att.url,
-                      fileId: fileId
-                    })
-                  });
-                  const b64Data = await res.json();
-                  if (b64Data && b64Data.success && b64Data.base64) {
-                    base64 = b64Data.base64;
-                    att.rawBase64 = base64;
-                  }
-                }
-
-                if (base64 && typeof DealerDocumentParser !== 'undefined') {
-                  // 複数ページTIFFの場合はタブに全ページ展開
-                  if (DealerDocumentParser.convertTiffToPages) {
-                    const pages = DealerDocumentParser.convertTiffToPages(base64, 270);
-                    if (pages && pages.length > 1 && (!this.viewerState.attachments || this.viewerState.attachments.length <= 1)) {
-                      this.viewerState.attachments = pages.map((p, pIdx) => ({
-                        name: `FAX原本_P${pIdx + 1}.jpg`,
-                        dataUrl: p.dataUrl,
-                        pageNumber: pIdx + 1,
-                        mimeType: 'image/jpeg',
-                        origUrl: att.url,
-                        origName: att.name
-                      }));
-                      this.renderAttachmentTabs();
-                      this.loadAttachmentByIndex(0);
-                      return;
-                    }
-                  }
-
-                  if (DealerDocumentParser.convertTiffToJpeg) {
-                    const jpg = DealerDocumentParser.convertTiffToJpeg(base64, 270);
-                    if (jpg) {
-                      att.dataUrl = jpg;
-                      this.viewerState.rotation = 0;
-                      if (loading) loading.style.display = 'none';
-                      if (wrapper && imgEl) {
-                        imgEl.src = jpg;
-                        wrapper.style.display = 'flex';
-                        imgEl.style.display = 'block';
-                        this.applyViewerTransform();
-                        this.setupViewerInteractions();
-                      }
-                      return;
-                    }
-                  }
-                }
-              } catch (gasErr) {
-                console.warn('GAS TIFF conversion failed:', gasErr);
-              }
-            }
-
-            // C. 最終フォールバック：Google Driveサムネイル直接指定（270度CSS回転）
-            if (loading) loading.style.display = 'none';
-            if (imgEl && wrapper) {
-              imgEl.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2048`;
-              wrapper.style.display = 'flex';
-              imgEl.style.display = 'block';
-              this.viewerState.rotation = 270;
-              this.applyViewerTransform();
-              this.setupViewerInteractions();
-            }
-            return;
           } else {
-            // 通常画像（JPG/PNG等）
+            // 📑 TIFF または 通常画像（JPG/PNG/WEBP等）
+            if (loading) loading.style.display = 'none';
+
+            // FAX原本（TIFF）は受信時に横向きのため、デフォルト270度正立で初期表示
+            if (isTiff) {
+              this.viewerState.rotation = 270;
+            } else {
+              this.viewerState.rotation = 0;
+            }
+
+            const currentIdx = idx;
             const showImg = () => {
+              if (this.viewerState.currentIndex !== currentIdx) return;
               if (loading) loading.style.display = 'none';
               if (wrapper && imgEl) {
                 wrapper.style.display = 'flex';
@@ -1343,7 +1258,8 @@ const Cases = {
                 };
                 imgEl.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2048`;
               };
-              // 最速のlh3 CDNを優先指定
+
+              // Google CDN (lh3) から直接ロード（Googleサーバー側でTIFF→JPEG高速変換・CORS不要・最速200ms）
               imgEl.src = `https://lh3.googleusercontent.com/d/${fileId}=w2048`;
               if (imgEl.complete && imgEl.naturalWidth > 0) {
                 showImg();
