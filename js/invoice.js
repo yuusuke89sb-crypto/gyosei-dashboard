@@ -604,6 +604,22 @@ const Invoice = {
     return cases.filter(c => c.invoiceNo === invoiceNo);
   },
 
+  // 発行・取消・再印刷の後、顧客一覧に戻らず同じ得意先の画面を開き直す
+  // reopenInvoice=true のときは請求書発行画面を、false のときは顧客詳細を開く
+  _returnToClient(clientId, reopenInvoice = false) {
+    setTimeout(() => {
+      try {
+        if (reopenInvoice) {
+          this.showSelectModal(clientId);
+        } else if (typeof Clients !== 'undefined' && typeof Clients.showDetail === 'function') {
+          Clients.showDetail(clientId);
+        }
+      } catch (e) {
+        console.warn('[Invoice._returnToClient] error:', e);
+      }
+    }, 0);
+  },
+
   getBillingPeriod(year, month) {
     return Store.getBillingPeriod(year, month);
   },
@@ -1153,6 +1169,8 @@ const Invoice = {
 
     App.refreshView();
     App.showToast(`✅ 請求書 ${invoiceNo} を取り消し、対象案件(${cases.length}件)を未請求に戻しました`);
+    // 取消後はすぐ再発行できるよう、同じ得意先の請求書発行画面を開き直す
+    this._returnToClient(clientId, true);
   },
 
   // 新規に請求書・見積書を発行する
@@ -1319,6 +1337,7 @@ const Invoice = {
     } else {
       App.showToast(`見積書 ${invoiceNo} を作成しました`);
     }
+    this._returnToClient(clientId);
   },
 
   // Excelのみ新規出力（印刷プレビューを開かない）
@@ -1423,6 +1442,7 @@ const Invoice = {
       const modal = document.getElementById('invoiceSelectModal');
       if (modal) modal.remove();
       App.refreshView();
+      this._returnToClient(clientId);
     }
 
     try {
@@ -1539,6 +1559,7 @@ const Invoice = {
     const modal = document.getElementById('invoiceSelectModal');
     if (modal) modal.remove();
     App.showToast(`請求書 ${invoiceNo} を再印刷しました`);
+    this._returnToClient(clientId);
   },
 
   // 過去の請求書をExcelで出力（再印刷タブ）
@@ -1923,6 +1944,10 @@ const Invoice = {
           categoryShort = '軽登録';
         } else if (c.category === 'seal') {
           categoryShort = '封印';
+        }
+        // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
+        if (isLight && categoryShort && !categoryShort.includes('軽')) {
+          categoryShort = `軽・${categoryShort}`;
         }
         if (c.isUsedCar) {
           categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
@@ -2571,6 +2596,10 @@ ${detailPagesHTML}
           } else if (c.category === 'seal') {
             categoryShort = '封印';
           }
+          // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
+          if (isLight && categoryShort && !categoryShort.includes('軽')) {
+            categoryShort = `軽・${categoryShort}`;
+          }
           const specialNote = this._getCaseSpecialNote(c);
           if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
             categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
@@ -3179,6 +3208,10 @@ ${detailPagesHTML}
         } else if (c.category === 'seal') {
           categoryShort = '封印';
         }
+        // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
+        if (isLight && categoryShort && !categoryShort.includes('軽')) {
+          categoryShort = `軽・${categoryShort}`;
+        }
         if (c.isUsedCar) {
           categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         }
@@ -3784,6 +3817,10 @@ ${detailPagesHTML}
           } else if (c.category === 'seal') {
             categoryShort = '封印';
           }
+          // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
+          if (isLight && categoryShort && !categoryShort.includes('軽')) {
+            categoryShort = `軽・${categoryShort}`;
+          }
           if (c.isUsedCar) {
             categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
           }
@@ -4384,6 +4421,10 @@ ${detailPagesHTML}
           categoryShort = '軽登録';
         } else if (c.category === 'seal') {
           categoryShort = '封印';
+        }
+        // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
+        if (isLight && categoryShort && !categoryShort.includes('軽')) {
+          categoryShort = `軽・${categoryShort}`;
         }
         if (c.isUsedCar) {
           categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
@@ -6188,6 +6229,8 @@ window.NissanPrint = {
         else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
         else if (c.category === 'car_reg_light') categoryShort = '軽登録';
         else if (c.category === 'seal') categoryShort = '封印';
+        // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
+        if (isLight && categoryShort && !categoryShort.includes('軽')) categoryShort = `軽・${categoryShort}`;
         if (c.isUsedCar) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         const specialNote = this._getCaseSpecialNote(c);
         if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {

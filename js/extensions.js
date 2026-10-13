@@ -740,8 +740,14 @@ const CaseTemplates = {
 
         if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
           const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
+          // ★軽の車庫証明（一般）も軽自動車登録と同じく半額＋1,000円（請求書の「一般・軽」判定と同じ基準）
+          const advLabels = (c.advances || []).map(a => (a && a.label) || '').join(' ');
+          const isLightGarage = isGaragePaper && (c.carType === 'light' ||
+            title.includes('軽') || memo.includes('軽') ||
+            String(c.subCategory || '').includes('軽') || String(c.remarks || '').includes('軽') || advLabels.includes('軽'));
+          const useHalf = isCarRegLight || isLightGarage;
           // ★軽自動車登録は管轄警察署の単価設定の半額＋一律1,000円（4000円なら3000円）
-          const targetFee = isCarRegLight ? (Math.round(Number(loc.syakoFee) / 2) + 1000) : Number(loc.syakoFee);
+          const targetFee = useHalf ? (Math.round(Number(loc.syakoFee) / 2) + 1000) : Number(loc.syakoFee);
           const feeNeedsUpdate = (currentFee !== targetFee);
           const locNeedsUpdate = (!c.policeLocationId && loc.id);
 
@@ -751,7 +757,7 @@ const CaseTemplates = {
             if (locNeedsUpdate) updateData.policeLocationId = loc.id;
             Store.updateCase(c.id, updateData);
             updatedCount++;
-            details.push(`${c.title || '案件'}: ¥${currentFee} → ¥${targetFee} (${loc.name}${isCarRegLight ? '・軽半額+1000' : ''})`);
+            details.push(`${c.title || '案件'}: ¥${currentFee} → ¥${targetFee} (${loc.name}${isCarRegLight ? '・軽半額+1000' : (isLightGarage ? '・一般軽半額+1000' : '')})`);
           }
         }
       });
