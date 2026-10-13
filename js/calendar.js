@@ -1177,6 +1177,62 @@ const Calendar = {
         });
       }
     });
+
+    // 申請日を過ぎても「受付」のまま（未申請）の案件は、申請するまで「今日以降で最初の平日」の欄に繰り越して表示する
+    // ※表示だけの繰り越し。案件の申請日データは変更しない
+    const todayStr = (typeof Store !== 'undefined' && typeof Store.getLocalDateStr === 'function')
+      ? Store.getLocalDateStr()
+      : this._toDateStr(new Date());
+    const carryToStr = this.getNextBusinessDayStr(todayStr);
+    caseEvents.forEach(ev => {
+      const isApplyEvent = ev.type === 'case-apply' || ev.type === 'case-apply-delivery';
+      if (!isApplyEvent || ev.status !== 'received' || !ev.date || ev.date >= todayStr) return;
+      const [, m, d] = ev.date.split('-');
+      ev.originalDate = ev.date;
+      ev.date = carryToStr;
+      ev.carriedOver = true;
+      ev.title = `↪繰越 ${ev.title}（${Number(m)}/${Number(d)}分）`;
+    });
+
     return caseEvents;
+  },
+
+  // ─── 営業日判定（繰り越し先の計算用） ───
+  // 国民の祝日・振替休日・国民の休日（毎年末に翌年分を追加すること）
+  JP_HOLIDAYS: new Set([
+    // 2026年
+    '2026-01-01', '2026-01-12', '2026-02-11', '2026-02-23', '2026-03-20', '2026-04-29',
+    '2026-05-03', '2026-05-04', '2026-05-05', '2026-05-06', '2026-07-20', '2026-08-11',
+    '2026-09-21', '2026-09-22', '2026-09-23', '2026-10-12', '2026-11-03', '2026-11-23',
+    // 2027年
+    '2027-01-01', '2027-01-11', '2027-02-11', '2027-02-23', '2027-03-21', '2027-03-22',
+    '2027-04-29', '2027-05-03', '2027-05-04', '2027-05-05', '2027-07-19', '2027-08-11',
+    '2027-09-20', '2027-09-23', '2027-10-11', '2027-11-03', '2027-11-23',
+  ]),
+
+  _toDateStr(dt) {
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  },
+
+  // 土日・祝日・年末年始（警察署の閉庁日 12/29〜1/3）以外なら営業日
+  isBusinessDay(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    if (dow === 0 || dow === 6) return false;
+    if (this.JP_HOLIDAYS.has(dateStr)) return false;
+    if ((m === 12 && d >= 29) || (m === 1 && d <= 3)) return false;
+    return true;
+  },
+
+  // 指定日以降で最初の営業日（指定日が営業日ならその日）
+  getNextBusinessDayStr(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    for (let i = 0; i < 30; i++) {
+      const s = this._toDateStr(dt);
+      if (this.isBusinessDay(s)) return s;
+      dt.setDate(dt.getDate() + 1);
+    }
+    return dateStr;
   },
 };
