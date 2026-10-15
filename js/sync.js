@@ -779,8 +779,26 @@ const SpreadsheetSync = {
         const pendingQueue = this.getPendingInboxQueue();
         const mergedMap = new Map();
 
+        // ★同一IDの重複行対策: 処理済みステータスを優先（重複の片方だけ「未対応」で残っても復活させない）
+        const statusRank = (s) => {
+            const st = String(s || '未対応').trim();
+            if (st === '対応済') return 3;
+            if (st === '除外') return 2;
+            if (st === '保留') return 1;
+            return 0;
+        };
+        const dedupedRemote = new Map();
+        remoteInbox.forEach(r => {
+            if (!r || !r.id) return;
+            const k = String(r.id);
+            const prev = dedupedRemote.get(k);
+            if (!prev || statusRank(r.status) > statusRank(prev.status)) {
+                dedupedRemote.set(k, r);
+            }
+        });
+
         // 1. スプレッドシート（リモート）にあるアイテムをベースに構築
-        remoteInbox.forEach(remoteItem => {
+        dedupedRemote.forEach(remoteItem => {
             if (!remoteItem || !remoteItem.id) return;
             const sId = String(remoteItem.id);
             const pending = pendingQueue[sId];

@@ -531,6 +531,16 @@ const InboxManager = {
           break;
         }
 
+        // 別の受信チェック（定時トリガー・他PC）が実行中でスキップされた場合
+        if (result.skipped) {
+          if (result.inbox && Array.isArray(result.inbox)) {
+            SpreadsheetSync.mergeInboxData(result.inbox);
+            App.refreshView();
+          }
+          App.showToast('⏳ 別の受信チェックが実行中です。少し待ってからもう一度お試しください');
+          return;
+        }
+
         const savedThisRound = Number(result.saved) || 0;
         totalSaved += savedThisRound;
 

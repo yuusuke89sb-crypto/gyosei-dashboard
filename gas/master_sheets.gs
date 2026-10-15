@@ -2448,16 +2448,21 @@ function upsertInboxItem_(data, lineToken, lineUserId, lineNotifyInbox) {
     if (lastRow >= 2) {
       const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
       const sTargetId = String(data.id).trim();
-      const rowIdx = ids.findIndex(id => String(id).trim() === sTargetId);
-      if (rowIdx !== -1) {
-        const row = rowIdx + 2;
-        INBOX_HEADERS.forEach((header, col) => {
-          const key = keyMap[header];
-          if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
-            sheet.getRange(row, col + 1).setValue(data[key]);
-          }
+      // ★同一IDの行が複数ある場合（過去の二重取り込み）も全行を更新し、片方だけ「未対応」で残って復活するのを防ぐ
+      const matchedRows = [];
+      ids.forEach((id, i) => {
+        if (String(id).trim() === sTargetId) matchedRows.push(i + 2);
+      });
+      if (matchedRows.length > 0) {
+        matchedRows.forEach(row => {
+          INBOX_HEADERS.forEach((header, col) => {
+            const key = keyMap[header];
+            if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
+              sheet.getRange(row, col + 1).setValue(data[key]);
+            }
+          });
         });
-        return { success: true, action: 'updated', id: data.id };
+        return { success: true, action: 'updated', id: data.id, rows: matchedRows.length };
       }
     }
   }
@@ -2555,7 +2560,27 @@ function getInboxDriveFolder_(subfolderName) {
   }
 }
 
+// ★受信スキャンの排他制御ラッパー
+// 定時トリガーと「受信チェック」ボタン（複数PC）が同時に走ると、双方が「未登録」と判定して
+// 同一IDの行を二重追加し、片方だけ処理済みになって「復活」する不具合（2026/10/13〜14発生）を防止する。
 function checkIncomingInbox_(options) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    // 他のスキャンが実行中：今回はスキップし、現在のインボックスをそのまま返す
+    let currentInbox = [];
+    try { currentInbox = getSheetDataAsJson_(SHEET_NAMES.INBOX, INBOX_HEADERS); } catch (e) {}
+    return { success: true, saved: 0, skipped: true, timedOut: false, hasMore: false, inbox: currentInbox,
+             message: '別の受信チェックが実行中のためスキップしました' };
+  }
+  try {
+    return checkIncomingInboxCore_(options);
+  } finally {
+    try { SpreadsheetApp.flush(); } catch (e) {}
+    lock.releaseLock();
+  }
+}
+
+function checkIncomingInboxCore_(options) {
   options = options || {};
   const days = options.days ? Number(options.days) : 3; // デフォルトを10日から3日に適正化（高速化）
   const maxExecutionTimeMs = options.maxTimeMs || 25000; // Web Appの30秒タイムアウト対策（25秒で安全終了）

@@ -464,7 +464,12 @@ const CaseTemplates = {
         if (polId && typeof Store !== 'undefined' && Store.getLocation) {
           const loc = Store.getLocation(polId);
           if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
-            feeEl.value = loc.syakoFee;
+            // ★備考・件名・立替金に「軽」がある場合は半額＋1,000円（満額で上書きしない）
+            const isLight = (typeof Cases !== 'undefined' && typeof Cases._isLightGarageForm === 'function')
+              ? Cases._isLightGarageForm() : false;
+            feeEl.value = (isLight && typeof Cases._calcLightHalfFee === 'function')
+              ? Cases._calcLightHalfFee(loc.syakoFee)
+              : loc.syakoFee;
             this._lastAppliedCategory = category;
             return;
           }
