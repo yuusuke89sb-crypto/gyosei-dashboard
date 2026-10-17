@@ -2304,6 +2304,9 @@ const Cases = {
       return;
     }
 
+    // ★直前に登録前BOXから開いた案件の添付ファイルが残り、編集保存時に別案件の書類一覧へ混入する不具合を防止
+    this.initAttachmentViewer([]);
+
     const invBadge = c.invoiceNo 
       ? `<span style="font-size:0.75rem; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; margin-left:10px; font-weight:normal; display:inline-flex; align-items:center; gap:4px;">
           📄 請求済: <strong>${c.invoiceNo}</strong>
@@ -2508,6 +2511,10 @@ const Cases = {
     if (modal) modal.style.display = 'none';
     this.editingId = null;
     this._submitMode = 'close';
+    // ★閉じたら添付プレビューの状態も破棄（次に開く案件へ持ち越さない）
+    this.viewerState.attachments = [];
+    this.viewerState.selectedPageIndices = [];
+    this.viewerState.currentIndex = 0;
 
     const retClientId = this.returnClientId;
     this.returnClientId = null;
@@ -2604,6 +2611,11 @@ const Cases = {
       initialDocs = (existing && Array.isArray(existing.docs)) ? [...existing.docs] : [];
       if (existing && existing.detachedDocIds) {
         data.detachedDocIds = existing.detachedDocIds;
+      }
+      // ★編集画面には受信データIDの入力欄が無いため、空で上書きして受信データとの紐付けが消えるのを防止
+      if (existing) {
+        if (!data.inboxId && existing.inboxId) data.inboxId = existing.inboxId;
+        if (!data.faxId && existing.faxId) data.faxId = existing.faxId;
       }
     }
     const incomingAtts = this.getSelectedAttachments();
