@@ -603,7 +603,8 @@ const CaseTemplates = {
       let added = 0;
 
       // 遠方・除外対象警察署の自動整理リスト
-      const EXCLUDED_POLICE = ['鳥羽警察署', '甲賀警察署', '中津川警察署', '郡上警察署', '新城警察署', '田原警察署'];
+      // ★2026-10-19: 愛知・岐阜の全警察署をマスタ登録したため、中津川・郡上・新城・田原は除外対象から外した
+      const EXCLUDED_POLICE = ['鳥羽警察署', '甲賀警察署'];
       let deletedList = [];
       try {
         deletedList = JSON.parse(localStorage.getItem('gyosei_deleted_locations') || '[]');
