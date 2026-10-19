@@ -157,6 +157,11 @@ const LocationManager = {
       Store.updateLocation(this.editingId, data);
       App.showToast('場所を更新しました');
     } else {
+      const dup = (typeof LocationMaster !== 'undefined') ? LocationMaster.findByName(name) : null;
+      if (dup) {
+        App.showToast(`「${dup.name}」は既に登録されています（同じ場所として扱います）`);
+        return;
+      }
       Store.addLocation(data);
       App.showToast('場所を追加しました');
     }

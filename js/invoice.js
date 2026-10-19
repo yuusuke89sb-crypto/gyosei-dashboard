@@ -1915,7 +1915,7 @@ const Invoice = {
         // OSSの管轄は空欄
         let policeName = '';
         if (c.category !== 'garage_oss') {
-          policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+          policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
           if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
             const loc = Store.getLocation(c.policeLocationId);
             if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
@@ -2566,7 +2566,7 @@ ${detailPagesHTML}
 
           let policeName = '';
           if (c.category !== 'garage_oss') {
-            policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+            policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
             if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
               const loc = Store.getLocation(c.policeLocationId);
               if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
@@ -3178,7 +3178,7 @@ ${detailPagesHTML}
         
         let policeName = '';
         if (c.category !== 'garage_oss') {
-          policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+          policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
           if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
             const loc = Store.getLocation(c.policeLocationId);
             if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
@@ -3787,7 +3787,7 @@ ${detailPagesHTML}
 
           let policeName = '';
           if (c.category !== 'garage_oss') {
-            policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+            policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
             if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
               const loc = Store.getLocation(c.policeLocationId);
               if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
@@ -4393,7 +4393,7 @@ ${detailPagesHTML}
         const orderNo = c.orderNo || c.caseNo || '-';
         const applicant = c.carName || c.applicantName || c.title || '-';
         
-        let policeName = (c.carPolice || '').replace(/警察署?/, '').trim();
+        let policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
         if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
           const loc = Store.getLocation(c.policeLocationId);
           if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
@@ -4742,7 +4742,7 @@ ${fusoDetailPagesHTML}
 
     const formatPoliceName = (c) => {
       if (c.policeName) return c.policeName;
-      let p = (c.carPolice || '').replace(/警察署?/, '').trim();
+      let p = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
       if (!p && c.policeLocationId && typeof Store !== 'undefined') {
         const loc = Store.getLocation(c.policeLocationId);
         if (loc) p = (loc.name || '').replace(/警察署?/, '').trim();
@@ -6209,7 +6209,7 @@ window.NissanPrint = {
 
         let policeName = '';
         if (c.category !== 'garage_oss') {
-          policeName = (c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+          policeName = LocationMaster.canonicalName(c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
           if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
             const loc = Store.getLocation(c.policeLocationId);
             if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
@@ -6932,7 +6932,7 @@ window.NissanPrint = {
       }
       const orderNo = c.orderNo || c.caseNo || '-';
       const applicant = c.carName || c.applicantName || c.title || '-';
-      const police = (c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+      const police = LocationMaster.canonicalName(c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
       const fee = Number(c.fee || 0);
       const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
       const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => `${a.label||a.category||'実費'}:${Number(a.amount).toLocaleString()}`).join(' ');

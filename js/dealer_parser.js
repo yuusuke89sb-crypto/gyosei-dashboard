@@ -252,7 +252,8 @@ const DealerDocumentParser = {
     // ─── 9.5 所轄警察署の抽出 ───
     const policeMatch = cleanText.match(/([^\s\n\r:：]{2,8}警察署)/);
     if (policeMatch) {
-      result.carPolice = policeMatch[1].trim();
+      // 正式名称に統一（例：名古屋西警察署→西警察署、岐阜羽島警察署→羽島警察署）
+      result.carPolice = (typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(policeMatch[1]) : policeMatch[1].trim();
     }
 
     // ─── 10. 顧客マスターとの自動照合 ───

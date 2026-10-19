@@ -635,7 +635,10 @@ const CaseTemplates = {
         // ユーザーが手動削除した場所または除外対象は再追加しない
         if (deletedList.includes(cleanName)) return;
 
-        const existing = locations.find(l => l && l.name && typeof l.name === 'string' && l.name.replace(/\s+/g, '') === cleanName);
+        // 正式名称で照合（「名古屋西警察署」→「西警察署」など別名も同一とみなす）
+        const canon = (typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(name) : cleanName;
+        const existing = locations.find(l => l && l.name && typeof l.name === 'string' &&
+          ((typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(l.name) === canon : l.name.replace(/\s+/g, '') === cleanName));
         if (existing) {
           // スプレッドシートやユーザー手動修正の単価を最優先として保持（未設定・不正値の場合のみ初期値を補完）
           if (existing.syakoFee === undefined || existing.syakoFee === null || existing.syakoFee === '' || isNaN(Number(existing.syakoFee)) || Number(existing.syakoFee) <= 0) {
@@ -644,20 +647,12 @@ const CaseTemplates = {
           }
           if (!existing.address && info.address) { existing.address = info.address; updated++; }
           if (!existing.memo && info.memo) { existing.memo = info.memo; updated++; }
-        } else {
-          // 新規登録
-          locations.push({
-            id: 'LOC-' + String(locations.length + 1).padStart(4, '0'),
-            name: name,
-            address: info.address || '',
-            memo: info.memo || '',
-            syakoFee: info.fee,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-          added++;
         }
+        // ★2026-10-19: 端末ごとに場所を新規作成するのを廃止。
+        //   以前は 'LOC-' + (端末内の件数+1) でIDを作っていたため、端末ごとに同じIDが別の警察署を指し、
+        //   別端末で警察署が入れ替わる原因になっていた。警察署の追加はスプレッドシート（場所マスタ）で行う。
       });
+
 
       if (updated > 0 || added > 0) {
         Store._set(Store.KEYS.LOCATIONS, locations);

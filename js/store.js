@@ -680,9 +680,19 @@ const Store = {
 
   addLocation(data) {
     const locations = this.getLocations();
+    // ★正式名称に統一（例：小牧自動車検査登録事務所→小牧陸事、名古屋西警察署→西警察署）
+    const canonName = (typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(data.name || '') : (data.name || '');
+    // ★同じ場所（別名を含む）が既にあれば新規作成せず既存を返す（端末ごとの重複登録を防止）
+    if (canonName && typeof LocationMaster !== 'undefined') {
+      const dup = LocationMaster.findByName(canonName, locations);
+      if (dup) {
+        if (typeof App !== 'undefined' && App.showToast) App.showToast(`「${dup.name}」は既に登録済みのため、既存の場所を使用します`);
+        return dup;
+      }
+    }
     const location = {
       id: data.id || this._generateId(),
-      name: data.name || '',
+      name: canonName,
       address: data.address || '',
       memo: data.memo || '',
       syakoFee: (data.syakoFee !== undefined && data.syakoFee !== '' && data.syakoFee !== null) ? Number(data.syakoFee) : null,
@@ -702,6 +712,9 @@ const Store = {
     const locations = this.getLocations();
     const idx = locations.findIndex(l => l.id === id);
     if (idx === -1) return null;
+    if (data && data.name && typeof LocationMaster !== 'undefined') {
+      data = { ...data, name: LocationMaster.canonicalName(data.name) };
+    }
     const syakoFee = (data.syakoFee !== undefined && data.syakoFee !== '' && data.syakoFee !== null)
       ? Number(data.syakoFee)
       : (data.syakoFee === '' ? null : (locations[idx].syakoFee !== undefined ? locations[idx].syakoFee : null));

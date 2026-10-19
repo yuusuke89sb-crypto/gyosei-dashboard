@@ -169,10 +169,21 @@ const SpreadsheetSync = {
                     });
                 });
 
-                // ローカルにしか存在しない場所があれば残す
+                // ローカルにしか存在しない場所の扱い（2026-10-19 変更）
+                // 以前は無条件に残していたため、端末ごとに作られた古い場所（LOC-0047 等）や削除済みの場所が
+                // 復活・増殖していた。スプレッドシートを正とし、作成直後（送信待ち）の場所だけを残して再送する。
+                var canonOf = function(n) { return (typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(n || '') : (n || '').replace(/\s+/g, ''); };
+                var remoteNames = {};
+                mergedLocations.forEach(function(m) { remoteNames[canonOf(m.name)] = true; });
+                var RECENT_MS = 15 * 60 * 1000;
                 localLocations.forEach(function(localLoc) {
-                    if (localLoc && localLoc.id && !mergedLocations.some(function(m) { return m.id === localLoc.id; })) {
+                    if (!localLoc || !localLoc.id) return;
+                    if (mergedLocations.some(function(m) { return m.id === localLoc.id; })) return;
+                    var created = Date.parse(localLoc.createdAt || '') || 0;
+                    var isRecent = created && (Date.now() - created) < RECENT_MS;
+                    if (isRecent && !remoteNames[canonOf(localLoc.name)]) {
                         mergedLocations.push(localLoc);
+                        SpreadsheetSync.push('upsertLocation', localLoc).catch(function(){});
                     }
                 });
 

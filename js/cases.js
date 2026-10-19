@@ -2157,14 +2157,11 @@ const Cases = {
         if (catEl) catEl.value = prefills.category;
       }
       if (prefills.carPolice) {
-        const polEl = document.getElementById('csf_carPolice');
-        if (polEl) polEl.value = prefills.carPolice;
-        // 警察署マスタに一致するものがあれば自動選択＆車庫一般なら単価連動
+        this._setCarPoliceSelect(prefills.carPolice);
+        // 警察署マスタに一致するもの（正式名称の完全一致）があれば自動選択＆車庫一般なら単価連動
         const polLocSelect = document.getElementById('csf_policeLocationId');
-        if (polLocSelect && !polLocSelect.value && typeof Store !== 'undefined') {
-          const locs = Store.getLocations();
-          const pName = prefills.carPolice.replace(/\s+/g, '');
-          const matched = locs.find(l => pName.includes(l.name.replace('警察署', '')) || l.name.includes(pName));
+        if (polLocSelect && !polLocSelect.value && typeof LocationMaster !== 'undefined') {
+          const matched = LocationMaster.findByName(prefills.carPolice);
           if (matched) {
             polLocSelect.value = matched.id;
             this.onPoliceLocationChange(matched.id);
@@ -2339,14 +2336,10 @@ const Cases = {
       if (deadlineEl) deadlineEl.value = c.deadline || '';
       document.getElementById('csf_driveFolderUrl').value = c.driveFolderUrl || '';
       // 警察署の特定（ID未指定なら所轄警察署テキストまたは住所から自動マッチ）
+      // ★正式名称の完全一致のみ（部分一致だと「中川警察署」→「中警察署」等に化けていた）
       let resolvedPolId = c.policeLocationId || '';
-      if (!resolvedPolId && c.carPolice && typeof Store !== 'undefined') {
-        const locs = Store.getLocations();
-        const pClean = c.carPolice.replace(/\s+/g, '');
-        const matched = locs.find(l => {
-          const lClean = l.name.replace(/\s+/g, '');
-          return pClean.includes(lClean.replace('警察署', '')) || lClean.includes(pClean.replace('警察署', ''));
-        });
+      if (!resolvedPolId && c.carPolice && typeof LocationMaster !== 'undefined') {
+        const matched = LocationMaster.findByName(c.carPolice);
         if (matched) resolvedPolId = matched.id;
       }
       if (!resolvedPolId && (c.parkingAddress || c.carAddress)) {
@@ -2406,7 +2399,8 @@ const Cases = {
       if (oldCarNumEl) oldCarNumEl.value = c.oldCarNumber || '';
       const vinEl = document.getElementById('csf_vin');
       if (vinEl) vinEl.value = c.vin || '';
-      document.getElementById('csf_carPolice').value = c.carPolice || '';
+      // ★選択肢に無い表記（旧表記・未登録署）でも空欄にせず、正式名称で保持する
+      this._setCarPoliceSelect(c.carPolice || '');
       document.getElementById('caseDeleteBtn').style.display = 'block';
       modal.style.display = 'flex';
       // 立替金を読み込み
@@ -2584,7 +2578,7 @@ const Cases = {
       carNumber: form.carNumber ? form.carNumber.value.trim() : '',
       oldCarNumber: form.oldCarNumber ? form.oldCarNumber.value.trim() : '',
       vin: form.vin ? form.vin.value.trim() : '',
-      carPolice: form.carPolice ? form.carPolice.value.trim() : '',
+      carPolice: form.carPolice ? ((typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(form.carPolice.value) : form.carPolice.value.trim()) : '',
       isUsedCar: !!(form.isUsedCar && form.isUsedCar.checked),
       faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',
       inboxId: document.getElementById('csf_inboxId') ? document.getElementById('csf_inboxId').value : '',
@@ -3131,6 +3125,9 @@ const Cases = {
 
   // 住所文字列から警察署マスタを自動検出
   autoDetectPoliceFromAddress(address) {
+    // ★2026-10-19: 市区町村の完全一致＋正式名称の完全一致で判定（LocationMaster）。
+    //   マスタに該当署が無い・複数署の管轄地域などは null を返し、別の署で代用しない。
+    if (typeof LocationMaster !== 'undefined') return LocationMaster.findPoliceByAddress(address);
     if (!address || typeof address !== 'string') return null;
     const cleanAddr = address.replace(/\s+/g, '').trim();
     if (!cleanAddr || cleanAddr === '同上' || cleanAddr === '別紙' || cleanAddr === '-') return null;
@@ -3285,29 +3282,32 @@ const Cases = {
     if (matchedLoc) {
       const polLocSelect = document.getElementById('csf_policeLocationId');
       if (polLocSelect) {
-        // ID一致、または名前一致で安全にoptionを選択（ID不整合による誤選択を完全防止）
-        let targetOpt = Array.from(polLocSelect.options).find(o => o.value === matchedLoc.id);
-        if (!targetOpt) {
-          const pureMatchName = matchedLoc.name.replace(/\s+/g, '').replace('警察署', '');
-          targetOpt = Array.from(polLocSelect.options).find(o => {
-            const pureText = o.text.replace(/\s+/g, '').replace(/（.*）|\(.*\)/, '');
-            return pureText.includes(pureMatchName) || pureMatchName.includes(pureText.replace('警察署', ''));
-          });
-        }
+        // ★IDの完全一致のみで選択（名前の部分一致による誤選択を防止）
+        const targetOpt = Array.from(polLocSelect.options).find(o => o.value === matchedLoc.id);
         if (targetOpt && polLocSelect.value !== targetOpt.value) {
           polLocSelect.value = targetOpt.value;
           this.onPoliceLocationChange(targetOpt.value);
         }
       }
-      const carPoliceSelect = document.getElementById('csf_carPolice');
-      if (carPoliceSelect) {
-        const pureName = matchedLoc.name.replace('警察署', '');
-        const matchedOpt = Array.from(carPoliceSelect.options).find(o => o.value === matchedLoc.name || (pureName && o.value.includes(pureName)));
-        if (matchedOpt) {
-          carPoliceSelect.value = matchedOpt.value;
-        }
-      }
+      this._setCarPoliceSelect(matchedLoc.name);
     }
+  },
+
+  // 所轄警察署セレクトに正式名称で値をセット（選択肢に無ければ追加して保持＝保存時に消えないように）
+  _setCarPoliceSelect(name) {
+    const sel = document.getElementById('csf_carPolice');
+    if (!sel) return;
+    const canon = (typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(name || '') : (name || '');
+    if (!canon) { sel.value = ''; return; }
+    if (!canon.endsWith('警察署')) return; // 陸事などは所轄警察署欄に入れない
+    let opt = Array.from(sel.options).find(o => o.value === canon);
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = canon;
+      opt.textContent = canon;
+      sel.appendChild(opt);
+    }
+    sel.value = canon;
   },
 
   // 現在選択中の顧客が「愛知トヨタ」系列かどうかを判定するヘルパー
@@ -3381,20 +3381,15 @@ const Cases = {
   // 所轄警察署（csf_carPolice）セレクトボックス変更時ハンドラ
   onCarPoliceChange(policeName) {
     if (!policeName || typeof Store === 'undefined') return;
-    const locations = Store.getLocations() || [];
-    const pClean = policeName.replace(/\s+/g, '').replace('警察署', '');
-    const matched = locations.find(l => l && l.name && (l.name.replace(/\s+/g, '').replace('警察署', '') === pClean || l.name.includes(pClean)));
+    // ★正式名称の完全一致のみ（「西枇杷島」→「西」等の誤一致を防止）
+    const matched = (typeof LocationMaster !== 'undefined') ? LocationMaster.findByName(policeName) : null;
     if (matched) {
       const polLocSelect = document.getElementById('csf_policeLocationId');
       if (polLocSelect) {
-        let targetOpt = Array.from(polLocSelect.options).find(o => o.value === matched.id);
-        if (!targetOpt) {
-          targetOpt = Array.from(polLocSelect.options).find(o => o.text.includes(matched.name));
-        }
-        const targetVal = targetOpt ? targetOpt.value : matched.id;
-        if (polLocSelect.value !== targetVal) {
-          polLocSelect.value = targetVal;
-          this.onPoliceLocationChange(targetVal);
+        const targetOpt = Array.from(polLocSelect.options).find(o => o.value === matched.id);
+        if (targetOpt && polLocSelect.value !== targetOpt.value) {
+          polLocSelect.value = targetOpt.value;
+          this.onPoliceLocationChange(targetOpt.value);
         }
       }
     }
@@ -3405,17 +3400,10 @@ const Cases = {
     const catEl = document.getElementById('csf_category');
     const cat = catEl ? catEl.value : '';
 
-    // 所轄警察署セレクト（csf_carPolice）も連動
+    // 所轄警察署セレクト（csf_carPolice）も連動（警察署を選んだ場合のみ。陸事などは連動しない）
     const loc = (locationId && typeof Store !== 'undefined') ? Store.getLocation(locationId) : null;
-    if (loc && loc.name) {
-      const carPoliceSelect = document.getElementById('csf_carPolice');
-      if (carPoliceSelect) {
-        const pureName = loc.name.replace('警察署', '');
-        const matchedOpt = Array.from(carPoliceSelect.options).find(o => o.value === loc.name || (pureName && o.value.includes(pureName)));
-        if (matchedOpt) {
-          carPoliceSelect.value = matchedOpt.value;
-        }
-      }
+    if (loc && loc.name && /警察署$/.test(loc.name)) {
+      this._setCarPoliceSelect(loc.name);
     }
 
     if (cat === 'garage_paper') {
