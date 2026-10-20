@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>航空写真 計測プロトタイプ｜車庫証明 配置図（行政書士法人フェリス）</title>
+<meta name="description" content="航空写真をクリックして道路幅員・出入口幅・辺の長さを自動計算する車庫証明配置図用の計測プロトタイプ">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Inter:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: rgba(22, 28, 42, 0.92);
+    --panel-2: #1b2234;
+    --line: rgba(255,255,255,0.08);
+    --text: #e8ecf5;
+    --muted: #8d97ad;
+    --accent: hsl(196, 90%, 56%);
+    --accent-2: hsl(268, 80%, 66%);
+    --width: hsl(45, 100%, 58%);
+    --entrance: hsl(150, 70%, 52%);
+    --dist: hsl(196, 90%, 60%);
+    --calib: hsl(330, 85%, 65%);
+    --road: hsl(22, 95%, 60%);
+    --bldg: hsl(268, 85%, 74%);
+    --spot: hsl(0, 85%, 64%);
+    --danger: hsl(0, 80%, 62%);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+  .app { display: grid; grid-template-columns: 340px 1fr; height: 100vh; }
+
+  /* ---------- サイドパネル ---------- */
+  aside { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column;
+    overflow: hidden; backdrop-filter: blur(12px); }
+  .brand { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+  .brand h1 { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: .02em;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .brand p { margin: 4px 0 0; font-size: .74rem; color: var(--muted); }
+  .section { padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  .section h2 { margin: 0 0 10px; font-size: .78rem; color: var(--muted); font-weight: 500; letter-spacing: .08em; }
+  .search { display: flex; gap: 8px; }
+  input[type=text], input[type=number] { flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 10px; padding: 9px 11px; font-size: .88rem; font-family: inherit; outline: none; transition: border-color .2s, box-shadow .2s; }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px hsla(196, 90%, 56%, .18); }
+  button { font-family: inherit; cursor: pointer; border: none; }
+  .btn { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-weight: 700;
+    border-radius: 10px; padding: 9px 14px; font-size: .85rem; transition: transform .15s, filter .2s; }
+  .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn-ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+    padding: 7px 11px; font-size: .8rem; transition: background .2s; }
+  .btn-ghost:hover { background: #253048; }
+
+  .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tool { background: var(--panel-2); border: 1px solid var(--line); color: var(--text); border-radius: 12px;
+    padding: 11px 10px; text-align: left; transition: all .2s; position: relative; overflow: hidden; }
+  .tool .t-name { font-weight: 700; font-size: .88rem; display: flex; align-items: center; gap: 7px; }
+  .tool .t-desc { font-size: .68rem; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+  .tool .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .tool:hover { border-color: rgba(255,255,255,.22); transform: translateY(-1px); }
+  .tool.active { border-color: var(--c); box-shadow: 0 0 0 2px var(--c) inset, 0 8px 24px -10px var(--c); }
+  .tool[data-tool=width] { --c: var(--width); }
+  .tool[data-tool=entrance] { --c: var(--entrance); }
+  .tool[data-tool=dist] { --c: var(--dist); }
+  .tool[data-tool=calib] { --c: var(--calib); }
+  .tool[data-tool=road] { --c: var(--road); }
+  .tool[data-tool=building] { --c: var(--bldg); }
+  .snap-toggle { display: flex; align-items: center; gap: 7px; font-size: .76rem; color: var(--muted); margin-top: 10px; cursor: pointer; }
+  .snap-toggle input { accent-color: var(--accent); }
+  .m-tip.road { border-color: var(--road); color: var(--road); }
+  .m-tip.building, .m-tip.edge { border-color: var(--bldg); color: var(--bldg); font-size: 11px; padding: 1px 6px; }
+  .hint .finish { margin-top: 6px; }
+  .tool[data-tool=spot] { --c: var(--spot); }
+  path.hatch { fill: url(#hatchPat) !important; }
+  .m-tip.spot { border-color: var(--spot); color: #ffb3b3; font-size: 12px; }
+  .m-tip.name { background: rgba(255,255,255,.92); color: #111; border-color: #fff; font-size: 13px; text-align: center; line-height: 1.35; }
+  .m-tip.spotname { border-color: var(--spot); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .chip { background: #253048; color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: .8rem; transition: all .15s; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .form-grid { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px 10px; align-items: center; font-size: .84rem; }
+  .form-grid .raw { font-size: .7rem; color: var(--muted); white-space: nowrap; }
+  .topbar .sep { width: 1px; background: var(--line); margin: 2px 2px; }
+  .topbar .angle { min-width: 46px; text-align: center; align-self: center; font-weight: 700; font-size: .85rem; color: var(--accent); }
+  .compass { position: absolute; top: 70px; right: 18px; z-index: 800; cursor: move; user-select: none; touch-action: none;
+    filter: drop-shadow(0 6px 14px rgba(0,0,0,.45)); }
+  .compass:hover { outline: 1.5px dashed rgba(255,255,255,.6); outline-offset: 4px; border-radius: 8px; }
+  .compass-ctrl { position: absolute; left: 50%; bottom: -30px; transform: translateX(-50%); display: flex; gap: 4px; opacity: 0; transition: opacity .2s; }
+  .compass:hover .compass-ctrl { opacity: 1; }
+  .compass-ctrl button { width: 26px; height: 24px; border-radius: 7px; background: #111827; color: #fff; border: 1px solid rgba(255,255,255,.3); font-weight: 700; }
+  .compass-ctrl button:hover { border-color: var(--accent); color: var(--accent); }
+  #compassRose { transition: transform .25s ease; overflow: visible; display: block; }
+  .size-chips { display: flex; gap: 6px; align-items: center; margin: 4px 0 12px; font-size: .78rem; color: var(--muted); }
+  .size-chip { background: #253048; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+  .size-chip.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 2px hsla(196,90%,56%,.2); }
+  /* 寸法ラベル・名称ラベル（ドラッグ可能） */
+  .dim-label-wrap { background: none; border: none; }
+  .dim-label { position: absolute; white-space: nowrap; font: 700 13px 'Inter','Noto Sans JP',sans-serif; line-height: 1.2; text-align: center;
+    background: rgba(10,14,22,.85); border: 1px solid; border-radius: 6px; padding: 2px 6px; cursor: move; }
+  .dim-label .vt { writing-mode: vertical-rl; text-orientation: upright; letter-spacing: .08em; margin: 0 auto 2px; display: inline-block; }
+  .dim-label.clean { background: transparent; border: none; color: #111; font-weight: 500; font-size: 15px; padding: 0 2px;
+    text-shadow: 0 0 2px #fff, 0 0 2px #fff; }
+  .name-label { position: absolute; transform: translate(-50%,-50%); white-space: nowrap; font-weight: 700; color: #111;
+    background: rgba(255,255,255,.92); border-radius: 8px; padding: 2px 10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: move; }
+  .name-label.clean { background: transparent; box-shadow: none; font-weight: 500; letter-spacing: .6em; padding-left: calc(10px + .6em); }
+  .m-tip.clean { background: transparent; border: none; box-shadow: none; color: #111; font-weight: 500; }
+  path.hatch-clean { fill: url(#hatchPatClean) !important; }
+  main.clean #map { background: #fff; }
+  main.clean .leaflet-container { cursor: default; }
+  .topbar .btn-ghost.on#cleanBtn { background: #fff; color: #111; border-color: #fff; }
+
+  .hint { margin-top: 10px; font-size: .78rem; background: rgba(255,255,255,.04); border: 1px dashed var(--line);
+    border-radius: 10px; padding: 9px 11px; color: #cfd6e6; line-height: 1.5; min-height: 42px; }
+  .hint b { color: var(--accent); }
+
+  .layers { display: flex; gap: 6px; flex-wrap: wrap; }
+  .layer-btn { flex: 1; }
+  .layer-btn.active { border-color: var(--accent); color: var(--accent); }
+  .meta { font-size: .72rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  .calib-badge { display: inline-flex; align-items: center; gap: 6px; font-size: .74rem; padding: 4px 9px; border-radius: 999px;
+    background: hsla(330, 85%, 65%, .14); color: var(--calib); margin-top: 8px; }
+
+  .list { flex: 1; overflow-y: auto; padding: 10px 14px 16px; }
+  .list-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 8px; }
+  .list-head h2 { margin: 0; font-size: .78rem; color: var(--muted); font-weight: 500; letter-spacing: .08em; }
+  .m-item { display: grid; grid-template-columns: 6px 1fr auto; gap: 10px; align-items: center; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px 10px 10px 0; margin-bottom: 8px; animation: pop .25s ease;
+    transition: border-color .2s; }
+  .m-item:hover { border-color: rgba(255,255,255,.2); }
+  .m-item .bar { height: 100%; border-radius: 0 4px 4px 0; background: var(--c); }
+  .m-item .m-label { font-size: .74rem; color: var(--muted); }
+  .m-item .m-val { font-family: 'Inter'; font-size: 1.15rem; font-weight: 700; }
+  .m-item .m-sub { font-size: .66rem; color: var(--muted); }
+  .m-item .m-val input { width: 70px; padding: 3px 6px; font-size: .95rem; }
+  .m-actions { display: flex; flex-direction: column; gap: 4px; }
+  .icon-btn { background: transparent; color: var(--muted); font-size: .9rem; padding: 3px 6px; border-radius: 6px; }
+  .icon-btn:hover { background: rgba(255,255,255,.08); color: var(--text); }
+  .empty { text-align: center; color: var(--muted); font-size: .8rem; padding: 26px 10px; line-height: 1.7; }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+
+  /* ---------- 地図 ---------- */
+  main { position: relative; }
+  #map { position: absolute; inset: 0; background: #0b0f18; }
+  .leaflet-container { cursor: crosshair; font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+  .leaflet-container.select-mode { cursor: grab; }
+  .m-tip { background: rgba(10, 14, 22, .88); color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 8px;
+    font-weight: 700; font-size: 13px; padding: 3px 8px; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+  .m-tip::before { display: none; }
+  .m-tip.width { border-color: var(--width); color: var(--width); }
+  .m-tip.entrance { border-color: var(--entrance); color: var(--entrance); }
+  .m-tip.dist { border-color: var(--dist); color: var(--dist); }
+  .m-tip.calib { border-color: var(--calib); color: var(--calib); }
+  .m-tip.live { opacity: .9; font-weight: 500; }
+
+  /* 拡大鏡 */
+  .loupe-wrap { position: absolute; right: 18px; bottom: 18px; width: 230px; height: 230px; border-radius: 50%;
+    overflow: hidden; border: 3px solid rgba(255,255,255,.85); box-shadow: 0 12px 40px rgba(0,0,0,.55); z-index: 800;
+    pointer-events: none; transition: opacity .2s; }
+  #loupe { width: 100%; height: 100%; }
+  .loupe-wrap::after, .loupe-wrap::before { content: ''; position: absolute; background: var(--danger); z-index: 900; }
+  .loupe-wrap::after { left: 50%; top: 30%; bottom: 30%; width: 1.5px; transform: translateX(-50%); }
+  .loupe-wrap::before { top: 50%; left: 30%; right: 30%; height: 1.5px; transform: translateY(-50%); }
+  .loupe-label { position: absolute; right: 18px; bottom: 254px; z-index: 800; font-size: .7rem; color: #fff;
+    background: rgba(0,0,0,.55); padding: 3px 9px; border-radius: 999px; }
+  .loupe-off .loupe-wrap, .loupe-off .loupe-label { opacity: 0; }
+
+  .topbar { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 800; display: flex; gap: 8px;
+    background: var(--panel); border: 1px solid var(--line); padding: 6px; border-radius: 14px; backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .topbar .btn-ghost.on { border-color: var(--accent); color: var(--accent); }
+
+  .toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%) translateY(-10px); z-index: 900; background: #111827;
+    border: 1px solid var(--line); padding: 10px 16px; border-radius: 12px; font-size: .84rem; opacity: 0; transition: all .3s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* 校正モーダル */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 2000; display: none; align-items: center; justify-content: center; }
+  .modal-bg.show { display: flex; }
+  .modal { background: var(--panel-2); border: 1px solid var(--line); border-radius: 16px; padding: 22px; width: 360px; animation: pop .2s ease; }
+  .modal h3 { margin: 0 0 6px; font-size: 1rem; }
+  .modal p { margin: 0 0 14px; font-size: .8rem; color: var(--muted); line-height: 1.6; }
+  .modal .row { display: flex; gap: 8px; align-items: center; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .spot-handle { position: absolute; width: 26px; height: 26px; transform: translate(-50%,-50%); border-radius: 50%;
+    background: #fff; border: 2px solid #1e293b; color: #1e293b; font: 700 15px/22px sans-serif; text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,.45); user-select: none; transition: transform .12s ease; }
+  .spot-handle:hover { transform: translate(-50%,-50%) scale(1.15); }
+  .spot-handle.move { cursor: move; }
+  .spot-handle.rot { cursor: grab; background: #fde68a; }
+  /* ---------- 印刷イメージ（A4横・配置図記載欄） ---------- */
+  #sheet, #mapWrap { position: absolute; inset: 0; }
+  .sheet-title, .print-bar { display: none; }
+  body.pmode .app { grid-template-columns: 1fr; }
+  body.pmode aside, body.pmode .topbar, body.pmode .loupe-wrap, body.pmode .loupe-label { display: none !important; }
+  body.pmode main { background: radial-gradient(circle at 50% 0%, #3a4560, #1a2030 70%); overflow: auto; }
+  body.pmode #sheet { position: relative; inset: auto; width: 297mm; height: 209mm; margin: 72px auto 40px; padding: 8mm 6.5mm;
+    background: #fff; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.55); animation: pop .25s ease; }
+  body.pmode .sheet-title { display: block; border: 1.5px solid #111; border-bottom: none; text-align: center; color: #111;
+    font: 500 13px 'Noto Sans JP', sans-serif; padding: 4px 0; }
+  body.pmode #mapWrap { position: relative; inset: auto; flex: none; height: 145mm; border: 1.5px solid #111; overflow: hidden; }
+  body.pmode #map { background: #fff; }
+  body.pmode .leaflet-control-attribution { display: none; }
+  body.pmode .compass:hover { outline-color: rgba(0,0,0,.35); }
+  body.pmode .print-bar { display: flex; position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1000;
+    gap: 8px; align-items: center; background: rgba(17,24,39,.92); border: 1px solid var(--line); border-radius: 14px;
+    padding: 8px 10px; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .pb-hint { font-size: .74rem; color: var(--muted); padding: 0 6px; white-space: nowrap; }
+  @page { size: A4 landscape; margin: 0; }
+  @media print {
+    html, body, .app { height: auto !important; background: #fff !important; }
+    body.pmode main { background: none !important; overflow: visible !important; }
+    body.pmode #sheet { margin: 0 !important; box-shadow: none !important; animation: none !important; }
+    .print-bar, .toast, .compass-ctrl, .spot-handle, .leaflet-control-container { display: none !important; }
+    .compass:hover { outline: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">
+      <h1>航空写真 計測プロトタイプ</h1>
+      <p>車庫証明 配置図用｜クリックで幅員・出入口幅を自動計算</p>
+    </div>
+
+    <div class="section">
+      <h2>① 住所</h2>
+      <div class="search">
+        <input type="text" id="addrInput" value="愛知県小牧市藤島町中島44" placeholder="例：小牧市藤島町中島44番">
+        <button class="btn" id="searchBtn">表示</button>
+      </div>
+      <div class="meta" id="geoMeta">住所を入れて「表示」を押してください</div>
+    </div>
+
+    <div class="section">
+      <h2>② なぞる</h2>
+      <div class="tools">
+        <button class="tool" data-tool="road" id="tool-road">
+          <div class="t-name"><span class="dot" style="background:var(--road)"></span>道路の線</div>
+          <div class="t-desc">道路の端を順にクリック → ダブルクリックで確定</div>
+        </button>
+        <button class="tool" data-tool="building" id="tool-building">
+          <div class="t-name"><span class="dot" style="background:var(--bldg)"></span>建物・敷地</div>
+          <div class="t-desc">角を順にクリック → 始点クリックで閉じて名称を入力</div>
+        </button>
+        <button class="tool" data-tool="spot" id="tool-spot" style="grid-column: span 2;">
+          <div class="t-name"><span class="dot" style="background:var(--spot)"></span>保管場所（車の置き場所）</div>
+          <div class="t-desc">角 → 同じ辺の角 → 奥行きの3クリックで斜線の枠。縦・横・高さを表示</div>
+        </button>
+      </div>
+      <h2 style="margin-top:14px">③ 測る</h2>
+      <div class="tools">
+        <button class="tool" data-tool="width" id="tool-width">
+          <div class="t-name"><span class="dot" style="background:var(--width)"></span>道路幅員</div>
+          <div class="t-desc">端 → 反対側の端（道路の線に吸着・直角補正）</div>
+        </button>
+        <button class="tool" data-tool="entrance" id="tool-entrance">
+          <div class="t-name"><span class="dot" style="background:var(--entrance)"></span>出入口幅</div>
+          <div class="t-desc">出入口の始まり → 終わり</div>
+        </button>
+        <button class="tool" data-tool="dist" id="tool-dist">
+          <div class="t-name"><span class="dot" style="background:var(--dist)"></span>長さ</div>
+          <div class="t-desc">2点間（奥行・距離など）</div>
+        </button>
+        <button class="tool" data-tool="calib" id="tool-calib">
+          <div class="t-name"><span class="dot" style="background:var(--calib)"></span>縮尺補正</div>
+          <div class="t-desc">長さが分かる物をなぞって実寸を入力</div>
+        </button>
+      </div>
+      <label class="snap-toggle"><input type="checkbox" id="snapChk" checked> 吸着（角・線にピタッと合わせる）</label>
+      <div class="hint" id="hint">ツールを選んでください。<br><b>Esc</b>：やり直し　<b>Backspace</b>：1点戻す</div>
+      <div id="calibBadgeWrap"></div>
+    </div>
+
+    <div class="section">
+      <h2>航空写真</h2>
+      <div class="layers">
+        <button class="btn-ghost layer-btn active" data-layer="gsi" id="layer-gsi">国土地理院</button>
+        <button class="btn-ghost layer-btn" data-layer="esri" id="layer-esri">Esri</button>
+        <button class="btn-ghost layer-btn" data-layer="std" id="layer-std">地図</button>
+      </div>
+      <div class="meta" id="resMeta"></div>
+    </div>
+
+    <div class="list">
+      <div class="list-head">
+        <h2>計測結果</h2>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-ghost" id="copyBtn" title="計測結果をコピー">📋 コピー</button>
+          <button class="btn-ghost" id="clearBtn" title="全て消去">🗑️</button>
+        </div>
+      </div>
+      <div id="mList"></div>
+    </div>
+  </aside>
+
+  <main id="mainArea">
+    <div id="sheet">
+    <div class="sheet-title">配　置　図　記　載　欄</div>
+    <div id="mapWrap">
+    <div id="map"></div>
+    <div class="topbar">
+      <button class="btn-ghost on" id="loupeToggle">🔍 拡大鏡</button>
+      <button class="btn-ghost" id="handBtn">✋ 移動のみ</button>
+      <button class="btn-ghost" id="cleanBtn" title="写真を消して提出用の白黒図面で確認">✏️ 清書プレビュー</button>
+      <button class="btn-ghost" id="printBtn" title="A4横の印刷イメージを確認して印刷">📄 印刷イメージ</button>
+      <span class="sep"></span>
+      <button class="btn-ghost" id="rotL5" title="左に5°回転">⟲ 5°</button>
+      <button class="btn-ghost" id="rotL1" title="左に1°回転">⟲ 1°</button>
+      <span class="angle" id="angleVal">0°</span>
+      <button class="btn-ghost" id="rotR1" title="右に1°回転">1° ⟳</button>
+      <button class="btn-ghost" id="rotR5" title="右に5°回転">5° ⟳</button>
+      <button class="btn-ghost" id="rotAlign" title="なぞった道路が水平になるよう回転">📐 道路を水平に</button>
+      <button class="btn-ghost" id="rotReset" title="北を上に戻す">↑ 北を上に</button>
+    </div>
+    <div class="compass" id="compassBox" title="ドラッグで移動／ホイールまたは＋－で大きさ調整">
+      <svg id="compassRose" viewBox="0 0 100 100" width="78" height="78">
+        <circle cx="50" cy="50" r="30" fill="rgba(255,255,255,.92)" stroke="#111" stroke-width="2.5"/>
+        <polygon points="50,12 60,50 50,44 40,50" fill="#111"/>
+        <polygon points="50,88 60,50 50,56 40,50" fill="#fff" stroke="#111" stroke-width="2"/>
+        <text x="50" y="10" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" stroke="#111" stroke-width="3" paint-order="stroke">N</text>
+      </svg>
+      <div class="compass-ctrl"><button id="compassMinus" title="小さく">－</button><button id="compassPlus" title="大きく">＋</button></div>
+    </div>
+    </div><!-- /mapWrap -->
+    </div><!-- /sheet -->
+    <div class="print-bar">
+      <button class="btn-ghost" id="printBack">← 編集に戻る</button>
+      <button class="btn-ghost" id="printFit">⤢ 枠に合わせる</button>
+      <span class="pb-hint">地図のドラッグ・ホイールで図の位置と大きさを調整できます（文字・寸法・方位もドラッグ可）</span>
+      <button class="btn-ghost" id="printSend" title="既存の配置図作成ツールの「配置図記載欄」へこの図を送ります">📤 配置図様式へ送る</button>
+      <button class="btn" id="printGo">🖨️ 印刷する</button>
+    </div>
+    <div class="loupe-label">拡大鏡（×4）</div>
+    <div class="loupe-wrap"><div id="loupe"></div></div>
+    <div class="toast" id="toast"></div>
+  </main>
+</div>
+
+<div class="modal-bg" id="nameModal">
+  <div class="modal">
+    <h3>名称を入力</h3>
+    <p>配置図に表示する文字です（空欄なら表示しません）。</p>
+    <div class="chips">
+      <button class="chip">自宅</button><button class="chip">申請者宅</button><button class="chip">敷地</button>
+      <button class="chip">駐車場</button><button class="chip">倉庫</button><button class="chip">事務所</button>
+      <button class="chip">隣地</button><button class="chip">隣家</button><button class="chip">アパート</button>
+    </div>
+    <div class="row"><input type="text" id="nameInput" placeholder="自由入力（例：申請者宅）"></div>
+    <div class="size-chips" style="margin-top:12px">文字サイズ
+      <button class="size-chip" data-fs="11">小</button><button class="size-chip" data-fs="14">中</button>
+      <button class="size-chip" data-fs="18">大</button><button class="size-chip" data-fs="24">特大</button><button class="size-chip" data-fs="32">最大</button>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" id="nameCancel">キャンセル</button>
+      <button class="btn" id="nameOk">決定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="spotModal">
+  <div class="modal">
+    <h3>保管場所の寸法</h3>
+    <p>写真から計算した値が入っています。実測値があれば書き換えてください。<br>高さは写真では測れないため、制限がある場合のみ入力してください。</p>
+    <div class="form-grid">
+      <label for="spotTate">縦</label><input type="number" id="spotTate" step="0.1" min="0"><span class="raw" id="spotTateRaw"></span>
+      <label for="spotYoko">横</label><input type="number" id="spotYoko" step="0.1" min="0"><span class="raw" id="spotYokoRaw"></span>
+      <label for="spotH">高さ</label><input type="number" id="spotH" step="0.1" min="0" placeholder="制限がある場合のみ"><span class="raw">m</span>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" id="spotCancel">キャンセル</button>
+      <button class="btn" id="spotOk">決定</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="calibModal">
+  <div class="modal">
+    <h3>縮尺補正</h3>
+    <p>なぞった長さ：<b id="calibRaw">-</b><br>実際の長さを入力すると、全ての計測値をその比率で補正します。<br>（例：駐車枠の白線 2.5m、横断歩道の縞 0.45m など）</p>
+    <div class="row"><input type="number" id="calibInput" step="0.01" min="0.1" placeholder="実寸"><span>m</span></div>
+    <div class="actions">
+      <button class="btn-ghost" id="calibCancel">キャンセル</button>
+      <button class="btn" id="calibOk">補正する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ===== タイル定義 =====
+  const LAYERS = {
+    gsi: { url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', nativeZoom: 18,
+      attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>' },
+    esri: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', nativeZoom: 19,
+      attr: 'Tiles &copy; Esri, Maxar, Earthstar Geographics' },
+    std: { url: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', nativeZoom: 18,
+      attr: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>' }
+  };
+  const MAX_ZOOM = 22;
+  const COLORS = {
+    width: 'hsl(45,100%,58%)', entrance: 'hsl(150,70%,52%)', dist: 'hsl(196,90%,60%)', calib: 'hsl(330,85%,65%)',
+    road: 'hsl(22,95%,60%)', building: 'hsl(268,85%,74%)', spot: 'hsl(0,85%,64%)'
+  };
+  const NAMES = { width: '道路幅員', entrance: '出入口幅', dist: '長さ', calib: '縮尺補正', road: '道路の線', building: '建物・敷地', spot: '保管場所' };
+  const MULTI = { road: true, building: true };          // 複数点でなぞるツール
+  const NEED = { width: 2, entrance: 2, dist: 2, calib: 2, spot: 3 };
+  const SNAP_PX = 10;
+
+  const map = L.map('map', { zoomControl: true, maxZoom: MAX_ZOOM, zoomSnap: 0.25, zoomDelta: 0.5, doubleClickZoom: false,
+    rotate: true, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false })
+    .setView([35.29, 136.92], 17);
+  // 保管場所の斜線パターン（SVG）
+  const svgRenderer = L.svg().addTo(map);
+  (function addHatch() {
+    const svg = svgRenderer._container;
+    const NS = 'http://www.w3.org/2000/svg';
+    const defs = document.createElementNS(NS, 'defs');
+    const pat = document.createElementNS(NS, 'pattern');
+    pat.setAttribute('id', 'hatchPat'); pat.setAttribute('patternUnits', 'userSpaceOnUse');
+    pat.setAttribute('width', '9'); pat.setAttribute('height', '9'); pat.setAttribute('patternTransform', 'rotate(45)');
+    const bg = document.createElementNS(NS, 'rect');
+    bg.setAttribute('width', '9'); bg.setAttribute('height', '9'); bg.setAttribute('fill', 'rgba(255,90,90,0.18)');
+    const ln = document.createElementNS(NS, 'line');
+    ln.setAttribute('x1', '0'); ln.setAttribute('y1', '0'); ln.setAttribute('x2', '0'); ln.setAttribute('y2', '9');
+    ln.setAttribute('stroke', 'hsl(0,85%,64%)'); ln.setAttribute('stroke-width', '2.2');
+    pat.appendChild(bg); pat.appendChild(ln); defs.appendChild(pat);
+    // 清書用（白地に黒の斜線）
+    const pat2 = document.createElementNS(NS, 'pattern');
+    pat2.setAttribute('id', 'hatchPatClean'); pat2.setAttribute('patternUnits', 'userSpaceOnUse');
+    pat2.setAttribute('width', '6'); pat2.setAttribute('height', '6'); pat2.setAttribute('patternTransform', 'rotate(45)');
+    const bg2 = document.createElementNS(NS, 'rect');
+    bg2.setAttribute('width', '6'); bg2.setAttribute('height', '6'); bg2.setAttribute('fill', '#fff');
+    const ln2 = document.createElementNS(NS, 'line');
+    ln2.setAttribute('x1', '0'); ln2.setAttribute('y1', '0'); ln2.setAttribute('x2', '0'); ln2.setAttribute('y2', '6');
+    ln2.setAttribute('stroke', '#111'); ln2.setAttribute('stroke-width', '1.2');
+    pat2.appendChild(bg2); pat2.appendChild(ln2); defs.appendChild(pat2);
+    svg.insertBefore(defs, svg.firstChild);
+  })();
+  const loupe = L.map('loupe', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
+    doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, maxZoom: MAX_ZOOM + 2,
+    rotate: true, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false });
+
+  let curLayerKey = 'gsi', baseLayer = null, loupeLayer = null;
+  function setLayer(key) {
+    curLayerKey = key;
+    const d = LAYERS[key];
+    if (baseLayer) map.removeLayer(baseLayer);
+    if (loupeLayer) loupe.removeLayer(loupeLayer);
+    baseLayer = L.tileLayer(d.url, { maxNativeZoom: d.nativeZoom, maxZoom: MAX_ZOOM, attribution: d.attr }).addTo(map);
+    loupeLayer = L.tileLayer(d.url, { maxNativeZoom: d.nativeZoom, maxZoom: MAX_ZOOM + 2 }).addTo(loupe);
+    document.querySelectorAll('.layer-btn').forEach(b => b.classList.toggle('active', b.dataset.layer === key));
+    updateResMeta();
+  }
+
+  // ===== 距離計算（局所平面近似：数十m規模では誤差は無視できる） =====
+  function mPerDeg(lat) {
+    const r = lat * Math.PI / 180;
+    return {
+      lat: 111132.954 - 559.822 * Math.cos(2 * r) + 1.175 * Math.cos(4 * r),
+      lng: 111412.84 * Math.cos(r) - 93.5 * Math.cos(3 * r)
+    };
+  }
+  function toXY(ll, o) { const k = mPerDeg(o.lat); return { x: (ll.lng - o.lng) * k.lng, y: (ll.lat - o.lat) * k.lat }; }
+  function fromXY(p, o) { const k = mPerDeg(o.lat); return L.latLng(o.lat + p.y / k.lat, o.lng + p.x / k.lng); }
+  const dist2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const lenM = (a, b) => dist2(toXY(a, a), toXY(b, a));
+  const mid = (a, b) => L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
+
+  // ===== 状態 =====
+  let tool = null;          // 現在のツール
+  let draft = [];           // 入力中の点
+  let draftSnap = [];       // 各点の吸着情報（幅員の直角補正に使用）
+  let calibFactor = 1;      // 縮尺補正係数
+  let pendingCalib = null;  // 補正待ちの生の長さ
+  const items = [];         // 確定した図形・計測
+  let seq = 1;
+  const drawLayer = L.layerGroup().addTo(map);
+  const draftLayer = L.layerGroup().addTo(map);
+  let searchMarker = null;
+
+  const fmt = (m) => (Math.round(m * 10) / 10).toFixed(1) + 'm';
+  const fmt2 = (m) => (Math.round(m * 100) / 100).toFixed(2) + 'm';
+  const valueOf = (it) => it.override != null ? it.override : it.raw * calibFactor;
+  const snapOn = () => document.getElementById('snapChk').checked;
+
+  // ===== 吸着（なぞった道路・建物の角や線にピタッと合わせる） =====
+  function segmentsOf(it) {
+    const s = [];
+    for (let i = 0; i < it.pts.length - 1; i++) s.push([it.pts[i], it.pts[i + 1]]);
+    if ((it.type === 'building' || it.type === 'spot') && it.pts.length > 2) s.push([it.pts[it.pts.length - 1], it.pts[0]]);
+    return s;
+  }
+  function snapTargets() {
+    const verts = [], segs = [];
+    items.forEach(it => {
+      if (!MULTI[it.type] && it.type !== 'spot') return;
+      it.pts.forEach(p => verts.push(p));
+      segmentsOf(it).forEach(sg => segs.push(sg));
+    });
+    // 入力中の建物・道路：始点と確定済みの辺にも吸着
+    if (MULTI[tool] && draft.length) {
+      verts.push(draft[0]);
+      for (let i = 0; i < draft.length - 1; i++) segs.push([draft[i], draft[i + 1]]);
+    }
+    return { verts, segs };
+  }
+  function projectPx(cp, a, b) {
+    const A = map.latLngToContainerPoint(a), B = map.latLngToContainerPoint(b);
+    const dx = B.x - A.x, dy = B.y - A.y, l2 = dx * dx + dy * dy || 1e-9;
+    let t = ((cp.x - A.x) * dx + (cp.y - A.y) * dy) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const P = L.point(A.x + t * dx, A.y + t * dy);
+    return { P, d: P.distanceTo(cp) };
+  }
+  function snap(ll, excludeSeg) {
+    if (!snapOn()) return { ll, kind: null };
+    const cp = map.latLngToContainerPoint(ll);
+    const { verts, segs } = snapTargets();
+    let best = null;
+    verts.forEach(v => {
+      const d = map.latLngToContainerPoint(v).distanceTo(cp);
+      if (d < SNAP_PX && (!best || d < best.d)) best = { ll: v, kind: 'vertex', d };
+    });
+    if (best) return best;
+    segs.forEach(sg => {
+      if (excludeSeg && sg[0] === excludeSeg[0] && sg[1] === excludeSeg[1]) return;
+      const r = projectPx(cp, sg[0], sg[1]);
+      if (r.d < SNAP_PX && (!best || r.d < best.d)) best = { ll: map.containerPointToLatLng(r.P), kind: 'edge', seg: sg, d: r.d };
+    });
+    return best || { ll, kind: null };
+  }
+
+  // 幅員：1点目が道路の線上なら、2点目をその線に対して直角に補正（反対側の線があれば交点に合わせる）
+  function widthSecondPoint(raw) {
+    const first = draft[0], s0 = draftSnap[0];
+    if (!s0 || s0.kind !== 'edge' || !snapOn()) {
+      const s = snap(raw); return { ll: s.ll, kind: s.kind, perp: false };
+    }
+    const o = first;
+    const a = toXY(s0.seg[0], o), b = toXY(s0.seg[1], o);
+    const dl = Math.hypot(b.x - a.x, b.y - a.y) || 1e-9;
+    const n = { x: -(b.y - a.y) / dl, y: (b.x - a.x) / dl };
+    const c = toXY(raw, o);
+    let s = c.x * n.x + c.y * n.y;
+    let kind = null;
+    // 反対側の線との交点（カーソル付近の線のみ）
+    const cp = map.latLngToContainerPoint(raw);
+    const { segs } = snapTargets();
+    let bestD = SNAP_PX * 2.5;
+    segs.forEach(sg => {
+      if (sg === s0.seg || (sg[0] === s0.seg[0] && sg[1] === s0.seg[1])) return;
+      if (projectPx(cp, sg[0], sg[1]).d > bestD) return;
+      const p = toXY(sg[0], o), q = toXY(sg[1], o);
+      const ex = q.x - p.x, ey = q.y - p.y;
+      const den = n.x * ey - n.y * ex;
+      if (Math.abs(den) < 1e-9) return;
+      const t = (p.x * ey - p.y * ex) / den;   // first + n*t が線P-Q上
+      const hit = fromXY({ x: n.x * t, y: n.y * t }, o);
+      const d = map.latLngToContainerPoint(hit).distanceTo(cp);
+      if (d < bestD) { bestD = d; s = t; kind = 'edge'; }
+    });
+    return { ll: fromXY({ x: n.x * s, y: n.y * s }, o), kind, perp: true };
+  }
+
+  // ===== 描画 =====
+  function vertex(ll, color, r = 4) {
+    return L.circleMarker(ll, { radius: r, color: '#fff', weight: 1.5, fillColor: color, fillOpacity: 1, interactive: false });
+  }
+  function tipAt(ll, text, cls) {
+    return L.tooltip({ permanent: true, direction: 'center', className: 'm-tip ' + cls, interactive: false }).setLatLng(ll).setContent(text);
+  }
+  // 寸法線（両端に直角の短い線を付ける）
+  function dimLine(g, a, b, color) {
+    const o = a, A = toXY(a, o), B = toXY(b, o);
+    const l = dist2(A, B) || 1e-9;
+    const n = { x: -(B.y - A.y) / l * 0.6, y: (B.x - A.x) / l * 0.6 };
+    L.polyline([a, b], { color, weight: 4, interactive: false }).addTo(g);
+    [A, B].forEach(P => L.polyline([fromXY({ x: P.x + n.x, y: P.y + n.y }, o), fromXY({ x: P.x - n.x, y: P.y - n.y }, o)],
+      { color, weight: 3, interactive: false }).addTo(g));
+  }
+  // 保管場所：A→B（1辺）とCの位置（奥行）から長方形の4隅を求める
+  function spotRect(a, b, c) {
+    const o = a, A = toXY(a, o), B = toXY(b, o), C = toXY(c, o);
+    const l = dist2(A, B) || 1e-9;
+    const n = { x: -(B.y - A.y) / l, y: (B.x - A.x) / l };
+    const s = (C.x - A.x) * n.x + (C.y - A.y) * n.y;
+    return [a, b, fromXY({ x: B.x + n.x * s, y: B.y + n.y * s }, o), fromXY({ x: A.x + n.x * s, y: A.y + n.y * s }, o)];
+  }
+  const sideVal = (sd) => sd.ov != null ? sd.ov : sd.raw * calibFactor;
+  // 縦＝長い辺、横＝短い辺
+  function spotDims(it) {
+    const v0 = sideVal(it.sides[0]), v1 = sideVal(it.sides[1]);
+    return v0 >= v1 ? { tate: v0, yoko: v1, tateIdx: 0 } : { tate: v1, yoko: v0, tateIdx: 1 };
+  }
+  function centroid(pts) {
+    let la = 0, ln = 0; pts.forEach(p => { la += p.lat; ln += p.lng; });
+    return L.latLng(la / pts.length, ln / pts.length);
+  }
+  function labelFor(it) {
+    if (it.type === 'entrance') return '出入口 ' + fmt(valueOf(it));
+    if (it.type === 'calib') return '基準 ' + fmt(valueOf(it));
+    return fmt(valueOf(it));
+  }
+
+  function buildShapes(type, pts, opts = {}) {
+    const g = L.layerGroup();
+    const color = COLORS[type];
+    if (type === 'road') {
+      if (pts.length >= 2) L.polyline(pts, { color, weight: 4, opacity: .95, interactive: false }).addTo(g);
+    } else if (type === 'building') {
+      if (opts.closed && pts.length >= 3) {
+        L.polygon(pts, { color, weight: 3, fillColor: color, fillOpacity: .18, interactive: false }).addTo(g);
+        if (opts.name) tipAt(centroid(pts), `<span style="font-size:${opts.fontSize || 14}px">${escapeHtml(opts.name)}</span>`, 'name').addTo(g);
+      } else if (pts.length >= 2) {
+        L.polyline(pts, { color, weight: 3, interactive: false }).addTo(g);
+        if (pts.length >= 3) L.polyline([pts[pts.length - 1], pts[0]], { color, weight: 1.5, dashArray: '5 6', interactive: false }).addTo(g);
+      }
+    } else if (type === 'spot') {
+      let corners = opts.item ? pts : (pts.length === 3 ? spotRect(pts[0], pts[1], pts[2]) : null);
+      if (corners) {
+        L.polygon(corners, { renderer: svgRenderer, color, weight: 3, fillColor: color, fillOpacity: 1, className: 'hatch', interactive: false }).addTo(g);
+        let v0, v1;
+        if (opts.item) { v0 = sideVal(opts.item.sides[0]); v1 = sideVal(opts.item.sides[1]); }
+        else { v0 = lenM(corners[0], corners[1]) * calibFactor; v1 = lenM(corners[1], corners[2]) * calibFactor; }
+        const tate0 = v0 >= v1;
+        tipAt(mid(corners[0], corners[1]), (tate0 ? '縦 ' : '横 ') + fmt(v0), 'spot').addTo(g);
+        tipAt(mid(corners[1], corners[2]), (tate0 ? '横 ' : '縦 ') + fmt(v1), 'spot').addTo(g);
+        if (opts.item && opts.item.h) {
+          tipAt(centroid(corners), `高さ ${fmt(opts.item.h)}`, 'name spotname').addTo(g);
+        }
+      } else if (pts.length === 2) {
+        dimLine(g, pts[0], pts[1], color);
+        tipAt(mid(pts[0], pts[1]), fmt(lenM(pts[0], pts[1]) * calibFactor), 'spot live').addTo(g);
+      }
+      if (!opts.item) pts.forEach(p => vertex(p, color, 4).addTo(g));
+      return g;
+    } else if (pts.length === 2) {
+      dimLine(g, pts[0], pts[1], color);
+      if (opts.label) tipAt(mid(pts[0], pts[1]), opts.label, type + (opts.live ? ' live' : '')).addTo(g);
+    }
+    pts.forEach(p => vertex(p, color, MULTI[type] ? 3.5 : 4).addTo(g));
+    return g;
+  }
+
+  // ===== 確定済み図形の描画（提出用の配置図に近い表現） =====
+  let cleanMode = false;                       // 清書プレビュー（白黒・写真なし）
+  const C = (type) => cleanMode ? '#111' : COLORS[type];
+  const scr = (p) => map.latLngToContainerPoint(p);
+  const unscr = (p) => map.containerPointToLatLng(p);
+  const clamp01 = (t) => Math.max(0, Math.min(1, t));
+
+  // 矢印付き寸法線：測った2点P→Qを、法線nXY方向にs[m]ずらして描く（引出線付き）
+  function drawDim(g, P, Q, nXY, s, color, labelDir) {
+    const o = P, p = toXY(P, o), q = toXY(Q, o);
+    const p2 = { x: p.x + nXY.x * s, y: p.y + nXY.y * s }, q2 = { x: q.x + nXY.x * s, y: q.y + nXY.y * s };
+    const A = fromXY(p2, o), B = fromXY(q2, o);
+    const w = cleanMode ? 1.2 : 2;
+    L.polyline([A, B], { color, weight: w, interactive: false }).addTo(g);
+    const sg = Math.abs(s) > 0.05 ? Math.sign(s) : (labelDir || 1);
+    if (Math.abs(s) > 0.05) {
+      [[p, p2], [q, q2]].forEach(([a, b]) => {
+        const st = { x: a.x + nXY.x * sg * 0.15, y: a.y + nXY.y * sg * 0.15 };
+        const en = { x: b.x + nXY.x * sg * 0.3, y: b.y + nXY.y * sg * 0.3 };
+        L.polyline([fromXY(st, o), fromXY(en, o)], { color, weight: cleanMode ? 0.8 : 1.2, interactive: false }).addTo(g);
+      });
+    }
+    // 矢印（画面上で一定の大きさ）
+    const Ap = scr(A), Bp = scr(B);
+    const dx = Bp.x - Ap.x, dy = Bp.y - Ap.y, L0 = Math.hypot(dx, dy) || 1;
+    const u = { x: dx / L0, y: dy / L0 };
+    const ah = Math.min(10, L0 / 3), aw = ah * 0.42;
+    [[Ap, u], [Bp, { x: -u.x, y: -u.y }]].forEach(([T, v]) => {
+      const b1 = L.point(T.x + v.x * ah - v.y * aw, T.y + v.y * ah + v.x * aw);
+      const b2 = L.point(T.x + v.x * ah + v.y * aw, T.y + v.y * ah - v.x * aw);
+      L.polyline([unscr(b1), unscr(T), unscr(b2)], { color, weight: w, interactive: false }).addTo(g);
+    });
+    // ラベルを置く外向き方向（画面座標の単位ベクトル）
+    const N = scr(fromXY({ x: p2.x + nXY.x * sg, y: p2.y + nXY.y * sg }, o));
+    const ox = N.x - Ap.x, oy = N.y - Ap.y, ol = Math.hypot(ox, oy) || 1;
+    return { Ap, Bp, u, out: { x: ox / ol, y: oy / ol } };
+  }
+
+  // ドラッグできる寸法ラベル
+  function dimLabel(g, info, html, t, color, onDrop) {
+    const T = t == null ? 0.5 : t;
+    const M = L.point(info.Ap.x + (info.Bp.x - info.Ap.x) * T, info.Ap.y + (info.Bp.y - info.Ap.y) * T);
+    const o = info.out, gap = 5;
+    const pos = L.point(M.x + o.x * gap, M.y + o.y * gap);
+    let tf;
+    if (Math.abs(o.x) > Math.abs(o.y)) tf = o.x > 0 ? 'translate(0,-50%)' : 'translate(-100%,-50%)';
+    else tf = o.y > 0 ? 'translate(-50%,0)' : 'translate(-50%,-100%)';
+    const icon = L.divIcon({ className: 'dim-label-wrap', iconSize: [0, 0],
+      html: `<div class="dim-label${cleanMode ? ' clean' : ''}" style="transform:${tf};${cleanMode ? '' : 'border-color:' + color + ';color:' + color}" title="ドラッグで位置を調整">${html}</div>` });
+    const m = L.marker(unscr(pos), { icon, draggable: true, keyboard: false, bubblingMouseEvents: false, autoPan: false }).addTo(g);
+    m.on('dragend', e => onDrop(e.target.getLatLng()));
+    return m;
+  }
+
+  // 近くの建物・保管場所の中心（XY、原点o基準）
+  function nearestMassXY(o, from) {
+    let best = null;
+    items.forEach(it => {
+      if (!((it.type === 'building' && it.closed) || it.type === 'spot')) return;
+      const c = toXY(centroid(it.pts), o);
+      const d = Math.hypot(c.x - from.x, c.y - from.y);
+      if (!best || d < best.d) best = { c, d };
+    });
+    return best ? best.c : null;
+  }
+
+  function renderMeasure(g, it) {
+    const color = C(it.type);
+    const P = it.pts[0], Q = it.pts[1], o = P;
+    const p = toXY(P, o), q = toXY(Q, o), l = dist2(p, q) || 1e-9;
+    const n = { x: -(q.y - p.y) / l, y: (q.x - p.x) / l };
+    // 建物から離れる向き（出入口は道路側へ、幅員ラベルは建物側へ）
+    let away = 1;
+    const mXY = { x: q.x / 2, y: q.y / 2 };
+    const mass = nearestMassXY(o, mXY);
+    if (mass) away = ((mass.x - mXY.x) * n.x + (mass.y - mXY.y) * n.y) > 0 ? -1 : 1;
+    const labelDir = it.type === 'width' ? -away : away;
+    const s = it.offset != null ? it.offset : (it.type === 'entrance' ? 1.2 * away : 0);
+    const info = drawDim(g, P, Q, n, s, color, it.offset != null && Math.abs(it.offset) > 0.05 ? Math.sign(it.offset) : labelDir);
+    const v = fmt(valueOf(it));
+    const vertical = Math.abs(info.u.y) > Math.abs(info.u.x);
+    let html;
+    if (it.type === 'entrance') html = vertical ? `<div class="vt">出入口</div><div>${v}</div>` : `出入口 ${v}`;
+    else if (it.type === 'calib') html = '基準 ' + v;
+    else html = v;
+    dimLabel(g, info, html, it.labelT, color, (dropLL) => {
+      const d = toXY(dropLL, o);
+      it.labelT = clamp01((d.x * q.x + d.y * q.y) / (l * l));
+      it.offset = d.x * n.x + d.y * n.y;
+      redrawAll();
+    });
+    if (!cleanMode) it.pts.forEach(pt => vertex(pt, color, 3).addTo(g));
+  }
+
+  // 保管場所の寸法を置く基準（出入口 → 道路の順で一番近いもの）
+  function spotRefXY(it, o) {
+    const c = toXY(centroid(it.pts), o);
+    let best = null;
+    const consider = (pt) => { const d = Math.hypot(pt.x - c.x, pt.y - c.y); if (!best || d < best.d) best = { pt, d }; };
+    items.forEach(x => { if (x.type === 'entrance') consider(toXY(mid(x.pts[0], x.pts[1]), o)); });
+    if (best) return best.pt;
+    items.forEach(x => { if (x.type === 'road') segmentsOf(x).forEach(sg => consider(toXY(mid(sg[0], sg[1]), o))); });
+    return best ? best.pt : null;
+  }
+
+  function renderSpot(g, it) {
+    const color = C('spot');
+    const [A, B, , D] = it.pts;
+    const poly = L.polygon(it.pts, { renderer: svgRenderer, color, weight: cleanMode ? 1.2 : 2.5, fillColor: color, fillOpacity: 1,
+      className: cleanMode ? 'hatch-clean' : 'hatch', interactive: !tool && !cleanMode, bubblingMouseEvents: false }).addTo(g);
+    poly.on('click', () => {
+      selectedSpot = it.id; redrawAll();
+      toast('✥をドラッグで移動、⟳をドラッグで回転できます');
+    });
+    if (selectedSpot === it.id && !cleanMode) addSpotHandles(g, it, poly);
+    const o = A, b = toXY(B, o), d = toXY(D, o);
+    const L0 = Math.hypot(b.x, b.y) || 1e-9, L1 = Math.hypot(d.x, d.y) || 1e-9;
+    const u = { x: b.x / L0, y: b.y / L0 }, nv = { x: d.x / L1, y: d.y / L1 };
+    it.dimOff = it.dimOff || [null, null];
+    it.dimT = it.dimT || [null, null];
+    const gap = 0.6;
+    const ref = spotRefXY(it, o);
+    // 出入口・道路から遠い側に寸法を置く
+    const pickFar = (base, nn, cands) => {
+      if (!ref) return cands[1];
+      let best = null;
+      cands.forEach(s => {
+        const m = { x: base.x + nn.x * s, y: base.y + nn.y * s };
+        const dd = Math.hypot(m.x - ref.x, m.y - ref.y);
+        if (!best || dd > best.dd) best = { s, dd };
+      });
+      return best.s;
+    };
+    const s0 = it.dimOff[0] != null ? it.dimOff[0] : pickFar({ x: b.x / 2, y: b.y / 2 }, nv, [-gap, L1 + gap]);
+    const s1 = it.dimOff[1] != null ? it.dimOff[1] : pickFar({ x: d.x / 2, y: d.y / 2 }, u, [-gap, L0 + gap]);
+    // 寸法0：A-B辺（向こう側ならD-C辺）基準、寸法1：A-D辺（向こう側ならB-C辺）基準
+    const C2 = it.pts[2];
+    const defs = [
+      s0 > L1 / 2 ? [D, C2, nv, s0 - L1, 0] : [A, B, nv, s0, 0],
+      s1 > L0 / 2 ? [B, C2, u, s1 - L0, 1] : [A, D, u, s1, 1]
+    ];
+    defs.forEach(([P, Q, nn, s, i]) => {
+      const info = drawDim(g, P, Q, nn, s, color, 1);
+      dimLabel(g, info, fmt(sideVal(it.sides[i])), it.dimT[i], color, (dropLL) => {
+        const dd = toXY(dropLL, o);
+        const axis = i === 0 ? u : nv, len = i === 0 ? L0 : L1;
+        it.dimT[i] = clamp01((dd.x * axis.x + dd.y * axis.y) / len);
+        it.dimOff[i] = dd.x * nn.x + dd.y * nn.y;
+        redrawAll();
+      });
+    });
+    if (it.h) tipAt(centroid(it.pts), `高さ ${fmt(it.h)}`, 'name spotname' + (cleanMode ? ' clean' : '')).addTo(g);
+  }
+
+  // 保管場所の移動・回転ハンドル
+  let selectedSpot = null;
+  function handleIcon(sym, cls) {
+    return L.divIcon({ className: 'dim-label-wrap', iconSize: [0, 0], html: `<div class="spot-handle ${cls}">${sym}</div>` });
+  }
+  function addSpotHandles(g, it, poly) {
+    const o = centroid(it.pts);
+    const ptsXY = it.pts.map(p => toXY(p, o));
+    L.polygon(it.pts, { color: '#fff', weight: 1.5, dashArray: '4 4', fill: false, interactive: false }).addTo(g);
+    // 移動（中心）
+    const shift = (ll) => { const d = toXY(ll, o); return ptsXY.map(p => fromXY({ x: p.x + d.x, y: p.y + d.y }, o)); };
+    const mv = L.marker(o, { icon: handleIcon('✥', 'move'), draggable: true, keyboard: false, bubblingMouseEvents: false, autoPan: false }).addTo(g);
+    mv.on('drag', e => poly.setLatLngs(shift(e.target.getLatLng())));
+    mv.on('dragend', e => { it.pts = shift(e.target.getLatLng()); redrawAll(); });
+    // 回転（辺の外側に置いたハンドル）
+    const m0 = { x: (ptsXY[0].x + ptsXY[1].x) / 2, y: (ptsXY[0].y + ptsXY[1].y) / 2 };
+    const ml = Math.hypot(m0.x, m0.y) || 1;
+    const rh = { x: m0.x / ml * (ml + 1.6), y: m0.y / ml * (ml + 1.6) };
+    const a0 = Math.atan2(rh.y, rh.x);
+    const rotPts = (ll) => {
+      const p = toXY(ll, o);
+      const da = Math.round((Math.atan2(p.y, p.x) - a0) * 180 / Math.PI) * Math.PI / 180;   // 1°単位
+      const cs = Math.cos(da), sn = Math.sin(da);
+      return ptsXY.map(q => fromXY({ x: q.x * cs - q.y * sn, y: q.x * sn + q.y * cs }, o));
+    };
+    const rot = L.marker(fromXY(rh, o), { icon: handleIcon('⟳', 'rot'), draggable: true, keyboard: false, bubblingMouseEvents: false, autoPan: false }).addTo(g);
+    rot.on('drag', e => poly.setLatLngs(rotPts(e.target.getLatLng())));
+    rot.on('dragend', e => { it.pts = rotPts(e.target.getLatLng()); redrawAll(); });
+  }
+
+  function renderTrace(g, it) {
+    const color = C(it.type);
+    const w = cleanMode ? 1.5 : (it.type === 'road' ? 4 : 3);
+    if (it.type === 'road') {
+      L.polyline(it.pts, { color, weight: w, interactive: false }).addTo(g);
+    } else {
+      L.polygon(it.pts, { color, weight: w, fillColor: color, fillOpacity: cleanMode ? 0 : .18, interactive: false }).addTo(g);
+      if (it.name) {
+        const fs = it.fontSize || 14;
+        const icon = L.divIcon({ className: 'dim-label-wrap', iconSize: [0, 0],
+          html: `<div class="name-label${cleanMode ? ' clean' : ''}" style="font-size:${fs}px" title="ドラッグで位置を調整">${escapeHtml(it.name)}</div>` });
+        const m = L.marker(it.nameLL || centroid(it.pts), { icon, draggable: true, keyboard: false, bubblingMouseEvents: false, autoPan: false }).addTo(g);
+        m.on('dragend', e => { it.nameLL = e.target.getLatLng(); redrawAll(); });
+      }
+    }
+    if (!cleanMode) it.pts.forEach(p => vertex(p, color, 3.5).addTo(g));
+  }
+
+  function redrawAll() {
+    drawLayer.clearLayers();
+    items.forEach(it => {
+      if (cleanMode && it.type === 'calib') return;
+      const g = L.layerGroup().addTo(drawLayer);
+      if (it.type === 'spot') renderSpot(g, it);
+      else if (MULTI[it.type]) renderTrace(g, it);
+      else renderMeasure(g, it);
+    });
+    renderList();
+  }
+
+  // 保管場所を入力した寸法（実寸m）で描き直す（最初の角Aと向きは維持）
+  function resizeSpot(it, v0, v1) {
+    const [A, B, , D] = it.pts, o = A;
+    const b = toXY(B, o), d = toXY(D, o);
+    const L0 = Math.hypot(b.x, b.y) || 1e-9, L1 = Math.hypot(d.x, d.y) || 1e-9;
+    const u = { x: b.x / L0, y: b.y / L0 }, nv = { x: d.x / L1, y: d.y / L1 };
+    const g0 = v0 / calibFactor, g1 = v1 / calibFactor;
+    const nb = { x: u.x * g0, y: u.y * g0 }, nd = { x: nv.x * g1, y: nv.y * g1 };
+    it.pts = [A, fromXY(nb, o), fromXY({ x: nb.x + nd.x, y: nb.y + nd.y }, o), fromXY(nd, o)];
+    it.sides = [{ raw: g0, ov: null }, { raw: g1, ov: null }];
+    it.dimOff = [null, null];
+  }
+
+  let snapIndicator = null;
+  function renderDraft(cursorRaw) {
+    draftLayer.clearLayers();
+    if (!tool) return;
+    let cursor = null, kind = null, perp = false;
+    if (cursorRaw) {
+      if (tool === 'width' && draft.length === 1) ({ ll: cursor, kind, perp } = widthSecondPoint(cursorRaw));
+      else { const s = snap(cursorRaw); cursor = s.ll; kind = s.kind; }
+      // 吸着インジケーター
+      if (kind) L.circleMarker(cursor, { radius: 8, color: kind === 'vertex' ? '#fff' : COLORS.road, weight: 2, fill: false, interactive: false }).addTo(draftLayer);
+    }
+    const pts = (cursor && (MULTI[tool] || draft.length < NEED[tool])) ? draft.concat([cursor]) : draft.slice();
+    if (!pts.length) return;
+    let label = '';
+    if (!MULTI[tool] && tool !== 'spot' && pts.length === 2) label = (tool === 'entrance' ? '出入口 ' : '') + fmt(lenM(pts[0], pts[1]) * (tool === 'calib' ? 1 : calibFactor)) + (perp ? ' ⟂' : '');
+    buildShapes(tool, pts, { label, live: true }).addTo(draftLayer);
+  }
+
+  // ===== ツール操作 =====
+  const HINTS = {
+    width: ['道路の<b>片側の端</b>をクリック（なぞった道路の線に吸着すると直角補正されます）', '<b>反対側の端</b>をクリック'],
+    entrance: ['出入口の<b>始まり</b>をクリック', '出入口の<b>終わり</b>をクリック'],
+    dist: ['<b>始点</b>をクリック', '<b>終点</b>をクリック'],
+    calib: ['長さが分かる物の<b>端</b>をクリック', '<b>反対の端</b>をクリック → 実寸を入力'],
+    road: '道路の端（縁石・白線・境界）に沿って<b>順にクリック</b>。<br>最後は<b>ダブルクリック</b>か<b>Enter</b>で確定',
+    building: '建物・敷地の<b>角を順にクリック</b>。<br><b>始点をクリック</b>（またはEnter）で閉じて確定 → 名称を入力',
+    spot: ['車の置き場所の<b>角1</b>をクリック', '同じ辺の<b>もう一方の角</b>をクリック', '<b>奥行き</b>の位置をクリック → 縦・横・高さを確認']
+  };
+  function setHint() {
+    const el = document.getElementById('hint');
+    if (!tool) { el.innerHTML = 'ツールを選んでください。<br><b>Esc</b>：やり直し　<b>Backspace</b>：1点戻す'; return; }
+    const head = `<span style="color:${COLORS[tool]}">● ${NAMES[tool]}</span>`;
+    if (MULTI[tool]) {
+      el.innerHTML = `${head}（${draft.length}点）<br>${HINTS[tool]}` +
+        (draft.length >= 2 ? `<div class="finish"><button class="btn-ghost" id="finishBtn">✔ 確定（Enter）</button></div>` : '');
+      const fb = document.getElementById('finishBtn'); if (fb) fb.onclick = finishMulti;
+    } else {
+      el.innerHTML = `${head}（${draft.length + 1}/${NEED[tool]}）<br>` + HINTS[tool][draft.length];
+    }
+  }
+  function selectTool(t) {
+    if (MULTI[tool] && draft.length >= 2) finishMulti();
+    tool = (tool === t) ? null : t;
+    if (tool) selectedSpot = null;
+    draft = []; draftSnap = [];
+    document.querySelectorAll('.tool').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+    document.getElementById('map').classList.toggle('select-mode', !tool);
+    redrawAll(); renderDraft(); setHint();
+  }
+
+  function finishMulti(close) {
+    if (!MULTI[tool]) return;
+    const need = tool === 'building' ? 3 : 2;
+    if (draft.length < need) { toast(`${NAMES[tool]}は${need}点以上必要です`); return; }
+    const closed = tool === 'building';
+    const it = { id: seq++, type: tool, pts: draft.slice(), closed, name: '' };
+    items.push(it);
+    toast(`${NAMES[tool]}を確定しました（${draft.length}点）`);
+    draft = []; draftSnap = [];
+    redrawAll(); renderDraft(); setHint();
+    if (it.type === 'building') openNameModal(it);
+  }
+
+  map.on('click', (e) => {
+    if (!tool) { if (selectedSpot != null) { selectedSpot = null; redrawAll(); } return; }
+    let s;
+    if (tool === 'width' && draft.length === 1) s = widthSecondPoint(e.latlng);
+    else s = snap(e.latlng);
+    const ll = s.ll;
+    // ダブルクリックの2回目（同じ位置）は無視
+    if (draft.length && map.latLngToContainerPoint(draft[draft.length - 1]).distanceTo(map.latLngToContainerPoint(ll)) < 4) return;
+    // 建物：始点クリックで閉じる
+    if (tool === 'building' && draft.length >= 3 && ll === draft[0]) { finishMulti(); return; }
+    draft.push(ll); draftSnap.push(s);
+    if (!MULTI[tool] && draft.length === NEED[tool]) {
+      const raw = lenM(draft[0], draft[1]);
+      if (tool === 'spot') {
+        const corners = spotRect(draft[0], draft[1], draft[2]);
+        const it = { id: seq++, type: 'spot', pts: corners, name: '保管場所', h: null,
+          sides: [{ raw: lenM(corners[0], corners[1]), ov: null }, { raw: lenM(corners[1], corners[2]), ov: null }] };
+        items.push(it);
+        redrawAll();
+        openSpotModal(it);
+      } else if (tool === 'calib') {
+        pendingCalib = { raw, pts: draft.slice() };
+        document.getElementById('calibRaw').textContent = fmt2(raw);
+        document.getElementById('calibInput').value = '';
+        document.getElementById('calibModal').classList.add('show');
+        setTimeout(() => document.getElementById('calibInput').focus(), 50);
+      } else {
+        items.push({ id: seq++, type: tool, pts: draft.slice(), raw, override: null, perp: !!s.perp });
+        toast(`${NAMES[tool]}：${fmt(raw * calibFactor)} を記録しました`);
+        redrawAll();
+      }
+      draft = []; draftSnap = [];
+    }
+    renderDraft(e.latlng); setHint();
+  });
+  map.on('dblclick', () => { if (MULTI[tool]) finishMulti(); });
+  map.on('mousemove', (e) => {
+    renderDraft(e.latlng);
+    if (loupeOn) loupe.setView(e.latlng, Math.min(map.getZoom() + 2, MAX_ZOOM + 2), { animate: false });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (document.querySelector('.modal-bg.show')) return;
+    if (e.key === 'Escape' && printMode) { setPrintMode(false); return; }
+    if (e.key === 'Escape') { draft = []; draftSnap = []; if (selectedSpot != null) { selectedSpot = null; redrawAll(); } renderDraft(); setHint(); }
+    if (e.key === 'Backspace') { e.preventDefault(); draft.pop(); draftSnap.pop(); renderDraft(); setHint(); }
+    if (e.key === 'Enter') finishMulti();
+  });
+
+  document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => selectTool(b.dataset.tool)));
+  document.querySelectorAll('.layer-btn').forEach(b => b.addEventListener('click', () => setLayer(b.dataset.layer)));
+
+  // ===== 縮尺補正 =====
+  function applyCalib() {
+    const real = Number(document.getElementById('calibInput').value);
+    if (!(real > 0) || !pendingCalib) return;
+    calibFactor = real / pendingCalib.raw;
+    for (let i = items.length - 1; i >= 0; i--) if (items[i].type === 'calib') items.splice(i, 1);
+    items.push({ id: seq++, type: 'calib', pts: pendingCalib.pts, raw: pendingCalib.raw, override: null });
+    pendingCalib = null;
+    document.getElementById('calibModal').classList.remove('show');
+    renderCalibBadge(); redrawAll();
+    toast(`縮尺を補正しました（×${calibFactor.toFixed(3)}）`);
+  }
+  function renderCalibBadge() {
+    const w = document.getElementById('calibBadgeWrap');
+    w.innerHTML = calibFactor === 1 ? '' :
+      `<span class="calib-badge">補正中 ×${calibFactor.toFixed(3)} <button class="icon-btn" id="calibReset" title="補正解除">✕</button></span>`;
+    const r = document.getElementById('calibReset');
+    if (r) r.onclick = () => {
+      calibFactor = 1;
+      for (let i = items.length - 1; i >= 0; i--) if (items[i].type === 'calib') items.splice(i, 1);
+      renderCalibBadge(); redrawAll(); toast('縮尺補正を解除しました');
+    };
+  }
+  document.getElementById('calibOk').onclick = applyCalib;
+  document.getElementById('calibInput').addEventListener('keydown', e => { if (e.key === 'Enter') applyCalib(); });
+  document.getElementById('calibCancel').onclick = () => { pendingCalib = null; document.getElementById('calibModal').classList.remove('show'); renderDraft(); };
+
+  // ===== 結果リスト =====
+  function perimeter(it) {
+    return segmentsOf(it).reduce((s, sg) => s + lenM(sg[0], sg[1]), 0) * calibFactor;
+  }
+  function renderList() {
+    const el = document.getElementById('mList');
+    const list = items.filter(it => it.type !== 'calib');
+    if (!list.length) {
+      el.innerHTML = '<div class="empty">まだ何もありません。<br>道路・建物をなぞるか、幅員・出入口を測ってください。</div>';
+      return;
+    }
+    const counter = {};
+    el.innerHTML = list.map(it => {
+      counter[it.type] = (counter[it.type] || 0) + 1;
+      let valHtml, sub;
+      if (it.type === 'building') {
+        valHtml = `<div class="m-val" data-name="${it.id}" style="font-size:.95rem" title="クリックで名称を変更">${it.name ? escapeHtml(it.name) : '（名称なし）'} ✏️</div>`;
+        sub = `${it.pts.length}点でなぞり`;
+      } else if (it.type === 'spot') {
+        const dm = spotDims(it);
+        valHtml = `<div class="m-val" data-spot="${it.id}" style="font-size:.95rem" title="クリックで寸法を変更">縦${fmt(dm.tate)} × 横${fmt(dm.yoko)} ✏️</div>`;
+        sub = it.h ? `高さ ${fmt(it.h)}` : '高さ制限なし';
+      } else if (MULTI[it.type]) {
+        valHtml = `<div class="m-val" style="font-size:.95rem">${it.pts.length}点</div>`;
+        sub = `全長 ${fmt(perimeter(it))}`;
+      } else {
+        const v = valueOf(it);
+        valHtml = `<div class="m-val" data-edit="${it.id}" title="クリックで実測値に書き換え">${fmt(v)}</div>`;
+        sub = it.override != null ? `写真計測 ${fmt(it.raw * calibFactor)} → 手入力`
+          : (it.perp ? '道路に直角で計測' : (calibFactor !== 1 ? `補正前 ${fmt(it.raw)}` : '写真から自動計算'));
+      }
+      return `<div class="m-item" style="--c:${COLORS[it.type]}" data-id="${it.id}">
+        <div class="bar"></div>
+        <div>
+          <div class="m-label">${NAMES[it.type]} ${counter[it.type]}</div>
+          ${valHtml}
+          <div class="m-sub">${sub}</div>
+        </div>
+        <div class="m-actions">
+          <button class="icon-btn" data-zoom="${it.id}" title="この場所へ移動">🎯</button>
+          ${it.type === 'spot' ? `<button class="icon-btn" data-sel="${it.id}" title="移動・回転">✥</button>` : ''}
+          <button class="icon-btn" data-del="${it.id}" title="削除">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+      const i = items.findIndex(x => x.id == b.dataset.del); if (i >= 0) items.splice(i, 1); redrawAll();
+    });
+    el.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => {
+      const it = items.find(x => x.id == b.dataset.zoom); if (it) map.fitBounds(L.latLngBounds(it.pts), { maxZoom: 21, padding: [80, 80] });
+    });
+    el.querySelectorAll('[data-edit]').forEach(d => d.onclick = () => {
+      const it = items.find(x => x.id == d.dataset.edit); if (!it || d.querySelector('input')) return;
+      d.innerHTML = `<input type="number" step="0.1" value="${valueOf(it).toFixed(1)}">`;
+      const inp = d.querySelector('input'); inp.focus(); inp.select();
+      const done = () => {
+        const n = Number(inp.value);
+        it.override = (inp.value === '' || !(n > 0)) ? null : n;
+        redrawAll();
+      };
+      inp.addEventListener('blur', done);
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); if (e.key === 'Escape') { inp.value = ''; inp.blur(); } });
+    });
+    el.querySelectorAll('[data-sel]').forEach(b => b.onclick = () => {
+      if (tool) selectTool(tool);
+      selectedSpot = Number(b.dataset.sel); redrawAll();
+      toast('✥をドラッグで移動、⟳をドラッグで回転できます');
+    });
+    el.querySelectorAll('[data-name]').forEach(d => d.onclick = () => {
+      const it = items.find(x => x.id == d.dataset.name); if (it) openNameModal(it);
+    });
+    el.querySelectorAll('[data-spot]').forEach(d => d.onclick = () => {
+      const it = items.find(x => x.id == d.dataset.spot); if (it) openSpotModal(it);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ===== 名称入力（建物・敷地） =====
+  let nameTarget = null;
+  let nameFs = 14, lastFs = 14;   // 文字サイズ（前回の選択を次の建物にも使う）
+  function markFs() {
+    document.querySelectorAll('#nameModal .size-chip').forEach(c => c.classList.toggle('active', Number(c.dataset.fs) === nameFs));
+  }
+  document.querySelectorAll('#nameModal .size-chip').forEach(c => c.onclick = () => {
+    nameFs = Number(c.dataset.fs); markFs();
+    if (nameTarget) { nameTarget.fontSize = nameFs; redrawAll(); }   // その場でプレビュー
+  });
+  function openNameModal(it) {
+    nameTarget = it;
+    nameFs = it.fontSize || lastFs; markFs();
+    it._fsBefore = it.fontSize;
+    const inp = document.getElementById('nameInput');
+    inp.value = it.name || '';
+    document.getElementById('nameModal').classList.add('show');
+    setTimeout(() => { inp.focus(); inp.select(); }, 50);
+  }
+  function closeNameModal(save) {
+    if (nameTarget) {
+      if (save) {
+        nameTarget.name = document.getElementById('nameInput').value.trim();
+        nameTarget.fontSize = nameFs; lastFs = nameFs;
+      } else {
+        nameTarget.fontSize = nameTarget._fsBefore;
+      }
+      delete nameTarget._fsBefore;
+      redrawAll();
+    }
+    nameTarget = null;
+    document.getElementById('nameModal').classList.remove('show');
+  }
+  document.querySelectorAll('#nameModal .chip').forEach(c => c.onclick = () => {
+    document.getElementById('nameInput').value = c.textContent; closeNameModal(true);
+  });
+  document.getElementById('nameOk').onclick = () => closeNameModal(true);
+  document.getElementById('nameCancel').onclick = () => closeNameModal(false);
+  document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') closeNameModal(true); if (e.key === 'Escape') closeNameModal(false); });
+
+  // ===== 保管場所の寸法（縦・横・高さ） =====
+  let spotTarget = null;
+  function openSpotModal(it) {
+    spotTarget = it;
+    const dm = spotDims(it);
+    const yi = 1 - dm.tateIdx;
+    document.getElementById('spotTate').value = dm.tate.toFixed(1);
+    document.getElementById('spotYoko').value = dm.yoko.toFixed(1);
+    document.getElementById('spotTateRaw').textContent = '写真 ' + fmt(it.sides[dm.tateIdx].raw * calibFactor);
+    document.getElementById('spotYokoRaw').textContent = '写真 ' + fmt(it.sides[yi].raw * calibFactor);
+    document.getElementById('spotH').value = it.h || '';
+    document.getElementById('spotModal').classList.add('show');
+    setTimeout(() => document.getElementById('spotTate').focus(), 50);
+  }
+  function closeSpotModal(save) {
+    const it = spotTarget;
+    if (save && it) {
+      const dm = spotDims(it), yi = 1 - dm.tateIdx;
+      const t = Number(document.getElementById('spotTate').value), y = Number(document.getElementById('spotYoko').value);
+      const h = Number(document.getElementById('spotH').value);
+      // 描いた大きさはそのまま、縦・横の数値表示だけを修正する
+      const setSide = (sd, v) => { sd.ov = (v > 0 && Math.abs(v - Number((sd.raw * calibFactor).toFixed(1))) > 0.001) ? v : null; };
+      setSide(it.sides[dm.tateIdx], t);
+      setSide(it.sides[yi], y);
+      it.h = h > 0 ? h : null;
+      redrawAll();
+    }
+    spotTarget = null;
+    document.getElementById('spotModal').classList.remove('show');
+  }
+  document.getElementById('spotOk').onclick = () => closeSpotModal(true);
+  document.getElementById('spotCancel').onclick = () => closeSpotModal(false);
+  ['spotTate', 'spotYoko', 'spotH'].forEach(id => document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') closeSpotModal(true); if (e.key === 'Escape') closeSpotModal(false);
+  }));
+
+  document.getElementById('clearBtn').onclick = () => {
+    if (!items.length || !confirm('なぞった線・計測結果を全て消去しますか？')) return;
+    items.length = 0; calibFactor = 1; renderCalibBadge(); redrawAll();
+  };
+  document.getElementById('copyBtn').onclick = () => {
+    const counter = {};
+    const lines = items.filter(it => it.type !== 'calib' && !MULTI[it.type]).map(it => {
+      counter[it.type] = (counter[it.type] || 0) + 1;
+      if (it.type === 'spot') {
+        const dm = spotDims(it);
+        return `保管場所${counter[it.type]}：縦${fmt(dm.tate)} × 横${fmt(dm.yoko)}${it.h ? '　高さ' + fmt(it.h) : ''}`;
+      }
+      return `${NAMES[it.type]}${counter[it.type]}：${fmt(valueOf(it))}`;
+    });
+    if (!lines.length) return toast('計測結果がありません');
+    navigator.clipboard.writeText(document.getElementById('addrInput').value + '\n' + lines.join('\n'))
+      .then(() => toast('計測結果をコピーしました'));
+  };
+
+  // ===== 住所検索（国土地理院） =====
+  async function geocode(q) {
+    q = q.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).trim();
+    const tries = [q, q.replace(/番地?$/, ''), q.replace(/[0-9]+番.*$/, '').replace(/[0-9]+-[0-9]+.*$/, ''), q.replace(/[0-9].*$/, '')];
+    for (const t of [...new Set(tries)].filter(Boolean)) {
+      try {
+        const r = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(t));
+        const d = await r.json();
+        if (d && d.length) return { lat: d[0].geometry.coordinates[1], lng: d[0].geometry.coordinates[0], title: d[0].properties.title, exact: t === q || t === q.replace(/番地?$/, '') };
+      } catch (e) { /* 次の候補へ */ }
+    }
+    return null;
+  }
+  async function doSearch() {
+    const q = document.getElementById('addrInput').value;
+    const meta = document.getElementById('geoMeta');
+    meta.textContent = '検索中…';
+    const g = await geocode(q);
+    if (!g) { meta.textContent = '⚠️ 住所が見つかりませんでした'; return; }
+    map.setView([g.lat, g.lng], 20);
+    if (searchMarker) map.removeLayer(searchMarker);
+    searchMarker = L.circleMarker([g.lat, g.lng], { radius: 7, color: '#fff', weight: 2, fillColor: 'hsl(0,80%,60%)', fillOpacity: .9, interactive: false }).addTo(map);
+    meta.innerHTML = `📍 ${g.title}${g.exact ? '' : '<br>⚠️ 番地まで特定できないため付近を表示しています。地図を動かして対象地を探してください。'}`;
+    updateResMeta();
+  }
+  document.getElementById('searchBtn').onclick = doSearch;
+  document.getElementById('addrInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.stopPropagation(); doSearch(); } });
+
+  // ===== 解像度表示 =====
+  function updateResMeta() {
+    const lat = map.getCenter().lat;
+    const nz = LAYERS[curLayerKey].nativeZoom;
+    const res = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, nz);
+    const scr = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+    document.getElementById('resMeta').innerHTML =
+      `写真の細かさ：1画素 ≒ <b>${(res * 100).toFixed(0)}cm</b>（元画像）<br>現在の表示：1画素 ≒ ${(scr * 100).toFixed(1)}cm（ズーム ${map.getZoom()}）`;
+  }
+  map.on('zoomend moveend', updateResMeta);
+  map.on('zoomend', () => redrawAll());   // 辺の長さラベルの重なりを再計算
+
+  // ===== 拡大鏡・移動モード =====
+  let loupeOn = true;
+  document.getElementById('loupeToggle').onclick = (e) => {
+    loupeOn = !loupeOn;
+    e.currentTarget.classList.toggle('on', loupeOn);
+    document.getElementById('mainArea').classList.toggle('loupe-off', !loupeOn);
+  };
+  document.getElementById('handBtn').onclick = () => { if (tool) selectTool(tool); };  // 現ツールを解除
+
+  // ===== 清書プレビュー（写真を消して白黒の線画にする） =====
+  function setClean(on) {
+    cleanMode = on;
+    document.getElementById('cleanBtn').classList.toggle('on', cleanMode);
+    document.getElementById('mainArea').classList.toggle('clean', cleanMode);
+    if (baseLayer) baseLayer.setOpacity(cleanMode ? 0 : 1);
+    if (searchMarker) { if (cleanMode) map.removeLayer(searchMarker); else searchMarker.addTo(map); }
+    if (cleanMode && tool) selectTool(tool);
+    redrawAll();
+  }
+  document.getElementById('cleanBtn').onclick = () => setClean(!cleanMode);
+
+  // ===== 印刷イメージ（A4横・配置図記載欄） =====
+  // 画面上の用紙サイズを mm 指定にしているので、見たままの配置で印刷される
+  let printMode = false, cleanBefore = false;
+  function fitToSheet() {
+    const pts = [];
+    items.forEach(it => { if (it.type !== 'calib') pts.push(...it.pts); });
+    if (!pts.length) return;
+    map.fitBounds(L.latLngBounds(pts), { padding: [70, 70], animate: false });
+    updateCompass(); redrawAll();
+  }
+  function setPrintMode(on) {
+    printMode = on;
+    if (on) { cleanBefore = cleanMode; selectedSpot = null; if (tool) selectTool(tool); }
+    document.body.classList.toggle('pmode', on);
+    setClean(on ? true : cleanBefore);
+    setTimeout(() => {
+      map.invalidateSize({ animate: false });
+      const box = document.getElementById('compassBox'), w = document.getElementById('mapWrap');
+      if (box.offsetLeft + 40 > w.clientWidth || box.offsetTop + 40 > w.clientHeight) {
+        box.style.left = 'auto'; box.style.right = '18px'; box.style.top = '18px';
+      }
+      if (on) fitToSheet(); else { updateCompass(); redrawAll(); }
+    }, 30);
+    if (on) toast('図の位置・大きさを整えてから「印刷する」を押してください');
+  }
+  document.getElementById('printBtn').onclick = () => setPrintMode(true);
+  document.getElementById('printBack').onclick = () => setPrintMode(false);
+  document.getElementById('printFit').onclick = fitToSheet;
+  document.getElementById('printGo').onclick = () => {
+    const t = document.title;
+    document.title = '配置図_' + new Date().toISOString().slice(0, 10);   // PDF保存時のファイル名
+    window.print();
+    document.title = t;
+  };
+
+  // ===== 枠内の図を SVG（ベクター）に書き出す =====
+  // 線は Leaflet の SVG パスを画面座標に変換、文字は1文字ずつ位置を測って <text> にする
+  function exportSheetSvg() {
+    const wrap = document.getElementById('mapWrap');
+    const r = wrap.getBoundingClientRect();
+    const ox = r.left + wrap.clientLeft, oy = r.top + wrap.clientTop;
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const f = (n) => Math.round(n * 100) / 100;
+    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const out = [];
+    // 線・図形
+    document.querySelectorAll('#map .leaflet-overlay-pane svg path').forEach(pth => {
+      const d = pth.getAttribute('d');
+      if (!d || d === 'M0 0') return;
+      const m = pth.getScreenCTM(); if (!m) return;
+      const attrs = ['stroke', 'stroke-opacity', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'fill', 'fill-opacity', 'fill-rule']
+        .map(a => { const v = pth.getAttribute(a); return v != null ? `${a}="${v}"` : ''; }).join(' ');
+      let a2 = attrs;
+      if (pth.classList.contains('hatch-clean')) a2 = a2.replace(/fill="[^"]*"/, '').replace(/fill-opacity="[^"]*"/, '') + ' fill="url(#trHatch)" fill-opacity="1"';
+      if (pth.getAttribute('stroke') === 'false' || pth.getAttribute('stroke') == null) a2 += ' stroke="none"';
+      out.push(`<path d="${d}" transform="matrix(${f(m.a)} ${f(m.b)} ${f(m.c)} ${f(m.d)} ${f(m.e - ox)} ${f(m.f - oy)})" ${a2}/>`);
+    });
+    // 文字（寸法・名称・高さ）
+    document.querySelectorAll('#map .leaflet-marker-pane .leaflet-marker-icon').forEach(icon => {
+      if (icon.querySelector('.spot-handle')) return;
+      const walker = document.createTreeWalker(icon, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const cs = getComputedStyle(node.parentElement);
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+        const txt = node.textContent;
+        for (let i = 0; i < txt.length; i++) {
+          const ch = txt[i];
+          if (/\s|\u3000/.test(ch)) continue;
+          const rg = document.createRange(); rg.setStart(node, i); rg.setEnd(node, i + 1);
+          const b = rg.getBoundingClientRect();
+          if (!b.width && !b.height) continue;
+          const cx = b.left + b.width / 2 - ox, cy = b.top + b.height / 2 - oy;
+          if (cx < -20 || cy < -20 || cx > W + 20 || cy > H + 20) continue;
+          out.push(`<text x="${f(cx)}" y="${f(cy)}" font-size="${parseFloat(cs.fontSize)}" font-weight="${cs.fontWeight}" fill="${cs.color}" text-anchor="middle" dominant-baseline="central">${esc(ch)}</text>`);
+        }
+      }
+    });
+    // 方位記号
+    const rose = document.getElementById('compassRose');
+    const rb = rose.getBoundingClientRect(), size = Number(rose.getAttribute('width')) || 78;
+    const ccx = rb.left + rb.width / 2 - ox, ccy = rb.top + rb.height / 2 - oy;
+    out.push(`<g transform="translate(${f(ccx)} ${f(ccy)}) rotate(${f(northScreenAngle())}) scale(${f(size / 100)}) translate(-50 -50)">${rose.innerHTML}</g>`);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="'Noto Sans JP','Yu Gothic','Meiryo',sans-serif">`
+      + `<defs><pattern id="trHatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><rect width="6" height="6" fill="#fff"/><line x1="0" y1="0" x2="0" y2="6" stroke="#111" stroke-width="1.2"/></pattern></defs>`
+      + `<clipPath id="trClip"><rect width="${W}" height="${H}"/></clipPath><g clip-path="url(#trClip)">${out.join('')}</g></svg>`;
+  }
+  document.getElementById('printSend').onclick = () => {
+    if (!items.some(it => it.type !== 'calib')) return toast('まだ何も描かれていません');
+    try {
+      const svg = exportSheetSvg();
+      localStorage.setItem('syako_trace_export', JSON.stringify({ svg, at: Date.now() }));
+    } catch (err) {
+      console.error(err); return toast('送信に失敗しました：' + err.message);
+    }
+    if (confirm('配置図様式へ送りました。\n\n配置図作成ツールを開いている場合は自動で反映されます。\n（反映されない時は「✏️ なぞり図を取り込む」を押してください）\n\n配置図作成ツールを新しいタブで開きますか？')) {
+      window.open('syako_map_maker.html', '_blank');
+    }
+  };
+
+  // ===== トースト =====
+  let toastTimer = null;
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ===== 地図の回転と方位記号 =====
+  // 画面上で「北」が向いている角度（度、上方向=0、時計回り）を実測する
+  function northScreenAngle() {
+    const c = map.getCenter();
+    const p0 = map.latLngToContainerPoint(c);
+    const p1 = map.latLngToContainerPoint(L.latLng(c.lat + 0.0005, c.lng));
+    return Math.atan2(p1.x - p0.x, -(p1.y - p0.y)) * 180 / Math.PI;
+  }
+  function updateCompass() {
+    const a = northScreenAngle();
+    document.getElementById('compassRose').style.transform = `rotate(${a}deg)`;
+    let disp = Math.round(-a); if (disp <= -180) disp += 360; if (disp > 180) disp -= 360;
+    document.getElementById('angleVal').textContent = (disp > 0 ? '+' : '') + disp + '°';
+    if (loupe.setBearing) loupe.setBearing(map.getBearing());
+  }
+  function rotateBy(deg) {
+    if (!map.setBearing) return toast('回転機能を読み込めませんでした');
+    map.setBearing(map.getBearing() + deg);
+    updateCompass(); redrawAll(); renderDraft();
+  }
+  // 指定した2点（道路の線など）が画面上で水平になるよう回転する
+  function segScreenAngle(a, b) {
+    const A = map.latLngToContainerPoint(a), B = map.latLngToContainerPoint(b);
+    return Math.atan2(B.y - A.y, B.x - A.x) * 180 / Math.PI;
+  }
+  function alignHorizontal(a, b) {
+    let ang = segScreenAngle(a, b);
+    if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+    const base = map.getBearing();
+    map.setBearing(base - ang);
+    let chk = segScreenAngle(a, b); if (chk > 90) chk -= 180; if (chk < -90) chk += 180;
+    if (Math.abs(chk) > 0.5) map.setBearing(base + ang);   // 回転方向が逆なら反対向き
+    map.panTo(mid(a, b), { animate: false });
+    updateCompass(); redrawAll(); renderDraft();
+  }
+  document.getElementById('rotL5').onclick = () => rotateBy(-5);
+  document.getElementById('rotL1').onclick = () => rotateBy(-1);
+  document.getElementById('rotR1').onclick = () => rotateBy(1);
+  document.getElementById('rotR5').onclick = () => rotateBy(5);
+  document.getElementById('rotReset').onclick = () => { if (map.setBearing) { map.setBearing(0); updateCompass(); redrawAll(); renderDraft(); } };
+  document.getElementById('rotAlign').onclick = () => {
+    // 一番新しい「道路の線」の最も長い区間を基準にする
+    const road = [...items].reverse().find(it => it.type === 'road');
+    if (!road) return toast('先に「道路の線」をなぞってください');
+    let best = null;
+    segmentsOf(road).forEach(sg => { const l = lenM(sg[0], sg[1]); if (!best || l > best.l) best = { sg, l }; });
+    alignHorizontal(best.sg[0], best.sg[1]);
+    toast('道路が水平になるように回転しました');
+  };
+  map.on('rotate', updateCompass);
+
+  // ===== 方位記号の移動・拡大縮小 =====
+  (function compassTools() {
+    const box = document.getElementById('compassBox');
+    const svg = document.getElementById('compassRose');
+    const area = document.getElementById('mapWrap');
+    let size = 78;
+    const setSize = (s) => {
+      size = Math.max(36, Math.min(260, s));
+      svg.setAttribute('width', size); svg.setAttribute('height', size);
+    };
+    document.getElementById('compassPlus').onclick = (e) => { e.stopPropagation(); setSize(size + 14); };
+    document.getElementById('compassMinus').onclick = (e) => { e.stopPropagation(); setSize(size - 14); };
+    box.addEventListener('wheel', (e) => { e.preventDefault(); e.stopPropagation(); setSize(size + (e.deltaY < 0 ? 8 : -8)); }, { passive: false });
+    let drag = null;
+    box.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.compass-ctrl')) return;
+      const r = box.getBoundingClientRect(), a = area.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, a };
+      box.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    box.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const x = Math.max(0, Math.min(drag.a.width - 30, e.clientX - drag.a.left - drag.dx));
+      const y = Math.max(0, Math.min(drag.a.height - 30, e.clientY - drag.a.top - drag.dy));
+      box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto';
+    });
+    const end = (e) => { if (drag) { drag = null; try { box.releasePointerCapture(e.pointerId); } catch (_) {} } };
+    box.addEventListener('pointerup', end);
+    box.addEventListener('pointercancel', end);
+  })();
+
+  // ===== 初期化 =====
+  setLayer('gsi');
+  loupe.setView(map.getCenter(), 19);
+  renderList(); setHint(); updateCompass();
+  doSearch();
+})();
+</script>
+</body>
+</html>

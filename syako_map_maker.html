@@ -463,6 +463,16 @@
     opacity: 0;
     pointer-events: none;
   }
+  /* なぞり図（syako_trace.html から取り込んだ清書図） */
+  .trace-layer {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 1;
+    display: none;
+    pointer-events: none;
+    background: #fff;
+  }
+  .trace-layer svg { display: block; width: 100%; height: 100%; }
   /* 描画キャンバス */
   .drawing-canvas {
     position: absolute;
@@ -735,6 +745,10 @@
     <!-- 2. 配置図パラメータ -->
     <div class="sidebar-section">
       <div class="section-title">📐 2. 車庫・道路・申請情報</div>
+      <div style="display:flex; gap:6px; margin-bottom:8px;">
+        <button type="button" class="btn btn-secondary" style="flex:1; padding:6px; font-weight:bold; border-color:#a78bfa; color:#c4b5fd;" onclick="importTraceDrawing()" title="航空写真なぞりツールで「配置図様式へ送る」を押した図を、配置図記載欄に取り込みます">✏️ なぞり図を取り込む</button>
+        <button type="button" class="btn btn-secondary" style="padding:6px;" onclick="window.open('syako_trace.html', '_blank')" title="航空写真なぞりツールを開く">↗ なぞりツール</button>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">駐車枠 番号</label>
@@ -1242,6 +1256,7 @@
       <div class="box-title-bar">配　置　図　記　載　欄</div>
       <div class="page-canvas-container" id="haichiContainer">
         <div id="haichiMap" class="map-layer"></div>
+        <div id="haichiTraceLayer" class="trace-layer"></div>
         <canvas id="haichiCanvas" class="drawing-canvas"></canvas>
         <div class="map-zoom-bar print-hide">
           <button class="zoom-btn" onclick="zoomMap('haichi', 1)" title="拡大">➕</button>
@@ -1250,6 +1265,7 @@
         <div class="canvas-mode-toggle print-hide">
           <button class="mode-btn active-mode" id="modeMap" onclick="setHaichiMode('map')" title="地図背景あり">🗺️ 地図</button>
           <button class="mode-btn" id="modeBlank" onclick="setHaichiMode('blank')" title="白紙キャンバス（略図用）">📝 白紙</button>
+          <button class="mode-btn" id="modeTrace" onclick="setHaichiMode('trace')" title="航空写真なぞり図（syako_trace）を背景にする">✏️ なぞり図</button>
         </div>
         <div class="scale-bar" id="haichiScaleBar">縮尺：約 1:500</div>
       </div>
@@ -1400,7 +1416,7 @@ function toggleOrthoLock() {
 
 // ─── CAD縮尺・寸法計算ユーティリティ ───
 function getMetersPerPixel(target = 'haichi') {
-  if (target === 'haichi' && haichiMode === 'blank') {
+  if (target === 'haichi' && haichiMode !== 'map') {
     return window.blankMetersPerPixel || 0.05; // 20px = 1m
   }
   const map = target === 'sozai' ? sozaiMap : haichiMap;
@@ -2827,7 +2843,7 @@ async function saveToCaseDirectly() {
     caseTitle: linkedCaseTitle,
     formData: {
       ocr, homeAddr, parkAddr, sameAddr, spotNo, distance,
-      spotWidth, spotLength, roadWidth, entranceWidth, shutter, layout, haichiMode,
+      spotWidth, spotLength, roadWidth, entranceWidth, shutter, layout, haichiMode, traceSvg: haichiTraceSvg,
       dealerInfo, regNo, officeInfo, showSeal, sealSize
     },
     mapState: {
@@ -6088,29 +6104,104 @@ function updateShutterDisplay() {
 }
 
 function setHaichiMode(mode) {
+  // なぞり図がまだ無ければ、送られてきた最新のなぞり図を取り込む
+  if (mode === 'trace' && !haichiTraceSvg) {
+    importTraceDrawing();
+    return;
+  }
   haichiMode = mode;
   const mapLayer = document.getElementById('haichiMap');
   const container = document.getElementById('haichiContainer');
   const btnMap = document.getElementById('modeMap');
   const btnBlank = document.getElementById('modeBlank');
+  const btnTrace = document.getElementById('modeTrace');
+  const traceLayer = document.getElementById('haichiTraceLayer');
   const scaleBar = document.getElementById('haichiScaleBar');
 
-  if (mode === 'blank') {
+  if (traceLayer) traceLayer.style.display = mode === 'trace' ? 'block' : 'none';
+  btnMap.classList.toggle('active-mode', mode === 'map');
+  btnBlank.classList.toggle('active-mode', mode === 'blank');
+  if (btnTrace) btnTrace.classList.toggle('active-mode', mode === 'trace');
+
+  if (mode === 'blank' || mode === 'trace') {
     mapLayer.classList.add('blank-mode');
-    container.classList.add('grid-bg');
-    btnMap.classList.remove('active-mode');
-    btnBlank.classList.add('active-mode');
+    container.classList.toggle('grid-bg', mode === 'blank');
     if (scaleBar) scaleBar.style.display = 'none';
-    showToast('📝 配置図を白紙キャンバスに切り替えました');
+    showToast(mode === 'blank' ? '📝 配置図を白紙キャンバスに切り替えました' : '✏️ 配置図をなぞり図に切り替えました');
   } else {
     mapLayer.classList.remove('blank-mode');
     container.classList.remove('grid-bg');
-    btnMap.classList.add('active-mode');
-    btnBlank.classList.remove('active-mode');
     if (scaleBar) scaleBar.style.display = 'block';
     showToast('🗺️ 配置図を地図背景モードに切り替えました');
   }
   autoSaveDraft();
+}
+
+// ─── 航空写真なぞり図（syako_trace.html）の取り込み ───
+var haichiTraceSvg = '';
+function setTraceSvg(svg) {
+  haichiTraceSvg = svg || '';
+  const layer = document.getElementById('haichiTraceLayer');
+  if (!layer) return;
+  layer.innerHTML = haichiTraceSvg;
+  const el = layer.querySelector('svg');
+  if (el) {
+    el.setAttribute('width', '100%');
+    el.setAttribute('height', '100%');
+    el.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  }
+}
+function importTraceDrawing(silent) {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem('syako_trace_export') || 'null'); } catch (e) {}
+  if (!d || !d.svg) {
+    if (!silent) alert('取り込めるなぞり図がありません。\n航空写真なぞりツールの「📄 印刷イメージ」→「📤 配置図様式へ送る」を押してから取り込んでください。');
+    return false;
+  }
+  setTraceSvg(d.svg);
+  if (typeof setActiveTarget === 'function') setActiveTarget('haichi');
+  setHaichiMode('trace');
+  const at = d.at ? new Date(d.at).toLocaleString('ja-JP') : '';
+  showToast(`✏️ なぞり図を配置図記載欄に取り込みました${at ? '（' + at + ' 作成）' : ''}`);
+  return true;
+}
+window.importTraceDrawing = importTraceDrawing;
+// なぞりツールから送られたら、開いているこの画面へ自動で反映
+window.addEventListener('storage', (e) => {
+  if (e.key === 'syako_trace_export' && e.newValue) importTraceDrawing(true);
+});
+// なぞり図を白背景のPNGに合成（2倍解像度）
+function renderTraceComposite(canvas, targetKey) {
+  return new Promise((resolve) => {
+    const w = (canvas && canvas.width > 50) ? canvas.width : 800;
+    const h = (canvas && canvas.height > 50) ? canvas.height : 500;
+    const SC = 2;
+    const out = document.createElement('canvas');
+    out.width = w * SC; out.height = h * SC;
+    const ctx = out.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, out.width, out.height);
+    const finish = () => {
+      ctx.save(); ctx.scale(SC, SC);
+      (drawings[targetKey] || []).forEach(item => drawElement(ctx, item));
+      ctx.restore();
+      resolve(out.toDataURL('image/png'));
+    };
+    const svgEl = document.querySelector('#haichiTraceLayer svg');
+    if (!svgEl) return finish();
+    const vb = (svgEl.getAttribute('viewBox') || '0 0 ' + w + ' ' + h).split(/[\s,]+/).map(Number);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(w / vb[2], h / vb[3]);
+      const dw = vb[2] * k, dh = vb[3] * k;
+      ctx.drawImage(img, (w - dw) / 2 * SC, (h - dh) / 2 * SC, dw * SC, dh * SC);
+      finish();
+    };
+    img.onerror = finish;
+    const clone = svgEl.cloneNode(true);
+    clone.setAttribute('width', vb[2]); clone.setAttribute('height', vb[3]);
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+  });
 }
 
 let sozaiMode = 'map';
@@ -6947,7 +7038,7 @@ function exportJSON() {
     caseId: linkedCaseId,
     formData: {
       ocr, homeAddr, parkAddr, sameAddr, spotNo, distance,
-      spotWidth, spotLength, roadWidth, entranceWidth, shutter, layout, haichiMode,
+      spotWidth, spotLength, roadWidth, entranceWidth, shutter, layout, haichiMode, traceSvg: haichiTraceSvg,
       dealerInfo, regNo, officeInfo, showSeal, sealSize, mapTile, mapContrast
     },
     mapState: {
@@ -7031,7 +7122,9 @@ function restoreProjectData(data) {
         document.getElementById('layoutSelect').value = f.layout;
         switchLayout();
       }
-      if (f.haichiMode) setHaichiMode(f.haichiMode);
+      setTraceSvg(f.traceSvg || '');
+      if (f.haichiMode === 'trace' && !f.traceSvg) setHaichiMode('map');
+      else if (f.haichiMode) setHaichiMode(f.haichiMode);
 
       updateOCRDisplay();
       updateQRCodes();
@@ -7130,7 +7223,7 @@ function autoSaveDraft() {
         caseId: linkedCaseId,
         formData: {
           ocr, homeAddr, parkAddr, sameAddr, spotNo, distance,
-          spotWidth, spotLength, roadWidth, entranceWidth, shutter, layout, haichiMode,
+          spotWidth, spotLength, roadWidth, entranceWidth, shutter, layout, haichiMode, traceSvg: haichiTraceSvg,
           dealerInfo, regNo, officeInfo, showSeal, sealSize, mapTile, mapContrast
         },
         mapState: {
@@ -7254,6 +7347,11 @@ async function captureCleanCanvasContainer(container) {
   const mode = isSozai ? sozaiMode : haichiMode;
   const canvas = isSozai ? sozaiCanvas : haichiCanvas;
 
+  if (mode === 'trace') {
+    redraw(targetKey);
+    return await renderTraceComposite(canvas, targetKey);
+  }
+
   if (mode === 'blank') {
     // 白紙モード：作図データを確実に反映（DOM canvas + drawings配列描画の二重保証で絶対に白紙にならない）
     redraw(targetKey);
@@ -7368,7 +7466,10 @@ async function copyMapToClipboard(targetType) {
   try {
     let blob = null;
 
-    if (!isMapMode) {
+    if (target === 'haichi' && haichiMode === 'trace') {
+      const url = await captureCleanCanvasContainer(container);
+      blob = await (await fetch(url)).blob();
+    } else if (!isMapMode) {
       // 白紙モード：canvasの背景は完全透明（alpha=0）の透過PNG！枠線も一切なし！
       blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     } else {
