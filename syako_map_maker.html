@@ -747,7 +747,7 @@
       <div class="section-title">📐 2. 車庫・道路・申請情報</div>
       <div style="display:flex; gap:6px; margin-bottom:8px;">
         <button type="button" class="btn btn-secondary" style="flex:1; padding:6px; font-weight:bold; border-color:#a78bfa; color:#c4b5fd;" onclick="importTraceDrawing()" title="航空写真なぞりツールで「配置図様式へ送る」を押した図を、配置図記載欄に取り込みます">✏️ なぞり図を取り込む</button>
-        <button type="button" class="btn btn-secondary" style="padding:6px;" onclick="window.open('syako_trace.html', '_blank')" title="航空写真なぞりツールを開く">↗ なぞりツール</button>
+        <button type="button" class="btn btn-secondary" style="padding:6px;" onclick="openTraceTool()" title="航空写真なぞりツールを開く">↗ なぞりツール</button>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -6166,6 +6166,15 @@ function importTraceDrawing(silent) {
   return true;
 }
 window.importTraceDrawing = importTraceDrawing;
+// なぞりツールを案件の住所（保管場所 → 使用の本拠の順）で開く
+function openTraceTool() {
+  const park = (document.getElementById('parkingAddress')?.value || '').trim();
+  const home = (document.getElementById('homeAddress')?.value || '').trim();
+  const sameAddr = document.getElementById('sameAddress')?.checked;
+  const addr = (sameAddr ? home : park) || park || home;
+  window.open('syako_trace.html' + (addr ? '?addr=' + encodeURIComponent(addr) : ''), '_blank');
+}
+window.openTraceTool = openTraceTool;
 // なぞりツールから送られたら、開いているこの画面へ自動で反映
 window.addEventListener('storage', (e) => {
   if (e.key === 'syako_trace_export' && e.newValue) importTraceDrawing(true);

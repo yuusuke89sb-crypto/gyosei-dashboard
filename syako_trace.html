@@ -231,7 +231,7 @@
     <div class="section">
       <h2>① 住所</h2>
       <div class="search">
-        <input type="text" id="addrInput" value="愛知県小牧市藤島町中島44" placeholder="例：小牧市藤島町中島44番">
+        <input type="text" id="addrInput" value="" placeholder="例：小牧市藤島町中島44番">
         <button class="btn" id="searchBtn">表示</button>
       </div>
       <div class="meta" id="geoMeta">住所を入れて「表示」を押してください</div>
@@ -1451,7 +1451,12 @@
   setLayer('gsi');
   loupe.setView(map.getCenter(), 19);
   renderList(); setHint(); updateCompass();
-  doSearch();
+  // 配置図ツールから渡された案件の住所（?addr=）があれば、その場所を開く
+  const initAddr = new URLSearchParams(location.search).get('addr');
+  if (initAddr && initAddr.trim()) {
+    document.getElementById('addrInput').value = initAddr.trim();
+    doSearch();
+  }
 })();
 </script>
 </body>
