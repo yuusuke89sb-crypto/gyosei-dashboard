@@ -2361,11 +2361,11 @@ const Cases = {
       if (isGaragePaper && resolvedPolId && typeof Store !== 'undefined' && isAichiToyota) {
         const loc = Store.getLocation(resolvedPolId);
         if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
-          // ★軽の車庫証明（一般）は所轄単価の半額＋1,000円
-          if (Cases._isLightCaseData(c)) {
-            const halfFee = Cases._calcLightHalfFee(loc.syakoFee);
+          // ★軽は半額(切上)+1,000円、申請のみ／受取のみは半額(切上)、それ以外は所轄単価
+          const { fee: targetFee, mode } = Cases._calcGaragePaperFee(loc.syakoFee, c);
+          if (mode !== 'full') {
             if (!curFee || Number(curFee) === 0 || Number(curFee) === 3500 || Number(curFee) === Number(loc.syakoFee)) {
-              curFee = halfFee;
+              curFee = targetFee;
             }
           } else if (!curFee || Number(curFee) === 0 || Number(curFee) === 3500) {
             curFee = loc.syakoFee;
@@ -3322,9 +3322,56 @@ const Cases = {
     return name.includes('愛知トヨタ');
   },
 
-  // 軽自動車向け単価：所轄警察署単価の半額＋一律1,000円（4000円なら3000円）
+  // 所轄単価の半額を1,000円単位で切り上げ（5000円→2500円→3000円）
+  _calcHalfRoundUp(syakoFee) {
+    return Math.ceil(Number(syakoFee) / 2 / 1000) * 1000;
+  },
+
+  // 車庫証明（一般・軽）向け単価：所轄単価の半額（1,000円単位切り上げ）＋一律1,000円（5000円なら4000円）
+  // ※軽自動車登録（car_reg_light）は従来どおり Math.round(半額)+1,000円 のまま
   _calcLightHalfFee(syakoFee) {
-    return Math.round(Number(syakoFee) / 2) + 1000;
+    return this._calcHalfRoundUp(syakoFee) + 1000;
+  },
+
+  // 「申請のみ」「受取のみ」の案件かどうか（メモ・件名・備考・立替金ラベルで判定）
+  _APPLY_ONLY_RE: /(申請(代行)?のみ|受取のみ|受け取りのみ|受領のみ|交付のみ)/,
+  _isApplyOnlyCaseData(c) {
+    if (!c) return false;
+    const advLabels = (c.advances || []).map(a => (a && a.label) || '').join(' ');
+    const text = [c.title, c.memo, c.remarks, c.subCategory, advLabels].map(v => String(v || '')).join(' ');
+    return this._APPLY_ONLY_RE.test(text);
+  },
+
+  // 車庫証明（一般）の目標単価を算出
+  //  - 軽：半額（切り上げ）＋1,000円（軽は常に申請のみのため、重ねて半額にはしない）
+  //  - 申請のみ／受取のみ：半額（切り上げ）
+  //  - それ以外：所轄単価
+  _calcGaragePaperFee(syakoFee, c) {
+    const full = Number(syakoFee);
+    if (this._isLightCaseData(c)) return { fee: this._calcLightHalfFee(full), mode: 'light' };
+    if (this._isApplyOnlyCaseData(c)) return { fee: this._calcHalfRoundUp(full), mode: 'half' };
+    return { fee: full, mode: 'full' };
+  },
+
+  // 自動計算で上書きしてよい単価か（未入力・所轄単価・各種半額・旧計算式の値のみ。手入力は保護）
+  _isAutoGarageFee(cur, syakoFee) {
+    const full = Number(syakoFee);
+    const n = Number(cur || 0);
+    return n === 0 || n === 3500 || n === full ||
+      n === this._calcHalfRoundUp(full) || n === this._calcLightHalfFee(full) ||
+      n === Math.round(full / 2) || n === Math.round(full / 2) + 1000;
+  },
+
+  // 入力中フォームのデータ（判定用）
+  _garageFormData() {
+    const val = (id) => { const el = document.getElementById(id); return el ? (el.value || '') : ''; };
+    return {
+      category: val('csf_category'),
+      title: val('csf_title'),
+      subCategory: val('csf_subCategory'),
+      memo: val('csf_memo'),
+      advances: this.advanceDraft || []
+    };
   },
 
   // 案件データが「軽」かどうか（請求書の区分判定 invoice.js isLight と同じ基準）
@@ -3363,15 +3410,16 @@ const Cases = {
     const feeEl = document.getElementById('csf_fee');
     if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && feeEl) {
       const full = Number(loc.syakoFee);
-      const half = this._calcLightHalfFee(full);
       const cur = Number(feeEl.value || 0);
-      const target = this._isLightGarageForm() ? half : full;
-      if (cur !== target && (cur === 0 || cur === full || cur === half)) {
+      const { fee: target, mode } = this._calcGaragePaperFee(full, this._garageFormData());
+      if (cur !== target && this._isAutoGarageFee(cur, full)) {
         feeEl.value = target;
         if (typeof App !== 'undefined' && App.showToast) {
-          App.showToast(target === half
-            ? `🚙 軽と判定：報酬を半額+1,000円（¥${half.toLocaleString()}）に更新しました`
-            : `📍 普通車として報酬を所轄単価（¥${full.toLocaleString()}）に戻しました`);
+          App.showToast(mode === 'light'
+            ? `🚙 軽と判定：報酬を半額+1,000円（¥${target.toLocaleString()}）に更新しました`
+            : mode === 'half'
+              ? `✂️ 申請のみ／受取のみと判定：報酬を半額（¥${target.toLocaleString()}）に更新しました`
+              : `📍 報酬を所轄単価（¥${full.toLocaleString()}）に戻しました`);
         }
       }
     }
@@ -3413,15 +3461,16 @@ const Cases = {
       }
       if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && this._isAichiToyotaSelected()) {
         const feeEl = document.getElementById('csf_fee');
-        // ★軽自動車の車庫証明（一般）は所轄単価の半額＋一律1,000円
-        const isLight = this._isLightGarageForm();
-        const targetFee = isLight ? this._calcLightHalfFee(loc.syakoFee) : Number(loc.syakoFee);
+        // ★軽は半額(切上)+1,000円、申請のみ／受取のみは半額(切上)、それ以外は所轄単価
+        const { fee: targetFee, mode } = this._calcGaragePaperFee(loc.syakoFee, this._garageFormData());
         if (feeEl) {
           feeEl.value = targetFee;
           if (typeof App !== 'undefined' && App.showToast) {
-            App.showToast(isLight
+            App.showToast(mode === 'light'
               ? `📍 ${loc.name}の車庫証明（一般・軽）報酬（半額+1,000円: ¥${targetFee.toLocaleString()}）を反映しました`
-              : `📍 ${loc.name}の車庫証明（一般）報酬（¥${Number(loc.syakoFee).toLocaleString()}）を反映しました`);
+              : mode === 'half'
+                ? `📍 ${loc.name}の車庫証明（一般・申請/受取のみ）報酬（半額: ¥${targetFee.toLocaleString()}）を反映しました`
+                : `📍 ${loc.name}の車庫証明（一般）報酬（¥${Number(loc.syakoFee).toLocaleString()}）を反映しました`);
           }
         }
       }
@@ -3506,11 +3555,16 @@ const Cases = {
       const isToyota = this._isAichiToyotaSelected();
       if (isToyota) {
         const currentFee = document.getElementById('csf_fee')?.value;
-        // ★軽自動車の車庫証明（一般）は所轄単価の半額＋一律1,000円
-        const isLight = this._isLightGarageForm();
-        const targetFee = isLight ? this._calcLightHalfFee(loc.syakoFee) : Number(loc.syakoFee);
+        // ★軽は半額(切上)+1,000円、申請のみ／受取のみは半額(切上)、それ以外は所轄単価
+        const { fee: targetFee, mode } = this._calcGaragePaperFee(loc.syakoFee, this._garageFormData());
+        const isLight = mode === 'light';
         const isDiff = Number(currentFee) !== targetFee;
-        hintEl.innerHTML = isLight ? `
+        hintEl.innerHTML = mode === 'half' ? `
+          <span style="color:var(--text-secondary); font-size:0.75rem;">
+            ✂️ 申請/受取のみ: <strong style="color:var(--accent-primary, #4f46e5)">¥${targetFee.toLocaleString()}</strong>（所轄¥${Number(loc.syakoFee).toLocaleString()}の半額・千円切上）
+          </span>
+          ${isDiff ? `<button type="button" class="btn btn-secondary btn-small" style="font-size:0.68rem; padding:1px 6px; margin-left:4px;" onclick="Cases.applyPoliceFeeToForm(${targetFee})">半額を適用</button>` : ' <span style="color:#10b981; font-size:0.72rem;">✓ 反映済</span>'}
+        ` : isLight ? `
           <span style="color:var(--text-secondary); font-size:0.75rem;">
             🚙 軽・車庫（一般）: <strong style="color:var(--accent-primary, #4f46e5)">¥${targetFee.toLocaleString()}</strong>（所轄¥${Number(loc.syakoFee).toLocaleString()}の半額+¥1,000）
           </span>
