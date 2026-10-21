@@ -41,8 +41,98 @@ const SpreadsheetSync = {
         return !!this.getGasUrl();
     },
 
+    // ---- 受信の設定（2026-10-22 スマホ受信失敗対策）----
+    // 一括受信(type=all)は約4.8MB・約100秒かかるため、スマホ（約60秒で通信が打ち切られる）では使わない。
+    // 種類ごとの受信は同時に11本投げるとGASが処理しきれず404になるため、同時2本までに絞り、小さいものから順に取る。
+    PULL_CHUNK_TYPES: ['settings', 'staff', 'locations', 'clientContacts', 'customers', 'deletedCases', 'invoices', 'events', 'journals', 'inbox', 'cases'],
+    PULL_CONCURRENCY: 2,
+    PULL_RETRY_WAITS: [0, 3000, 8000],   // 初回・3秒後・8秒後
+    PULL_ALL_TIMEOUT_MS: 180000,         // PCの一括受信
+    PULL_CHUNK_TIMEOUT_MS: 120000,       // 種類ごとの受信
+    _pullPromise: null,
+
+    isMobile() {
+        try {
+            const ua = navigator.userAgent || '';
+            return /iPhone|iPad|iPod|Android|Mobile/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+        } catch (e) { return false; }
+    },
+
+    async _fetchJson(fullUrl, timeoutMs) {
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+        try {
+            const r = await fetch(fullUrl, ctrl ? { signal: ctrl.signal } : {});
+            if (!r.ok) throw new Error('通信エラー: ' + r.status);
+            const j = await r.json();
+            if (j && j.error) throw new Error(j.error);
+            return j;
+        } catch (e) {
+            if (e && e.name === 'AbortError') throw new Error('タイムアウト（' + Math.round(timeoutMs / 1000) + '秒）');
+            throw e;
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    },
+
+    // 1種類を取得（失敗時は少し待って再試行）
+    async _fetchChunk(url, sep, type) {
+        let lastErr;
+        for (const wait of this.PULL_RETRY_WAITS) {
+            if (wait) await new Promise(res => setTimeout(res, wait));
+            try {
+                return await this._fetchJson(url + sep + 'type=' + type + '&t=' + Date.now(), this.PULL_CHUNK_TIMEOUT_MS);
+            } catch (e) {
+                lastErr = e;
+                console.warn(`[SpreadsheetSync] ${type} の受信に失敗（再試行します）:`, e && e.message);
+            }
+        }
+        throw lastErr;
+    },
+
+    // 全データの取得：PCは一括→失敗時に分割、スマホは最初から分割（同時2本）
+    async _fetchAllData(url, sep) {
+        if (!this.isMobile()) {
+            try {
+                return await this._fetchJson(url + sep + 'type=all&t=' + Date.now(), this.PULL_ALL_TIMEOUT_MS);
+            } catch (allErr) {
+                console.warn('[SpreadsheetSync.pull] 一括受信に失敗。種類ごとの受信に切り替えます...', allErr);
+            }
+        }
+        const types = this.PULL_CHUNK_TYPES;
+        const data = { syncedAt: new Date().toISOString() };
+        const failed = [];
+        let next = 0;
+        const worker = async () => {
+            while (next < types.length) {
+                const t = types[next++];
+                try {
+                    const res = await this._fetchChunk(url, sep, t);
+                    if (res && res[t] !== undefined && res[t] !== null) data[t] = res[t];
+                    if (res && res.syncedAt) data.syncedAt = res.syncedAt;
+                } catch (e) {
+                    failed.push(t);
+                }
+            }
+        };
+        const n = Math.max(1, Math.min(this.PULL_CONCURRENCY, types.length));
+        await Promise.all(Array.from({ length: n }, worker));
+        if (!data.customers && !data.cases && !data.journals) {
+            throw new Error('受信できませんでした（混雑中の可能性。数分後に自動で再試行します）');
+        }
+        if (failed.length) data._failed = failed;
+        return data;
+    },
+
     // ---- データ取得（Pull）----
-    async pull() {
+    // 同期が重ならないように、実行中ならその結果を待つ（3分ごとの自動同期・タブ復帰・手動同期の多重実行を防止）
+    pull() {
+        if (this._pullPromise) return this._pullPromise;
+        this._pullPromise = this._pullImpl().finally(() => { this._pullPromise = null; });
+        return this._pullPromise;
+    },
+
+    async _pullImpl() {
         const url = this.getGasUrl();
         if (!url) throw new Error('GAS URL が設定されていません');
 
@@ -64,35 +154,8 @@ const SpreadsheetSync = {
         }
 
         try {
-            let data;
             const sep = url.includes('?') ? '&' : '?';
-        try {
-            const response = await fetch(url + sep + 'type=all&t=' + Date.now());
-            if (!response.ok) throw new Error('通信エラー: ' + response.status);
-
-            data = await response.json();
-            if (data.error) throw new Error(data.error);
-        } catch (allErr) {
-            console.warn('[SpreadsheetSync.pull] type=all 通信エラーまたはタイムアウト。個別並行取得へフォールバックします...', allErr);
-            // 分割並行取得にフォールバック（Google 30秒タイムアウト対策）
-            const chunkTypes = ['customers', 'staff', 'locations', 'clientContacts', 'cases', 'journals', 'inbox', 'events', 'deletedCases', 'invoices', 'settings'];
-            const chunkResults = await Promise.allSettled(chunkTypes.map(async (t) => {
-                const r = await fetch(url + sep + 'type=' + t + '&t=' + Date.now());
-                if (!r.ok) return null;
-                return r.json();
-            }));
-            data = { syncedAt: new Date().toISOString() };
-            chunkResults.forEach((res, i) => {
-                if (res.status === 'fulfilled' && res.value && !res.value.error) {
-                    const key = chunkTypes[i];
-                    if (res.value[key]) data[key] = res.value[key];
-                    if (res.value.syncedAt) data.syncedAt = res.value.syncedAt;
-                }
-            });
-            if (!data.customers && !data.cases && !data.journals) {
-                throw allErr;
-            }
-        }
+            const data = await this._fetchAllData(url, sep);
 
             // 顧客データを localStorage に保存
             if (data.customers) {
@@ -341,6 +404,7 @@ const SpreadsheetSync = {
                 locations: (data.locations || []).length,
                 clientContacts: (data.clientContacts || []).length,
                 events: (data.events || []).length,
+                failed: data._failed || [],
                 syncedAt: data.syncedAt,
             };
 
@@ -614,7 +678,8 @@ const SpreadsheetSync = {
                 CaseTemplates.seedPoliceFees();
             }
             App.refreshView();
-            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 顧客担当者${result.clientContacts || 0}件 / 場所${result.locations}件 / 案件${result.cases}件 / 予定${result.events || 0}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`);
+            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 顧客担当者${result.clientContacts || 0}件 / 場所${result.locations}件 / 案件${result.cases}件 / 予定${result.events || 0}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`
+                + (result.failed && result.failed.length ? ` （⚠️一部未取得: ${result.failed.join(', ')}。次の自動同期で再取得します）` : ''));
         } catch (err) {
             App.showToast('❌ 同期エラー: ' + err.message);
         }
