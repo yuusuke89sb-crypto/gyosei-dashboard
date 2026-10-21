@@ -10,3 +10,6 @@ scratch/
 *.log
 *_backup_*.html
 data/gas_sync_cache.json
+
+# 店舗送付パックの実テンプレート（注文番号・地図等を含むため公開リポジトリには上げない）
+templates/oss_dw/
