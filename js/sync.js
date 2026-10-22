@@ -5,6 +5,8 @@
 const SpreadsheetSync = {
     CONFIG_KEY: 'gyosei_sync_settings',
     INBOX_QUEUE_KEY: 'gyosei_inbox_pending_queue',
+    REVS_KEY: 'gyosei_sync_revs',
+    LAST_FULL_SYNC_KEY: 'gyosei_last_full_sync',
 
     // デフォルトGAS URL（全デバイスで自動接続）
     DEFAULT_GAS_URL: 'https://script.google.com/macros/s/AKfycbzCXTuW3RirKhn29PiAZe_VtmGXj22LrBAmO_ztCpmiKuQ_YU8pE2JqoZDoSWEbgm0g/exec',
@@ -20,6 +22,27 @@ const SpreadsheetSync = {
 
     saveConfig(config) {
         localStorage.setItem(this.CONFIG_KEY, JSON.stringify(config));
+    },
+
+    getRevs() {
+        try {
+            return JSON.parse(localStorage.getItem(this.REVS_KEY)) || null;
+        } catch (e) {
+            return null;
+        }
+    },
+
+    saveRevs(revs) {
+        try {
+            localStorage.setItem(this.REVS_KEY, JSON.stringify(revs || {}));
+        } catch (e) {}
+    },
+
+    clearRevs() {
+        try {
+            localStorage.removeItem(this.REVS_KEY);
+            localStorage.removeItem(this.LAST_FULL_SYNC_KEY);
+        } catch (e) {}
     },
 
     getGasUrl() {
@@ -76,12 +99,13 @@ const SpreadsheetSync = {
     },
 
     // 1種類を取得（失敗時は少し待って再試行）
-    async _fetchChunk(url, sep, type) {
+    async _fetchChunk(url, sep, type, extraQuery) {
         let lastErr;
+        const extraParam = extraQuery ? ('&' + extraQuery) : '';
         for (const wait of this.PULL_RETRY_WAITS) {
             if (wait) await new Promise(res => setTimeout(res, wait));
             try {
-                return await this._fetchJson(url + sep + 'type=' + type + '&t=' + Date.now(), this.PULL_CHUNK_TIMEOUT_MS);
+                return await this._fetchJson(url + sep + 'type=' + type + '&t=' + Date.now() + extraParam, this.PULL_CHUNK_TIMEOUT_MS);
             } catch (e) {
                 lastErr = e;
                 console.warn(`[SpreadsheetSync] ${type} の受信に失敗（再試行します）:`, e && e.message);
@@ -90,11 +114,14 @@ const SpreadsheetSync = {
         throw lastErr;
     },
 
-    // 全データの取得：PCは一括→失敗時に分割、スマホは最初から分割（同時2本）
-    async _fetchAllData(url, sep) {
-        if (!this.isMobile()) {
+    // 全データの取得：差分同期時は type=all を試行（数KB〜数十KBでスマホでも一瞬で完了）
+    // 全件同期時：PCは一括→分割、スマホは最初から分割（同時2本）
+    async _fetchAllData(url, sep, queryParams, isDiff) {
+        const extra = queryParams ? ('&' + queryParams) : '';
+        if (!this.isMobile() || isDiff) {
             try {
-                return await this._fetchJson(url + sep + 'type=all&t=' + Date.now(), this.PULL_ALL_TIMEOUT_MS);
+                const timeout = isDiff ? 35000 : this.PULL_ALL_TIMEOUT_MS;
+                return await this._fetchJson(url + sep + 'type=all&t=' + Date.now() + extra, timeout);
             } catch (allErr) {
                 console.warn('[SpreadsheetSync.pull] 一括受信に失敗。種類ごとの受信に切り替えます...', allErr);
             }
@@ -107,9 +134,17 @@ const SpreadsheetSync = {
             while (next < types.length) {
                 const t = types[next++];
                 try {
-                    const res = await this._fetchChunk(url, sep, t);
-                    if (res && res[t] !== undefined && res[t] !== null) data[t] = res[t];
-                    if (res && res.syncedAt) data.syncedAt = res.syncedAt;
+                    const res = await this._fetchChunk(url, sep, t, queryParams);
+                    if (res) {
+                        if (res[t] !== undefined && res[t] !== null) data[t] = res[t];
+                        if (res.casesPartial) data.casesPartial = true;
+                        if (res.deletedCases !== undefined) data.deletedCases = res.deletedCases;
+                        if (res.revs) data.revs = Object.assign(data.revs || {}, res.revs);
+                        if (res.unchanged && Array.isArray(res.unchanged)) {
+                            data.unchanged = (data.unchanged || []).concat(res.unchanged);
+                        }
+                        if (res.syncedAt) data.syncedAt = res.syncedAt;
+                    }
                 } catch (e) {
                     failed.push(t);
                 }
@@ -117,7 +152,8 @@ const SpreadsheetSync = {
         };
         const n = Math.max(1, Math.min(this.PULL_CONCURRENCY, types.length));
         await Promise.all(Array.from({ length: n }, worker));
-        if (!data.customers && !data.cases && !data.journals) {
+        const hasContent = data.customers !== undefined || data.cases !== undefined || data.journals !== undefined || (data.unchanged && data.unchanged.length > 0);
+        if (!hasContent && !isDiff) {
             throw new Error('受信できませんでした（混雑中の可能性。数分後に自動で再試行します）');
         }
         if (failed.length) data._failed = failed;
@@ -126,13 +162,14 @@ const SpreadsheetSync = {
 
     // ---- データ取得（Pull）----
     // 同期が重ならないように、実行中ならその結果を待つ（3分ごとの自動同期・タブ復帰・手動同期の多重実行を防止）
-    pull() {
+    pull(opts) {
         if (this._pullPromise) return this._pullPromise;
-        this._pullPromise = this._pullImpl().finally(() => { this._pullPromise = null; });
+        this._pullPromise = this._pullImpl(opts).finally(() => { this._pullPromise = null; });
         return this._pullPromise;
     },
 
-    async _pullImpl() {
+    async _pullImpl(opts) {
+        opts = opts || {};
         const url = this.getGasUrl();
         if (!url) throw new Error('GAS URL が設定されていません');
 
@@ -155,7 +192,25 @@ const SpreadsheetSync = {
 
         try {
             const sep = url.includes('?') ? '&' : '?';
-            const data = await this._fetchAllData(url, sep);
+
+            // 差分判定
+            const knownRevs = this.getRevs();
+            const lastFull = Number(localStorage.getItem(this.LAST_FULL_SYNC_KEY)) || 0;
+            const isDailyFull = (Date.now() - lastFull) > 24 * 60 * 60 * 1000;
+            const forceFull = !!opts.forceFull;
+            const isDiff = !forceFull && !isDailyFull && !!knownRevs;
+
+            let queryParams = '';
+            if (isDiff) {
+                const conf = this.getConfig();
+                const since = conf.lastSync || '';
+                queryParams = 'revs=' + encodeURIComponent(JSON.stringify(knownRevs));
+                if (since) {
+                    queryParams += '&since=' + encodeURIComponent(since);
+                }
+            }
+
+            const data = await this._fetchAllData(url, sep, queryParams, isDiff);
 
             // 顧客データを localStorage に保存
             if (data.customers) {
@@ -168,8 +223,13 @@ const SpreadsheetSync = {
             }
 
             // 案件データ：項目単位のマージ（case_sync.js）。未送信の変更・新規案件は消さない
-            if (data.cases && typeof CaseSync !== 'undefined') {
-                CaseSync.mergeRemoteCases(data.cases, data.deletedCases || [], { serverReady: Array.isArray(data.deletedCases) });
+            if (typeof CaseSync !== 'undefined') {
+                if (data.cases || data.deletedCases) {
+                    CaseSync.mergeRemoteCases(data.cases || [], data.deletedCases || [], {
+                        serverReady: Array.isArray(data.deletedCases),
+                        isPartial: !!data.casesPartial || (isDiff && !data.cases)
+                    });
+                }
             }
 
             // 請求書・請求明細・入金（invoice_sync.js）。案件の請求済み表示もここで組み立て直す
@@ -257,8 +317,8 @@ const SpreadsheetSync = {
                 }
             }
 
-            // 顧客担当者データをマージ（ローカル既存データを保持 + ローカルのみのデータをSSへPush）
-            {
+            // 顧客担当者データをマージ（受信時のみローカル既存データを保持 + ローカルのみのデータをSSへPush）
+            if (data.clientContacts && Array.isArray(data.clientContacts)) {
                 var localContacts = JSON.parse(localStorage.getItem('gyosei_client_contacts') || '[]');
                 var remoteContacts = data.clientContacts || [];
 
@@ -389,21 +449,33 @@ const SpreadsheetSync = {
                 });
             }
 
+            // 版番号（revs）の更新
+            if (data.revs) {
+                const mergedRevs = Object.assign({}, knownRevs || {}, data.revs);
+                this.saveRevs(mergedRevs);
+            }
+            if (!isDiff) {
+                localStorage.setItem(this.LAST_FULL_SYNC_KEY, String(Date.now()));
+            }
+
             // 同期日時を記録
             this.saveConfig({
                 ...this.getConfig(),
-                lastSync: new Date().toISOString(),
+                lastSync: data.syncedAt || new Date().toISOString(),
             });
 
             return {
-                customers: (data.customers || []).length,
-                staff: (data.staff || []).length,
-                cases: (data.cases || []).length,
-                journals: (data.journals || []).length,
-                inbox: (data.inbox || []).length,
-                locations: (data.locations || []).length,
-                clientContacts: (data.clientContacts || []).length,
+                isDiff: isDiff,
+                customers: data.customers ? data.customers.length : null,
+                staff: data.staff ? data.staff.length : null,
+                cases: data.cases ? data.cases.length : null,
+                journals: data.journals ? data.journals.length : null,
+                inbox: data.inbox ? data.inbox.length : null,
+                locations: data.locations ? data.locations.length : null,
+                clientContacts: data.clientContacts ? data.clientContacts.length : null,
                 events: (data.events || []).length,
+                unchanged: data.unchanged || [],
+                casesPartial: !!data.casesPartial,
                 failed: data._failed || [],
                 syncedAt: data.syncedAt,
             };
@@ -580,6 +652,18 @@ const SpreadsheetSync = {
             ストレージ: 取得中...
           </div>
 
+          <!-- 差分同期・トラブル復旧ツール -->
+          <div style="border-top:1px solid var(--border-color);margin-top:16px;padding-top:16px">
+            <h3 style="font-size:0.9rem;margin-bottom:6px;color:var(--text-color);display:flex;align-items:center;gap:6px">🔄 同期トラブル対応</h3>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:12px;line-height:1.4">
+              通常は変更があった差分のみを数秒で高速同期します。<br>
+              他端末との表示にズレがある場合や全データを再取得したい場合は、ここから全件同期を実行してください。
+            </p>
+            <button class="btn btn-secondary" onclick="SpreadsheetSync.forceFullSync()" style="font-size:0.78rem;padding:6px 12px">
+              🔄 全件同期をやり直す
+            </button>
+          </div>
+
           <!-- 本番移行用メンテナンスツール -->
           <div style="border-top:1px solid var(--border-color);margin-top:16px;padding-top:16px">
             <h3 style="font-size:0.9rem;margin-bottom:6px;color:var(--accent-orange);display:flex;align-items:center;gap:6px">⚠️ 本番移行用のデータ初期化</h3>
@@ -663,6 +747,24 @@ const SpreadsheetSync = {
         App.showToast('連携設定を保存しました');
     },
 
+    // ---- 手動での全件同期やり直し ----
+    async forceFullSync() {
+        if (!confirm('スプレッドシートから全件のデータを再取得しますか？\n（通常より数秒〜数十秒多くかかります）')) return;
+        const modal = document.getElementById('syncSettingsModal');
+        if (modal) modal.remove();
+        App.showToast('🔄 全件同期中...');
+        try {
+            const result = await this.pull({ forceFull: true });
+            if (typeof CaseTemplates !== 'undefined' && typeof CaseTemplates.seedPoliceFees === 'function') {
+                CaseTemplates.seedPoliceFees();
+            }
+            App.refreshView();
+            App.showToast(`✅ 全件同期完了！ 案件${result.cases || 0}件 / 顧客${result.customers || 0}件 / 帳簿${result.journals || 0}件`);
+        } catch (err) {
+            App.showToast('❌ 同期エラー: ' + err.message);
+        }
+    },
+
     // ---- ワンクリック同期 ----
     async syncNow() {
         if (!this.isConfigured()) {
@@ -678,8 +780,23 @@ const SpreadsheetSync = {
                 CaseTemplates.seedPoliceFees();
             }
             App.refreshView();
-            App.showToast(`✅ 同期完了！ 顧客${result.customers}件 / 担当者${result.staff}件 / 顧客担当者${result.clientContacts || 0}件 / 場所${result.locations}件 / 案件${result.cases}件 / 予定${result.events || 0}件 / インボックス${result.inbox}件 / 帳簿${result.journals}件`
-                + (result.failed && result.failed.length ? ` （⚠️一部未取得: ${result.failed.join(', ')}。次の自動同期で再取得します）` : ''));
+
+            if (result.isDiff) {
+                const updatedCount = (result.cases !== null ? result.cases : 0) +
+                                     (result.journals !== null ? result.journals : 0) +
+                                     (result.inbox !== null ? result.inbox : 0) +
+                                     (result.customers !== null ? result.customers : 0);
+                if (updatedCount === 0 && (!result.failed || result.failed.length === 0)) {
+                    App.showToast(`✅ 同期完了：すべて最新です（${result.unchanged.length}種確認済）`);
+                } else {
+                    App.showToast(`✅ 差分同期完了！ 案件${result.cases || 0}件 / 帳簿${result.journals || 0}件 / インボックス${result.inbox || 0}件`
+                        + (result.unchanged.length ? `（変更なし: ${result.unchanged.length}種）` : '')
+                        + (result.failed && result.failed.length ? ` （⚠️一部未取得: ${result.failed.join(', ')}）` : ''));
+                }
+            } else {
+                App.showToast(`✅ 全件同期完了！ 顧客${result.customers || 0}件 / 担当者${result.staff || 0}件 / 場所${result.locations || 0}件 / 案件${result.cases || 0}件 / 帳簿${result.journals || 0}件`
+                    + (result.failed && result.failed.length ? ` （⚠️一部未取得: ${result.failed.join(', ')}）` : ''));
+            }
         } catch (err) {
             App.showToast('❌ 同期エラー: ' + err.message);
         }

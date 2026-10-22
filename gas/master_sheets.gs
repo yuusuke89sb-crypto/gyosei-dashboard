@@ -91,21 +91,23 @@ const CLIENT_CONTACT_HEADERS = [
 // ============================================================
 
 function onOpen() {
+  // データを書き換えるメニューは menuWithResync_* 経由（実行後に全端末へ全件の取り直しを指示 / sync_ext.gs）
   SpreadsheetApp.getUi()
     .createMenu('🔧 マスタ管理')
-    .addItem('🚀 初期セットアップ', 'initialSetup')
-    .addItem('🚗 陸運局・愛知トヨタ初期データ登録', 'forcePopulateDefaults')
-    .addItem('📍 場所マスタ車庫報酬の初期設定', 'updateLocationFees')
-    .addItem('📍 案件マスタの報酬を最新警察署単価で一括更新（一般のみ）', 'updateCaseFeesFromLocations')
-    .addItem('🚗 車庫証明（OSS）の報酬を一律3,500円に復元', 'restoreAllOssFeesTo3500')
+    .addItem('🚀 初期セットアップ', 'menuWithResync_initialSetup')
+    .addItem('🚗 陸運局・愛知トヨタ初期データ登録', 'menuWithResync_forcePopulateDefaults')
+    .addItem('📍 場所マスタ車庫報酬の初期設定', 'menuWithResync_updateLocationFees')
+    .addItem('📍 案件マスタの報酬を最新警察署単価で一括更新（一般のみ）', 'menuWithResync_updateCaseFeesFromLocations')
+    .addItem('🚗 車庫証明（OSS）の報酬を一律3,500円に復元', 'menuWithResync_restoreAllOssFeesTo3500')
     .addItem('📥 インボックス「保留」入力規則の修復', 'fixInboxStatusValidation')
-    .addItem('🚗 登録番号・車台番号の分離修復', 'fixVehiclePlateAndChassisNumbers')
+    .addItem('🚗 登録番号・車台番号の分離修復', 'menuWithResync_fixVehiclePlateAndChassisNumbers')
     .addItem('📥 未取得メール・FAXの救出スキャン (14日分)', 'recoverRecentInbox')
     .addSeparator()
     .addItem('✅ データ検証（顧客マスタ）', 'validateCustomerData')
     .addItem('✅ データ検証（担当者マスタ）', 'validateStaffData')
     .addSeparator()
     .addItem('🔒 セキュリティ設定を再適用', 'applySecurity')
+    .addItem('🔄 全端末に全件の再同期を指示', 'menuRequestFullResync')
     .addToUi();
 }
 
@@ -617,20 +619,50 @@ function protectIdColumn_(sheet, owner, description, col) {
 
 function doGet(e) {
   try {
-    const type = (e && e.parameter && e.parameter.type) || 'all';
-    const result = {};
+    const p = (e && e.parameter) || {};
+    const type = p.type || 'all';
+    let result = {};
 
-    if (type === 'customers' || type === 'all') result.customers = getSheetDataAsJson_(SHEET_NAMES.CUSTOMER, CUSTOMER_HEADERS);
-    if (type === 'staff' || type === 'all') result.staff = getSheetDataAsJson_(SHEET_NAMES.STAFF, STAFF_HEADERS);
-    if (type === 'cases' || type === 'all') result.cases = getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
-    if (type === 'journals' || type === 'all') result.journals = getJournalsSheetData_();
-    if (type === 'inbox' || type === 'all') result.inbox = getSheetDataAsJson_(SHEET_NAMES.INBOX, INBOX_HEADERS);
-    if (type === 'locations' || type === 'all') result.locations = getSheetDataAsJson_(SHEET_NAMES.LOCATION, LOCATION_HEADERS);
-    if (type === 'clientContacts' || type === 'all') result.clientContacts = getSheetDataAsJson_(SHEET_NAMES.CLIENT_CONTACT, CLIENT_CONTACT_HEADERS);
+    // 画像・添付ファイルBase64取得（以前は const result への再代入で必ずエラーになっていた）
+    if (type === 'getFileBase64' || p.action === 'getFileBase64') {
+      result = getFileBase64Action_(p);
+      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 差分同期（sync_ext.gs）：版番号はデータを読む前に取る（読んでいる間の書き込みは次回拾う）
+    const startedAt = new Date();
+    const revs = (typeof getRevs_ === 'function') ? getRevs_() : null;
+    let known = null;
+    if (revs && p.revs) { try { known = JSON.parse(p.revs); } catch (x) { known = null; } }
+    // 一括修正などで _epoch が変わっていたら差分を使わず全件返す
+    const diffOk = !!(known && known._epoch && known._epoch === revs._epoch);
+    if (!diffOk) known = null;
+    const unchanged = [];
+    const want = function (t) {
+      if (type !== t && type !== 'all') return false;
+      if (known && known[t] && known[t] === revs[t]) { unchanged.push(t); return false; }
+      return true;
+    };
+
+    if (want('customers')) result.customers = getSheetDataAsJson_(SHEET_NAMES.CUSTOMER, CUSTOMER_HEADERS);
+    if (want('staff')) result.staff = getSheetDataAsJson_(SHEET_NAMES.STAFF, STAFF_HEADERS);
+    if (want('cases')) {
+      if (diffOk && p.since && typeof getCasesSince_ === 'function') {
+        result.cases = getCasesSince_(p.since);
+        result.casesPartial = true;
+      } else {
+        result.cases = getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
+      }
+    }
+    if (want('journals')) result.journals = getJournalsSheetData_();
+    if (want('inbox')) result.inbox = getSheetDataAsJson_(SHEET_NAMES.INBOX, INBOX_HEADERS);
+    if (want('locations')) result.locations = getSheetDataAsJson_(SHEET_NAMES.LOCATION, LOCATION_HEADERS);
+    if (want('clientContacts')) result.clientContacts = getSheetDataAsJson_(SHEET_NAMES.CLIENT_CONTACT, CLIENT_CONTACT_HEADERS);
     
+    // カレンダーはシート外なので差分の対象外（毎回取得）
     if (type === 'events' || type === 'all') {
-      const daysBack = parseInt((e && e.parameter && e.parameter.daysBack) || '7');
-      const daysForward = parseInt((e && e.parameter && e.parameter.daysForward) || '90');
+      const daysBack = parseInt(p.daysBack || '7');
+      const daysForward = parseInt(p.daysForward || '90');
       result.events = getCalendarEvents_(daysBack, daysForward);
     }
     if (type === 'faxLog') result.faxLog = getFaxLog_(50);
@@ -640,16 +672,14 @@ function doGet(e) {
       result.tasks = getTodayTasks_();
     }
 
-    // 画像・添付ファイルBase64取得
-    if (type === 'getFileBase64' || e.parameter.action === 'getFileBase64') {
-      result = getFileBase64Action_(e.parameter);
-      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
-    }
-
     // 拡張データ（請求書・削除ログ等 / sync_ext.gs）
-    if (typeof extDoGet_ === 'function') extDoGet_(type, result);
+    if (typeof extDoGet_ === 'function') extDoGet_(type, result, want);
 
-    result.syncedAt = new Date().toISOString();
+    if (revs) {
+      result.revs = revs;
+      result.unchanged = unchanged;
+    }
+    result.syncedAt = startedAt.toISOString();
 
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -756,6 +786,12 @@ function doPost(e) {
         result = { success: true };
         break;
       default: result = { error: '不明なアクション: ' + action };
+    }
+
+    // 差分同期：書き込み系の処理の後は、該当シートの版番号を更新（sync_ext.gs）
+    if (typeof revKeysForAction_ === 'function') {
+      const revKeys = revKeysForAction_(action);
+      if (revKeys) bumpRev_(revKeys);
     }
 
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -1040,7 +1076,7 @@ function performOcrAction_(body) {
 //  Web API ヘルパー関数
 // ============================================================
 
-function getSheetDataAsJson_(sheetName, headers) {
+function getSheetDataAsJson_(sheetName, headers, opts) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) return [];
@@ -1050,7 +1086,11 @@ function getSheetDataAsJson_(sheetName, headers) {
 
   const lastCol = Math.max(sheet.getLastColumn(), (headers ? headers.length : 1));
   const actualHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
-  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  let data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  // 差分同期：必要な行だけに絞る（getCasesSince_ / sync_ext.gs）
+  if (opts && typeof opts.rowFilter === 'function') {
+    data = data.filter(row => opts.rowFilter(row, actualHeaders));
+  }
   const jsonData = [];
   const keyMap = getKeyMap_(sheetName);
 
@@ -1864,6 +1904,12 @@ function saveCaseMapImagesAction_(data) {
           const driveUrlColIdx = actualHeaders.findIndex(h => keyMap[h] === 'driveFolderUrl' || h === 'DriveフォルダURL');
           if (driveUrlColIdx !== -1) {
             sheet.getRange(row, driveUrlColIdx + 1).setValue(folder.getUrl());
+          }
+
+          // 更新日（差分同期で他端末にこの案件を届けるため）
+          const updatedColIdx = actualHeaders.findIndex(h => keyMap[h] === 'updatedAt' || h === '更新日');
+          if (updatedColIdx !== -1) {
+            sheet.getRange(row, updatedColIdx + 1).setValue(new Date());
           }
         }
       }
@@ -2784,6 +2830,7 @@ function checkIncomingInboxCore_(options) {
     if (rowsToInsert.length > 0) {
       const startRow = sheet.getLastRow() + 1;
       sheet.getRange(startRow, 1, rowsToInsert.length, INBOX_HEADERS.length).setValues(rowsToInsert);
+      if (typeof bumpRev_ === 'function') bumpRev_('inbox'); // 差分同期：新着があったときだけ
     }
 
     // C. 後方互換用のFAXログへの書き込み (FAXのみ・一括バッチ書き込みで超高速化)

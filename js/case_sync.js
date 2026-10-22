@@ -289,10 +289,16 @@ const CaseSync = {
       out.push(c);
     });
 
-    // シートに無い端末の案件
+    // シートに無い端末の案件（差分同期時は未更新の案件としてそのまま残す）
+    const isPartial = !!(opts && (opts.isPartial || opts.casesPartial));
     const orphans = [];
     local.forEach(l => {
       if (seen.has(l.id) || deleted.has(String(l.id))) return;
+      if (isPartial) {
+        // 差分受信時：今回受信しなかった案件は未更新なので保持
+        out.push(l);
+        return;
+      }
       if (l._new) { out.push(l); return; }                 // 未送信の新規 → 残して再送
       if (migrating || l._orphan) {                         // 判断保留 → 残して画面で確認
         out.push(Object.assign({}, l, { _orphan: true }));

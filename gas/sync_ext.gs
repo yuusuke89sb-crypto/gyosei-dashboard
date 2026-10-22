@@ -24,13 +24,131 @@ const DELETE_LOG_HEADERS = ['種別', 'ID', '削除日時', '端末'];
 /** doPost から呼ぶ。担当外のアクションなら null を返す */
 function extDoPost_(action, data, body) {
   if (typeof isInvoiceAction_ === 'function' && isInvoiceAction_(action)) {
-    return handleInvoiceAction_(action, data);
+    const r = handleInvoiceAction_(action, data);
+    bumpRev_('invoices');
+    return r;
   }
-  if (action === 'patchCases') return withCaseLock_(function () { return patchCases_(data, body || {}); });
-  if (action === 'deleteCase') return withCaseLock_(function () { return deleteCaseLogged_(data || {}); });
-  if (action === 'upsertCase') return withCaseLock_(function () { return legacyUpsertCase_(data || {}, body || {}); });
-  if (action === 'saveSetting') return withCaseLock_(function () { return saveSharedSetting_(data || {}); });
+  if (action === 'patchCases') return withCaseLock_(function () { const r = patchCases_(data, body || {}); bumpRev_('cases'); return r; });
+  if (action === 'deleteCase') return withCaseLock_(function () { const r = deleteCaseLogged_(data || {}); bumpRev_(['cases', 'deletedCases']); return r; });
+  if (action === 'upsertCase') return withCaseLock_(function () { const r = legacyUpsertCase_(data || {}, body || {}); bumpRev_('cases'); return r; });
+  if (action === 'saveSetting') return withCaseLock_(function () { const r = saveSharedSetting_(data || {}); bumpRev_('settings'); return r; });
   return null;
+}
+
+// ------------------------------------------------------------
+//  差分同期（2026-10-22 スマホ同期の恒久対策）
+//  - シートごとに「版番号」を持ち、書き込みのたびに更新する（スクリプトプロパティに保存）
+//  - 端末は前回の版番号を送り、変わっていないシートは受信しない
+//  - 案件マスタは更に「更新日」が前回同期以降の行だけを返す（since）
+//  - _epoch はメニューからの一括修正など「行の更新日を付けずに書き換えた」ときに更新し、
+//    端末に全件の取り直しをさせる
+// ------------------------------------------------------------
+const REV_PROP_PREFIX = 'rev_';
+const REV_KEYS = ['customers', 'staff', 'cases', 'journals', 'inbox', 'locations', 'clientContacts', 'invoices', 'settings', 'deletedCases', '_epoch'];
+const CASES_SINCE_MARGIN_MS = 10 * 60 * 1000; // 時刻のずれ・同時書き込み対策で10分さかのぼって返す
+
+function newRevValue_() {
+  return String(Date.now()) + '-' + Math.random().toString(36).slice(2, 6);
+}
+
+/** 書き込み後に呼ぶ。keys は文字列または配列 */
+function bumpRev_(keys) {
+  try {
+    const v = newRevValue_();
+    const obj = {};
+    [].concat(keys).forEach(function (k) { if (k) obj[REV_PROP_PREFIX + k] = v; });
+    PropertiesService.getScriptProperties().setProperties(obj);
+  } catch (e) { /* 版番号の更新失敗で保存自体を失敗させない */ }
+}
+
+/** 一括修正の後に呼ぶ：全端末に全件の取り直しをさせる */
+function bumpEpoch_() {
+  bumpRev_(REV_KEYS);
+}
+
+function getRevs_() {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const out = {};
+  const missing = {};
+  REV_KEYS.forEach(function (k) {
+    const v = all[REV_PROP_PREFIX + k];
+    if (v) { out[k] = v; } else { out[k] = newRevValue_(); missing[REV_PROP_PREFIX + k] = out[k]; }
+  });
+  if (Object.keys(missing).length) { try { props.setProperties(missing); } catch (e) {} }
+  return out;
+}
+
+/** doPost の処理名 → 書き換わるシート */
+function revKeysForAction_(action) {
+  const map = {
+    upsertCustomer: ['customers'], deleteCustomer: ['customers'],
+    upsertStaff: ['staff'], deleteStaff: ['staff'],
+    upsertInboxItem: ['inbox'], // 受信チェック(checkInbox)は取り込み本体で行を追加したときだけ更新する
+    upsertCase: ['cases'], deleteCase: ['cases', 'deletedCases'],
+    createCaseFolder: ['cases'], saveCaseMapImages: ['cases'], saveCaseDocument: ['cases'], deleteCaseDocument: ['cases'],
+    upsertJournal: ['journals'], bulkUpsertJournals: ['journals'], replaceJournals: ['journals'], deleteJournal: ['journals'],
+    upsertLocation: ['locations'], deleteLocation: ['locations'],
+    upsertClientContact: ['clientContacts'], deleteClientContact: ['clientContacts']
+  };
+  return map[action] || null;
+}
+
+/** 案件マスタのうち「更新日」が since 以降の行だけを返す（since は ISO 文字列） */
+function getCasesSince_(since) {
+  const t = Date.parse(since);
+  if (isNaN(t)) return getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS);
+  const from = t - CASES_SINCE_MARGIN_MS;
+  return getSheetDataAsJson_(SHEET_NAMES.CASES, CASE_HEADERS, {
+    rowFilter: function (row, headers) {
+      const i = headers.indexOf('更新日');
+      if (i === -1) return true;
+      const v = row[i];
+      if (!v) return false;
+      const ms = (v instanceof Date) ? v.getTime() : Date.parse(String(v).replace(' ', 'T'));
+      return isNaN(ms) ? true : ms >= from;
+    }
+  });
+}
+
+// ------------------------------------------------------------
+//  メニュー操作用ラッパー（一括修正後に全端末への再同期を指示）
+// ------------------------------------------------------------
+function menuRequestFullResync() {
+  bumpEpoch_();
+  try {
+    SpreadsheetApp.getUi().alert('🔄 全端末の再同期を指示しました。\n各端末の次回同期時に全データが再取得されます。');
+  } catch (e) {}
+}
+
+function menuWithResync_initialSetup() {
+  if (typeof initialSetup === 'function') initialSetup();
+  bumpEpoch_();
+}
+
+function menuWithResync_forcePopulateDefaults() {
+  if (typeof forcePopulateDefaults === 'function') forcePopulateDefaults();
+  bumpEpoch_();
+}
+
+function menuWithResync_updateLocationFees() {
+  if (typeof updateLocationFees === 'function') updateLocationFees();
+  bumpEpoch_();
+}
+
+function menuWithResync_updateCaseFeesFromLocations() {
+  if (typeof updateCaseFeesFromLocations === 'function') updateCaseFeesFromLocations();
+  bumpEpoch_();
+}
+
+function menuWithResync_restoreAllOssFeesTo3500() {
+  if (typeof restoreAllOssFeesTo3500 === 'function') restoreAllOssFeesTo3500();
+  bumpEpoch_();
+}
+
+function menuWithResync_fixVehiclePlateAndChassisNumbers() {
+  if (typeof fixVehiclePlateAndChassisNumbers === 'function') fixVehiclePlateAndChassisNumbers();
+  bumpEpoch_();
 }
 
 // ------------------------------------------------------------
@@ -111,15 +229,16 @@ function legacyUpsertCase_(data, body) {
   return { success: true, action: res.status || 'updated', id: data.id, legacy: true };
 }
 
-/** doGet から呼ぶ。result に追加データを書き込む */
-function extDoGet_(type, result) {
-  if (type === 'invoices' || type === 'all') {
+/** doGet から呼ぶ。result に追加データを書き込む（want は差分同期用の判定。省略時は従来どおり） */
+function extDoGet_(type, result, want) {
+  const ok = want || function (t) { return type === t || type === 'all'; };
+  if (ok('invoices')) {
     try { result.invoices = getInvoiceData_(); } catch (e) { result.invoicesError = e.message; }
   }
-  if (type === 'deletedCases' || type === 'all') {
+  if (ok('deletedCases')) {
     try { result.deletedCases = getDeletedCaseIds_(); } catch (e) { result.deletedCasesError = e.message; }
   }
-  if (type === 'settings' || type === 'all') {
+  if (ok('settings')) {
     try { result.settings = getSharedSettings_(); } catch (e) { result.settingsError = e.message; }
   }
 }
