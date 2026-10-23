@@ -415,6 +415,10 @@ function setupClientContactMaster_() {
   sheet.setFrozenRows(1);
 }
 
+function setupPartnerMaster() {
+  setupPartnerMaster_();
+}
+
 function setupPartnerMaster_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAMES.PARTNERS);
