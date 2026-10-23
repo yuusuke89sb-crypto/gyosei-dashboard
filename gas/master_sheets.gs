@@ -34,6 +34,7 @@ const SHEET_NAMES = {
   INBOX:    'インボックス',
   LOCATION: '場所マスタ',
   CLIENT_CONTACT: '顧客担当者マスタ',
+  PARTNERS: '提携先マスタ',
 };
 
 const CUSTOMER_HEADERS = [
@@ -86,6 +87,15 @@ const CLIENT_CONTACT_HEADERS = [
   '担当者ID', '顧客ID', '氏名', '電話番号', 'メールアドレス', '備考', '登録日', '更新日',
 ];
 
+const PARTNER_HEADERS = [
+  '提携先ID', '事務所名', '代表者名', '所属会', '都道府県', '管轄支局',
+  '評価', '評価レベル', '評価メモ',
+  '登録報酬', '軽登録報酬', '車庫報酬', '封印報酬', '報酬備考',
+  '郵便番号', '住所', '電話番号', 'FAX番号', '携帯番号', 'メールアドレス', 'インボイス番号',
+  '銀行名', '支店名', '口座種別', '口座番号', '名義人',
+  '締切納期メモ', '備考', '登録日', '更新日'
+];
+
 // ============================================================
 //  メニュー
 // ============================================================
@@ -133,6 +143,7 @@ function initialSetup() {
   setupInboxSheet_();
   setupLocationMaster_();
   setupClientContactMaster_();
+  setupPartnerMaster_();
   updateCaseHeaders_();
   applySecurity();
 
@@ -404,6 +415,18 @@ function setupClientContactMaster_() {
   sheet.setFrozenRows(1);
 }
 
+function setupPartnerMaster_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.PARTNERS);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.PARTNERS);
+  }
+  const headerRange = sheet.getRange(1, 1, 1, PARTNER_HEADERS.length);
+  headerRange.setValues([PARTNER_HEADERS]);
+  headerRange.setBackground('#0d9488').setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.setFrozenRows(1);
+}
+
 // ============================================================
 //  onEdit トリガー — 自動処理
 // ============================================================
@@ -658,6 +681,7 @@ function doGet(e) {
     if (want('inbox')) result.inbox = getSheetDataAsJson_(SHEET_NAMES.INBOX, INBOX_HEADERS);
     if (want('locations')) result.locations = getSheetDataAsJson_(SHEET_NAMES.LOCATION, LOCATION_HEADERS);
     if (want('clientContacts')) result.clientContacts = getSheetDataAsJson_(SHEET_NAMES.CLIENT_CONTACT, CLIENT_CONTACT_HEADERS);
+    if (want('partners')) result.partners = getSheetDataAsJson_(SHEET_NAMES.PARTNERS, PARTNER_HEADERS);
     
     // カレンダーはシート外なので差分の対象外（毎回取得）
     if (type === 'events' || type === 'all') {
@@ -775,6 +799,8 @@ function doPost(e) {
       case 'deleteLocation': result = deleteRow_(SHEET_NAMES.LOCATION, data.id); break;
       case 'upsertClientContact': result = upsertClientContact_(data); break;
       case 'deleteClientContact': result = deleteRow_(SHEET_NAMES.CLIENT_CONTACT, data.id); break;
+      case 'upsertPartner': result = upsertPartner_(data); break;
+      case 'deletePartner': result = deleteRow_(SHEET_NAMES.PARTNERS, data.id); break;
       case 'syncCaseCalendar': result = syncCaseCalendar_(data); break;
       case 'deleteCaseCalendarEvents': result = deleteCaseCalendarEvents_(data); break;
       case 'saveCaseMapImages': result = saveCaseMapImagesAction_(data || body); break;
@@ -1157,6 +1183,15 @@ function getKeyMap_(sheetName) {
   if (sheetName === SHEET_NAMES.INBOX) return {'インボックスID': 'id','日時': 'date','種別': 'type','送信元': 'sender','件名': 'subject','本文': 'body','添付ファイル': 'attachments','ステータス': 'status','案件ID': 'caseId','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.LOCATION) return {'場所ID': 'id','場所名': 'name','住所': 'address','備考': 'memo','車庫証明報酬': 'syakoFee','登録日': 'createdAt','更新日': 'updatedAt'};
   if (sheetName === SHEET_NAMES.CLIENT_CONTACT) return {'担当者ID': 'id','顧客ID': 'clientId','氏名': 'name','電話番号': 'phone','メールアドレス': 'email','備考': 'memo','登録日': 'createdAt','更新日': 'updatedAt'};
+  if (sheetName === SHEET_NAMES.PARTNERS) return {
+    '提携先ID': 'id', '事務所名': 'officeName', '代表者名': 'representative', '所属会': 'association',
+    '都道府県': 'prefecture', '管轄支局': 'branches', '評価': 'rating', '評価レベル': 'ratingLevel', '評価メモ': 'ratingNote',
+    '登録報酬': 'feeRegistration', '軽登録報酬': 'feeLight', '車庫報酬': 'feeGarage', '封印報酬': 'feeSeal', '報酬備考': 'feeNote',
+    '郵便番号': 'zip', '住所': 'address', '電話番号': 'phone', 'FAX番号': 'fax', '携帯番号': 'mobile', 'メールアドレス': 'email',
+    'インボイス番号': 'invoiceNumber', '銀行名': 'bankName', '支店名': 'bankBranch', '口座種別': 'accountType',
+    '口座番号': 'accountNumber', '名義人': 'accountHolder', '締切納期メモ': 'deadlineNote', '備考': 'memo',
+    '登録日': 'createdAt', '更新日': 'updatedAt'
+  };
   return {};
 }
 
@@ -2967,6 +3002,58 @@ function upsertClientContact_(data) {
     if (key === 'createdAt' || key === 'updatedAt') return now;
     let val = data[key] || '';
     if (key === 'phone' && typeof val === 'string' && val.startsWith('0') && /^\d+$/.test(val)) {
+      val = "'" + val;
+    }
+    return val;
+  });
+  sheet.appendRow(rowData);
+  return { success: true, action: 'added', id: newId };
+}
+
+// ---- 提携先（県外行政書士） upsert ----
+function upsertPartner_(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.PARTNERS);
+  if (!sheet) {
+    setupPartnerMaster_();
+    sheet = ss.getSheetByName(SHEET_NAMES.PARTNERS);
+  }
+  if (!sheet) return { error: '提携先マスタシートが見つかりません' };
+
+  const now = new Date();
+  const keyMap = getKeyMap_(SHEET_NAMES.PARTNERS);
+
+  if (data.id) {
+    const lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      const ids = sheet.getRange('A2:A' + lastRow).getValues().flat();
+      const rowIdx = ids.indexOf(data.id);
+      if (rowIdx !== -1) {
+        const row = rowIdx + 2;
+        PARTNER_HEADERS.forEach((header, col) => {
+          const key = keyMap[header];
+          if (key && key !== 'id' && key !== 'createdAt' && data[key] !== undefined) {
+            let val = data[key];
+            if ((key === 'phone' || key === 'fax' || key === 'mobile' || key === 'accountNumber') && typeof val === 'string' && val.startsWith('0') && /^\d+$/.test(val)) {
+              val = "'" + val;
+            }
+            sheet.getRange(row, col + 1).setValue(val);
+          }
+        });
+        const updateCol = PARTNER_HEADERS.indexOf('更新日') + 1;
+        if (updateCol > 0) sheet.getRange(row, updateCol).setValue(now);
+        return { success: true, action: 'updated', id: data.id };
+      }
+    }
+  }
+
+  const newId = data.id || ('partner_' + Date.now());
+  const rowData = PARTNER_HEADERS.map(header => {
+    const key = keyMap[header];
+    if (key === 'id') return newId;
+    if (key === 'createdAt' || key === 'updatedAt') return now;
+    let val = data[key] !== undefined && data[key] !== null ? data[key] : '';
+    if ((key === 'phone' || key === 'fax' || key === 'mobile' || key === 'accountNumber') && typeof val === 'string' && val.startsWith('0') && /^\d+$/.test(val)) {
       val = "'" + val;
     }
     return val;

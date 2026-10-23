@@ -44,7 +44,7 @@ function extDoPost_(action, data, body) {
 //    端末に全件の取り直しをさせる
 // ------------------------------------------------------------
 const REV_PROP_PREFIX = 'rev_';
-const REV_KEYS = ['customers', 'staff', 'cases', 'journals', 'inbox', 'locations', 'clientContacts', 'invoices', 'settings', 'deletedCases', '_epoch'];
+const REV_KEYS = ['customers', 'staff', 'cases', 'journals', 'inbox', 'locations', 'clientContacts', 'partners', 'invoices', 'settings', 'deletedCases', '_epoch'];
 const CASES_SINCE_MARGIN_MS = 10 * 60 * 1000; // 時刻のずれ・同時書き込み対策で10分さかのぼって返す
 
 function newRevValue_() {
@@ -89,7 +89,8 @@ function revKeysForAction_(action) {
     createCaseFolder: ['cases'], saveCaseMapImages: ['cases'], saveCaseDocument: ['cases'], deleteCaseDocument: ['cases'],
     upsertJournal: ['journals'], bulkUpsertJournals: ['journals'], replaceJournals: ['journals'], deleteJournal: ['journals'],
     upsertLocation: ['locations'], deleteLocation: ['locations'],
-    upsertClientContact: ['clientContacts'], deleteClientContact: ['clientContacts']
+    upsertClientContact: ['clientContacts'], deleteClientContact: ['clientContacts'],
+    upsertPartner: ['partners'], deletePartner: ['partners']
   };
   return map[action] || null;
 }

@@ -907,6 +907,9 @@ const Store = {
     };
     partners.unshift(partner);
     this._set(this.KEYS.PARTNERS, partners);
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertPartner', partner).catch(() => {});
+    }
     return partner;
   },
 
@@ -924,6 +927,9 @@ const Store = {
       updatedAt: new Date().toISOString()
     };
     this._set(this.KEYS.PARTNERS, partners);
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('upsertPartner', partners[idx]).catch(() => {});
+    }
     return partners[idx];
   },
 
@@ -932,6 +938,9 @@ const Store = {
     this._set(this.KEYS.PARTNERS, partners);
     if (partners.length === 0) {
       localStorage.setItem('gyosei_partners_cleared', '1');
+    }
+    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
+      SpreadsheetSync.push('deletePartner', { id }).catch(() => {});
     }
   },
 

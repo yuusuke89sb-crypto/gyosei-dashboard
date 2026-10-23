@@ -67,7 +67,7 @@ const SpreadsheetSync = {
     // ---- 受信の設定（2026-10-22 スマホ受信失敗対策）----
     // 一括受信(type=all)は約4.8MB・約100秒かかるため、スマホ（約60秒で通信が打ち切られる）では使わない。
     // 種類ごとの受信は同時に11本投げるとGASが処理しきれず404になるため、同時2本までに絞り、小さいものから順に取る。
-    PULL_CHUNK_TYPES: ['settings', 'staff', 'locations', 'clientContacts', 'customers', 'deletedCases', 'invoices', 'events', 'journals', 'inbox', 'cases'],
+    PULL_CHUNK_TYPES: ['settings', 'staff', 'locations', 'clientContacts', 'partners', 'customers', 'deletedCases', 'invoices', 'events', 'journals', 'inbox', 'cases'],
     PULL_CONCURRENCY: 2,
     PULL_RETRY_WAITS: [0, 3000, 8000],   // 初回・3秒後・8秒後
     PULL_ALL_TIMEOUT_MS: 180000,         // PCの一括受信
@@ -348,6 +348,29 @@ const SpreadsheetSync = {
                 localStorage.setItem('gyosei_client_contacts', JSON.stringify(mergedContacts));
             }
 
+            // 提携行政書士データをマージ（受信時のみローカル既存データを保持 + ローカルのみのデータをSSへPush）
+            if (data.partners && Array.isArray(data.partners)) {
+                var localPartners = Store.getPartners() || [];
+                var remotePartners = data.partners || [];
+                var remotePartnerIds = {};
+                remotePartners.forEach(function(p){ if (p && p.id) remotePartnerIds[p.id] = true; });
+
+                var localOnlyPartners = localPartners.filter(function(p){ return p && p.id && !remotePartnerIds[p.id]; });
+
+                // ローカルのみの提携先をスプレッドシートへ自動Push
+                if (localOnlyPartners.length > 0) {
+                    console.log('📤 ローカル専用の県外行政書士を同期:', localOnlyPartners.length, '件');
+                    localOnlyPartners.forEach(function(p) {
+                        SpreadsheetSync.push('upsertPartner', p).catch(function(e) {
+                            console.warn('提携行政書士Push失敗:', p.officeName || p.id, e);
+                        });
+                    });
+                }
+
+                var mergedPartners = remotePartners.concat(localOnlyPartners);
+                Store._set(Store.KEYS.PARTNERS, mergedPartners);
+            }
+
             // 帳簿データをマージ（ローカル専用データを保持）
             if (data.journals) {
                 // 異常金額（タイムスタンプ等の誤混入）を事前サニタイズ
@@ -473,6 +496,7 @@ const SpreadsheetSync = {
                 inbox: data.inbox ? data.inbox.length : null,
                 locations: data.locations ? data.locations.length : null,
                 clientContacts: data.clientContacts ? data.clientContacts.length : null,
+                partners: data.partners ? data.partners.length : null,
                 events: (data.events || []).length,
                 unchanged: data.unchanged || [],
                 casesPartial: !!data.casesPartial,
@@ -785,16 +809,17 @@ const SpreadsheetSync = {
                 const updatedCount = (result.cases !== null ? result.cases : 0) +
                                      (result.journals !== null ? result.journals : 0) +
                                      (result.inbox !== null ? result.inbox : 0) +
+                                     (result.partners !== null ? result.partners : 0) +
                                      (result.customers !== null ? result.customers : 0);
                 if (updatedCount === 0 && (!result.failed || result.failed.length === 0)) {
                     App.showToast(`✅ 同期完了：すべて最新です（${result.unchanged.length}種確認済）`);
                 } else {
-                    App.showToast(`✅ 差分同期完了！ 案件${result.cases || 0}件 / 帳簿${result.journals || 0}件 / インボックス${result.inbox || 0}件`
+                    App.showToast(`✅ 差分同期完了！ 案件${result.cases || 0}件 / 帳簿${result.journals || 0}件 / 提携先${result.partners || 0}件`
                         + (result.unchanged.length ? `（変更なし: ${result.unchanged.length}種）` : '')
                         + (result.failed && result.failed.length ? ` （⚠️一部未取得: ${result.failed.join(', ')}）` : ''));
                 }
             } else {
-                App.showToast(`✅ 全件同期完了！ 顧客${result.customers || 0}件 / 担当者${result.staff || 0}件 / 場所${result.locations || 0}件 / 案件${result.cases || 0}件 / 帳簿${result.journals || 0}件`
+                App.showToast(`✅ 全件同期完了！ 顧客${result.customers || 0}件 / 担当者${result.staff || 0}件 / 場所${result.locations || 0}件 / 提携先${result.partners || 0}件 / 案件${result.cases || 0}件 / 帳簿${result.journals || 0}件`
                     + (result.failed && result.failed.length ? ` （⚠️一部未取得: ${result.failed.join(', ')}）` : ''));
             }
         } catch (err) {
