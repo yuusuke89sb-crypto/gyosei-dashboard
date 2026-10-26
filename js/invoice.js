@@ -1863,6 +1863,9 @@ const Invoice = {
         if (isLight && categoryShort && !categoryShort.includes('軽')) {
           categoryShort = `軽・${categoryShort}`;
         }
+        if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
+          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+        }
 
         const specialNote = this._getCaseSpecialNote(c);
         if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
@@ -2513,6 +2516,9 @@ ${detailPagesHTML}
           if (isLight && categoryShort && !categoryShort.includes('軽')) {
             categoryShort = `軽・${categoryShort}`;
           }
+          if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
+            categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+          }
           const specialNote = this._getCaseSpecialNote(c);
           if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
             categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
@@ -3137,6 +3143,9 @@ ${detailPagesHTML}
         if (isLight && categoryShort && !categoryShort.includes('軽')) {
           categoryShort = `軽・${categoryShort}`;
         }
+        if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
+          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+        }
 
         const specialNote = this._getCaseSpecialNote(c);
         if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
@@ -3760,7 +3769,7 @@ ${detailPagesHTML}
           if (isLight && categoryShort && !categoryShort.includes('軽')) {
             categoryShort = `軽・${categoryShort}`;
           }
-          if (c.isUsedCar) {
+          if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
             categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
           }
           const specialNote = this._getCaseSpecialNote(c);
@@ -6200,7 +6209,7 @@ window.NissanPrint = {
         else if (c.category === 'seal') categoryShort = '封印';
         // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
         if (isLight && categoryShort && !categoryShort.includes('軽')) categoryShort = `軽・${categoryShort}`;
-        if (splitUCar && c.isUsedCar) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+        if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         const specialNote = this._getCaseSpecialNote(c);
         if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
