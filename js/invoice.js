@@ -805,9 +805,11 @@ const Invoice = {
                 <label>📋 請求書様式（テンプレート）</label>
                 <select id="invoiceTemplateType" class="form-select" style="font-weight:600;">
                   <option value="toyota_new" ${detectedTpl === 'toyota_new' || detectedTpl === 'toyota' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（表紙＋明細）</option>
+                  <option value="toyota_new_noseal">✨ 愛知トヨタWEST【新様式・ゴシック】（デジタル印なし）</option>
                   <option value="toyota_new_split" ${detectedTpl === 'toyota_new_split' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（普通車・U-Car別明細）</option>
                   <option value="toyota_new_date" ${detectedTpl === 'toyota_new_date' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（日付順モード）</option>
                   <option value="toyota">愛知トヨタWEST【旧様式・明朝】（表紙サマリー＋明細票）</option>
+                  <option value="toyota_noseal">愛知トヨタWEST【旧様式・明朝】（デジタル印なし）</option>
                   <option value="toyota_split">愛知トヨタWEST【旧様式・明朝】（普通車・U-Car別明細）</option>
                   <option value="toyota_date">愛知トヨタWEST【旧様式・明朝】（日付順モード）</option>
                   <option value="mitsubishi" ${detectedTpl === 'mitsubishi' ? 'selected' : ''}>三菱ふそう様式（業務別集計＋諸費用）</option>
@@ -894,9 +896,11 @@ const Invoice = {
                 <label>📋 請求書様式（テンプレート）</label>
                 <select id="reprintTemplateType" class="form-select" style="font-weight:600;">
                   <option value="toyota_new" ${detectedTpl === 'toyota_new' || detectedTpl === 'toyota' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（表紙＋明細）</option>
+                  <option value="toyota_new_noseal">✨ 愛知トヨタWEST【新様式・ゴシック】（デジタル印なし）</option>
                   <option value="toyota_new_split" ${detectedTpl === 'toyota_new_split' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（普通車・U-Car別明細）</option>
                   <option value="toyota_new_date" ${detectedTpl === 'toyota_new_date' ? 'selected' : ''}>✨ 愛知トヨタWEST【新様式・ゴシック】（日付順モード）</option>
                   <option value="toyota">愛知トヨタWEST【旧様式・明朝】（表紙サマリー＋明細票）</option>
+                  <option value="toyota_noseal">愛知トヨタWEST【旧様式・明朝】（デジタル印なし）</option>
                   <option value="toyota_split">愛知トヨタWEST【旧様式・明朝】（普通車・U-Car別明細）</option>
                   <option value="toyota_date">愛知トヨタWEST【旧様式・明朝】（日付順モード）</option>
                   <option value="mitsubishi" ${detectedTpl === 'mitsubishi' ? 'selected' : ''}>三菱ふそう様式（業務別集計＋諸費用）</option>
@@ -1686,12 +1690,16 @@ const Invoice = {
     const templateType = params.templateType || 'standard';
     if (templateType === 'toyota_new') {
       return this.buildToyotaNewInvoiceHTML(params);
+    } else if (templateType === 'toyota_new_noseal') {
+      return this.buildToyotaNewInvoiceHTML({ ...params, showSeal: false });
     } else if (templateType === 'toyota_new_split') {
       return this.buildToyotaNewSplitInvoiceHTML(params);
     } else if (templateType === 'toyota_new_date') {
       return this.buildToyotaNewInvoiceHTML({ ...params, sortMode: 'date_only' });
     } else if (templateType === 'toyota') {
       return this.buildToyotaInvoiceHTML(params);
+    } else if (templateType === 'toyota_noseal') {
+      return this.buildToyotaInvoiceHTML({ ...params, showSeal: false });
     } else if (templateType === 'toyota_split') {
       return this.buildToyotaSplitInvoiceHTML(params);
     } else if (templateType === 'toyota_date') {
@@ -1755,8 +1763,9 @@ const Invoice = {
     return '電子印.png';
   },
 
-  // トヨタ請求書用 デジタル印HTML生成（表紙・明細でサイズ・位置調整）
-  _renderToyotaSealHTML(type = 'cover') {
+  // トヨタ請求書用 デジタル印HTML生成（表紙・明細でサイズ・位置調整、非表示対応）
+  _renderToyotaSealHTML(type = 'cover', showSeal = true) {
+    if (showSeal === false) return '';
     const src = this._getSealSrc();
     if (type === 'detail') {
       return `<img src="${src}" class="seal-stamp-detail" alt="行政書士法人フェリス之印">`;
@@ -1767,7 +1776,7 @@ const Invoice = {
   // =========================================================================
   // 1. 愛知トヨタWEST様式（表紙サマリー＋明細票）
   // =========================================================================
-  buildToyotaInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default' }) {
+  buildToyotaInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default', showSeal = true }) {
     // 案件を集計（車庫証明、封印、移転登録、その他）
     let garageCount = 0, garageFee = 0;
     let sealCount = 0, sealFee = 0;
@@ -2021,7 +2030,7 @@ const Invoice = {
       ${this._formatClientNameHTML(clientName, 15)}
     </div>
     <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box; position:relative;">
-      ${this._renderToyotaSealHTML('detail')}
+      ${this._renderToyotaSealHTML('detail', showSeal)}
       <div>〒${office.zip || '481-0033'}</div>
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
@@ -2392,7 +2401,7 @@ const Invoice = {
       <div style="font-size:11px; color:#555; margin-top:4px;">※振込手数料は貴社にてご負担願います。</div>
     </div>
     <div class="office-info">
-      ${this._renderToyotaSealHTML('cover')}
+      ${this._renderToyotaSealHTML('cover', showSeal)}
       <div>${office.assocName || '愛知県行政書士会会員'}</div>
       <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:14px; margin:2px 0;">${office.name || '行政書士法人フェリス'}</div>
@@ -2414,7 +2423,7 @@ ${detailPagesHTML}
   // 1-B. 愛知トヨタWEST様式（普通車・U-Car別明細）
   // 表紙は当月合算の共通表紙、明細票は普通車とU-Carでページを完全分離
   // =========================================================================
-  buildToyotaSplitInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default' }) {
+  buildToyotaSplitInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default', showSeal = true }) {
     // U-Car判定ヘルパー（明示的フラグまたは件名/メモからの自動判別）
     const isCaseUsed = (c) => {
       if (c.isUsedCar === true || c.isUsedCar === 'true' || c.isUsedCar === 1) return true;
@@ -2688,7 +2697,7 @@ ${detailPagesHTML}
       ${this._formatClientNameHTML(clientName, 15)}
     </div>
     <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box; position:relative;">
-      ${this._renderToyotaSealHTML('detail')}
+      ${this._renderToyotaSealHTML('detail', showSeal)}
       <div>〒${office.zip || '481-0033'}</div>
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
@@ -3064,7 +3073,7 @@ ${detailPagesHTML}
       <div style="font-size:11px; color:#555; margin-top:4px;">※振込手数料は貴社にてご負担願います。</div>
     </div>
     <div class="office-info">
-      ${this._renderToyotaSealHTML('cover')}
+      ${this._renderToyotaSealHTML('cover', showSeal)}
       <div>${office.assocName || '愛知県行政書士会会員'}</div>
       <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:14px; margin:2px 0;">${office.name || '行政書士法人フェリス'}</div>
@@ -3086,7 +3095,7 @@ ${detailPagesHTML}
   // 1-C. 愛知トヨタWEST【新様式】（ゴシック体統一・厳格1行収容・視認性特化）
   // 表紙サマリー＋明細票
   // =========================================================================
-  buildToyotaNewInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default' }) {
+  buildToyotaNewInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default', showSeal = true }) {
     let garageCount = 0, garageFee = 0;
     let sealCount = 0, sealFee = 0;
     let otherCount = 0, otherFee = 0;
@@ -3310,7 +3319,7 @@ ${detailPagesHTML}
       ${this._formatClientNameGothicHTML(clientName, 15, false)}
     </div>
     <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box; position:relative;">
-      ${this._renderToyotaSealHTML('detail')}
+      ${this._renderToyotaSealHTML('detail', showSeal)}
       <div>〒${office.zip || '481-0033'}</div>
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
@@ -3663,7 +3672,7 @@ ${detailPagesHTML}
       <div style="font-size:11px; color:#555; margin-top:4px;">※振込手数料は貴社にてご負担願います。</div>
     </div>
     <div class="office-info">
-      ${this._renderToyotaSealHTML('cover')}
+      ${this._renderToyotaSealHTML('cover', showSeal)}
       <div>${office.assocName || '愛知県行政書士会会員'}</div>
       <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:14px; margin:2px 0;">${office.name || '行政書士法人フェリス'}</div>
@@ -3684,7 +3693,7 @@ ${detailPagesHTML}
   // =========================================================================
   // 1-D. 愛知トヨタWEST【新様式】（普通車・U-Car別明細・ゴシック統一）
   // =========================================================================
-  buildToyotaNewSplitInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default' }) {
+  buildToyotaNewSplitInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default', showSeal = true }) {
     const isCaseUsed = (c) => {
       if (c.isUsedCar === true || c.isUsedCar === 'true' || c.isUsedCar === 1) return true;
       const title = c.title || '';
@@ -3948,7 +3957,7 @@ ${detailPagesHTML}
       ${this._formatClientNameGothicHTML(clientName, 15, false)}
     </div>
     <div style="text-align:right; font-size:11.5px; line-height:1.45; padding-right:20mm; flex-shrink:0; box-sizing:border-box; position:relative;">
-      ${this._renderToyotaSealHTML('detail')}
+      ${this._renderToyotaSealHTML('detail', showSeal)}
       <div>〒${office.zip || '481-0033'}</div>
       <div>${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:12.5px;">${office.name || '行政書士法人フェリス'}</div>
@@ -4309,7 +4318,7 @@ ${detailPagesHTML}
       <div style="font-size:11px; color:#555; margin-top:4px;">※振込手数料は貴社にてご負担願います。</div>
     </div>
     <div class="office-info">
-      ${this._renderToyotaSealHTML('cover')}
+      ${this._renderToyotaSealHTML('cover', showSeal)}
       <div>${office.assocName || '愛知県行政書士会会員'}</div>
       <div>所在地：${office.address || '北名古屋市六ツ師道毛74番地1'}</div>
       <div style="font-weight:bold; font-size:14px; margin:2px 0;">${office.name || '行政書士法人フェリス'}</div>
@@ -5865,7 +5874,7 @@ window.NissanPrint = {
     wb.modified = new Date();
 
     const templateType = params.templateType || 'standard';
-    if (templateType === 'toyota_new' || templateType === 'toyota') {
+    if (templateType === 'toyota_new' || templateType === 'toyota' || templateType === 'toyota_new_noseal' || templateType === 'toyota_noseal') {
       this.buildToyotaExcel(wb, params);
     } else if (templateType === 'toyota_new_split' || templateType === 'toyota_split') {
       this.buildToyotaExcel(wb, { ...params, splitUCar: true });
