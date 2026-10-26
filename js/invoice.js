@@ -1237,11 +1237,6 @@ const Invoice = {
     const dueDate = docType === 'estimate' ? '' : document.getElementById('invoiceDueDate').value;
     const taxRate = parseInt(document.getElementById('invoiceTaxRate').value) || 10;
     let note = (document.getElementById('invoiceNote').value || '').trim();
-    // 全選択案件が中古車で備考に「中古車分」の指定がなければ自動付与
-    const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
-    if (isAllUsed && !note.includes('U-Car') && !note.includes('中古車分')) {
-      note = note ? `${note}（U-Car）` : '（U-Car）';
-    }
     const templateType = document.getElementById('invoiceTemplateType')
       ? document.getElementById('invoiceTemplateType').value
       : (this.detectTemplate(client) || 'standard');
@@ -1403,10 +1398,6 @@ const Invoice = {
     const dueDate = docType === 'estimate' ? '' : document.getElementById('invoiceDueDate').value;
     const taxRate = parseInt(document.getElementById('invoiceTaxRate').value) || 10;
     let note = (document.getElementById('invoiceNote').value || '').trim();
-    const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
-    if (isAllUsed && !note.includes('U-Car') && !note.includes('中古車分')) {
-      note = note ? `${note}（U-Car）` : '（U-Car）';
-    }
     const templateType = document.getElementById('invoiceTemplateType')
       ? document.getElementById('invoiceTemplateType').value
       : (this.detectTemplate(client) || 'standard');
@@ -1566,8 +1557,7 @@ const Invoice = {
         .filter(Boolean)
     )];
 
-    const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
-    const note = isAllUsed ? '（U-Car）' : '';
+    const note = '';
 
     const html = this.buildInvoiceHTML({
       invoiceNo, issueDate, dueDate, year, month,
@@ -1667,8 +1657,7 @@ const Invoice = {
         .filter(Boolean)
     )];
 
-    const isAllUsed = cases.length > 0 && cases.every(c => !!c.isUsedCar);
-    const note = isAllUsed ? '（U-Car）' : '';
+    const note = '';
 
     try {
       await this.exportToExcel({
@@ -1777,6 +1766,7 @@ const Invoice = {
   // 1. 愛知トヨタWEST様式（表紙サマリー＋明細票）
   // =========================================================================
   buildToyotaInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default', showSeal = true }) {
+    const cleanNote = (note || '').replace(/[（(]?(?:U-Car|中古車分)[）)]?/gi, '').trim();
     // 案件を集計（車庫証明、封印、移転登録、その他）
     let garageCount = 0, garageFee = 0;
     let sealCount = 0, sealFee = 0;
@@ -1990,9 +1980,7 @@ const Invoice = {
         if (isLight && categoryShort && !categoryShort.includes('軽')) {
           categoryShort = `軽・${categoryShort}`;
         }
-        if (c.isUsedCar) {
-          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
-        }
+
         const specialNote = this._getCaseSpecialNote(c);
         if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
@@ -2023,7 +2011,7 @@ const Invoice = {
       detailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</span>` : ''}</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書${cleanNote ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${cleanNote}</span>` : ''}</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div style="max-width:52%; flex-shrink:1;">
@@ -2311,7 +2299,7 @@ const Invoice = {
 
 <!-- 1ページ目：請求書 表紙 -->
 <div class="page page-break">
-  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#000;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</div>` : ''}</div>
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${cleanNote ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#000;">${cleanNote}</div>` : ''}</div>
   
   <div class="recipient-box">
     ${this._formatClientNameHTML(clientName, 21, true)}
@@ -3096,6 +3084,7 @@ ${detailPagesHTML}
   // 表紙サマリー＋明細票
   // =========================================================================
   buildToyotaNewInvoiceHTML({ invoiceNo = '', issueDate = '', dueDate = '', year = '', month = '', client = {}, office = {}, cases = [], feeSubtotal = 0, tax = 0, taxRate = 10, advanceTotal = 0, total = 0, note = '', docType = 'invoice', sortMode = 'default', showSeal = true }) {
+    const cleanNote = (note || '').replace(/[（(]?(?:U-Car|中古車分)[）)]?/gi, '').trim();
     let garageCount = 0, garageFee = 0;
     let sealCount = 0, sealFee = 0;
     let otherCount = 0, otherFee = 0;
@@ -3283,9 +3272,7 @@ ${detailPagesHTML}
         if (isLight && categoryShort && !categoryShort.includes('軽')) {
           categoryShort = `軽・${categoryShort}`;
         }
-        if (c.isUsedCar) {
-          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
-        }
+
         const specialNote = this._getCaseSpecialNote(c);
         if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
@@ -3312,7 +3299,7 @@ ${detailPagesHTML}
       detailPagesHTML += `
 <!-- 明細書 ページ ${pageNum} -->
 <div class="page ${isLastPage ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書${note ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</span>` : ''}</div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書${cleanNote ? `<span style="font-size:13px; letter-spacing:0; font-weight:normal; margin-left:12px; vertical-align:middle;">${cleanNote}</span>` : ''}</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div style="max-width:52%; flex-shrink:1;">
@@ -3582,7 +3569,7 @@ ${detailPagesHTML}
 
 <!-- 1ページ目：請求書 表紙（新様式・ゴシック体） -->
 <div class="page page-break">
-  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#000;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</div>` : ''}</div>
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${cleanNote ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#000;">${cleanNote}</div>` : ''}</div>
   
   <div class="recipient-box">
     ${this._formatClientNameGothicHTML(clientName, 21, true)}
@@ -6348,7 +6335,7 @@ window.NissanPrint = {
         else if (c.category === 'seal') categoryShort = '封印';
         // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
         if (isLight && categoryShort && !categoryShort.includes('軽')) categoryShort = `軽・${categoryShort}`;
-        if (c.isUsedCar) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+        if (splitUCar && c.isUsedCar) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         const specialNote = this._getCaseSpecialNote(c);
         if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
           categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
