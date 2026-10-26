@@ -528,6 +528,65 @@ const Invoice = {
     }
     return '';
   },
+
+  // 三菱（ふそう）案件判定ヘルパー
+  _isFusoClient(client = {}, note = '', cases = []) {
+    const clientFullName = [
+      client.name || '',
+      client.companyName || '',
+      client.branchName || '',
+      client.department || '',
+      client.code || ''
+    ].join(' ');
+    return /三菱|ふそう|FUSO/i.test(clientFullName) ||
+      /三菱|ふそう|FUSO/i.test(note || '') ||
+      (cases || []).some(c => /三菱|ふそう|FUSO/i.test(c.dealer || c.clientName || c.title || ''));
+  },
+
+  // 請求書明細の備考表示決定ヘルパー（トヨタは「一般」、三菱は車庫証明（一般）を「-」にして個別メモを優先）
+  _getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, isGothic = false) {
+    if (!isFusoClient) {
+      return categoryShort || '-';
+    }
+    const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
+    if (rawMemo) {
+      return isGothic ? rawMemo.replace(/\r?\n/g, ' ') : rawMemo.replace(/\r?\n/g, '<br>');
+    }
+    if (c.regType === 'jyuminhyo') {
+      return '住民票';
+    }
+    if (specialNote) {
+      return specialNote;
+    }
+    if (!categoryShort || categoryShort === '一般' || categoryShort === '一般・軽') {
+      return '-';
+    }
+    const stripped = categoryShort.replace(/一般・?/, '').trim();
+    return stripped || '-';
+  },
+
+  // Excel用備考表示決定ヘルパー
+  _getRemarkDisplayForExcel(c, categoryShort, specialNote, isFusoClient) {
+    if (!isFusoClient) {
+      return categoryShort || '-';
+    }
+    const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
+    if (rawMemo) {
+      return rawMemo.replace(/\r?\n/g, ' ');
+    }
+    if (c.regType === 'jyuminhyo') {
+      return '住民票';
+    }
+    if (specialNote) {
+      return specialNote;
+    }
+    if (!categoryShort || categoryShort === '一般' || categoryShort === '一般・軽') {
+      return '-';
+    }
+    const stripped = categoryShort.replace(/一般・?/, '').trim();
+    return stripped || '-';
+  },
+
   // 鑑（顧客店舗名）の文字数に応じた縮小（1行表示）
   _formatClientNameHTML(name, baseSize = 15, isCover = false) {
     if (!name) return '';
@@ -1879,16 +1938,7 @@ const Invoice = {
     const detailPages = paginateCases(sortedCases, 20, 22);
     const totalDetailPages = detailPages.length;
 
-    const clientFullName = [
-      client.companyName || '',
-      client.name || '',
-      client.tradeName || '',
-      client.ruby || '',
-      client.code || ''
-    ].join(' ');
-    const isFusoClient = /三菱ふそう|ふそう|FUSO/i.test(clientFullName) ||
-      /三菱ふそう|ふそう|FUSO/i.test(note || '') ||
-      cases.some(c => /三菱ふそう|ふそう|FUSO/i.test(c.dealer || c.clientName || ''));
+    const isFusoClient = this._isFusoClient(client, note, cases);
 
     let detailPagesHTML = '';
     for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
@@ -1958,13 +2008,7 @@ const Invoice = {
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
-        let remarkDisplay = '';
-        if (isFusoClient) {
-          const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
-          remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : (categoryShort || '-');
-        } else {
-          remarkDisplay = categoryShort || '-';
-        }
+        const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, false);
 
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
@@ -2423,6 +2467,7 @@ ${detailPagesHTML}
 
     const rawClientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
+    const isFusoClient = this._isFusoClient(client, note, cases);
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
       const bp = Store.getBillingPeriod(year, month);
@@ -2606,7 +2651,7 @@ ${detailPagesHTML}
           }
           if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
-          const remarkDisplay = categoryShort || '-';
+          const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, false);
           const fee = Number(c.fee || 0);
           const advSum = (c.advances || []).reduce((s, a) => s + Number(a.amount || 0), 0);
           const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
@@ -2666,7 +2711,7 @@ ${detailPagesHTML}
         <th rowspan="2">立替金</th>
       </tr>
       <tr>
-        <th>注文No.</th>
+        <th>${isFusoClient ? '受注No.' : '注文No.'}</th>
         <th>氏　名</th>
         <th>管　轄</th>
         <th>備　考</th>
@@ -3143,16 +3188,7 @@ ${detailPagesHTML}
     const detailPages = paginateCases(sortedCases, 20, 22);
     const totalDetailPages = detailPages.length;
 
-    const clientFullName = [
-      client.companyName || '',
-      client.name || '',
-      client.tradeName || '',
-      client.ruby || '',
-      client.code || ''
-    ].join(' ');
-    const isFusoClient = /三菱ふそう|ふそう|FUSO/i.test(clientFullName) ||
-      /三菱ふそう|ふそう|FUSO/i.test(note || '') ||
-      cases.some(c => /三菱ふそう|ふそう|FUSO/i.test(c.dealer || c.clientName || ''));
+    const isFusoClient = this._isFusoClient(client, note, cases);
 
     let detailPagesHTML = '';
     for (let pIdx = 0; pIdx < totalDetailPages; pIdx++) {
@@ -3221,13 +3257,7 @@ ${detailPagesHTML}
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
-        let remarkDisplay = '';
-        if (isFusoClient) {
-          const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
-          remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, ' ') : (categoryShort || '-');
-        } else {
-          remarkDisplay = categoryShort || '-';
-        }
+        const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
 
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
@@ -3660,6 +3690,7 @@ ${detailPagesHTML}
 
     const rawClientName = client.type === '法人' ? (client.companyName || client.name || 'お客様') : (client.name || 'お客様');
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
+    const isFusoClient = this._isFusoClient(client, note, cases);
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
       const bp = Store.getBillingPeriod(year, month);
@@ -3830,7 +3861,7 @@ ${detailPagesHTML}
           }
           if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
-          const remarkDisplay = categoryShort || '-';
+          const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
           const fee = Number(c.fee || 0);
           const advSum = (c.advances || []).reduce((s, a) => s + Number(a.amount || 0), 0);
 
@@ -3897,7 +3928,7 @@ ${detailPagesHTML}
         <th rowspan="2">立替金</th>
       </tr>
       <tr>
-        <th>注文No.</th>
+        <th>${isFusoClient ? '受注No.' : '注文No.'}</th>
         <th>氏　名</th>
         <th>管　轄</th>
         <th>備　考</th>
@@ -4435,8 +4466,7 @@ ${detailPagesHTML}
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
-        const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
-        const remarkDisplay = rawMemo ? rawMemo.replace(/\r?\n/g, '<br>') : (categoryShort || '-');
+        const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, true, false);
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
 
@@ -5835,6 +5865,7 @@ window.NissanPrint = {
   buildToyotaExcel(wb, { invoiceNo, issueDate, dueDate, client, office, cases, feeSubtotal, tax, advanceTotal, total, docType = 'invoice', note, sortMode = 'default', splitUCar = false }) {
     const S = this._getExcelStyles();
     const clientName = client.type === '法人' ? (client.companyName || client.name) : client.name;
+    const isFusoClient = this._isFusoClient(client, note, cases);
     const [issueY, issueM, issueD] = (issueDate || Store.getLocalDateStr()).split('-');
     const reiwaYear = issueY ? parseInt(issueY, 10) - 2018 : 8;
     const dateStr = `令和 ${reiwaYear} 年 ${parseInt(issueM || '1', 10)} 月 ${parseInt(issueD || '1', 10)} 日`;
@@ -6253,13 +6284,7 @@ window.NissanPrint = {
         ws.getCell(`C${rowIdx}`).alignment = { horizontal: 'center' };
         ws.getCell(`D${rowIdx}`).value = applicant;
         ws.getCell(`E${rowIdx}`).value = policeName;
-        let remarkDisplay = '';
-        if (isFusoClient) {
-          const rawMemo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
-          remarkDisplay = rawMemo || (categoryShort || '-');
-        } else {
-          remarkDisplay = categoryShort || '-';
-        }
+        const remarkDisplay = this._getRemarkDisplayForExcel(c, categoryShort, specialNote, isFusoClient);
         ws.getCell(`F${rowIdx}`).value = remarkDisplay;
         ws.getCell(`F${rowIdx}`).alignment = { horizontal: isFusoClient && remarkDisplay.length > 6 ? 'left' : 'center', wrapText: true };
         ws.getCell(`G${rowIdx}`).value = fee;
