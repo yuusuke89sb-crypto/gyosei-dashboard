@@ -440,27 +440,9 @@ const Invoice = {
     return pages;
   },
 
-  // 新様式 宛名フォーマッター（ゴシック体）
-  _formatClientNameGothicHTML(name, baseSize = 20, isCover = false) {
-    if (!name) return '';
-    const str = String(name).trim();
-    const visualLen = this._getVisualLength(str);
-
-    let size = baseSize;
-    let letterSpacing = 'normal';
-    if (visualLen > 24) {
-      size = Math.round(baseSize * 0.72);
-      letterSpacing = '-0.4px';
-    } else if (visualLen > 18) {
-      size = Math.round(baseSize * 0.82);
-      letterSpacing = '-0.2px';
-    } else if (visualLen > 14) {
-      size = Math.round(baseSize * 0.92);
-      letterSpacing = '-0.1px';
-    }
-
-    const borderWidth = isCover ? '2px' : '1.5px';
-    return `<span style="font-size:${size}px; letter-spacing:${letterSpacing}; font-weight:bold; display:inline-block; border-bottom:${borderWidth} solid #000; padding-bottom:3px; white-space:nowrap; line-height:1.35; max-width:100%;">${str}</span>`;
+  // 新様式 宛名フォーマッター（ゴシック体 - 旧様式と同等の文字サイズ・バランス）
+  _formatClientNameGothicHTML(name, baseSize = 15, isCover = false) {
+    return this._formatClientNameHTML(name, baseSize, isCover);
   },
 
   _cleanCaseMemoForInvoice(rawMemo) {
@@ -2289,8 +2271,8 @@ const Invoice = {
     position: absolute;
     right: 8mm;
     top: 3.5mm;
-    width: 17mm;
-    height: 17mm;
+    width: 21mm;
+    height: 21mm;
     mix-blend-mode: multiply;
     opacity: 0.88;
     pointer-events: none;
@@ -2970,8 +2952,8 @@ ${detailPagesHTML}
     position: absolute;
     right: 8mm;
     top: 3.5mm;
-    width: 17mm;
-    height: 17mm;
+    width: 21mm;
+    height: 21mm;
     mix-blend-mode: multiply;
     opacity: 0.88;
     pointer-events: none;
@@ -3573,8 +3555,8 @@ ${detailPagesHTML}
     position: absolute;
     right: 8mm;
     top: 3.5mm;
-    width: 17mm;
-    height: 17mm;
+    width: 21mm;
+    height: 21mm;
     mix-blend-mode: multiply;
     opacity: 0.88;
     pointer-events: none;
@@ -4219,8 +4201,8 @@ ${detailPagesHTML}
     position: absolute;
     right: 8mm;
     top: 3.5mm;
-    width: 17mm;
-    height: 17mm;
+    width: 21mm;
+    height: 21mm;
     mix-blend-mode: multiply;
     opacity: 0.88;
     pointer-events: none;
