@@ -6143,16 +6143,7 @@ window.NissanPrint = {
     detailTitle.alignment = { horizontal: 'left', vertical: 'middle' };
     ws2.getRow(1).height = 24;
 
-    const clientFullName = [
-      client.companyName || '',
-      client.name || '',
-      client.tradeName || '',
-      client.ruby || '',
-      client.code || ''
-    ].join(' ');
-    const isFusoClient = /三菱ふそう|ふそう|FUSO/i.test(clientFullName) ||
-      /三菱ふそう|ふそう|FUSO/i.test(note || '') ||
-      cases.some(c => /三菱ふそう|ふそう|FUSO/i.test(c.dealer || c.clientName || ''));
+    // isFusoClient は関数先頭ですでに宣言済み
 
     const getSortDate = (c) => c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.createdAt || c.registeredAt || '';
     const isSeal = (c) => c.category === 'seal' || (c.title || '').includes('封印') || (c.subCategory || '').includes('封印');
