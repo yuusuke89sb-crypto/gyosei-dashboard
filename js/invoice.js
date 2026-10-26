@@ -392,7 +392,7 @@ const Invoice = {
     const totalLine = `<div style="font-size:11.5px; font-weight:700; color:#000; line-height:1.2;">${sumStr}</div>`;
     if (blocks.length === 0) return totalLine;
     const blocksHTML = blocks.map(b =>
-      `<span style="display:inline-block; white-space:nowrap; font-size:${b.fs.toFixed(1)}px; font-weight:600; color:#334155; line-height:1.25;">${b.text}</span>`
+      `<span style="display:inline-block; white-space:nowrap; font-size:${b.fs.toFixed(1)}px; font-weight:600; color:#000; line-height:1.25;">${b.text}</span>`
     ).join('');
     return `${totalLine}<div style="display:flex; flex-wrap:wrap; justify-content:flex-end; gap:0 4px; white-space:normal; margin-top:1px;">${blocksHTML}</div>`;
   },
@@ -2134,6 +2134,25 @@ const Invoice = {
       page-break-after: auto !important;
       break-after: auto !important;
     }
+    /* デジタル印鑑のみカラー、それ以外は完全白黒・純粋モノクロ */
+    .page *:not(.seal-stamp-cover):not(.seal-stamp-detail) {
+      color: #000 !important;
+      border-color: #000 !important;
+    }
+    .page table.grid-table th,
+    .page .section-label,
+    .page .grand-total-row th,
+    .page .grand-total-row td,
+    .page tr[style*="background"] {
+      background: #f2f2f2 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .seal-stamp-cover, .seal-stamp-detail {
+      filter: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   }
   .page {
     width: 210mm;
@@ -2208,9 +2227,10 @@ const Invoice = {
     border-right: 1.2px solid #000;
   }
   table.grid-table th {
-    background: #f8fafc;
+    background: #f2f2f2;
     text-align: center;
     font-weight: bold;
+    color: #000;
   }
   .col-num { text-align: right; font-weight: 600; color: #000; }
   .col-center { text-align: center; }
@@ -2220,13 +2240,15 @@ const Invoice = {
     text-orientation: upright;
     letter-spacing: 4px;
     font-weight: bold;
-    background: #f1f5f9;
+    background: #f2f2f2;
+    color: #000;
   }
 
   .grand-total-row th, .grand-total-row td {
     font-size: 15px;
     font-weight: bold;
-    background: #f8fafc;
+    background: #f2f2f2;
+    color: #000;
     border-top: 2px solid #000;
     border-bottom: 2px solid #000;
   }
@@ -2298,7 +2320,7 @@ const Invoice = {
 
 <!-- 1ページ目：請求書 表紙 -->
 <div class="page page-break">
-  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</div>` : ''}</div>
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#000;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</div>` : ''}</div>
   
   <div class="recipient-box">
     ${this._formatClientNameHTML(clientName, 21, true)}
@@ -2793,6 +2815,25 @@ ${detailPagesHTML}
       page-break-after: auto !important;
       break-after: auto !important;
     }
+    /* デジタル印鑑のみカラー、それ以外は完全白黒・純粋モノクロ */
+    .page *:not(.seal-stamp-cover):not(.seal-stamp-detail) {
+      color: #000 !important;
+      border-color: #000 !important;
+    }
+    .page table.grid-table th,
+    .page .section-label,
+    .page .grand-total-row th,
+    .page .grand-total-row td,
+    .page tr[style*="background"] {
+      background: #f2f2f2 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .seal-stamp-cover, .seal-stamp-detail {
+      filter: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   }
   .page {
     width: 210mm;
@@ -2867,9 +2908,10 @@ ${detailPagesHTML}
     border-right: 1.2px solid #000;
   }
   table.grid-table th {
-    background: #f8fafc;
+    background: #f2f2f2;
     text-align: center;
     font-weight: bold;
+    color: #000;
   }
   .col-num { text-align: right; font-weight: 600; color: #000; }
   .col-center { text-align: center; }
@@ -2879,13 +2921,15 @@ ${detailPagesHTML}
     text-orientation: upright;
     letter-spacing: 4px;
     font-weight: bold;
-    background: #f1f5f9;
+    background: #f2f2f2;
+    color: #000;
   }
 
   .grand-total-row th, .grand-total-row td {
     font-size: 15px;
     font-weight: bold;
-    background: #f8fafc;
+    background: #f2f2f2;
+    color: #000;
     border-top: 2px solid #000;
     border-bottom: 2px solid #000;
   }
@@ -3378,6 +3422,25 @@ ${detailPagesHTML}
       page-break-after: auto !important;
       break-after: auto !important;
     }
+    /* デジタル印鑑のみカラー、それ以外は完全白黒・純粋モノクロ */
+    .page *:not(.seal-stamp-cover):not(.seal-stamp-detail) {
+      color: #000 !important;
+      border-color: #000 !important;
+    }
+    .page table.grid-table th,
+    .page .section-label,
+    .page .grand-total-row th,
+    .page .grand-total-row td,
+    .page tr[style*="background"] {
+      background: #f2f2f2 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .seal-stamp-cover, .seal-stamp-detail {
+      filter: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   }
   .page {
     width: 210mm;
@@ -3446,7 +3509,7 @@ ${detailPagesHTML}
     border-right: 1.2px solid #000;
   }
   table.grid-table th {
-    background: #f1f5f9;
+    background: #f2f2f2;
     text-align: center;
     font-weight: bold;
     color: #000;
@@ -3460,13 +3523,15 @@ ${detailPagesHTML}
     text-orientation: upright;
     letter-spacing: 4px;
     font-weight: bold;
-    background: #f1f5f9;
+    background: #f2f2f2;
+    color: #000;
   }
 
   .grand-total-row th, .grand-total-row td {
     font-size: 15px;
     font-weight: bold;
-    background: #f8fafc;
+    background: #f2f2f2;
+    color: #000;
     border-top: 2px solid #000;
     border-bottom: 2px solid #000;
   }
@@ -3526,7 +3591,7 @@ ${detailPagesHTML}
 
 <!-- 1ページ目：請求書 表紙（新様式・ゴシック体） -->
 <div class="page page-break">
-  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</div>` : ''}</div>
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#000;">${(note || "").replace(/[（(]?中古車分[）)]?/g, "（U-Car）")}</div>` : ''}</div>
   
   <div class="recipient-box">
     ${this._formatClientNameGothicHTML(clientName, 21, true)}
@@ -4003,6 +4068,25 @@ ${detailPagesHTML}
       page-break-after: auto !important;
       break-after: auto !important;
     }
+    /* デジタル印鑑のみカラー、それ以外は完全白黒・純粋モノクロ */
+    .page *:not(.seal-stamp-cover):not(.seal-stamp-detail) {
+      color: #000 !important;
+      border-color: #000 !important;
+    }
+    .page table.grid-table th,
+    .page .section-label,
+    .page .grand-total-row th,
+    .page .grand-total-row td,
+    .page tr[style*="background"] {
+      background: #f2f2f2 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .seal-stamp-cover, .seal-stamp-detail {
+      filter: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   }
   .page {
     width: 210mm;
@@ -4071,7 +4155,7 @@ ${detailPagesHTML}
     border-right: 1.2px solid #000;
   }
   table.grid-table th {
-    background: #f1f5f9;
+    background: #f2f2f2;
     text-align: center;
     font-weight: bold;
     color: #000;
@@ -4085,13 +4169,15 @@ ${detailPagesHTML}
     text-orientation: upright;
     letter-spacing: 4px;
     font-weight: bold;
-    background: #f1f5f9;
+    background: #f2f2f2;
+    color: #000;
   }
 
   .grand-total-row th, .grand-total-row td {
     font-size: 15px;
     font-weight: bold;
-    background: #f8fafc;
+    background: #f2f2f2;
+    color: #000;
     border-top: 2px solid #000;
     border-bottom: 2px solid #000;
   }
@@ -4151,7 +4237,7 @@ ${detailPagesHTML}
 
 <!-- 1ページ目：共通合算表紙（新様式・ゴシック体） -->
 <div class="page page-break">
-  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#334155;">${note}</div>` : ''}</div>
+  <div class="doc-title">${docType === 'estimate' ? '御 見 積 書' : '請 求 書'}${note ? `<div style="font-size:13px; font-weight:normal; letter-spacing:1px; margin-top:4px; color:#000;">${note}</div>` : ''}</div>
   
   <div class="recipient-box">
     ${this._formatClientNameGothicHTML(clientName, 21, true)}
@@ -4586,6 +4672,24 @@ ${detailPagesHTML}
       page-break-after: auto !important;
       break-after: auto !important;
     }
+    /* デジタル印鑑のみカラー、それ以外は完全白黒・純粋モノクロ */
+    .page *:not(.seal-stamp-cover):not(.seal-stamp-detail) {
+      color: #000 !important;
+      border-color: #000 !important;
+    }
+    .page table.fuso-table th,
+    .page .grand-total-row th,
+    .page .grand-total-row td,
+    .page tr[style*="background"] {
+      background: #f2f2f2 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .seal-stamp-cover, .seal-stamp-detail {
+      filter: none !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   }
   .page {
     width: 210mm;
@@ -4608,7 +4712,7 @@ ${detailPagesHTML}
   table.fuso-table { width: calc(100% - 1px); margin: 0 auto 12px; border-collapse: collapse; table-layout: fixed; font-size: 11.5px; box-sizing: border-box; }
   table.fuso-table th, table.fuso-table td { border: 1px solid #000; padding: 3.5px 6px; line-height: 1.3; overflow: hidden; word-wrap: break-word; box-sizing: border-box; }
   table.fuso-table th:last-child, table.fuso-table td:last-child { border-right: 1.2px solid #000; }
-  table.fuso-table th { background: #f8fafc; text-align: center; font-weight: bold; }
+  table.fuso-table th { background: #f2f2f2; text-align: center; font-weight: bold; color: #000; }
   .col-num { text-align: right; font-weight: 600; color: #000; }
   .col-center { text-align: center; }
 
