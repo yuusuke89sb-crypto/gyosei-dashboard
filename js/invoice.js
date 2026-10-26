@@ -83,127 +83,24 @@ const Invoice = {
     return len;
   },
 
+  // 申請者名・顧客名の1行フォーマッター（ゴシック新様式と同じ高視認性スケールに統一）
   _formatApplicantHTML(name) {
-    if (!name || name === '-') return '-';
-    const str = String(name).trim();
-    const visualLen = this._getVisualLength(str);
-
-    // セル幅28%(約52mm)を活かし、一般的な氏名・会社名(10.5文字以下)は縮小せず11.2pxで大きく統一！
-    // 枠を飛び出さないよう、11文字を超える長文のみ安全に段階的縮小
-    let fontSize = 11.2;
-    let letterSpacing = 0;
-
-    if (visualLen <= 10.5) {
-      // 通常の人名(3〜6文字)や標準的な会社名(7〜10文字)：「山田伸治」「(株)北九ライニング」「愛知トヨタWEST(株)」など
-      // 一切縮小せず、しっかり大きくクッキリ揃えて視認性を最大化
-      fontSize = 11.2;
-      letterSpacing = 0;
-    } else if (visualLen <= 13.5) {
-      // 11〜13文字（長めの法人名など）：10.0px
-      fontSize = 10.0;
-      letterSpacing = -0.10;
-    } else if (visualLen <= 16.5) {
-      // 14〜16文字：9.0px
-      fontSize = 9.0;
-      letterSpacing = -0.20;
-    } else if (visualLen <= 20.0) {
-      // 17〜20文字：8.0px
-      fontSize = 8.0;
-      letterSpacing = -0.30;
-    } else {
-      // 21文字以上の超長文：文字数に応じて滑らかに縮小（枠外はみ出しを完全防止）
-      fontSize = Math.max(5.5, 7.5 - (visualLen - 20) * 0.15);
-      letterSpacing = -0.40;
-    }
-
-    const fsStr = fontSize.toFixed(1) + 'px';
-    const lsStr = letterSpacing === 0 ? 'normal' : letterSpacing.toFixed(2) + 'px';
-
-    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fsStr}; letter-spacing:${lsStr}; font-weight:600; line-height:1.2;">${str}</span>`;
+    return this._formatApplicantGothicHTML(name);
   },
-  // 管轄警察署名の文字数に応じた自動縮小＆1行表示（西枇杷島、小牧陸事等も綺麗に1行表示）
+
+  // 管轄警察署名の文字数に応じた自動縮小＆1行表示（ゴシック新様式と同じ高視認性スケールに統一）
   _formatPoliceHTML(police) {
-    if (!police || police === '-') return '-';
-    const str = String(police).trim();
-    const visualLen = this._getVisualLength(str);
-
-    let fontSize = '11px';
-    let letterSpacing = 'normal';
-    if (visualLen > 6) {
-      fontSize = '8.0px';
-      letterSpacing = '-0.3px';
-    } else if (visualLen > 4.5) {
-      fontSize = '9.0px';
-      letterSpacing = '-0.2px';
-    } else if (visualLen > 3.5) {
-      // 4文字（「西枇杷島」「小牧陸事」等）
-      fontSize = '10.0px';
-      letterSpacing = '-0.1px';
-    }
-    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
+    return this._formatPoliceGothicHTML(police);
   },
 
-  // 注文No.の文字数に応じた自動縮小＆はみ出し防止（ハイフン付き「57360239-0」等も綺麗に1行で収める）
+  // 注文No.の文字数に応じた自動縮小＆はみ出し防止（ゴシック新様式と同じ高視認性スケールに統一）
   _formatOrderNoHTML(orderNo) {
-    if (!orderNo || orderNo === '-') return '-';
-    const str = String(orderNo).trim();
-    const len = str.length;
-
-    let fontSize = '11px';
-    let letterSpacing = 'normal';
-
-    if (len > 12) {
-      fontSize = '7.5px';
-      letterSpacing = '-0.4px';
-    } else if (len > 10) {
-      fontSize = '8.5px';
-      letterSpacing = '-0.3px';
-    } else if (len > 8) {
-      // 9〜10文字（例: 57360239-0）
-      fontSize = '9.2px';
-      letterSpacing = '-0.2px';
-    } else {
-      fontSize = '11px';
-      letterSpacing = 'normal';
-    }
-
-    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
+    return this._formatOrderNoGothicHTML(orderNo);
   },
 
-  // 備考欄の文字数に応じた自動縮小＆1行表示（文字が切れないよう最適化）
+  // 備考欄の文字数に応じた自動縮小＆1行表示（ゴシック新様式と同じ高視認性スケールに統一）
   _formatRemarkHTML(text) {
-    if (!text || text === '-') return '-';
-    const str = String(text).trim();
-    const visualLen = this._getVisualLength(str);
-
-    let fontSize = '11px';
-    let letterSpacing = 'normal';
-    if (visualLen > 14) {
-      fontSize = '5.8px';
-      letterSpacing = '-0.45px';
-    } else if (visualLen > 12) {
-      // 「U-Car・一般（申請のみ）」等 (約13文字)
-      fontSize = '6.3px';
-      letterSpacing = '-0.40px';
-    } else if (visualLen > 10) {
-      // 「U-Car・希望ナンバー」等 (約11文字)
-      fontSize = '6.9px';
-      letterSpacing = '-0.35px';
-    } else if (visualLen > 8) {
-      // 「U-Car・新規登録」等 (約9文字)
-      fontSize = '7.6px';
-      letterSpacing = '-0.30px';
-    } else if (visualLen > 6) {
-      // 「U-Car・一般」「U-Car・封印」等 (約7文字)
-      fontSize = '8.8px';
-      letterSpacing = '-0.20px';
-    } else if (visualLen > 4.5) {
-      fontSize = '9.8px';
-      letterSpacing = '-0.10px';
-    } else {
-      fontSize = '10.5px';
-    }
-    return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
+    return this._formatRemarkGothicHTML(text);
   },
 
   // 請求書・明細書用に案件メモから社内システムログ・登録BOX合流履歴・OCR解析ログを除去
@@ -1899,22 +1796,8 @@ const Invoice = {
       sortedCases = [...nonSealCases, ...sealCases];
     }
 
-    // 明細ページの動的分割（基本18件。全体または最終ページの残りが最大20件までなら1ページに収める）
-    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
-      if (!items || items.length === 0) return [[]];
-      if (items.length <= maxLimit) return [items];
-      const pages = [];
-      let remaining = [...items];
-      while (remaining.length > 0) {
-        if (remaining.length <= maxLimit) {
-          pages.push(remaining);
-          break;
-        }
-        pages.push(remaining.slice(0, baseLimit));
-        remaining = remaining.slice(baseLimit);
-      }
-      return pages;
-    };
+    // 明細ページの動的分割（高さベースの自動改ページ）
+    const paginateCases = (items) => this._paginateGothicByHeight(items);
 
     const detailPages = paginateCases(sortedCases, 20, 22);
     const totalDetailPages = detailPages.length;
@@ -1987,24 +1870,20 @@ const Invoice = {
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
-        const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, false);
+        const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
 
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
-        const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
-          const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
-          return this._formatAdvanceItemHTML(displayLabel, a.amount);
-        }).join('');
 
         return `
-        <tr>
-          <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
-          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatOrderNoHTML(orderNo)}</td>
-          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatApplicantHTML(applicant)}</td>
-          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatPoliceHTML(policeName)}</td>
-          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
-          <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-          <td class="col-num" style="font-size:11px; font-weight:600; color:#000; overflow:hidden; text-overflow:clip; padding:3px 2px;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="color:#000; margin-top:1px;">${advDetails}</div>` : ''}` : ''}</td>
+        <tr style="height: 32px;">
+          <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">${dateStr}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;">${this._formatOrderNoHTML(orderNo)}</td>
+          <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">${this._formatApplicantHTML(applicant)}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">${this._formatPoliceHTML(policeName)}</td>
+          <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
+          <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+          <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">${this._formatAdvanceCellGothicHTML(advSum, c.advances)}</td>
         </tr>`;
       }).join('');
 
@@ -2027,7 +1906,7 @@ const Invoice = {
     </div>
   </div>
 
-  <table class="grid-table" style="font-size:11px; margin-bottom:6px;">
+  <table class="grid-table" style="font-size:11.5px; margin-bottom:6px;">
     <colgroup>
       <col style="width: 6.5%;">
       <col style="width: 10.5%;">
@@ -2195,11 +2074,12 @@ const Invoice = {
   }
   table.grid-table th, table.grid-table td {
     border: 1px solid #000;
-    padding: 3.5px 6px;
-    line-height: 1.3;
+    padding: 6px 5px;
+    line-height: 1.35;
     overflow: hidden;
-    word-wrap: break-word;
+    white-space: nowrap;
     box-sizing: border-box;
+    vertical-align: middle;
   }
   table.grid-table th:last-child,
   table.grid-table td:last-child {
@@ -2210,6 +2090,7 @@ const Invoice = {
     text-align: center;
     font-weight: bold;
     color: #000;
+    padding: 6px 4px;
   }
   .col-num { text-align: right; font-weight: 600; color: #000; }
   .col-center { text-align: center; }
@@ -2562,21 +2443,7 @@ ${detailPagesHTML}
     const sortedNormalCases = sortCaseList(normalCases);
     const sortedUsedCases = sortCaseList(usedCases);
 
-    const paginateCases = (items, baseLimit = 20, maxLimit = 22) => {
-      if (!items || items.length === 0) return [[]];
-      if (items.length <= maxLimit) return [items];
-      const pages = [];
-      let remaining = [...items];
-      while (remaining.length > 0) {
-        if (remaining.length <= maxLimit) {
-          pages.push(remaining);
-          break;
-        }
-        pages.push(remaining.slice(0, baseLimit));
-        remaining = remaining.slice(baseLimit);
-      }
-      return pages;
-    };
+    const paginateCases = (items) => this._paginateGothicByHeight(items);
 
     const hasNormal = sortedNormalCases.length > 0;
     const hasUsed = sortedUsedCases.length > 0;
@@ -2652,23 +2519,19 @@ ${detailPagesHTML}
           }
           if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
-          const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, false);
+          const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
           const fee = Number(c.fee || 0);
           const advSum = (c.advances || []).reduce((s, a) => s + Number(a.amount || 0), 0);
-          const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
-            const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
-            return this._formatAdvanceItemHTML(displayLabel, a.amount);
-          }).join('');
 
           return `
-          <tr>
-            <td class="col-center" style="white-space:nowrap; font-size:11px; font-weight:600; color:#000;">${dateStr}</td>
-            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatOrderNoHTML(orderNo)}</td>
-            <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatApplicantHTML(applicant)}</td>
-            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px;">${this._formatPoliceHTML(policeName)}</td>
-            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:3px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
-            <td class="col-num" style="font-size:11px; font-weight:600; color:#000;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
-            <td class="col-num" style="font-size:11px; font-weight:600; color:#000; overflow:hidden; text-overflow:clip; padding:3px 2px;">${advSum > 0 ? `${advSum.toLocaleString()}${advDetails ? `<div style="color:#000; margin-top:1px;">${advDetails}</div>` : ''}` : ''}</td>
+          <tr style="height: 32px;">
+            <td class="col-center" style="white-space:nowrap; font-size:11.5px; font-weight:600; color:#000;">${dateStr}</td>
+            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;">${this._formatOrderNoHTML(orderNo)}</td>
+            <td style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">${this._formatApplicantHTML(applicant)}</td>
+            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px;">${this._formatPoliceHTML(policeName)}</td>
+            <td class="col-center" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 2px; color:#000;">${this._formatRemarkHTML(remarkDisplay)}</td>
+            <td class="col-num" style="font-size:11.5px; font-weight:700; color:#000; padding:6px 4px;">${fee > 0 ? fee.toLocaleString() : '-'}</td>
+            <td class="col-num" style="white-space:nowrap; overflow:hidden; text-overflow:clip; padding:6px 4px;">${this._formatAdvanceCellGothicHTML(advSum, c.advances)}</td>
           </tr>`;
         }).join('');
 
@@ -2694,7 +2557,7 @@ ${detailPagesHTML}
     </div>
   </div>
 
-  <table class="grid-table" style="font-size:11px; margin-bottom:6px;">
+  <table class="grid-table" style="font-size:11.5px; margin-bottom:6px;">
     <colgroup>
       <col style="width: 6.5%;">
       <col style="width: 10.5%;">
@@ -2876,11 +2739,12 @@ ${detailPagesHTML}
   }
   table.grid-table th, table.grid-table td {
     border: 1px solid #000;
-    padding: 3.5px 6px;
-    line-height: 1.3;
+    padding: 6px 5px;
+    line-height: 1.35;
     overflow: hidden;
-    word-wrap: break-word;
+    white-space: nowrap;
     box-sizing: border-box;
+    vertical-align: middle;
   }
   table.grid-table th:last-child,
   table.grid-table td:last-child {
@@ -2891,6 +2755,7 @@ ${detailPagesHTML}
     text-align: center;
     font-weight: bold;
     color: #000;
+    padding: 6px 4px;
   }
   .col-num { text-align: right; font-weight: 600; color: #000; }
   .col-center { text-align: center; }
