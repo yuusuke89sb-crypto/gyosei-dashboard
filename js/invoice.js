@@ -2388,7 +2388,7 @@ const Invoice = {
   <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
   <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
   ${dueDate && docType !== 'estimate' ? `
-  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+  <div style="font-size:13px; font-weight:bold; color:#000; margin-bottom: 18px;">
     お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
   </div>` : '<div style="margin-bottom: 20px;"></div>'}
 
@@ -3060,7 +3060,7 @@ ${detailPagesHTML}
   <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
   <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
   ${dueDate && docType !== 'estimate' ? `
-  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+  <div style="font-size:13px; font-weight:bold; color:#000; margin-bottom: 18px;">
     お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
   </div>` : '<div style="margin-bottom: 20px;"></div>'}
 
@@ -3659,7 +3659,7 @@ ${detailPagesHTML}
   <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
   <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
   ${dueDate && docType !== 'estimate' ? `
-  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+  <div style="font-size:13px; font-weight:bold; color:#000; margin-bottom: 18px;">
     お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
   </div>` : '<div style="margin-bottom: 20px;"></div>'}
 
@@ -4305,7 +4305,7 @@ ${detailPagesHTML}
   <div style="font-size:13px; margin-bottom: 8px;">上記のとおりご請求申し上げます。</div>
   <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
   ${dueDate && docType !== 'estimate' ? `
-  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+  <div style="font-size:13px; font-weight:bold; color:#000; margin-bottom: 18px;">
     お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
   </div>` : '<div style="margin-bottom: 20px;"></div>'}
 
@@ -4801,7 +4801,7 @@ ${detailPagesHTML}
   <div style="font-size:13px; margin: 15px 0 8px;">上記のとおりご請求申し上げます。</div>
   <div style="font-size:13px; margin-bottom: 8px;">令和 ${reiwaYear} 年 ${issueM ? parseInt(issueM, 10) : ''} 月 ${issueD ? parseInt(issueD, 10) : ''} 日</div>
   ${dueDate && docType !== 'estimate' ? `
-  <div style="font-size:13px; font-weight:bold; color:#b91c1c; margin-bottom: 18px;">
+  <div style="font-size:13px; font-weight:bold; color:#000; margin-bottom: 18px;">
     お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）
   </div>` : '<div style="margin-bottom: 20px;"></div>'}
 
@@ -5390,7 +5390,7 @@ ${fusoDetailPagesHTML}
   .cover-duedate {
     font-size: 13px;
     font-weight: bold;
-    color: #b91c1c;
+    color: #000;
     margin-bottom: 20px;
   }
   .cover-footer-grid {
@@ -5777,7 +5777,7 @@ window.NissanPrint = {
     <div class="client-side">
       <div class="client-name">${clientName} 御中</div>
       ${contactNames && contactNames.length > 0 ? `<div style="color:#64748b;">ご担当：${contactNames.join(' 様、')} 様</div>` : ''}
-      ${dueDate && docType !== 'estimate' ? `<div style="color:#e11d48; margin-top:4px; font-weight:bold;">お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）</div>` : ''}
+      ${dueDate && docType !== 'estimate' ? `<div style="color:#000; margin-top:4px; font-weight:bold;">お支払期日：${dueDate.replace(/-/g, '/')}（翌月25日）</div>` : ''}
     </div>
     <div class="office-side">
       <div class="office-name">${office.name}</div>
