@@ -3631,7 +3631,12 @@ const Cases = {
   toggleCategoryFields(category) {
     const isCarRegOrSeal = ['car_reg_standard', 'car_reg_light', 'seal'].includes(category);
     const subCatGroup = document.getElementById('csf_subCategory_group');
-    if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
+    const subCatSel = document.getElementById('csf_subCategory');
+    // 車庫証明でも登録種別に値が残っている（同期・旧データ等）場合は表示して消せるようにする
+    const hasStaleSubCat = !isCarRegOrSeal && subCatSel && subCatSel.value;
+    if (subCatGroup) subCatGroup.style.display = (isCarRegOrSeal || hasStaleSubCat) ? '' : 'none';
+    const regTypeGroup = document.getElementById('csf_regType_group');
+    if (regTypeGroup) regTypeGroup.style.display = isCarRegOrSeal ? '' : 'none';
 
     // 車庫証明（一般）に切り替えた場合、警察署が選択済みならその警察署の単価を反映
     if (category === 'garage_paper') {
