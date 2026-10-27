@@ -2858,10 +2858,6 @@ ${detailPagesHTML}
         <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
           <div style="font-weight:bold;">${this._getToyotaCoverTitle(cases)}</div>
-          ${(hasNormal && hasUsed) ? `
-          <div style="font-size:11px; color:#334155; font-weight:600; margin-top:3px;">
-            【内訳】普通車: ${normalCases.length}件 (${normalFee.toLocaleString()}円) / U-Car: ${usedCases.length}件 (${usedFee.toLocaleString()}円)
-          </div>` : ''}
           ${(garageCount > 0 && otherCount > 0) ? `<div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>` : ''}
         </td>
         <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
