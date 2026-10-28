@@ -261,6 +261,31 @@ const Invoice = {
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
 
+  // 表紙用 立替金項目ラベルの正規化（交通費は「10/12 交通費」等も含め「【その他実費】交通費」に合算）
+  _getCoverAdvanceLabel(a) {
+    if (!a) return '【その他実費】';
+    const rawLabel = String(a.label || '').trim();
+    const rawCat = String(a.category || '').trim();
+
+    // 交通費判定：カテゴリが「交通費」またはラベルに「交通費」を含む場合、表紙ではすべて【その他実費】交通費に合算
+    if (rawCat === '交通費' || rawLabel.includes('交通費')) {
+      return '【その他実費】交通費';
+    }
+
+    const cat = (rawCat && rawCat !== 'その他' && rawCat !== 'その他実費') ? rawCat : (
+      rawLabel.includes('証紙') ? '証紙代' :
+      rawLabel.includes('印紙') ? '印紙代' :
+      (rawLabel.includes('送') || rawLabel.includes('レターパック')) ? '送料' :
+      (rawLabel.includes('プレート') || rawLabel.includes('ナンバー')) ? 'プレート代' :
+      (rawLabel.includes('税') || rawLabel.includes('法定')) ? '法定費用' : 'その他実費'
+    );
+
+    if (rawLabel) {
+      return rawLabel.startsWith('【') ? rawLabel : `【${cat}】${rawLabel}`;
+    }
+    return `【${cat}】`;
+  },
+
   // 新様式 立替金欄の明細ブロック生成（表示用・高さ見積り用の共通ロジック）
   // 明細名は省略せず、入力ラベルをそのまま使用（明朝体版と同じ「ラベル:金額」表記）
   // 1件のみ: 2行目は明細名のみ（金額は1行目の合計と同額のため）
@@ -1684,12 +1709,11 @@ const Invoice = {
       }
     });
 
-    // 立替金明細を分類（区分付きで集計）
+    // 立替金明細を分類（区分付きで集計・交通費は【その他実費】交通費に合算）
     const advMap = {};
     cases.forEach(c => {
       (c.advances || []).forEach(a => {
-        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : 'その他実費')))));
-        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
+        const lbl = this._getCoverAdvanceLabel(a);
         const amt = Number(a.amount || 0);
         if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
         advMap[lbl].count++;
@@ -2337,12 +2361,11 @@ ${detailPagesHTML}
       }
     });
 
-    // 立替金明細を分類（表紙用合算集計）
+    // 立替金明細を分類（表紙用合算集計・交通費は【その他実費】交通費に合算）
     const advMap = {};
     cases.forEach(c => {
       (c.advances || []).forEach(a => {
-        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : 'その他実費'))));
-        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
+        const lbl = this._getCoverAdvanceLabel(a);
         const amt = Number(a.amount || 0);
         if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
         advMap[lbl].count++;
@@ -2858,6 +2881,10 @@ ${detailPagesHTML}
         <td class="section-label col-center" ${sealCount > 0 ? 'rowspan="2"' : ''}>報酬</td>
         <td>
           <div style="font-weight:bold;">${this._getToyotaCoverTitle(cases)}</div>
+          ${(hasNormal && hasUsed) ? `
+          <div style="font-size:11px; color:#334155; font-weight:600; margin-top:3px;">
+            【内訳】普通車: ${normalCases.length}件 (${normalFee.toLocaleString()}円) / U-Car: ${usedCases.length}件 (${usedFee.toLocaleString()}円)
+          </div>` : ''}
           ${(garageCount > 0 && otherCount > 0) ? `<div style="font-size:11px; color:#000; font-weight:500; margin-top:2px;">(内、車庫証明申請 ${garageCount}件)</div>` : ''}
         </td>
         <td class="col-center" style="font-weight:600; color:#000;">${garageCount + otherCount}件</td>
@@ -2974,8 +3001,7 @@ ${detailPagesHTML}
     const advMap = {};
     cases.forEach(c => {
       (c.advances || []).forEach(a => {
-        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : 'その他実費')))));
-        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
+        const lbl = this._getCoverAdvanceLabel(a);
         const amt = Number(a.amount || 0);
         if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
         advMap[lbl].count++;
@@ -3592,8 +3618,7 @@ ${detailPagesHTML}
     const advMap = {};
     cases.forEach(c => {
       (c.advances || []).forEach(a => {
-        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : 'その他実費')))));
-        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
+        const lbl = this._getCoverAdvanceLabel(a);
         const amt = Number(a.amount || 0);
         if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
         advMap[lbl].count++;
@@ -5838,12 +5863,11 @@ window.NissanPrint = {
       }
     });
 
-    // 立替金集計
+    // 立替金集計（表紙用・交通費は【その他実費】交通費に合算）
     const advMap = {};
     cases.forEach(c => {
       (c.advances || []).forEach(a => {
-        const cat = a.category || (a.label && a.label.includes('証紙') ? '証紙代' : (a.label && a.label.includes('印紙') ? '印紙代' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート代' : (a.label && (a.label.includes('税') || a.label.includes('法定')) ? '法定費用' : 'その他実費')))));
-        const lbl = a.label ? (a.label.startsWith('【') ? a.label : `【${cat}】${a.label}`) : `【${cat}】`;
+        const lbl = this._getCoverAdvanceLabel(a);
         const amt = Number(a.amount || 0);
         if (!advMap[lbl]) advMap[lbl] = { count: 0, amount: 0 };
         advMap[lbl].count++;
