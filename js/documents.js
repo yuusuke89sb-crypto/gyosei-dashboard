@@ -1043,28 +1043,24 @@ const CaseArchive = {
   ARCHIVE_KEY: 'gyosei_archived_cases',
   THRESHOLD_DAYS: 60,
 
-  // 起動時に実行: 古い完了案件をアーカイブ
+  // 起動時に実行
+  // 2026-10-29: 自動アーカイブは廃止。完了60日超の案件が一覧・請求書の再印刷・入金消込・
+  // 売上（帳簿）から消えてしまうため。以前アーカイブした案件は案件一覧へ戻す。
   run() {
+    let archived = [];
+    try { archived = JSON.parse(localStorage.getItem(this.ARCHIVE_KEY) || '[]') || []; } catch (e) { archived = []; }
+    if (!Array.isArray(archived) || archived.length === 0) {
+      localStorage.removeItem(this.ARCHIVE_KEY);
+      return;
+    }
     const cases = Store.getCases();
-    const threshold = Date.now() - this.THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
-
-    const active  = [];
-    const toArchive = [];
-    cases.forEach(c => {
-      const isDone = c.status === 'done';
-      const isOld  = c.completedAt && new Date(c.completedAt).getTime() < threshold;
-      if (isDone && isOld) toArchive.push(c);
-      else active.push(c);
-    });
-
-    if (toArchive.length === 0) return;
-
-    const existing  = JSON.parse(localStorage.getItem(this.ARCHIVE_KEY) || '[]');
-    const existIds  = new Set(existing.map(c => c.id));
-    const merged    = [...existing, ...toArchive.filter(c => !existIds.has(c.id))];
-    localStorage.setItem(this.ARCHIVE_KEY, JSON.stringify(merged));
-    Store._set(Store.KEYS.CASES, active);
-    console.log(`📦 CaseArchive: ${toArchive.length}件をアーカイブ (アクティブ: ${active.length}件)`);
+    const ids = new Set(cases.map(c => String(c.id)));
+    let delQ = [];
+    try { delQ = (typeof CaseSync !== 'undefined') ? CaseSync.getDelQueue().map(String) : []; } catch (e) { delQ = []; }
+    const restore = archived.filter(c => c && c.id != null && !ids.has(String(c.id)) && !delQ.includes(String(c.id)));
+    if (restore.length) Store._set(Store.KEYS.CASES, cases.concat(restore));
+    localStorage.removeItem(this.ARCHIVE_KEY);
+    console.log(`📦 CaseArchive: アーカイブ済み ${restore.length}件を案件一覧に戻しました`);
   },
 
   // アーカイブ済み案件を取得
