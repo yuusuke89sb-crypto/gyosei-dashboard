@@ -632,9 +632,17 @@ const Advances = {
     return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   },
 
-  /** 取引先の未入金「請求単位」一覧（古い順） */
+  /** 取引先の未入金「請求単位」一覧（古い順）。clientId に '__all__'（全取引先）/ '__toyota__'（トヨタ系）も指定できる */
   buildPaymentUnits(clientId) {
-    const cases = Store.getCasesByClient(clientId).filter(c => c && !(c.isPaid && c.isAdvancePaid));
+    const clients = Store.getClients();
+    const nameById = {};
+    clients.forEach(cl => { if (cl) nameById[String(cl.id)] = cl.companyName || cl.name || ''; });
+    let idSet;
+    if (clientId === '__all__') idSet = new Set(clients.map(cl => String(cl.id)));
+    else if (clientId === '__toyota__') idSet = new Set(clients.filter(cl => Store.isToyotaClient(cl.id)).map(cl => String(cl.id)));
+    else idSet = new Set([String(clientId)]);
+    const multi = idSet.size > 1;
+    const cases = Store.getCases().filter(c => c && idSet.has(String(c.clientId)) && !(c.isPaid && c.isAdvancePaid));
     const caseById = new Map(cases.map(c => [String(c.id), c]));
     const ctx = Store.buildBillingContext();
     const units = [];
@@ -651,7 +659,7 @@ const Advances = {
         (idsByInv[it.invoiceNo] = idsByInv[it.invoiceNo] || []).push(String(it.caseId));
       });
       (s.invoices || []).forEach(inv => {
-        if (!inv || inv.status === '取消' || String(inv.customerId) !== String(clientId)) return;
+        if (!inv || inv.status === '取消' || !idSet.has(String(inv.customerId))) return;
         const allIds = idsByInv[inv.invoiceNo] || [];
         allIds.forEach(id => covered.add(id));
         const pay = payByInv[inv.invoiceNo];
@@ -667,6 +675,7 @@ const Advances = {
         const individual = ids.length === 1 && first && first.billingMode === 'individual';
         units.push({
           key: 'inv_' + inv.invoiceNo, type: 'invoice', invoiceNo: inv.invoiceNo, caseIds: ids,
+          clientId: String(inv.customerId), clientName: nameById[String(inv.customerId)] || inv.customerName || '',
           date, fee, tax, adv, total, individual, done: true,
           month: Store.toLocalDateStr(inv.periodTo || inv.issueDate).slice(0, 7),
           title: `請求書 ${inv.invoiceNo}（${ids.length}件）`,
@@ -690,6 +699,7 @@ const Advances = {
       const date = (individual && Store.toLocalDateStr(c.individualBilledAt)) || baseDate;
       units.push({
         key: 'case_' + id, type: 'case', caseIds: [id],
+        clientId: String(c.clientId), clientName: nameById[String(c.clientId)] || '',
         date, fee, tax, adv, total: fee + tax + adv, individual, done: c.status === 'done',
         month: Store.getCaseBillingMonth(c, ctx),
         title: (c.orderNo ? `№${c.orderNo} ` : '') + (c.carName ? `${c.carName} 様` : (c.title || '')),
@@ -698,6 +708,7 @@ const Advances = {
     });
 
     units.sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.key.localeCompare(b.key));
+    units.multi = multi;
     return units;
   },
 
@@ -729,12 +740,18 @@ const Advances = {
     return '';
   },
 
-  /** 振込額にぴったり合う組み合わせ候補を探す（優先度順・最大5件） */
-  findPaymentMatches(units, target, payType) {
+  /** 振込額にぴったり合う組み合わせ候補を探す（優先度順・最大5件）
+   *  opts.payDate: 入金日（「翌木曜入金」のまとまりや、店舗をまたいだ探索の範囲に使う）
+   *  opts.inner : 店舗ごとの内部探索（店舗をまたぐ探索はしない） */
+  findPaymentMatches(units, target, payType, opts = {}) {
     const results = [];
     const seen = new Set();
     if (!(target > 0)) return results;
     const pool = units.filter(u => this._unitAmount(u, payType) > 0 && (u.done || u.individual));
+    const storesOf = list => {
+      const names = Array.from(new Set(list.map(u => u.clientName || '（不明）')));
+      return names.length <= 3 ? names.join('・') : `${names.slice(0, 3).join('・')} ほか${names.length - 3}店`;
+    };
     const add = (list, label, priority) => {
       if (!list.length) return;
       const key = list.map(u => u.key).sort().join('|');
@@ -749,6 +766,35 @@ const Advances = {
       return ds.length ? `${ds[0].slice(5).replace('-', '/')}〜${ds[ds.length - 1].slice(5).replace('-', '/')}` : '';
     };
 
+    // 複数店舗が対象のとき：まず店舗ごとに探し、店舗名を付けて候補にする
+    const clientIds = Array.from(new Set(pool.map(u => u.clientId)));
+    if (!opts.inner && clientIds.length > 1) {
+      clientIds.forEach(cid => {
+        const own = pool.filter(u => u.clientId === cid);
+        this.findPaymentMatches(own, target, payType, { payDate: opts.payDate, inner: true }).forEach(m => {
+          const key = m.keys.slice().sort().join('|');
+          if (seen.has(key)) return;
+          seen.add(key);
+          results.push(Object.assign({}, m, { label: `【${own[0].clientName || '不明'}】${m.label}` }));
+        });
+      });
+    }
+    const multiLabel = (list, label) => (clientIds.length > 1 && !opts.inner) ? `【${storesOf(list)}】${label}` : label;
+
+    // 「翌週木曜に入金」のまとまり（月〜日の週に請求した分 → 翌週の木曜）
+    const thursdayKey = d => {
+      const dt = new Date(d + 'T00:00:00');
+      if (isNaN(dt.getTime())) return '';
+      dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7) + 10);
+      return Store.getLocalDateStr(dt);
+    };
+    const weekGroups = (list, kind) => {
+      const g = {};
+      list.forEach(u => { const k = u.date ? thursdayKey(u.date) : ''; if (k) (g[k] = g[k] || []).push(u); });
+      Object.keys(g).sort().forEach(k => add(g[k], multiLabel(g[k], `${k.slice(5).replace('-', '/')}(木)入金予定の${kind}（${g[k].length}件 ${range(g[k])}）`), 3));
+    };
+
+    if (opts.inner || clientIds.length <= 1) {
     // 1) 1枚（1件）でぴったり
     pool.forEach(u => add([u], u.type === 'invoice' ? `${u.title}` : `1件：${u.title}`, 1));
 
@@ -771,6 +817,7 @@ const Advances = {
     };
     groupBy(d => d.slice(0, 7), '1日〜末日');
     groupBy(d => Store.billingMonthOfDate(d, 25), '26日〜25日');
+    weekGroups(ind, '都度請求分');
 
     // 3) 古い順に連続したまとまり（全体・都度のみ・締めのみ）
     const windows = (list, label, priority) => {
@@ -778,7 +825,7 @@ const Advances = {
         let sum = 0;
         for (let j = i; j < list.length; j++) {
           sum += this._unitAmount(list[j], payType);
-          if (sum > target + list.length) break; // 税の端数差を見込んでも超えたら打ち切り
+          if (sum > target) break; // 税をまとめて計算しても合計は減らないので、超えたら打ち切り
           if (j > i) add(list.slice(i, j + 1), `${label}（${j - i + 1}件 ${range(list.slice(i, j + 1))}）`, priority);
           if (results.length >= 12) return;
         }
@@ -787,10 +834,33 @@ const Advances = {
     windows(ind, '都度請求分を古い順に', 4);
     windows(pool.filter(u => !u.individual), '締め請求分を古い順に', 4);
     windows(pool, '古い順に', 5);
+    }
+
+    // 店舗をまたいだまとまり（本部等が複数店舗分をまとめて振り込んだ場合）
+    let dfsPool = pool;
+    if (!opts.inner && clientIds.length > 1) {
+      const indAll = pool.filter(u => u.individual && u.date);
+      weekGroups(indAll, '都度請求分');
+      weekGroups(pool.filter(u => u.date), '請求分');
+      // 入金日より前で、直近のものだけを対象にする（件数が多いと探索が重くなるため）
+      const pd = opts.payDate || Store.getLocalDateStr();
+      const from = (() => { const d = new Date(pd + 'T00:00:00'); d.setDate(d.getDate() - 45); return Store.getLocalDateStr(d); })();
+      dfsPool = pool.filter(u => u.date && u.date <= pd && u.date >= from)
+        .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 40)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      for (let i = 0; i < dfsPool.length && results.length < 12; i++) {
+        let sum = 0;
+        for (let j = i; j < dfsPool.length; j++) {
+          sum += this._unitAmount(dfsPool[j], payType);
+          if (sum > target) break;
+          if (j > i) add(dfsPool.slice(i, j + 1), multiLabel(dfsPool.slice(i, j + 1), `日付順に連続（${j - i + 1}件 ${range(dfsPool.slice(i, j + 1))}）`), 5);
+        }
+      }
+    }
 
     // 4) それでも無ければ、自由な組み合わせを探索（件数が多すぎる時は打ち切り）
-    if (results.length === 0 && pool.length <= 60) {
-      const list = pool.slice();
+    if (results.length === 0 && !opts.inner && dfsPool.length <= 60) {
+      const list = dfsPool.slice();
       const amounts = list.map(u => this._unitAmount(u, payType));
       const suffix = new Array(list.length + 1).fill(0);
       for (let i = list.length - 1; i >= 0; i--) suffix[i] = suffix[i + 1] + amounts[i];
@@ -799,7 +869,8 @@ const Advances = {
       const dfs = (i, sum) => {
         if (budget-- <= 0 || results.length >= 3) return;
         if (sum >= target - picked.length && sum <= target && picked.length) {
-          add(picked.map(k => list[k]), `組み合わせ（${picked.length}件 ${range(picked.map(k => list[k]))}）`, 6);
+          const sel = picked.map(k => list[k]);
+          add(sel, multiLabel(sel, `組み合わせ（${picked.length}件 ${range(sel)}）`), 7);
         }
         if (i >= list.length || sum > target) return;
         if (sum + suffix[i] < target - list.length) return;
@@ -812,7 +883,7 @@ const Advances = {
     }
 
     results.sort((a, b) => a.priority - b.priority || a.count - b.count);
-    return results.slice(0, 5);
+    return results.slice(0, opts.inner ? 3 : 6);
   },
 
   showBulkPaymentModal(defaultClientId = '') {
@@ -835,6 +906,8 @@ const Advances = {
           <div class="form-group">
             <label>対象の取引先</label>
             <select id="bpm_clientId" class="form-control" onchange="Advances.onBulkClientChange(this.value)">
+              <option value="__toyota__" ${targetClientId === '__toyota__' ? 'selected' : ''}>🔍 トヨタ系の全店舗から探す（どこの入金か分からないとき）</option>
+              <option value="__all__" ${targetClientId === '__all__' ? 'selected' : ''}>🔍 すべての取引先から探す</option>
               ${clients.map(cl => `<option value="${cl.id}" ${cl.id == targetClientId ? 'selected' : ''}>${this._escape(cl.companyName || cl.name)}</option>`).join('')}
             </select>
           </div>
@@ -842,7 +915,7 @@ const Advances = {
           <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
             <div class="form-group">
               <label>入金日（振込日）</label>
-              <input type="date" id="bpm_date" class="form-control" value="${Store.getLocalDateStr()}">
+              <input type="date" id="bpm_date" class="form-control" value="${Store.getLocalDateStr()}" onchange="Advances.onBulkAmountInput()">
             </div>
             <div class="form-group">
               <label>振込金額（税込・立替金込み）</label>
@@ -901,12 +974,13 @@ const Advances = {
         : u.individual ? badge('📄 都度', 'rgba(168,85,247,0.15)', '#a855f7')
           : badge(u.done ? '締め（未請求書）' : '未完了', 'rgba(100,116,139,0.15)', 'var(--text-muted)');
       const monthBadge = u.month ? badge(Store.billingMonthLabel(u.month), 'rgba(59,130,246,0.12)', '#3b82f6') : '';
+      const storeBadge = units.multi ? badge('🏢 ' + this._escape(u.clientName || '不明'), 'rgba(245,158,11,0.12)', '#d97706') : '';
       return `
         <label style="display:flex; align-items:center; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--border-color); cursor:pointer; gap:8px;">
           <div style="display:flex; align-items:center; gap:8px; min-width:0;">
             <input type="checkbox" class="bpm-case-cb" value="${u.key}" onchange="Advances.calcBulkDiff()">
             <div style="min-width:0;">
-              <div style="font-weight:600; font-size:0.84rem; display:flex; gap:5px; align-items:center; flex-wrap:wrap;">${typeBadge}${monthBadge}<span>${this._escape(u.title)}</span></div>
+              <div style="font-weight:600; font-size:0.84rem; display:flex; gap:5px; align-items:center; flex-wrap:wrap;">${storeBadge}${typeBadge}${monthBadge}<span>${this._escape(u.title)}</span></div>
               <div style="font-size:0.74rem; color:var(--text-muted);">${this._escape(u.sub)}</div>
             </div>
           </div>
@@ -938,10 +1012,12 @@ const Advances = {
     const target = Number((document.getElementById('bpm_amount') || {}).value || 0);
     const payType = (document.getElementById('bpm_payType') || {}).value || 'full';
     if (!(target > 0)) { area.innerHTML = ''; this._bpmMatches = []; return; }
-    const matches = this.findPaymentMatches(this._bpmUnits || [], target, payType);
+    const payDate = (document.getElementById('bpm_date') || {}).value || Store.getLocalDateStr();
+    const matches = this.findPaymentMatches(this._bpmUnits || [], target, payType, { payDate });
     this._bpmMatches = matches;
     if (matches.length === 0) {
-      area.innerHTML = `<div style="padding:8px 12px; border-radius:6px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.35); color:#b45309; font-size:0.82rem;">🔍 ぴったり合う組み合わせが見つかりませんでした。下の一覧から手で選んでください（報酬額・立替金の入力漏れや、他の取引先分が混ざっていないかもご確認ください）。</div>`;
+      const hint = (this._bpmUnits && this._bpmUnits.multi) ? '' : 'どこの店舗の入金か分からないときは、取引先で「🔍 トヨタ系の全店舗から探す」を選んでください。';
+      area.innerHTML = `<div style="padding:8px 12px; border-radius:6px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.35); color:#b45309; font-size:0.82rem;">🔍 ぴったり合う組み合わせが見つかりませんでした。${hint}下の一覧から手で選ぶこともできます（報酬額・立替金の入力漏れがないかもご確認ください）。</div>`;
       return;
     }
     area.innerHTML = `
@@ -959,7 +1035,12 @@ const Advances = {
     const m = (this._bpmMatches || [])[idx];
     if (!m) return;
     const keys = new Set(m.keys);
-    document.querySelectorAll('.bpm-case-cb').forEach(cb => { cb.checked = keys.has(cb.value); });
+    let firstEl = null;
+    document.querySelectorAll('.bpm-case-cb').forEach(cb => {
+      cb.checked = keys.has(cb.value);
+      if (cb.checked && !firstEl) firstEl = cb;
+    });
+    if (firstEl && firstEl.scrollIntoView) firstEl.scrollIntoView({ block: 'nearest' });
     this.calcBulkDiff();
   },
 
