@@ -562,9 +562,61 @@ const Invoice = {
   },
 
   // 再印刷用に特定の請求書番号に紐づく案件を取得
+  // 2026-10-29: 請求明細（共有シート）を正とし、得意先IDが変わった案件や
+  // 案件側の invoiceNo がずれている案件も拾う。金額は発行時のロック値で復元する
+  // （発行後に消込済みになっても、再印刷では当時の請求内容をそのまま出す）
   getBilledCases(clientId, invoiceNo) {
-    const cases = Store.getCasesByClient(clientId);
-    return cases.filter(c => c.invoiceNo === invoiceNo);
+    const allCases = Store.getCases();
+    const byId = {};
+    allCases.forEach(c => { if (c && c.id != null) byId[String(c.id)] = c; });
+
+    const items = (typeof InvoiceSync !== 'undefined' && InvoiceSync.getState)
+      ? InvoiceSync.getState().items.filter(it => it.invoiceNo === invoiceNo && it.status === '有効')
+      : [];
+
+    const result = [];
+    const seen = new Set();
+    items.forEach(it => {
+      const c = byId[String(it.caseId)];
+      if (!c || seen.has(String(c.id))) return;
+      seen.add(String(c.id));
+      const copy = Object.assign({}, c);
+      const lockedFee = Number(it.lockedFee || 0);
+      let lockedAdv = it.lockedAdvancesJson;
+      if (typeof lockedAdv === 'string') { try { lockedAdv = JSON.parse(lockedAdv || '[]'); } catch (e) { lockedAdv = []; } }
+      if (!Array.isArray(lockedAdv)) lockedAdv = [];
+      // 報酬：ロック値>0ならそれを採用。0なら「発行時点で消込済みだった」扱い
+      if (lockedFee > 0) { copy.fee = lockedFee; copy.isPaid = false; }
+      else { copy.isPaid = Number(c.fee || 0) > 0; }
+      // 立替金：ロック値があればそれを採用。空なら発行時点で立替消込済み扱い
+      if (lockedAdv.length > 0) { copy.advances = lockedAdv; copy.isAdvancePaid = false; }
+      else { copy.isAdvancePaid = Array.isArray(c.advances) && c.advances.length > 0; }
+      result.push(copy);
+    });
+
+    // 明細データが無い古い請求書などは従来どおり案件側の請求書番号で拾う
+    allCases.forEach(c => {
+      if (!c || c.invoiceNo !== invoiceNo || seen.has(String(c.id))) return;
+      if (items.length > 0 && String(c.clientId) !== String(clientId)) return;
+      seen.add(String(c.id));
+      result.push(c);
+    });
+    return result;
+  },
+
+  // 再印刷の合計が発行時の請求額と一致するか確認（不一致なら警告文を返す）
+  _checkReprintTotal(invoiceNo, total) {
+    if (typeof InvoiceSync === 'undefined' || !InvoiceSync.getInvoice) return '';
+    const inv = InvoiceSync.getInvoice(invoiceNo);
+    if (!inv || inv.grandTotal === '' || inv.grandTotal == null) return '';
+    const expected = Number(inv.grandTotal || 0);
+    if (!expected || expected === total) return '';
+    const ids = new Set(Store.getCases().filter(Boolean).map(c => String(c.id)));
+    const missing = InvoiceSync.getState().items
+      .filter(it => it.invoiceNo === invoiceNo && it.status === '有効' && !ids.has(String(it.caseId)))
+      .length;
+    return `⚠️ 再印刷の合計 ¥${total.toLocaleString()} が発行時の請求額 ¥${expected.toLocaleString()} と一致しません` +
+      (missing ? `（この端末に無い案件 ${missing}件）` : '') + '。「🔄 同期」後に再度お試しください。';
   },
 
   // 発行・取消・再印刷の後、顧客一覧に戻らず同じ得意先の画面を開き直す
@@ -1109,8 +1161,8 @@ const Invoice = {
       return;
     }
 
-    const feeTotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
-    const advTotal = cases.reduce((sum, c) => sum + (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0), 0);
+    const feeTotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
+    const advTotal = cases.reduce((sum, c) => sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0)), 0);
     
     let html = `<strong>対象案件 (${cases.length}件)</strong><br>`;
     html += cases.map(c => {
@@ -1119,6 +1171,15 @@ const Invoice = {
       return `・${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
     }).join('<br>');
     html += `<br><strong>報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
+    {
+      let tr = 10;
+      if (typeof Payments !== 'undefined') {
+        const p = Payments.getByClient(clientId).find(x => x.invoiceNo === invoiceNo);
+        if (p && p.taxRate !== undefined) tr = p.taxRate;
+      }
+      const warn = this._checkReprintTotal(invoiceNo, feeTotal + Math.floor(feeTotal * tr / 100) + advTotal);
+      if (warn) html += `<br><span style="color:#dc2626;font-weight:600;">${warn}</span>`;
+    }
     if (info) info.innerHTML = html;
   },
 
@@ -1480,6 +1541,8 @@ const Invoice = {
     const advanceTotal = cases.reduce((sum, c) =>
       sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
     const total = feeSubtotal + tax + advanceTotal;
+    const mismatchWarn = this._checkReprintTotal(invoiceNo, total);
+    if (mismatchWarn && !confirm(mismatchWarn + '\n\nこのまま印刷しますか？')) return;
 
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
@@ -1580,6 +1643,8 @@ const Invoice = {
     const advanceTotal = cases.reduce((sum, c) =>
       sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
     const total = feeSubtotal + tax + advanceTotal;
+    const mismatchWarn = this._checkReprintTotal(invoiceNo, total);
+    if (mismatchWarn && !confirm(mismatchWarn + '\n\nこのまま出力しますか？')) return;
 
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
