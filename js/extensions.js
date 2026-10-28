@@ -1053,7 +1053,7 @@ const Reminders = {
 const AnnualReport = {
   show(year) {
     year = year || new Date().getFullYear();
-    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    const journals = (typeof Accounting !== 'undefined' && Accounting.getJournals) ? Accounting.getJournals() : JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
     const INCOME = ['売上高', '雑収入'];
     const EXPENSE = ['旅費交通費', '通信費', '消耗品費', '事務用品費', '家賃地代', '水道光熱費', '接待交際費', '広告宣伝費', '支払手数料', '租税公課', '研修費', '新聞図書費', '保険料', '減価償却費', '雑費'];
 
@@ -1709,7 +1709,7 @@ const MonthlyReport = {
   _collectData(year, month) {
     const period = typeof Store !== 'undefined' && Store.getBillingPeriod ? Store.getBillingPeriod(year, month) : null;
     const ym = `${year}-${String(month).padStart(2, '0')}`;
-    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    const journals = (typeof Accounting !== 'undefined' && Accounting.getJournals) ? Accounting.getJournals() : JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
     const filtered = journals.filter(j => {
       if (!j.date) return false;
       if (period && period.startDate && period.endDate) {
@@ -2278,7 +2278,7 @@ const RevenueWidget = {
     const month = period ? period.month : (now.getMonth() + 1);
     const ym = `${year}-${String(month).padStart(2, '0')}`;
 
-    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    const journals = (typeof Accounting !== 'undefined' && Accounting.getJournals) ? Accounting.getJournals() : JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
     const INCOME = ['売上高', '雑収入'];
     const EXPENSE_ACCOUNTS = typeof Accounting !== 'undefined' ? Accounting.ACCOUNTS.expense : [];
 
@@ -2599,7 +2599,7 @@ const GarageScheduleWidget = {
 const TaxHelper = {
   show(year) {
     year = year || new Date().getFullYear();
-    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+    const journals = (typeof Accounting !== 'undefined' && Accounting.getJournals) ? Accounting.getJournals() : JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
 
     // 勘定科目定義
     const INCOME_ACCOUNTS = ['売上高', '雑収入'];

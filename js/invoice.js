@@ -583,18 +583,41 @@ const Invoice = {
     }, 0);
   },
 
+  // 2026-10-28: 発行画面を開いている取引先の締め日（25日／月末）で期間を決める
+  _periodClient: null,
+
   getBillingPeriod(year, month) {
-    return Store.getBillingPeriod(year, month);
+    return Store.getBillingPeriod(year, month, this._periodClient || undefined);
   },
 
   getCurrentBillingPeriod(refDate) {
-    return Store.getCurrentBillingPeriod(refDate);
+    return Store.getCurrentBillingPeriod(refDate, this._periodClient || undefined);
+  },
+
+  _periodOptionsHtml(currentPeriod) {
+    const now = new Date();
+    const months = [];
+    let y = 2026, m = 9;
+    let endY = now.getFullYear();
+    let endM = now.getMonth() + 2;
+    if (endM > 12) { endM -= 12; endY++; }
+    while (y < endY || (y === endY && m <= endM)) {
+      months.push([y, m]);
+      m++; if (m === 13) { m = 1; y++; }
+      if (months.length > 36) break;
+    }
+    return months.map(([yy, mm]) => {
+      const p = this.getBillingPeriod(yy, mm);
+      const sel = currentPeriod && currentPeriod.year === yy && currentPeriod.month === mm ? 'selected' : '';
+      return `<option value="${yy}-${String(mm).padStart(2, '0')}" ${sel}>${p.label}</option>`;
+    }).join('') + '<option value="all">全未請求案件（期間指定なし）</option>';
   },
 
   // 請求書・見積書選択モーダルを表示
   showSelectModal(clientId, docType = 'invoice', includeAll = false) {
     const client = Store.getClient(clientId);
     if (!client) return;
+    this._periodClient = client;
     if (docType === 'invoice' && typeof InvoiceSync !== 'undefined') InvoiceSync.ensureDeviceName();
 
     const now = new Date();
@@ -624,8 +647,7 @@ const Invoice = {
         if (c.isAdvancePaid && !c.isPaid) partialBadge += '<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;">立替済</span>';
         if (c.isPaid && !c.isAdvancePaid) partialBadge += '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;">報酬済</span>';
 
-        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || (c.createdAt ? c.createdAt.slice(0, 10) : '') || '';
-        const cDate = rawDate.slice(0, 10);
+        const cDate = Store.getCaseBaseDate(c);
         const inPeriod = currentPeriod ? (cDate >= currentPeriod.startDate && cDate <= currentPeriod.endDate) : true;
         const dateBadge = cDate ? `<span style="background:${inPeriod ? 'rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);' : 'rgba(100,116,139,0.1);color:var(--text-muted);border:1px solid var(--border-color);'}padding:1px 5px;border-radius:3px;font-size:0.7rem;white-space:nowrap;">${inPeriod ? '📅 ' + cDate.slice(5) : '⚠️ 期間外 ' + cDate.slice(5)}</span>` : '';
 
@@ -714,13 +736,9 @@ const Invoice = {
           <div id="areaNew">
             <div class="form-row" style="margin-bottom:12px; gap:12px;">
               <div class="form-group" style="flex:1;">
-                <label>🗓️ 請求対象月（25日締め・翌月25日払）</label>
+                <label>🗓️ 請求対象月（${Store.getClientClosing(client) === 'end' ? '月末締め・翌月末払' : '25日締め・翌月25日払'}）</label>
                 <select id="invoiceBillingPeriod" class="form-select" style="font-weight:600;" onchange="Invoice.onPeriodChange('${clientId}', '${docType}', this.value)">
-                  <option value="2026-09" ${currentPeriod.year === 2026 && currentPeriod.month === 9 ? 'selected' : ''}>令和8年 9月分 (2026/08/26 〜 09/25 締 / 10/25 払)</option>
-                  <option value="2026-10" ${currentPeriod.year === 2026 && currentPeriod.month === 10 ? 'selected' : ''}>令和8年 10月分 (2026/09/26 〜 10/25 締 / 11/25 払)</option>
-                  <option value="2026-11" ${currentPeriod.year === 2026 && currentPeriod.month === 11 ? 'selected' : ''}>令和8年 11月分 (2026/10/26 〜 11/25 締 / 12/25 払)</option>
-                  <option value="2026-12" ${currentPeriod.year === 2026 && currentPeriod.month === 12 ? 'selected' : ''}>令和8年 12月分 (2026/11/26 〜 12/25 締 / 2027/01/25 払)</option>
-                  <option value="all">全未請求案件（期間指定なし）</option>
+                  ${this._periodOptionsHtml(currentPeriod)}
                 </select>
               </div>
               <div class="form-group" style="flex:1;">
@@ -782,7 +800,7 @@ const Invoice = {
                 <input type="date" id="invoiceDate" value="${defaultIssueDate}">
               </div>
               <div class="form-group" style="${docType === 'estimate' ? 'display:none' : ''}">
-                <label>支払期限（翌月25日）</label>
+                <label>支払期限（${Store.getClientClosing(client) === 'end' ? '翌月末' : '翌月25日'}）</label>
                 <input type="date" id="invoiceDueDate" value="${defaultDueDate}">
               </div>
             </div>
@@ -1448,7 +1466,7 @@ const Invoice = {
     const year = match ? parseInt(match[1]) : new Date().getFullYear();
     const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month);
+      const bp = Store.getBillingPeriod(year, month, client);
       if (bp && bp.endDate) issueDate = bp.endDate;
     }
 
@@ -1549,7 +1567,7 @@ const Invoice = {
     const year = match ? parseInt(match[1]) : new Date().getFullYear();
     const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month);
+      const bp = Store.getBillingPeriod(year, month, client);
       if (bp && bp.endDate) issueDate = bp.endDate;
     }
 
@@ -1725,7 +1743,7 @@ const Invoice = {
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month);
+      const bp = Store.getBillingPeriod(year, month, client);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -2378,7 +2396,7 @@ ${detailPagesHTML}
     const isFusoClient = this._isFusoClient(client, note, cases);
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month);
+      const bp = Store.getBillingPeriod(year, month, client);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -3010,7 +3028,7 @@ ${detailPagesHTML}
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month);
+      const bp = Store.getBillingPeriod(year, month, client);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -3628,7 +3646,7 @@ ${detailPagesHTML}
     const isFusoClient = this._isFusoClient(client, note, cases);
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month);
+      const bp = Store.getBillingPeriod(year, month, client);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -4226,7 +4244,7 @@ ${detailPagesHTML}
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month);
+      const bp = Store.getBillingPeriod(year, month, client);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');

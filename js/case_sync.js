@@ -19,8 +19,13 @@ const CaseSync = {
     'surveyLocationId', 'policeLocationId', 'landTransportLocationId', 'registrationDate', 'clientContactId',
     'carName', 'carAddress', 'parkingAddress', 'carPolice', 'vin', 'driveFolderUrl', 'subCategory', 'advances',
     'milestoneIndex', 'inboxId', 'faxId', 'docs', 'carNumber', 'oldCarNumber', 'regType', 'isUsedCar',
+    // 2026-10-28 追加：報酬・立替金の消込状態（以前は端末内だけで共有されていなかった）
+    'isPaid', 'isAdvancePaid', 'paidAt',
   ],
   JSON_FIELDS: ['advances', 'docs'],
+  BOOL_FIELDS: ['isUsedCar', 'isPaid', 'isAdvancePaid'],
+  // シートに列が後から追加された項目（シートが空のうちは端末側の値を消さずに送る）
+  LATE_FIELDS: ['isPaid', 'isAdvancePaid', 'paidAt'],
 
   _flushing: false,
   _timer: null,
@@ -171,7 +176,7 @@ const CaseSync = {
       return [];
     }
     if (k === 'milestoneIndex') return (v === '' || v === undefined || v === null) ? 0 : Number(v);
-    if (k === 'isUsedCar') return v === true || v === 'true' || v === 'TRUE' || v === '○';
+    if (this.BOOL_FIELDS.includes(k)) return v === true || v === 'true' || v === 'TRUE' || v === '○';
     if (v === null || v === undefined) return '';
     return v;
   },
@@ -270,6 +275,12 @@ const CaseSync = {
         } else {
           const pending = !!lt && (!c._ack[k] || lt > c._ack[k]);
           keepLocal = pending && lt > rt;
+        }
+        // 消込状態：シートにまだ記録が無く、端末だけ消込済みなら端末側を残して送る
+        if (!keepLocal && this.LATE_FIELDS.includes(k) && !rt && l[k] && !remote[k]) {
+          keepLocal = true;
+          if (!c._fieldTs[k]) c._fieldTs[k] = new Date().toISOString();
+          delete c._ack[k];
         }
         if (keepLocal) {
           if (migrating) delete c._ack[k]; // 未送信として残す

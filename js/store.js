@@ -155,15 +155,7 @@ const Store = {
           localStorage.setItem(key, JSON.stringify(data));
         } catch (e2) {
           console.warn(`[Store._set] Retry failed on key: ${key}`, e2);
-          if (key === 'gyosei_journals' && Array.isArray(data)) {
-            try {
-              localStorage.setItem(key, JSON.stringify(data.slice(-600)));
-            } catch(e3) {
-              try {
-                localStorage.setItem(key, JSON.stringify(data.slice(-300)));
-              } catch(e4){}
-            }
-          }
+          // 2026-10-28: 仕訳の切り捨て保存は端末ごとの帳簿ズレの原因になるため廃止
         }
       } else {
         throw e;
@@ -329,10 +321,7 @@ const Store = {
     } else if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
       SpreadsheetSync.push('upsertCase', newCase);
     }
-    // 完了案件として登録され報酬がある場合は仕訳を自動生成
-    if (newCase.status === 'done' && newCase.fee && Number(newCase.fee) > 0) {
-      this._autoCreateJournal(newCase);
-    }
+    // 売上は帳簿画面で完了案件から自動計算するため、ここでは仕訳を作らない（2026-10-28）
     return newCase;
   },
 
@@ -389,87 +378,15 @@ const Store = {
       SpreadsheetSync.push('upsertCase', updatedCase);
     }
 
-    // 完了ステータス案件と売上仕訳の双方向自動連動（単価変更・完了日変更・ステータス変更に即時追従）
-    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
-    let jIdx = journals.findIndex(j => j.caseId === id);
-    if (jIdx === -1 && updatedCase.orderNo) {
-      jIdx = journals.findIndex(j => (j.orderNo && j.orderNo === updatedCase.orderNo) || (j.description && j.description.includes(updatedCase.orderNo)));
-      if (jIdx !== -1) journals[jIdx].caseId = id;
-    }
-
-    if (updatedCase.status === 'done' && updatedCase.fee && Number(updatedCase.fee) > 0) {
-      if (jIdx !== -1) {
-        let changed = false;
-        const compDateStr = updatedCase.completedAt ? updatedCase.completedAt.slice(0, 10) : (updatedCase.registrationDate || updatedCase.policeDeliveryDate || this.getLocalDateStr());
-        const expectedFee = Number(updatedCase.fee);
-        const client = this.getClient(updatedCase.clientId);
-        const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
-        const orderStr = updatedCase.orderNo ? ` [注:${updatedCase.orderNo}]` : '';
-        const expectedDesc = `[${CATS[updatedCase.category] || updatedCase.category}] ${updatedCase.title}${client ? ' / ' + client.name : ''}${orderStr}`;
-
-        if (journals[jIdx].date !== compDateStr) {
-          journals[jIdx].date = compDateStr;
-          changed = true;
-        }
-        if (journals[jIdx].amount !== expectedFee) {
-          journals[jIdx].amount = expectedFee;
-          changed = true;
-        }
-        if (journals[jIdx].description !== expectedDesc) {
-          journals[jIdx].description = expectedDesc;
-          changed = true;
-        }
-        if (journals[jIdx].orderNo !== (updatedCase.orderNo || '')) {
-          journals[jIdx].orderNo = updatedCase.orderNo || '';
-          changed = true;
-        }
-        if (changed) {
-          localStorage.setItem('gyosei_journals', JSON.stringify(journals));
-          if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-            SpreadsheetSync.push('upsertJournal', journals[jIdx]);
-          }
-        }
-      } else {
-        // 完了時に未登録だった場合や、後から単価を入れた場合は自動生成
-        this._autoCreateJournal(updatedCase);
-      }
-    } else if (updatedCase.status !== 'done' && jIdx !== -1 && journals[jIdx].auto) {
-      // 完了ステータスから未完了（進行中・受付等）に戻された場合、自動生成仕訳を取り消し
-      const deletedJournal = journals.splice(jIdx, 1)[0];
-      localStorage.setItem('gyosei_journals', JSON.stringify(journals));
-      if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-        SpreadsheetSync.push('deleteJournal', { id: deletedJournal.id });
-      }
-    }
+    // 2026-10-28: 売上（売掛金／売上高）は帳簿画面で完了案件から毎回計算する方式に変更。
+    // 案件ごとに仕訳を保存・送信しないので、端末ごとのズレが起きず、保存処理も軽くなる。
 
     return updatedCase;
   },
 
+  // 旧：完了案件の売上仕訳を自動生成（現在は Accounting.computeSalesJournals で計算するため何もしない）
   _autoCreateJournal(c) {
-    const journals = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
-    // 同一案件の重複チェック
-    if (journals.some(j => j.caseId === c.id)) return;
-    const client = this.getClient(c.clientId);
-    const CATS = { garage_oss: '車庫証明(OSS)', garage_paper: '車庫証明(一般)', seal: '封印', car_reg_standard: '普通車登録', car_reg_light: '軽自動車登録' };
-    const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
-    const journalDate = (c.completedAt ? c.completedAt.slice(0, 10) : this.getLocalDateStr());
-    journals.push({
-      id: `j_case_${c.id}_${c.category || 'sales'}`, // 案件から決まる固定ID（複数端末で作られても重複しない）
-      date: journalDate,
-      debit: '売掛金',
-      credit: '売上高',
-      amount: Number(c.fee),
-      description: `[${CATS[c.category] || c.category}] ${c.title}${client ? ' / ' + client.name : ''}${orderStr}`,
-      caseId: c.id,
-      orderNo: c.orderNo || '',
-      auto: true,
-      createdAt: new Date().toISOString(),
-    });
-    localStorage.setItem('gyosei_journals', JSON.stringify(journals));
-    // 帳簿もスプレッドシートへプッシュ
-    if (typeof SpreadsheetSync !== 'undefined' && SpreadsheetSync.isConfigured()) {
-      SpreadsheetSync.push('upsertJournal', journals[journals.length - 1]);
-    }
+    return;
   },
 
   deleteCase(id) {
@@ -1261,9 +1178,14 @@ const Store = {
   // 9月分: 2026-08-26 〜 2026-09-25 (支払期日: 2026-10-25)
   // 10月分: 2026-09-26 〜 2026-10-25 (支払期日: 2026-11-25)
   // 11月分以降: 前月26日 〜 当月25日 (支払期日: 翌月25日)
-  getBillingPeriod(year, month) {
+  getBillingPeriod(year, month, client) {
     const y = parseInt(year);
     const m = parseInt(month);
+
+    // 2026-10-28: 月末締めの取引先（トヨタ・三菱以外）は暦月（1日〜月末）。client 省略時は従来どおり25日締め
+    if (client !== undefined && client !== null && client !== '' && this.getClientClosing(client) === 'end') {
+      return this._monthEndPeriod(y, m);
+    }
     
     // 2026年9月（移行月）の特別ルール: 8/26 〜 9/25、翌月10/25払
     if (y === 2026 && m === 9) {
@@ -1318,12 +1240,15 @@ const Store = {
     };
   },
 
-  // 基準日（デフォルトは現在日付）から現在の請求対象月を自動判定
-  getCurrentBillingPeriod(refDate = new Date()) {
+  // 基準日（デフォルトは現在日付）から現在の請求対象月を自動判定（client を渡すと取引先の締め日で判定）
+  getCurrentBillingPeriod(refDate = new Date(), client) {
     const d = typeof refDate === 'string' ? new Date(refDate) : refDate;
     const y = d.getFullYear();
     const m = d.getMonth() + 1;
     const day = d.getDate();
+    if (client !== undefined && client !== null && client !== '' && this.getClientClosing(client) === 'end') {
+      return this._monthEndPeriod(y, m);
+    }
     
     // 2026年9月の移行期間判定
     if (y === 2026) {
@@ -1346,6 +1271,145 @@ const Store = {
     } else {
       return this.getBillingPeriod(y, m);
     }
+  },
+
+  // ─── 取引先別の締め日・案件の請求月（2026-10-28 追加） ──────────────────
+  // トヨタ・三菱（ふそう）＝25日締め、それ以外＝月末締め。
+  // 取引先データに closingDay（'25' / 'end'）が入っていればそちらを優先する。
+  CLOSING_25_PATTERN: /トヨタ|TOYOTA|WEST|キャラット|三菱|ふそう|FUSO|MITSUBISHI/,
+
+  /** @returns {25|'end'} */
+  getClientClosing(client) {
+    const cl = (client && typeof client === 'object') ? client : (client ? this.getClient(client) : null);
+    if (!cl) return 25;
+    const cd = String(cl.closingDay || '').trim();
+    if (cd === '25') return 25;
+    if (cd === 'end' || cd === '31' || cd === '末') return 'end';
+    const name = ((cl.companyName || '') + ' ' + (cl.name || '') + ' ' + (cl.tradeName || '')).toUpperCase();
+    if (!name.trim()) return 25;
+    return this.CLOSING_25_PATTERN.test(name) ? 25 : 'end';
+  },
+
+  _monthEndPeriod(y, m) {
+    const last = new Date(y, m, 0).getDate();
+    const ny = m === 12 ? y + 1 : y;
+    const nm = m === 12 ? 1 : m + 1;
+    const nlast = new Date(ny, nm, 0).getDate();
+    const mm = String(m).padStart(2, '0');
+    return {
+      year: y,
+      month: m,
+      startDate: `${y}-${mm}-01`,
+      endDate: `${y}-${mm}-${String(last).padStart(2, '0')}`,
+      dueDate: `${ny}-${String(nm).padStart(2, '0')}-${String(nlast).padStart(2, '0')}`,
+      cutoffDay: last,
+      closing: 'end',
+      label: `令和${y - 2018}年${m}月分 (${m}/1〜${m}/${last} 末締 / ${nm}/${nlast} 払)`,
+      shortLabel: `${m}月分 (${m}/1〜${m}/${last})`
+    };
+  },
+
+  /** 日付らしき値を日本時間の 'YYYY-MM-DD' にする（UTCのISO文字列は現地時刻に直す） */
+  toLocalDateStr(v) {
+    if (!v) return '';
+    if (v instanceof Date) return isNaN(v.getTime()) ? '' : this.getLocalDateStr(v);
+    const s = String(v).trim();
+    if (s.length > 10 && /T\d{2}:\d{2}/.test(s) && /(Z|[+-]\d{2}:?\d{2})$/.test(s)) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return this.getLocalDateStr(d);
+    }
+    const mt = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (mt) return `${mt[1]}-${mt[2].padStart(2, '0')}-${mt[3].padStart(2, '0')}`;
+    return '';
+  },
+
+  /** 案件の基準日（完了日 → 登録予定日 → 交付予定日 → 申請予定日 → 登録日）。日本時間 */
+  getCaseBaseDate(c) {
+    if (!c) return '';
+    return this.toLocalDateStr(c.completedAt) || this.toLocalDateStr(c.registrationDate) ||
+      this.toLocalDateStr(c.policeDeliveryDate) || this.toLocalDateStr(c.applyDate) ||
+      this.toLocalDateStr(c.createdAt) || '';
+  },
+
+  /** 日付と締め日から請求月 'YYYY-MM' を求める（getBillingPeriod と同じ区切り） */
+  billingMonthOfDate(dateStr, closing) {
+    if (!dateStr || dateStr.length < 10) return '';
+    if (closing === 'end' || dateStr < '2026-08-26') return dateStr.slice(0, 7);
+    const y = Number(dateStr.slice(0, 4));
+    const m = Number(dateStr.slice(5, 7));
+    const d = Number(dateStr.slice(8, 10));
+    if (d >= 26) {
+      const ny = m === 12 ? y + 1 : y;
+      const nm = m === 12 ? 1 : m + 1;
+      return `${ny}-${String(nm).padStart(2, '0')}`;
+    }
+    return dateStr.slice(0, 7);
+  },
+
+  /**
+   * 請求月の判定に使う前処理をまとめて行う（一覧で何百件判定しても重くならないよう、画面描画ごとに1回だけ作る）
+   * - closingById: 取引先ID → 締め日
+   * - invMonthByCase: 請求済み案件ID → 請求書の対象月
+   */
+  buildBillingContext() {
+    const closingById = {};
+    this.getClients().forEach(cl => { if (cl && cl.id != null) closingById[String(cl.id)] = this.getClientClosing(cl); });
+    const invMonthByCase = {};
+    try {
+      if (typeof InvoiceSync !== 'undefined' && InvoiceSync.getState) {
+        const s = InvoiceSync.getState();
+        const invTo = {};
+        (s.invoices || []).forEach(v => { if (v && v.status !== '取消') invTo[v.invoiceNo] = v.periodTo || v.issueDate || ''; });
+        (s.items || []).forEach(it => {
+          if (!it || it.status !== '有効' || !invTo[it.invoiceNo]) return;
+          const ym = this.toLocalDateStr(invTo[it.invoiceNo]).slice(0, 7);
+          if (ym) invMonthByCase[String(it.caseId)] = ym;
+        });
+      }
+    } catch (e) { console.warn('[Store.buildBillingContext]', e); }
+    return { closingById, invMonthByCase };
+  },
+
+  /** 案件の請求月 'YYYY-MM'（請求済み＝請求書の対象月、未請求＝基準日と取引先の締め日） */
+  getCaseBillingMonth(c, ctx) {
+    if (!c) return '';
+    ctx = ctx || this.buildBillingContext();
+    const inv = ctx.invMonthByCase[String(c.id)];
+    if (inv) return inv;
+    const key = c.clientId != null ? String(c.clientId) : '';
+    const closing = key && ctx.closingById[key] !== undefined ? ctx.closingById[key] : 25;
+    return this.billingMonthOfDate(this.getCaseBaseDate(c), closing);
+  },
+
+  /** 月別画面の初期表示＝直近に締めた月（26日以降は当月分、それ以前は前月分） */
+  getDefaultReviewMonth(ref = new Date()) {
+    const y = ref.getFullYear();
+    const m = ref.getMonth() + 1;
+    if (ref.getDate() >= 26) return `${y}-${String(m).padStart(2, '0')}`;
+    const py = m === 1 ? y - 1 : y;
+    const pm = m === 1 ? 12 : m - 1;
+    return `${py}-${String(pm).padStart(2, '0')}`;
+  },
+
+  /** 選択肢用の請求月一覧（新しい順。2026年8月〜翌月） */
+  listBillingMonths(ref = new Date()) {
+    const out = [];
+    let y = ref.getFullYear();
+    let m = ref.getMonth() + 2;
+    if (m === 13) { m = 1; y++; }
+    while (y > 2026 || (y === 2026 && m >= 8)) {
+      out.push(`${y}-${String(m).padStart(2, '0')}`);
+      m--;
+      if (m === 0) { m = 12; y--; }
+      if (out.length > 36) break;
+    }
+    return out;
+  },
+
+  billingMonthLabel(ym) {
+    if (!ym) return '未判定';
+    const [y, m] = ym.split('-');
+    return Number(y) === new Date().getFullYear() ? `${Number(m)}月分` : `${y}年${Number(m)}月分`;
   },
 
   // トヨタ関連顧客判定

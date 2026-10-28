@@ -139,6 +139,7 @@ const SpreadsheetSync = {
                         if (res[t] !== undefined && res[t] !== null) data[t] = res[t];
                         if (res.casesPartial) data.casesPartial = true;
                         if (res.deletedCases !== undefined) data.deletedCases = res.deletedCases;
+                        if (res.deletedJournals !== undefined) data.deletedJournals = res.deletedJournals;
                         if (res.revs) data.revs = Object.assign(data.revs || {}, res.revs);
                         if (res.unchanged && Array.isArray(res.unchanged)) {
                             data.unchanged = (data.unchanged || []).concat(res.unchanged);
@@ -389,7 +390,20 @@ const SpreadsheetSync = {
                         j.amount = fixed;
                     }
                 });
-                var local = JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
+                // 2026-10-28: 売上（売掛金／売上高）は完了案件から計算するため保存・同期しない。
+                // 他端末で削除された仕訳（deletedJournals）は復活させない。
+                var hasAcc = (typeof Accounting !== 'undefined' && typeof Accounting.isAutoSales === 'function');
+                var salesIdx = hasAcc ? Accounting.computeSalesJournals() : null;
+                var deletedJ = {};
+                (data.deletedJournals || []).forEach(function(id){ deletedJ[String(id)] = true; });
+                var keepJ = function(j){
+                    if (!j) return false;
+                    if (j.id && deletedJ[String(j.id)]) return false;
+                    if (hasAcc && Accounting.isAutoSales(j, salesIdx)) return false;
+                    return true;
+                };
+                data.journals = data.journals.filter(keepJ);
+                var local = JSON.parse(localStorage.getItem('gyosei_journals') || '[]').filter(keepJ);
                 var remoteKeys = {};
                 data.journals.forEach(function(j){
                     if (j.id) remoteKeys[j.id] = true;
@@ -401,12 +415,9 @@ const SpreadsheetSync = {
                     remoteKeys[key] = true;
                 });
                 var localOnly = local.filter(function(j){
-                    // トヨタの古いゴミ仕訳（警察署単価が誤混入した3,500円以外の仕訳）のみ排除（日産・三菱等の個別単価は保護）
-                    var isToyotaDesc = j.description && (j.description.includes('トヨタ') || j.description.includes('WEST') || j.description.includes('キャラット'));
-                    if (isToyotaDesc && j.description.includes('車庫証明(OSS)') && Number(j.amount) !== 3500) {
-                        return false;
-                    }
                     if (j.id && remoteKeys[j.id]) return false;
+                    // シート由来ID（j_ss_行番号）がリモートに無い＝シート側で削除済み → 復活させない
+                    if (j.id && String(j.id).indexOf('j_ss_') === 0) return false;
                     if (j.caseId && remoteKeys['case_' + j.caseId]) return false;
                     var orderNo = j.orderNo || (j.description && j.description.match(/\[注:([^\]]+)\]/)?.[1]) || '';
                     var key = (j.date || '') + '_' + (j.debit || '') + '_' + (j.credit || '') + '_' + (j.amount || 0) + '_' + orderNo + '_' + (j.description || '');
@@ -424,19 +435,25 @@ const SpreadsheetSync = {
                     }
                 });
 
-                // 容量オーバーセーフセーブ
+                // 保存（端末ごとに件数がズレないよう切り捨てはしない）
                 try {
                     localStorage.setItem('gyosei_journals', JSON.stringify(deduplicated));
                 } catch (quotaErr) {
-                    console.warn('[Sync] Quota exceeded on gyosei_journals. Pruning and saving recent journals.');
+                    console.warn('[Sync] Quota exceeded on gyosei_journals. Clearing temp data and retrying.');
                     try { localStorage.removeItem('gyosei_archived_cases'); } catch(e){}
                     try { localStorage.removeItem('gyosei_temp_doc'); } catch(e){}
-                    // 直近600件にスリム化して安全保存
-                    var recent = deduplicated.slice(-600);
-                    try {
-                        localStorage.setItem('gyosei_journals', JSON.stringify(recent));
-                    } catch(e2) {
-                        localStorage.setItem('gyosei_journals', JSON.stringify(recent.slice(-300)));
+                    try { localStorage.setItem('gyosei_journals', JSON.stringify(deduplicated)); } catch(e2) { console.warn('[Sync] journals save failed', e2); }
+                }
+
+                // この端末にしか無い仕訳（OCR・定期仕訳・支払登録など）をスプレッドシートへ送り、全端末で一致させる。
+                // 一度送ればリモートに含まれるので次回以降は送信対象にならない（1回あたり最大200件）。
+                if (localOnly.length > 0 && SpreadsheetSync.isConfigured()) {
+                    var toSend = localOnly.filter(function(j){ return j.id; }).slice(0, 200);
+                    if (toSend.length > 0) {
+                        console.log('📤 ローカル専用の仕訳を同期:', toSend.length, '件');
+                        SpreadsheetSync.push('bulkUpsertJournals', toSend).catch(function(e){
+                            console.warn('仕訳の再送に失敗（次回同期時に再試行）:', e);
+                        });
                     }
                 }
                 if (typeof Accounting !== 'undefined' && typeof Accounting.cleanDuplicates === 'function') {

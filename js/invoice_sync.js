@@ -312,7 +312,7 @@ const InvoiceSync = {
     const advanceTotal = items.reduce((s, it) => s + it.advances.reduce((t, a) => t + a.amount, 0), 0);
     const tax = Math.floor(feeExTax * (taxRate || 10) / 100);
     const grandTotal = feeExTax + tax + advanceTotal;
-    const p = period || (typeof Store.getBillingPeriod === 'function' ? Store.getBillingPeriod(year, month) : {});
+    const p = period || (typeof Store.getBillingPeriod === 'function' ? Store.getBillingPeriod(year, month, clientId) : {});
     const yyyymm = `${year}${String(month).padStart(2, '0')}`;
 
     // 最新の連番を即時採番（INV-YYYYMM-XXXX）

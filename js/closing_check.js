@@ -18,8 +18,7 @@ const ClosingCheck = {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   },
   caseDate(c) {
-    const raw = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || (c.createdAt ? String(c.createdAt).slice(0, 10) : '') || '';
-    return String(raw).slice(0, 10);
+    return Store.getCaseBaseDate(c);
   },
   clientName(id) {
     const c = id ? Store.getClient(id) : null;
@@ -68,14 +67,22 @@ const ClosingCheck = {
   },
 
   collect() {
-    const p = Store.getBillingPeriod(this._year, this._month);
+    const p25 = Store.getBillingPeriod(this._year, this._month);
+    const pEnd = Store._monthEndPeriod(this._year, this._month);
+    const ym = `${this._year}-${String(this._month).padStart(2, '0')}`;
+    const p = Object.assign({}, p25, {
+      label: `${this._year}年${this._month}月分（トヨタ・三菱 ${p25.startDate.slice(5).replace('-', '/')}〜${p25.endDate.slice(5).replace('-', '/')} ／ その他 ${pEnd.startDate.slice(5).replace('-', '/')}〜${pEnd.endDate.slice(5).replace('-', '/')}）`,
+    });
     const all = Store.getCases();
-    const inPeriod = c => { const d = this.caseDate(c); return d && d >= p.startDate && d <= p.endDate; };
+    const ctx = Store.buildBillingContext();
+    const bm = {};
+    all.forEach(c => { bm[c.id] = Store.getCaseBillingMonth(c, ctx); });
+    const inPeriod = c => bm[c.id] === ym;
     const done = all.filter(c => c.status === 'done' && inPeriod(c));
     return {
       period: p,
       unbilled: done.filter(c => !c.invoiceNo && (Number(c.fee || 0) > 0 || this.advTotal(c) > 0)),
-      notDone: all.filter(c => c.status !== 'done' && !c.invoiceNo && this.caseDate(c) && this.caseDate(c) <= p.endDate),
+      notDone: all.filter(c => c.status !== 'done' && !c.invoiceNo && bm[c.id] && bm[c.id] <= ym),
       zeroFee: done.filter(c => !c.invoiceNo && !(Number(c.fee || 0) > 0)),
       noAdvance: done.filter(c => !c.invoiceNo && this.ADVANCE_CATS.includes(c.category) && this.advTotal(c) === 0),
       pending: (typeof CaseSync !== 'undefined') ? all.filter(c => CaseSync.pendingFields(c).length) : [],

@@ -6,6 +6,7 @@ const Cases = {
   filterStatus: sessionStorage.getItem('gyosei_cases_status') || 'all',
   filterMapStatus: sessionStorage.getItem('gyosei_cases_map') || 'all', // 'all' | 'uncreated' (車庫証明の図面未作成)
   searchQuery: sessionStorage.getItem('gyosei_cases_search') || '',        // 検索クエリ (申請者名・車台番号・ナンバー・注文書No等)
+  filterBillingMonth: sessionStorage.getItem('gyosei_cases_bm') || 'all', // 'all' | 'YYYY-MM'（請求月。2026-10-28 追加）
   editingId: null,
   returnPage: null,
   returnTab: null,
@@ -148,8 +149,16 @@ const Cases = {
       filtered = filtered.filter(c => c.status === 'done');
     }
 
-    // 検索語句がない場合のみ、直近7日以前の完了案件を自動非表示（検索時は過去の案件もすべてヒットさせる）
-    if (this.filterStatus === 'all' && !this.searchQuery) {
+    // 請求月で絞り込み（請求済み＝請求書の対象月、未請求＝基準日と取引先の締め日）
+    const monthMode = this.filterBillingMonth && this.filterBillingMonth !== 'all';
+    if (monthMode) {
+      const ctx = Store.buildBillingContext();
+      const ym = this.filterBillingMonth;
+      filtered = filtered.filter(c => Store.getCaseBillingMonth(c, ctx) === ym);
+    }
+
+    // 検索語句がない場合のみ、直近7日以前の完了案件を自動非表示（検索時・請求月指定時は過去の案件もすべて表示）
+    if (this.filterStatus === 'all' && !this.searchQuery && !monthMode) {
       const now = Date.now();
       const HIDE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7日
       filtered = filtered.filter(c => {
@@ -169,11 +178,16 @@ const Cases = {
       const rawWords = this.searchQuery.trim().split(/\s+/).filter(Boolean);
       const normalizedWords = rawWords.map(w => this.normalizeText(w));
 
+      // 取引先・担当者は最初に1回だけ読み込む（案件ごとに読み直すと件数が増えたとき重くなる）
+      const clientMap = new Map(Store.getClients().map(cl => [String(cl.id), cl]));
+      const staffNameCache = {};
+
       filtered = filtered.filter(c => {
-        const client = Store.getClient(c.clientId);
+        const client = c.clientId != null ? clientMap.get(String(c.clientId)) : null;
         const clientName = client ? (client.name || '') : '';
         const clientCompany = client ? (client.companyName || '') : '';
-        const staffName = c.staffId ? Store.getStaffName(c.staffId) : '';
+        if (c.staffId && staffNameCache[c.staffId] === undefined) staffNameCache[c.staffId] = Store.getStaffName(c.staffId) || '';
+        const staffName = c.staffId ? staffNameCache[c.staffId] : '';
         const memoStr = typeof c.memo === 'string' ? c.memo : '';
 
         // 案件の全テキストを結合（生テキスト ＆ 正規化テキスト）
@@ -265,6 +279,13 @@ const Cases = {
               ${this.STATUSES.map(s => `<option value="${s.key}" ${this.filterStatus === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}
             </select>
           </div>
+          <div class="filter-group">
+            <label>請求月:</label>
+            <select id="filterBillingMonth" onchange="Cases.onFilterChange()" class="filter-select" title="請求済み＝請求書の対象月、未請求＝完了日等と取引先の締め日（トヨタ・三菱25日／他は月末）で判定">
+              <option value="all" ${this.filterBillingMonth === 'all' ? 'selected' : ''}>すべて</option>
+              ${(() => { const ms = Store.listBillingMonths(); if (this.filterBillingMonth !== 'all' && !ms.includes(this.filterBillingMonth)) ms.push(this.filterBillingMonth); return ms.map(ym => `<option value="${ym}" ${this.filterBillingMonth === ym ? 'selected' : ''}>${Store.billingMonthLabel(ym)}</option>`).join(''); })()}
+            </select>
+          </div>
           <div class="filter-group" style="margin-left:auto;">
             <button type="button" class="btn btn-small" onclick="Cases.toggleMapFilter()"
               title="車庫証明の所在図・配置図が未作成の案件のみを絞り込み表示"
@@ -291,7 +312,7 @@ const Cases = {
         ${this.STATUSES.map(status => {
           let statusCases = cases.filter(c => c.status === status.key);
           let extraFooterHtml = '';
-          if (status.key === 'done' && this.filterStatus === 'all' && !this.searchQuery && statusCases.length > 5) {
+          if (status.key === 'done' && this.filterStatus === 'all' && !this.searchQuery && this.filterBillingMonth === 'all' && statusCases.length > 5) {
             const totalDoneCount = statusCases.length;
             statusCases = [...statusCases].sort((a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)).slice(0, 5);
             extraFooterHtml = `
@@ -2044,9 +2065,12 @@ const Cases = {
   onFilterChange() {
     this.filterCategory = document.getElementById('filterCategory').value;
     this.filterStatus = document.getElementById('filterStatus').value;
+    const bmEl = document.getElementById('filterBillingMonth');
+    if (bmEl) this.filterBillingMonth = bmEl.value || 'all';
     try {
       sessionStorage.setItem('gyosei_cases_cat', this.filterCategory);
       sessionStorage.setItem('gyosei_cases_status', this.filterStatus);
+      sessionStorage.setItem('gyosei_cases_bm', this.filterBillingMonth);
     } catch(e) {}
     App.refreshView();
   },

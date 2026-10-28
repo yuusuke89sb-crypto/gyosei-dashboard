@@ -15,6 +15,8 @@
  */
 
 const CASE_TS_HEADER = '_fieldTs';
+// 2026-10-28 追加：消込状態の列（無ければ末尾に追加。CASE_HEADERS は変えない＝既存列を動かさない）
+const CASE_EXTRA_HEADERS = ['報酬入金済', '立替金入金済', '入金消込日'];
 const DELETE_LOG_SHEET = '削除ログ';
 const DELETE_LOG_HEADERS = ['種別', 'ID', '削除日時', '端末'];
 
@@ -32,6 +34,24 @@ function extDoPost_(action, data, body) {
   if (action === 'deleteCase') return withCaseLock_(function () { const r = deleteCaseLogged_(data || {}); bumpRev_(['cases', 'deletedCases']); return r; });
   if (action === 'upsertCase') return withCaseLock_(function () { const r = legacyUpsertCase_(data || {}, body || {}); bumpRev_('cases'); return r; });
   if (action === 'saveSetting') return withCaseLock_(function () { const r = saveSharedSetting_(data || {}); bumpRev_('settings'); return r; });
+  // 2026-10-28 仕訳：削除を削除ログに記録し、他端末からの再送で復活しないようにする
+  if (action === 'deleteJournal') return withCaseLock_(function () { const r = deleteJournalLogged_(data || {}); bumpRev_('journals'); return r; });
+  if (action === 'upsertJournal' || action === 'bulkUpsertJournals') {
+    return withCaseLock_(function () {
+      const deleted = {};
+      getDeletedIds_('journal').forEach(function (id) { deleted[id] = true; });
+      let r;
+      if (action === 'upsertJournal') {
+        if (data && data.id && deleted[String(data.id)]) return { success: true, skipped: 'deleted', id: data.id };
+        r = upsertJournal_(data);
+      } else {
+        const list = (Array.isArray(data) ? data : []).filter(function (j) { return j && !(j.id && deleted[String(j.id)]); });
+        r = bulkUpsertJournals_(list);
+      }
+      bumpRev_('journals');
+      return r;
+    });
+  }
   return null;
 }
 
@@ -242,6 +262,17 @@ function extDoGet_(type, result, want) {
   if (ok('settings')) {
     try { result.settings = getSharedSettings_(); } catch (e) { result.settingsError = e.message; }
   }
+  // 2026-10-28 仕訳：売上（売掛金／売上高）は端末側で完了案件から計算するため送らない（軽量化）。削除済みIDも渡す
+  if (Array.isArray(result.journals)) {
+    try {
+      result.journals = result.journals.filter(function (j) {
+        if (String(j.id || '').indexOf('j_case_') === 0) return false;
+        if (j.debit === '売掛金' && j.credit === '売上高' && j.caseId) return false;
+        return true;
+      });
+      result.deletedJournals = getDeletedIds_('journal');
+    } catch (e) { result.deletedJournalsError = e.message; }
+  }
 }
 
 function withCaseLock_(fn) {
@@ -271,12 +302,34 @@ function deleteLogSheet_() {
 }
 
 function getDeletedCaseIds_() {
+  return getDeletedIds_('case');
+}
+
+/** 削除ログから種別（'case' / 'journal'）ごとのID一覧を取得 */
+function getDeletedIds_(kind) {
   const sh = deleteLogSheet_();
   const last = sh.getLastRow();
   if (last < 2) return [];
   return sh.getRange(2, 1, last - 1, 2).getValues()
-    .filter(function (r) { return r[0] === 'case' && r[1]; })
+    .filter(function (r) { return r[0] === kind && r[1]; })
     .map(function (r) { return String(r[1]); });
+}
+
+/** 仕訳削除＋削除ログ記録（他端末が古いデータを再送しても復活しない） */
+function deleteJournalLogged_(data) {
+  if (!data.id) return { error: 'IDがありません' };
+  let removed = 0;
+  for (let i = 0; i < 5; i++) {
+    const r = deleteRow_(SHEET_NAMES.JOURNALS, data.id);
+    if (!r || !r.success) break;
+    removed++;
+  }
+  if (String(data.id).indexOf('j_ss_') !== 0 && getDeletedIds_('journal').indexOf(String(data.id)) === -1) {
+    const sh = deleteLogSheet_();
+    sh.getRange(sh.getLastRow() + 1, 1, 1, 4).setNumberFormat('@')
+      .setValues([['journal', String(data.id), new Date().toISOString(), String(data.device || '')]]);
+  }
+  return { success: true, action: 'deleted', id: data.id, removedRows: removed };
 }
 
 /** 案件削除（同じIDの重複行もすべて削除）＋削除ログ記録。行が無くてもログは残す */
@@ -325,6 +378,13 @@ function patchCases_(data, body) {
     headers.push(CASE_TS_HEADER);
     tsCol = lastCol - 1;
   }
+  CASE_EXTRA_HEADERS.forEach(function (h) {
+    if (headers.indexOf(h) !== -1) return;
+    lastCol += 1;
+    if (sheet.getMaxColumns() < lastCol) sheet.insertColumnsAfter(sheet.getMaxColumns(), lastCol - sheet.getMaxColumns());
+    sheet.getRange(1, lastCol).setValue(h).setFontWeight('bold');
+    headers.push(h);
+  });
 
   const keyMap = getKeyMap_(SHEET_NAMES.CASES);
   const keyCol = {};

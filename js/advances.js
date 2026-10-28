@@ -7,6 +7,57 @@ const Advances = {
   filterDealer: 'all', // all | toyota | fuso | nissan | other | unassigned
   filterCaseStatus: 'done', // done (完了案件のみ/請求売掛対象) | all (全案件/進行中含む見込)
   searchQuery: '',
+  filterMonth: null, // 'YYYY-MM'（請求月）| 'all'。2026-10-28 追加
+
+  // ---- 請求月フィルタ ----
+  getFilterMonth() {
+    if (!this.filterMonth) {
+      let saved = '';
+      try { saved = sessionStorage.getItem('gyosei_adv_month') || ''; } catch (e) { /* noop */ }
+      this.filterMonth = saved || Store.getDefaultReviewMonth();
+    }
+    return this.filterMonth;
+  },
+
+  setFilterMonth(v) {
+    this.filterMonth = v || 'all';
+    try { sessionStorage.setItem('gyosei_adv_month', this.filterMonth); } catch (e) { /* noop */ }
+    if (typeof App !== 'undefined') App.refreshView();
+  },
+
+  shiftFilterMonth(delta) {
+    let ym = this.getFilterMonth();
+    if (ym === 'all') ym = Store.getDefaultReviewMonth();
+    let y = Number(ym.slice(0, 4));
+    let m = Number(ym.slice(5, 7)) + delta;
+    if (m < 1) { m = 12; y--; }
+    if (m > 12) { m = 1; y++; }
+    this.setFilterMonth(`${y}-${String(m).padStart(2, '0')}`);
+  },
+
+  /** 選択中の請求月の案件だけに絞る（前処理は1回だけ） */
+  applyMonthFilter(cases) {
+    const ym = this.getFilterMonth();
+    if (ym === 'all') return cases;
+    const ctx = Store.buildBillingContext();
+    return cases.filter(c => Store.getCaseBillingMonth(c, ctx) === ym);
+  },
+
+  renderMonthSelector() {
+    const cur = this.getFilterMonth();
+    const months = Store.listBillingMonths();
+    if (cur !== 'all' && !months.includes(cur)) months.push(cur);
+    const opts = months.map(ym => `<option value="${ym}" ${ym === cur ? 'selected' : ''}>${Store.billingMonthLabel(ym)}</option>`).join('');
+    return `
+      <div style="display:flex; align-items:center; gap:4px;" title="請求月ごとに集計（請求済み＝請求書の対象月、未請求＝完了日等と取引先の締め日で判定）">
+        <button class="btn btn-secondary btn-small" onclick="Advances.shiftFilterMonth(-1)" style="padding:4px 10px;">◀</button>
+        <select id="advMonthSelect" class="form-control" onchange="Advances.setFilterMonth(this.value)" style="width:auto; font-weight:700; padding:4px 8px;">
+          ${opts}
+          <option value="all" ${cur === 'all' ? 'selected' : ''}>全期間</option>
+        </select>
+        <button class="btn btn-secondary btn-small" onclick="Advances.shiftFilterMonth(1)" style="padding:4px 10px;">▶</button>
+      </div>`;
+  },
 
   setCaseStatusFilter(status) {
     this.filterCaseStatus = status;
@@ -54,7 +105,7 @@ const Advances = {
   },
 
   render() {
-    const cases = Store.getCases();
+    const cases = this.applyMonthFilter(Store.getCases());
     const clients = Store.getClients();
 
     // 取引先ごとの未決済サマリー計算
@@ -81,7 +132,8 @@ const Advances = {
               月300件の案件から、顧客別の「報酬＋立替金」の一括回収・消し込みをスムーズに行います。
             </p>
           </div>
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            ${this.renderMonthSelector()}
             <button class="btn btn-secondary" onclick="Advances.exportSummaryCSV()">📊 回収まとめCSV出力</button>
             <button class="btn btn-primary" onclick="Advances.showBulkPaymentModal()">💳 振込一括消し込み</button>
           </div>
@@ -513,7 +565,7 @@ const Advances = {
     this.searchQuery = query;
     const container = document.getElementById('advancesClientListContainer');
     if (container) {
-      const cases = Store.getCases();
+      const cases = this.applyMonthFilter(Store.getCases());
       const clients = Store.getClients();
       const clientSummaries = this.calcClientSummaries(cases, clients);
       container.innerHTML = this.renderClientListItems(clientSummaries);
@@ -575,7 +627,7 @@ const Advances = {
     modal.innerHTML = `
       <div class="modal-content" style="max-width:640px;">
         <div class="modal-header">
-          <h2>💳 取引先一括振込 消し込み</h2>
+          <h2>💳 取引先一括振込 消し込み（${this.getFilterMonth() === 'all' ? '全期間' : Store.billingMonthLabel(this.getFilterMonth())}）</h2>
           <button class="modal-close" onclick="document.getElementById('bulkPaymentModal').remove()">×</button>
         </div>
         <div class="modal-body">
@@ -632,7 +684,7 @@ const Advances = {
     if (!listArea) return;
 
     // 全額済み（isPaid && isAdvancePaid 両方true）以外を表示
-    const cases = Store.getCasesByClient(clientId).filter(c => {
+    const cases = this.applyMonthFilter(Store.getCasesByClient(clientId)).filter(c => {
       const allDone = c.isPaid && c.isAdvancePaid;
       return !allDone;
     });
@@ -756,7 +808,7 @@ const Advances = {
   },
 
   exportSummaryCSV() {
-    const cases = Store.getCases();
+    const cases = this.applyMonthFilter(Store.getCases());
     const clients = Store.getClients();
 
     const headers = ['取引先名', '回収サイクル', '未回収件数', '未回収報酬額', '未回収立替金額', '未回収総額'];
