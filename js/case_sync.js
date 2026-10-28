@@ -21,11 +21,13 @@ const CaseSync = {
     'milestoneIndex', 'inboxId', 'faxId', 'docs', 'carNumber', 'oldCarNumber', 'regType', 'isUsedCar',
     // 2026-10-28 追加：報酬・立替金の消込状態（以前は端末内だけで共有されていなかった）
     'isPaid', 'isAdvancePaid', 'paidAt',
+    // 2026-10-28 追加：都度請求の印（'individual' なら都度請求済み＝締め請求に含めない）と都度請求日
+    'billingMode', 'individualBilledAt',
   ],
   JSON_FIELDS: ['advances', 'docs'],
   BOOL_FIELDS: ['isUsedCar', 'isPaid', 'isAdvancePaid'],
   // シートに列が後から追加された項目（シートが空のうちは端末側の値を消さずに送る）
-  LATE_FIELDS: ['isPaid', 'isAdvancePaid', 'paidAt'],
+  LATE_FIELDS: ['isPaid', 'isAdvancePaid', 'paidAt', 'billingMode', 'individualBilledAt'],
 
   _flushing: false,
   _timer: null,

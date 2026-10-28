@@ -867,6 +867,19 @@ const Cases = {
                     <input type="date" name="completedAt" id="csf_completedAt" title="請求書の別紙明細に印字される完了日です。未入力時は完了にした日付が自動採用されます">
                   </div>
                 </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>請求方法</label>
+                    <select name="billingMode" id="csf_billingMode" onchange="const d=document.getElementById('csf_individualBilledAt'); if(this.value==='individual' && d && !d.value){ d.value=Store.getLocalDateStr(); }">
+                      <option value="">締めでまとめて請求</option>
+                      <option value="individual">都度請求（個別に請求済み）</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>都度請求日 <span style="font-size:0.72rem;color:var(--text-muted);">(都度請求のとき)</span></label>
+                    <input type="date" name="individualBilledAt" id="csf_individualBilledAt" title="Excel等で都度請求した日。締め請求書の対象から外れ、消込の自動当てはめで使います">
+                  </div>
+                </div>
 
                 <!-- ─── 3. 🚗 車両・保管場所情報 ─── -->
                 <div id="csf_car_fields" style="background:rgba(59,130,246,0.05); border:1px solid rgba(59,130,246,0.2); border-radius:8px; padding:12px; margin-bottom:16px">
@@ -2143,6 +2156,10 @@ const Cases = {
     // 注文書№ 初期値（依頼書・注文書実物を見て手入力するため、自動PO連番は廃止し空欄をデフォルト化）
     const compEl = document.getElementById('csf_completedAt');
     if (compEl) compEl.value = '';
+    const bmEl = document.getElementById('csf_billingMode');
+    if (bmEl) bmEl.value = (prefills && prefills.billingMode) || '';
+    const ibEl = document.getElementById('csf_individualBilledAt');
+    if (ibEl) ibEl.value = (prefills && prefills.individualBilledAt) || '';
     const orderNoEl = document.getElementById('csf_orderNo');
     if (orderNoEl) {
       const rawOrderNo = (prefills && prefills.orderNo) ? String(prefills.orderNo).trim() : '';
@@ -2457,6 +2474,10 @@ const Cases = {
       if (storeDeliveryTimeEl) storeDeliveryTimeEl.value = c.storeDeliveryTime || '';
       const completedAtEl = document.getElementById('csf_completedAt');
       if (completedAtEl) completedAtEl.value = c.completedAt ? c.completedAt.slice(0, 10) : '';
+      const billingModeEl = document.getElementById('csf_billingMode');
+      if (billingModeEl) billingModeEl.value = c.billingMode === 'individual' ? 'individual' : '';
+      const indBilledEl = document.getElementById('csf_individualBilledAt');
+      if (indBilledEl) indBilledEl.value = c.individualBilledAt ? String(c.individualBilledAt).slice(0, 10) : '';
 
       // マイルストーン表示制御
       Cases.renderMilestoneStepper(id);
@@ -2606,6 +2627,8 @@ const Cases = {
       vin: form.vin ? form.vin.value.trim() : '',
       carPolice: form.carPolice ? ((typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(form.carPolice.value) : form.carPolice.value.trim()) : '',
       isUsedCar: !!(form.isUsedCar && form.isUsedCar.checked),
+      billingMode: (form.billingMode && form.billingMode.value === 'individual') ? 'individual' : '',
+      individualBilledAt: (form.billingMode && form.billingMode.value === 'individual' && form.individualBilledAt) ? (form.individualBilledAt.value || Store.getLocalDateStr()) : '',
       faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',
       inboxId: document.getElementById('csf_inboxId') ? document.getElementById('csf_inboxId').value : '',
       memo: (form.memo && form.memo.value) ? form.memo.value.trim() : '',

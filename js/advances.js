@@ -616,25 +616,226 @@ const Advances = {
   },
 
   // モーダル・一括消し込み
+  // ─── 一括振込の消し込み（2026-10-28 改修） ──────────────────────────────
+  // ・入金額は「報酬＋消費税＋立替金」の税込総額なので、照合も税込で行う（以前は税抜で比べていたため一致しなかった）
+  // ・発行済み請求書は1枚＝1単位（請求書の金額そのまま）、請求書の無い案件は1件＝1単位（1件ごとに消費税を切り捨て）
+  // ・振込額を入れると、未入金の単位から合計がぴったり合う組み合わせを自動で探す
+  TAX_RATE: 10,
+  _bpmUnits: [],
+  _bpmTimer: null,
+
+  _tax(fee) {
+    return Math.floor(Number(fee || 0) * this.TAX_RATE / 100);
+  },
+
+  _escape(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  },
+
+  /** 取引先の未入金「請求単位」一覧（古い順） */
+  buildPaymentUnits(clientId) {
+    const cases = Store.getCasesByClient(clientId).filter(c => c && !(c.isPaid && c.isAdvancePaid));
+    const caseById = new Map(cases.map(c => [String(c.id), c]));
+    const ctx = Store.buildBillingContext();
+    const units = [];
+    const covered = new Set(); // 請求書側で扱う案件
+    const advSum = list => (Array.isArray(list) ? list : []).reduce((s, a) => s + Number((a && a.amount) || 0), 0);
+
+    if (typeof InvoiceSync !== 'undefined' && InvoiceSync.getState) {
+      const s = InvoiceSync.getState();
+      const payByInv = {};
+      (s.payments || []).forEach(p => { if (p && p.status !== '取消') payByInv[p.invoiceNo] = p; });
+      const idsByInv = {};
+      (s.items || []).forEach(it => {
+        if (!it || it.status !== '有効') return;
+        (idsByInv[it.invoiceNo] = idsByInv[it.invoiceNo] || []).push(String(it.caseId));
+      });
+      (s.invoices || []).forEach(inv => {
+        if (!inv || inv.status === '取消' || String(inv.customerId) !== String(clientId)) return;
+        const allIds = idsByInv[inv.invoiceNo] || [];
+        allIds.forEach(id => covered.add(id));
+        const pay = payByInv[inv.invoiceNo];
+        if (pay && pay.status === '入金済') return;
+        const ids = allIds.filter(id => caseById.has(id));
+        if (ids.length === 0) return; // 案件側はすべて消込済み
+        const fee = Number(inv.feeExTax || 0);
+        const tax = Number(inv.tax || 0);
+        const adv = Number(inv.advanceTotal || 0);
+        const total = Number(inv.grandTotal || 0) || (fee + tax + adv);
+        const date = Store.toLocalDateStr(inv.issueDate) || Store.toLocalDateStr(inv.periodTo) || '';
+        const first = caseById.get(ids[0]);
+        const individual = ids.length === 1 && first && first.billingMode === 'individual';
+        units.push({
+          key: 'inv_' + inv.invoiceNo, type: 'invoice', invoiceNo: inv.invoiceNo, caseIds: ids,
+          date, fee, tax, adv, total, individual, done: true,
+          month: Store.toLocalDateStr(inv.periodTo || inv.issueDate).slice(0, 7),
+          title: `請求書 ${inv.invoiceNo}（${ids.length}件）`,
+          sub: `${inv.periodFrom ? Store.toLocalDateStr(inv.periodFrom).slice(5).replace('-', '/') + '〜' + Store.toLocalDateStr(inv.periodTo).slice(5).replace('-', '/') : ''} 発行 ${date.slice(5).replace('-', '/')}`,
+        });
+      });
+    }
+
+    cases.forEach(c => {
+      const id = String(c.id);
+      if (covered.has(id)) return;
+      const locked = !!c.invoiceLocked;
+      const feeBase = locked ? Number(c.invoiceLockedFee || 0) : Number(c.fee || 0);
+      const advBase = advSum(locked && Array.isArray(c.invoiceLockedAdvances) ? c.invoiceLockedAdvances : c.advances);
+      const fee = c.isPaid ? 0 : feeBase;
+      const adv = c.isAdvancePaid ? 0 : advBase;
+      if (fee + adv <= 0) return;
+      const tax = this._tax(fee);
+      const individual = c.billingMode === 'individual';
+      const baseDate = Store.getCaseBaseDate(c);
+      const date = (individual && Store.toLocalDateStr(c.individualBilledAt)) || baseDate;
+      units.push({
+        key: 'case_' + id, type: 'case', caseIds: [id],
+        date, fee, tax, adv, total: fee + tax + adv, individual, done: c.status === 'done',
+        month: Store.getCaseBillingMonth(c, ctx),
+        title: (c.orderNo ? `№${c.orderNo} ` : '') + (c.carName ? `${c.carName} 様` : (c.title || '')),
+        sub: `${individual ? '都度請求 ' : ''}${date ? date.slice(5).replace('-', '/') : '-'}${c.status !== 'done' ? '（未完了）' : ''}`,
+      });
+    });
+
+    units.sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.key.localeCompare(b.key));
+    return units;
+  },
+
+  _unitAmount(u, payType) {
+    if (payType === 'advance_only') return u.adv;
+    if (payType === 'fee_only') return u.fee + u.tax;
+    return u.total;
+  },
+
+  /** 選んだ単位の合計（1件ごとに税を切り捨てた額 / 請求書のない案件の報酬をまとめて税計算した額） */
+  _setTotals(list, payType) {
+    let perUnit = 0, invPart = 0, caseFee = 0, caseAdv = 0;
+    list.forEach(u => {
+      perUnit += this._unitAmount(u, payType);
+      if (u.type === 'invoice') invPart += this._unitAmount(u, payType);
+      else { caseFee += u.fee; caseAdv += u.adv; }
+    });
+    let combined;
+    if (payType === 'advance_only') combined = invPart + caseAdv;
+    else if (payType === 'fee_only') combined = invPart + caseFee + this._tax(caseFee);
+    else combined = invPart + caseFee + this._tax(caseFee) + caseAdv;
+    return { perUnit, combined };
+  },
+
+  _matchMode(list, target, payType) {
+    const t = this._setTotals(list, payType);
+    if (t.perUnit === target) return 'perUnit';
+    if (t.combined === target) return 'combined';
+    return '';
+  },
+
+  /** 振込額にぴったり合う組み合わせ候補を探す（優先度順・最大5件） */
+  findPaymentMatches(units, target, payType) {
+    const results = [];
+    const seen = new Set();
+    if (!(target > 0)) return results;
+    const pool = units.filter(u => this._unitAmount(u, payType) > 0 && (u.done || u.individual));
+    const add = (list, label, priority) => {
+      if (!list.length) return;
+      const key = list.map(u => u.key).sort().join('|');
+      if (seen.has(key)) return;
+      const mode = this._matchMode(list, target, payType);
+      if (!mode) return;
+      seen.add(key);
+      results.push({ keys: list.map(u => u.key), label, priority, mode, count: list.length });
+    };
+    const range = list => {
+      const ds = list.map(u => u.date).filter(Boolean).sort();
+      return ds.length ? `${ds[0].slice(5).replace('-', '/')}〜${ds[ds.length - 1].slice(5).replace('-', '/')}` : '';
+    };
+
+    // 1) 1枚（1件）でぴったり
+    pool.forEach(u => add([u], u.type === 'invoice' ? `${u.title}` : `1件：${u.title}`, 1));
+
+    // 2) 月ごとのまとまり（締め分・都度分・全部）
+    const byMonth = {};
+    pool.forEach(u => { (byMonth[u.month || '-'] = byMonth[u.month || '-'] || []).push(u); });
+    Object.keys(byMonth).sort().forEach(m => {
+      const list = byMonth[m];
+      const label = m === '-' ? '月不明' : Store.billingMonthLabel(m);
+      add(list.filter(u => !u.individual), `${label}の締め請求分（${list.filter(u => !u.individual).length}件）`, 2);
+      add(list.filter(u => u.individual), `${label}の都度請求分（${list.filter(u => u.individual).length}件）`, 2);
+      add(list, `${label}の全部（${list.length}件）`, 3);
+    });
+    // 都度請求分を「暦月」「25日締め」でまとめる（翌25日にまとめて入金する店舗向け）
+    const ind = pool.filter(u => u.individual && u.date);
+    const groupBy = (fn, suffix) => {
+      const g = {};
+      ind.forEach(u => { const k = fn(u.date); (g[k] = g[k] || []).push(u); });
+      Object.keys(g).sort().forEach(k => add(g[k], `${Store.billingMonthLabel(k)}の都度請求分・${suffix}（${g[k].length}件 ${range(g[k])}）`, 2));
+    };
+    groupBy(d => d.slice(0, 7), '1日〜末日');
+    groupBy(d => Store.billingMonthOfDate(d, 25), '26日〜25日');
+
+    // 3) 古い順に連続したまとまり（全体・都度のみ・締めのみ）
+    const windows = (list, label, priority) => {
+      for (let i = 0; i < list.length; i++) {
+        let sum = 0;
+        for (let j = i; j < list.length; j++) {
+          sum += this._unitAmount(list[j], payType);
+          if (sum > target + list.length) break; // 税の端数差を見込んでも超えたら打ち切り
+          if (j > i) add(list.slice(i, j + 1), `${label}（${j - i + 1}件 ${range(list.slice(i, j + 1))}）`, priority);
+          if (results.length >= 12) return;
+        }
+      }
+    };
+    windows(ind, '都度請求分を古い順に', 4);
+    windows(pool.filter(u => !u.individual), '締め請求分を古い順に', 4);
+    windows(pool, '古い順に', 5);
+
+    // 4) それでも無ければ、自由な組み合わせを探索（件数が多すぎる時は打ち切り）
+    if (results.length === 0 && pool.length <= 60) {
+      const list = pool.slice();
+      const amounts = list.map(u => this._unitAmount(u, payType));
+      const suffix = new Array(list.length + 1).fill(0);
+      for (let i = list.length - 1; i >= 0; i--) suffix[i] = suffix[i + 1] + amounts[i];
+      let budget = 200000;
+      const picked = [];
+      const dfs = (i, sum) => {
+        if (budget-- <= 0 || results.length >= 3) return;
+        if (sum >= target - picked.length && sum <= target && picked.length) {
+          add(picked.map(k => list[k]), `組み合わせ（${picked.length}件 ${range(picked.map(k => list[k]))}）`, 6);
+        }
+        if (i >= list.length || sum > target) return;
+        if (sum + suffix[i] < target - list.length) return;
+        picked.push(i);
+        dfs(i + 1, sum + amounts[i]);
+        picked.pop();
+        dfs(i + 1, sum);
+      };
+      dfs(0, 0);
+    }
+
+    results.sort((a, b) => a.priority - b.priority || a.count - b.count);
+    return results.slice(0, 5);
+  },
+
   showBulkPaymentModal(defaultClientId = '') {
     const clients = Store.getClients();
     const targetClientId = defaultClientId || this.selectedClientId || (clients[0] ? clients[0].id : '');
+    const old = document.getElementById('bulkPaymentModal');
+    if (old) old.remove();
 
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop';
     modal.id = 'bulkPaymentModal';
 
     modal.innerHTML = `
-      <div class="modal-content" style="max-width:640px;">
+      <div class="modal-content" style="max-width:760px;">
         <div class="modal-header">
-          <h2>💳 取引先一括振込 消し込み（${this.getFilterMonth() === 'all' ? '全期間' : Store.billingMonthLabel(this.getFilterMonth())}）</h2>
+          <h2>💳 入金の消し込み（振込額から自動で当てはめ）</h2>
           <button class="modal-close" onclick="document.getElementById('bulkPaymentModal').remove()">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
             <label>対象の取引先</label>
             <select id="bpm_clientId" class="form-control" onchange="Advances.onBulkClientChange(this.value)">
-              ${clients.map(cl => `<option value="${cl.id}" ${cl.id == targetClientId ? 'selected' : ''}>${cl.companyName || cl.name}</option>`).join('')}
+              ${clients.map(cl => `<option value="${cl.id}" ${cl.id == targetClientId ? 'selected' : ''}>${this._escape(cl.companyName || cl.name)}</option>`).join('')}
             </select>
           </div>
 
@@ -644,33 +845,35 @@ const Advances = {
               <input type="date" id="bpm_date" class="form-control" value="${Store.getLocalDateStr()}">
             </div>
             <div class="form-group">
-              <label>実際の振込金額（税込総額）</label>
-              <input type="number" id="bpm_amount" class="form-control" placeholder="例: 250000" oninput="Advances.calcBulkDiff()">
+              <label>振込金額（税込・立替金込み）</label>
+              <input type="number" id="bpm_amount" class="form-control" placeholder="例: 250000" oninput="Advances.onBulkAmountInput()">
             </div>
             <div class="form-group">
               <label>消し込み対象</label>
-              <select id="bpm_payType" class="form-control" onchange="Advances.calcBulkDiff()">
-                <option value="full">全額（報酬＋立替金）</option>
+              <select id="bpm_payType" class="form-control" onchange="Advances.onBulkAmountInput()">
+                <option value="full">全額（報酬＋税＋立替金）</option>
                 <option value="advance_only">立替金のみ</option>
-                <option value="fee_only">報酬のみ</option>
+                <option value="fee_only">報酬（税込）のみ</option>
               </select>
             </div>
           </div>
 
-          <div style="margin-top:16px;">
-            <label style="font-weight:600; font-size:0.9rem;">未消し込み案件の選択</label>
-            <div id="bpm_casesList" style="max-height:240px; overflow-y:auto; border:1px solid var(--border-color); border-radius:6px; padding:8px; margin-top:6px;">
-              <!-- 動的生成 -->
+          <div id="bpm_matchArea" style="margin-top:4px;"></div>
+
+          <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-weight:600; font-size:0.9rem; margin:0;">未入金の請求（古い順）</label>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="btn btn-secondary btn-small" onclick="Advances.bulkSelectAll(true)">全選択</button>
+              <button type="button" class="btn btn-secondary btn-small" onclick="Advances.bulkSelectAll(false)">全解除</button>
             </div>
           </div>
+          <div id="bpm_casesList" style="max-height:300px; overflow-y:auto; border:1px solid var(--border-color); border-radius:6px; padding:4px 8px; margin-top:6px;"></div>
 
-          <div id="bpm_summaryArea" style="margin-top:12px; padding:12px; background:var(--bg-gray); border-radius:6px; font-size:0.875rem;">
-            <!-- 金額一致チェック表示 -->
-          </div>
+          <div id="bpm_summaryArea" style="margin-top:12px; padding:12px; background:var(--bg-gray); border-radius:6px; font-size:0.875rem;"></div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="document.getElementById('bulkPaymentModal').remove()">キャンセル</button>
-          <button class="btn btn-primary" onclick="Advances.executeBulkPayment()">一括消し込みを実行</button>
+          <button class="btn btn-primary" onclick="Advances.executeBulkPayment()">消し込みを実行</button>
         </div>
       </div>
     `;
@@ -682,128 +885,158 @@ const Advances = {
   onBulkClientChange(clientId) {
     const listArea = document.getElementById('bpm_casesList');
     if (!listArea) return;
+    this._bpmUnits = this.buildPaymentUnits(clientId);
+    const units = this._bpmUnits;
 
-    // 全額済み（isPaid && isAdvancePaid 両方true）以外を表示
-    const cases = this.applyMonthFilter(Store.getCasesByClient(clientId)).filter(c => {
-      const allDone = c.isPaid && c.isAdvancePaid;
-      return !allDone;
-    });
-
-    if (cases.length === 0) {
-      listArea.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:16px 0; margin:0;">未決済の案件はありません</p>';
-      this.calcBulkDiff();
+    if (units.length === 0) {
+      listArea.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:16px 0; margin:0;">未入金の請求はありません</p>';
+      this.onBulkAmountInput();
       return;
     }
 
-    listArea.innerHTML = cases.map(c => {
-      const advanceSum = (c.advances || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
-      const fee = Number(c.fee || 0);
-      const total = fee + advanceSum;
-      // 部分消し込み済みのバッジ
-      let partialBadge = '';
-      if (c.isAdvancePaid && !c.isPaid) partialBadge = '<span style="background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:3px; font-size:0.68rem; font-weight:600; margin-left:4px;">立替済</span>';
-      if (c.isPaid && !c.isAdvancePaid) partialBadge = '<span style="background:#e0f2fe; color:#0369a1; padding:1px 6px; border-radius:3px; font-size:0.68rem; font-weight:600; margin-left:4px;">報酬済</span>';
+    const badge = (text, bg, fg) => `<span style="background:${bg}; color:${fg}; padding:1px 6px; border-radius:3px; font-size:0.68rem; font-weight:600; white-space:nowrap;">${text}</span>`;
+    listArea.innerHTML = units.map(u => {
+      const typeBadge = u.type === 'invoice'
+        ? badge('🧾 請求書', 'rgba(16,185,129,0.15)', '#10b981')
+        : u.individual ? badge('📄 都度', 'rgba(168,85,247,0.15)', '#a855f7')
+          : badge(u.done ? '締め（未請求書）' : '未完了', 'rgba(100,116,139,0.15)', 'var(--text-muted)');
+      const monthBadge = u.month ? badge(Store.billingMonthLabel(u.month), 'rgba(59,130,246,0.12)', '#3b82f6') : '';
       return `
-        <label style="display:flex; align-items:center; justify-content:space-between; padding:8px; border-bottom:1px solid var(--border-color); cursor:pointer;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <input type="checkbox" class="bpm-case-cb" value="${c.id}" data-fee="${fee}" data-advance="${advanceSum}" data-total="${total}" checked onchange="Advances.calcBulkDiff()">
-            <div>
-              <div style="font-weight:600; font-size:0.85rem;">${c.title}${partialBadge}</div>
-              <div style="font-size:0.75rem; color:var(--text-muted);">${c.applyDate || (c.createdAt ? c.createdAt.slice(0,10) : '-')}</div>
+        <label style="display:flex; align-items:center; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--border-color); cursor:pointer; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+            <input type="checkbox" class="bpm-case-cb" value="${u.key}" onchange="Advances.calcBulkDiff()">
+            <div style="min-width:0;">
+              <div style="font-weight:600; font-size:0.84rem; display:flex; gap:5px; align-items:center; flex-wrap:wrap;">${typeBadge}${monthBadge}<span>${this._escape(u.title)}</span></div>
+              <div style="font-size:0.74rem; color:var(--text-muted);">${this._escape(u.sub)}</div>
             </div>
           </div>
-          <div style="text-align:right;">
-            <div style="font-weight:700; font-size:0.85rem;">¥${total.toLocaleString()}</div>
-            <div style="font-size:0.72rem; color:var(--text-muted);">報酬¥${fee.toLocaleString()} + 立替¥${advanceSum.toLocaleString()}</div>
+          <div style="text-align:right; flex-shrink:0;">
+            <div style="font-weight:700; font-size:0.86rem;">¥${u.total.toLocaleString()}</div>
+            <div style="font-size:0.7rem; color:var(--text-muted); white-space:nowrap;">報酬¥${u.fee.toLocaleString()} + 税¥${u.tax.toLocaleString()} + 立替¥${u.adv.toLocaleString()}</div>
           </div>
-        </label>
-      `;
+        </label>`;
     }).join('');
 
+    this.onBulkAmountInput();
+  },
+
+  bulkSelectAll(on) {
+    document.querySelectorAll('.bpm-case-cb').forEach(cb => { cb.checked = !!on; });
     this.calcBulkDiff();
+  },
+
+  /** 振込額の入力に合わせて候補を探す（入力中は少し待ってから実行） */
+  onBulkAmountInput() {
+    clearTimeout(this._bpmTimer);
+    this._bpmTimer = setTimeout(() => this.renderBulkMatches(), 250);
+    this.calcBulkDiff();
+  },
+
+  renderBulkMatches() {
+    const area = document.getElementById('bpm_matchArea');
+    if (!area) return;
+    const target = Number((document.getElementById('bpm_amount') || {}).value || 0);
+    const payType = (document.getElementById('bpm_payType') || {}).value || 'full';
+    if (!(target > 0)) { area.innerHTML = ''; this._bpmMatches = []; return; }
+    const matches = this.findPaymentMatches(this._bpmUnits || [], target, payType);
+    this._bpmMatches = matches;
+    if (matches.length === 0) {
+      area.innerHTML = `<div style="padding:8px 12px; border-radius:6px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.35); color:#b45309; font-size:0.82rem;">🔍 ぴったり合う組み合わせが見つかりませんでした。下の一覧から手で選んでください（報酬額・立替金の入力漏れや、他の取引先分が混ざっていないかもご確認ください）。</div>`;
+      return;
+    }
+    area.innerHTML = `
+      <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:4px;">🔍 ¥${target.toLocaleString()} にぴったり合う候補（クリックで選択）</div>
+      ${matches.map((m, i) => `
+        <button type="button" class="btn btn-secondary btn-small" style="display:block; width:100%; text-align:left; margin-bottom:4px; border-color:rgba(16,185,129,0.45);" onclick="Advances.applyBulkMatch(${i})">
+          ✅ ${this._escape(m.label)}${m.mode === 'combined' ? ' <span style="font-size:0.72rem; color:var(--text-muted);">（消費税をまとめて計算した場合に一致）</span>' : ''}
+        </button>`).join('')}
+    `;
+    // 候補が1つだけなら自動で選択しておく
+    if (matches.length === 1) this.applyBulkMatch(0);
+  },
+
+  applyBulkMatch(idx) {
+    const m = (this._bpmMatches || [])[idx];
+    if (!m) return;
+    const keys = new Set(m.keys);
+    document.querySelectorAll('.bpm-case-cb').forEach(cb => { cb.checked = keys.has(cb.value); });
+    this.calcBulkDiff();
+  },
+
+  _selectedBulkUnits() {
+    const keys = new Set(Array.from(document.querySelectorAll('.bpm-case-cb:checked')).map(cb => cb.value));
+    return (this._bpmUnits || []).filter(u => keys.has(u.key));
   },
 
   calcBulkDiff() {
     const sumArea = document.getElementById('bpm_summaryArea');
-    const amountInput = document.getElementById('bpm_amount');
-    const payTypeEl = document.getElementById('bpm_payType');
     if (!sumArea) return;
-
-    const payType = payTypeEl ? payTypeEl.value : 'full';
-    const checkboxes = document.querySelectorAll('.bpm-case-cb:checked');
-    let selectedSum = 0;
-    checkboxes.forEach(cb => {
-      if (payType === 'advance_only') {
-        selectedSum += Number(cb.getAttribute('data-advance') || 0);
-      } else if (payType === 'fee_only') {
-        selectedSum += Number(cb.getAttribute('data-fee') || 0);
-      } else {
-        selectedSum += Number(cb.getAttribute('data-total') || 0);
-      }
-    });
-
-    const enteredAmount = Number(amountInput ? amountInput.value : 0);
-    const diff = enteredAmount - selectedSum;
-
-    const payLabel = payType === 'advance_only' ? '立替金合計' : payType === 'fee_only' ? '報酬合計' : '合計請求額';
+    const payType = (document.getElementById('bpm_payType') || {}).value || 'full';
+    const selected = this._selectedBulkUnits();
+    const t = this._setTotals(selected, payType);
+    const enteredAmount = Number((document.getElementById('bpm_amount') || {}).value || 0);
+    const payLabel = payType === 'advance_only' ? '立替金合計' : payType === 'fee_only' ? '報酬（税込）合計' : '請求額合計（税込）';
 
     let statusText = '';
-    if (enteredAmount > 0) {
-      if (diff === 0) {
-        statusText = '<span style="color:#15803d; font-weight:700;">✅ 振込額と選択案件の合計がピッタリ一致しています！</span>';
-      } else if (diff < 0) {
-        statusText = `<span style="color:#b91c1c; font-weight:700;">⚠️ 振込額が 選択合計より ¥${Math.abs(diff).toLocaleString()} 不足しています（振込手数料等を確認してください）</span>`;
+    if (enteredAmount > 0 && selected.length > 0) {
+      if (t.perUnit === enteredAmount) {
+        statusText = '<span style="color:#15803d; font-weight:700;">✅ 振込額と選択した請求の合計がぴったり一致しています</span>';
+      } else if (t.combined === enteredAmount) {
+        statusText = '<span style="color:#15803d; font-weight:700;">✅ 一致しています（請求書のない案件の消費税をまとめて計算した場合）</span>';
       } else {
-        statusText = `<span style="color:#b45309; font-weight:700;">ℹ️ 振込額が 選択合計より ¥${diff.toLocaleString()} 多いです（過剰入金・他案件分）</span>`;
+        const diff = enteredAmount - t.perUnit;
+        statusText = diff < 0
+          ? `<span style="color:#b91c1c; font-weight:700;">⚠️ 振込額が選択合計より ¥${Math.abs(diff).toLocaleString()} 少ないです</span>`
+          : `<span style="color:#b45309; font-weight:700;">ℹ️ 振込額が選択合計より ¥${diff.toLocaleString()} 多いです（他の請求分が含まれている可能性）</span>`;
       }
     }
-
+    const showCombined = t.combined !== t.perUnit;
     sumArea.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span>選択された案件の${payLabel}:</span>
-        <span style="font-weight:700; font-size:1rem;">¥${selectedSum.toLocaleString()}</span>
+        <span>選択した ${selected.length}件の${payLabel}:</span>
+        <span style="font-weight:700; font-size:1rem;">¥${t.perUnit.toLocaleString()}${showCombined ? ` <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">（税まとめ計算 ¥${t.combined.toLocaleString()}）</span>` : ''}</span>
       </div>
       ${statusText ? `<div style="margin-top:6px;">${statusText}</div>` : ''}
     `;
   },
 
   executeBulkPayment() {
-    const checkboxes = document.querySelectorAll('.bpm-case-cb:checked');
-    if (checkboxes.length === 0) {
-      alert('消し込みを行う案件を1つ以上選択してください');
+    const selected = this._selectedBulkUnits();
+    if (selected.length === 0) {
+      alert('消し込みを行う請求を1つ以上選択してください');
       return;
     }
-
-    const date = document.getElementById('bpm_date').value || Store.getLocalDateStr();
-    const payTypeEl = document.getElementById('bpm_payType');
-    const payType = payTypeEl ? payTypeEl.value : 'full';
+    const date = (document.getElementById('bpm_date') || {}).value || Store.getLocalDateStr();
+    const payType = (document.getElementById('bpm_payType') || {}).value || 'full';
     let count = 0;
+    const invoiceNos = [];
 
-    checkboxes.forEach(cb => {
-      const caseId = cb.value;
-      const existing = Store.getCase(caseId);
-      if (!existing) return;
-
-      if (payType === 'advance_only') {
-        // 立替金のみ消し込み
-        Store.updateCase(caseId, { isAdvancePaid: true });
-      } else if (payType === 'fee_only') {
-        // 報酬のみ消し込み
-        Store.updateCase(caseId, { isPaid: true });
-      } else {
-        // 全額消し込み
-        Store.updateCase(caseId, {
-          isPaid: true,
-          isAdvancePaid: true,
-          paidAt: `${date}T12:00:00.000Z`,
-        });
-      }
-      count++;
+    selected.forEach(u => {
+      u.caseIds.forEach(caseId => {
+        const existing = Store.getCase(caseId);
+        if (!existing) return;
+        if (payType === 'advance_only') {
+          Store.updateCase(caseId, { isAdvancePaid: true });
+        } else if (payType === 'fee_only') {
+          Store.updateCase(caseId, { isPaid: true });
+        } else {
+          Store.updateCase(caseId, { isPaid: true, isAdvancePaid: true, paidAt: `${date}T12:00:00.000Z` });
+        }
+        count++;
+      });
+      if (u.type === 'invoice' && payType === 'full') invoiceNos.push({ no: u.invoiceNo, amount: u.total });
     });
+
+    // 請求書単位で全額入金された分は、請求書の入金状態も「入金済」にする（裏で送信）
+    if (invoiceNos.length && typeof InvoiceSync !== 'undefined' && InvoiceSync.markPaid) {
+      invoiceNos.forEach(x => {
+        InvoiceSync.markPaid(x.no, '振込', date, x.amount).catch(e => console.warn('[Advances] 請求書の入金登録に失敗:', x.no, e));
+      });
+    }
 
     const label = payType === 'advance_only' ? '立替金' : payType === 'fee_only' ? '報酬' : '全額';
     document.getElementById('bulkPaymentModal').remove();
-    App.showToast(`🎉 ${count}件の案件の${label}を一括消し込みしました！`);
+    App.showToast(`🎉 ${count}件の案件の${label}を消し込みしました${invoiceNos.length ? `（請求書${invoiceNos.length}枚を入金済に）` : ''}`);
     App.refreshView();
   },
 

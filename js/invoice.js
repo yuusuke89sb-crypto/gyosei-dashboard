@@ -648,8 +648,10 @@ const Invoice = {
         if (c.isPaid && !c.isAdvancePaid) partialBadge += '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;">報酬済</span>';
 
         const cDate = Store.getCaseBaseDate(c);
-        const inPeriod = currentPeriod ? (cDate >= currentPeriod.startDate && cDate <= currentPeriod.endDate) : true;
-        const dateBadge = cDate ? `<span style="background:${inPeriod ? 'rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);' : 'rgba(100,116,139,0.1);color:var(--text-muted);border:1px solid var(--border-color);'}padding:1px 5px;border-radius:3px;font-size:0.7rem;white-space:nowrap;">${inPeriod ? '📅 ' + cDate.slice(5) : '⚠️ 期間外 ' + cDate.slice(5)}</span>` : '';
+        const isIndividual = c.billingMode === 'individual';
+        const inPeriod = !isIndividual && (currentPeriod ? (cDate >= currentPeriod.startDate && cDate <= currentPeriod.endDate) : true);
+        if (isIndividual) partialBadge += `<span style="background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.35);padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;white-space:nowrap;" title="都度請求済みのため締め請求からは外しています（必要なら手でチェック）">📄 都度請求済${c.individualBilledAt ? ' ' + String(c.individualBilledAt).slice(5, 10) : ''}</span>`;
+        const dateBadge = cDate ? `<span style="background:${inPeriod ? 'rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);' : 'rgba(100,116,139,0.1);color:var(--text-muted);border:1px solid var(--border-color);'}padding:1px 5px;border-radius:3px;font-size:0.7rem;white-space:nowrap;">${inPeriod || isIndividual ? '📅 ' + cDate.slice(5) : '⚠️ 期間外 ' + cDate.slice(5)}</span>` : '';
 
         const carTypeBadge = isUsed
           ? `<span style="font-size:0.72rem;background:#fef3c7;color:#b45309;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;font-weight:bold;white-space:nowrap;">🚙 中古</span>`
@@ -666,7 +668,7 @@ const Invoice = {
         return `
           <div class="invoice-case-row ${inPeriod ? 'selected' : ''}" id="caseRow_${c.id}" onclick="Invoice.toggleCaseRow('${c.id}', '${clientId}', event)" data-is-used="${isUsed ? '1' : '0'}" data-case-date="${cDate}">
             <div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">
-              <input type="checkbox" name="targetCases" value="${c.id}" id="cb_${c.id}" data-case-date="${cDate}" data-is-used="${isUsed ? '1' : '0'}" ${inPeriod ? 'checked' : ''} class="case-checkbox" onclick="event.stopPropagation()" onchange="Invoice.onCheckboxChange('${clientId}', '${c.id}')">
+              <input type="checkbox" name="targetCases" value="${c.id}" id="cb_${c.id}" data-case-date="${cDate}" data-is-used="${isUsed ? '1' : '0'}" data-individual="${isIndividual ? '1' : '0'}" ${inPeriod ? 'checked' : ''} class="case-checkbox" onclick="event.stopPropagation()" onchange="Invoice.onCheckboxChange('${clientId}', '${c.id}')">
               
               <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                 ${carTypeBadge}
@@ -927,7 +929,7 @@ const Invoice = {
 
       if (visible) {
         if (cb) {
-          cb.checked = inPeriod;
+          cb.checked = inPeriod && cb.getAttribute('data-individual') !== '1';
           row.classList.toggle('selected', cb.checked);
         }
       } else {
@@ -973,7 +975,9 @@ const Invoice = {
         cb.checked = false;
       } else if (mode === 'period') {
         const caseDate = cb.getAttribute('data-case-date') || '';
-        if (!period || periodKey === 'all') {
+        if (cb.getAttribute('data-individual') === '1') {
+          cb.checked = false; // 都度請求済みは期間選択では含めない
+        } else if (!period || periodKey === 'all') {
           cb.checked = true;
         } else if (caseDate) {
           cb.checked = (caseDate >= period.startDate && caseDate <= period.endDate);

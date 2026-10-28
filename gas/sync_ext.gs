@@ -16,7 +16,7 @@
 
 const CASE_TS_HEADER = '_fieldTs';
 // 2026-10-28 追加：消込状態の列（無ければ末尾に追加。CASE_HEADERS は変えない＝既存列を動かさない）
-const CASE_EXTRA_HEADERS = ['報酬入金済', '立替金入金済', '入金消込日'];
+const CASE_EXTRA_HEADERS = ['報酬入金済', '立替金入金済', '入金消込日', '請求区分', '都度請求日'];
 const DELETE_LOG_SHEET = '削除ログ';
 const DELETE_LOG_HEADERS = ['種別', 'ID', '削除日時', '端末'];
 

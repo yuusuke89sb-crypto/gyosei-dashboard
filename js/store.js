@@ -299,6 +299,8 @@ const Store = {
       oldCarNumber: data.oldCarNumber || '',     // 旧登録番号（旧ナンバー / 返納対象）
       carPolice: data.carPolice || '',           // 所轄警察署
       isUsedCar: !!data.isUsedCar,              // 中古車フラグ
+      billingMode: data.billingMode === 'individual' ? 'individual' : '', // 都度請求の印（'individual'）
+      individualBilledAt: data.individualBilledAt || '',                  // 都度請求日
       driveFolderUrl: data.driveFolderUrl || '', // Google DriveフォルダURL
       subCategory: data.subCategory || '',       // 登録種別
       regType: data.regType || '',               // 登録種別/封印事由（new | transfer | change | reseal | plate_change）

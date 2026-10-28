@@ -1182,7 +1182,8 @@ function getKeyMap_(sheetName) {
     '封印事由': 'regType','登録区分': 'regType','登録種別区分': 'regType','regType': 'regType',
     'DriveフォルダURL': 'driveFolderUrl','登録種別': 'subCategory','立替金': 'advances','進捗ステップ': 'milestoneIndex','インボックスID': 'inboxId','FAX_ID': 'faxId','添付書類': 'docs',
     '中古車区分': 'isUsedCar',
-    '報酬入金済': 'isPaid', '立替金入金済': 'isAdvancePaid', '入金消込日': 'paidAt'
+    '報酬入金済': 'isPaid', '立替金入金済': 'isAdvancePaid', '入金消込日': 'paidAt',
+    '請求区分': 'billingMode', '都度請求日': 'individualBilledAt'
   };
   if (sheetName === SHEET_NAMES.JOURNALS) return {'伝票ID': 'id','日付': 'date','借方': 'debit','貸方': 'credit','金額': 'amount','摘要': 'description','案件ID': 'caseId','自動': 'auto','登録日': 'createdAt'};
   if (sheetName === SHEET_NAMES.INBOX) return {'インボックスID': 'id','日時': 'date','種別': 'type','送信元': 'sender','件名': 'subject','本文': 'body','添付ファイル': 'attachments','ステータス': 'status','案件ID': 'caseId','登録日': 'createdAt'};
