@@ -68,9 +68,7 @@ const Cases = {
     { key: '抹消登録', label: '抹消登録（一時抹消・永久抹消）' },
     { key: '希望ナンバー', label: '希望ナンバー申し込み' },
     { key: 'ナンバー再交付', label: 'ナンバー再交付（破損・汚損）' },
-    { key: '車検証再交付', label: '車検証 再交付' },
-    { key: '検査標章再交付', label: '検査標章 再交付' },
-    { key: '車検証・標章再交付', label: '車検証 / 検査標章 再交付（両方）' },
+    { key: '車検証・標章再交付', label: '車検証 / 検査標章 再交付' },
     { key: '登録事項証明書', label: '登録事項等証明書（現在・詳細）' },
     { key: '減免申請', label: '減免申請（身体障害者等）' },
     { key: 'その他', label: 'その他' },
@@ -331,6 +329,7 @@ const Cases = {
     { key: '送料', label: '送料' },
     { key: 'プレート代', label: 'プレート代' },
     { key: '手数料', label: '手数料' },
+    { key: '交通費', label: '交通費' },
     { key: 'その他', label: 'その他' },
   ],
 
@@ -343,7 +342,7 @@ const Cases = {
       return;
     }
     container.innerHTML = this.advanceDraft.map((adv, i) => {
-      const curCat = adv.category || (adv.label && adv.label.includes('証紙') ? '証紙代' : (adv.label && adv.label.includes('印紙') ? '印紙代' : (adv.label && (adv.label.includes('税') || adv.label.includes('法定')) ? '法定費用' : (adv.label && (adv.label.includes('送') || adv.label.includes('レターパック')) ? '送料' : (adv.label && (adv.label.includes('プレート') || adv.label.includes('ナンバー')) ? 'プレート代' : '証紙代')))));
+      const curCat = adv.category || (adv.label && adv.label.includes('証紙') ? '証紙代' : (adv.label && adv.label.includes('印紙') ? '印紙代' : (adv.label && (adv.label.includes('税') || adv.label.includes('法定')) ? '法定費用' : (adv.label && (adv.label.includes('送') || adv.label.includes('レターパック')) ? '送料' : (adv.label && (adv.label.includes('プレート') || adv.label.includes('ナンバー')) ? 'プレート代' : (adv.label && adv.label.includes('交通費') ? '交通費' : 'その他'))))));
       return `
       <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
         <select style="width:105px; font-size:0.82rem; padding:4px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-card,#fff); color:var(--text-color);"
@@ -369,7 +368,7 @@ const Cases = {
     let lbl = '';
     let amt = '';
     if (typeof categoryOrLabel === 'string' && (label !== '' || amount !== '')) {
-      if (['証紙代', '印紙代', '法定費用', '送料', 'プレート代', '手数料', 'その他'].includes(categoryOrLabel)) {
+      if (['証紙代', '印紙代', '法定費用', '送料', 'プレート代', '手数料', '交通費', 'その他'].includes(categoryOrLabel)) {
         cat = categoryOrLabel;
         lbl = label;
         amt = amount;
@@ -937,6 +936,7 @@ const Cases = {
                       <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('送料', 'レターパックプラス送料', 600)">＋ 送料600円</button>
                       <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('プレート代', 'ナンバープレート代', 1440)">＋ プレート1,440円</button>
                       <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('法定費用', '', '')">＋ 法定費用</button>
+                      <button type="button" class="btn btn-secondary btn-small" style="font-size:0.72rem; padding:2px 6px;" onclick="Cases.addAdvanceRow('交通費', '交通費', '')">＋ 交通費</button>
                       <button type="button" class="btn btn-primary btn-small" style="font-size:0.72rem; padding:2px 8px;" onclick="Cases.addAdvanceRow('その他', '', '')">＋ 追加</button>
                     </div>
                   </div>
@@ -3633,12 +3633,7 @@ const Cases = {
   toggleCategoryFields(category) {
     const isCarRegOrSeal = ['car_reg_standard', 'car_reg_light', 'seal'].includes(category);
     const subCatGroup = document.getElementById('csf_subCategory_group');
-    const subCatSel = document.getElementById('csf_subCategory');
-    // 車庫証明でも登録種別に値が残っている（同期・旧データ等）場合は表示して消せるようにする
-    const hasStaleSubCat = !isCarRegOrSeal && subCatSel && subCatSel.value;
-    if (subCatGroup) subCatGroup.style.display = (isCarRegOrSeal || hasStaleSubCat) ? '' : 'none';
-    const regTypeGroup = document.getElementById('csf_regType_group');
-    if (regTypeGroup) regTypeGroup.style.display = isCarRegOrSeal ? '' : 'none';
+    if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
 
     // 車庫証明（一般）に切り替えた場合、警察署が選択済みならその警察署の単価を反映
     if (category === 'garage_paper') {
