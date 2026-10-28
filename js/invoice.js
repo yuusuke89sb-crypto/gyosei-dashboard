@@ -2565,7 +2565,8 @@ ${detailPagesHTML}
         }).join('');
 
         const coverTitle = this._getToyotaCoverTitle(sectionCases).replace(/他$/, '');
-        const pageTitle = `${coverTitle}等明細書（${sectionLabel}分）`;
+        const isUCarSection = (sectionLabel === 'U-Car' || String(sectionLabel).includes('U-Car'));
+        const pageTitle = isUCarSection ? `${coverTitle}等明細書（U-Car分）` : `${coverTitle}等明細書`;
 
         html += `
 <!-- 明細書 [${sectionLabel}] ページ ${pageNum}/${totalPages} -->
@@ -3829,10 +3830,13 @@ ${detailPagesHTML}
           <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${advanceTotal.toLocaleString()}</td>
         </tr>` : '';
 
+        const isUCarSection = (sectionLabel === 'U-Car' || String(sectionLabel).includes('U-Car'));
+        const docTitleBadge = isUCarSection ? `<span style="font-size:14px; letter-spacing:1px; font-weight:bold; margin-left:14px; color:#1e3a8a; vertical-align:middle;">（U-Car分）</span>` : '';
+
         html += `
 <!-- 明細書 ページ ${pageNum} [${sectionLabel}] -->
 <div class="page ${isDocLast ? '' : 'page-break'}">
-  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書<span style="font-size:14px; letter-spacing:1px; font-weight:bold; margin-left:14px; color:#1e3a8a; vertical-align:middle;">【${sectionLabel}】</span></div>
+  <div class="doc-title" style="font-size:20px; letter-spacing:6px; margin-bottom:8px;">${this._getToyotaCoverTitle(cases).replace(/他$/, '')}等明細書${docTitleBadge}</div>
   
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; font-size:12px;">
     <div style="max-width:52%; flex-shrink:1;">
@@ -3890,12 +3894,12 @@ ${detailPagesHTML}
 
     let detailPagesHTML = '';
     if (hasNormal && hasUsed) {
-      detailPagesHTML += buildSectionDetailPages(sortedNormalCases, '普通車（新車）分', normalFee, normalAdv, false);
-      detailPagesHTML += buildSectionDetailPages(sortedUsedCases, 'U-Car（中古車）分', usedFee, usedAdv, true);
+      detailPagesHTML += buildSectionDetailPages(sortedNormalCases, '普通車', normalFee, normalAdv, false);
+      detailPagesHTML += buildSectionDetailPages(sortedUsedCases, 'U-Car', usedFee, usedAdv, true);
     } else if (hasUsed) {
-      detailPagesHTML += buildSectionDetailPages(sortedUsedCases, 'U-Car（中古車）分', usedFee, usedAdv, true);
+      detailPagesHTML += buildSectionDetailPages(sortedUsedCases, 'U-Car', usedFee, usedAdv, true);
     } else {
-      detailPagesHTML += buildSectionDetailPages(sortedNormalCases, '普通車（新車）分', normalFee, normalAdv, true);
+      detailPagesHTML += buildSectionDetailPages(sortedNormalCases, '普通車', normalFee, normalAdv, true);
     }
 
     return `<!DOCTYPE html>
@@ -6311,7 +6315,7 @@ window.NissanPrint = {
       const uFee = usedList.reduce((s,c) => s + Number(c.fee||0), 0);
       const uAdv = usedList.reduce((s,c) => s + (c.advances||[]).reduce((as,a)=>as+Number(a.amount||0), 0), 0);
 
-      if (normalList.length > 0) createDetailSheet('明細票(普通車)', '（普通車分）', normalList, nFee, nAdv);
+      if (normalList.length > 0) createDetailSheet('明細票(普通車)', '', normalList, nFee, nAdv);
       if (usedList.length > 0) createDetailSheet('明細票(U-Car)', '（U-Car分）', usedList, uFee, uAdv);
       if (normalList.length === 0 && usedList.length === 0) createDetailSheet('明細票', '', [], 0, 0);
     } else {
