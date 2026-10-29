@@ -121,6 +121,18 @@ const Store = {
     return `${year}-${month}-${day}`;
   },
 
+  toLocalDateStr(val) {
+    if (!val) return '';
+    if (typeof val === 'string') {
+      if (val.length >= 10 && val.includes('-')) return val.slice(0, 10);
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return this.getLocalDateStr(d);
+      return val.slice(0, 10);
+    }
+    if (val instanceof Date) return this.getLocalDateStr(val);
+    return '';
+  },
+
   getDiffDays(dateStr) {
     if (!dateStr) return 0;
     const parts = dateStr.slice(0, 10).split('-');
