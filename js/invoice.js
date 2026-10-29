@@ -525,6 +525,12 @@ const Invoice = {
                    (c.subCategory || '').includes('封印') ||
                    (c.memo || '').includes('封印');
     if (isSeal) {
+      if (c.id && (!c.fee || Number(c.fee) === 0) && typeof Store !== 'undefined' && typeof Store.updateCase === 'function') {
+        try {
+          c.fee = 5000;
+          Store.updateCase(c.id, { fee: 5000 });
+        } catch(e) {}
+      }
       return 5000;
     }
     return 0;
@@ -1801,6 +1807,10 @@ const Invoice = {
       }
     });
 
+    const effectiveFeeSubtotal = (garageFee + otherFee + sealFee);
+    const effectiveTax = Math.floor(effectiveFeeSubtotal * (taxRate || 10) / 100);
+    const effectiveTotal = effectiveFeeSubtotal + effectiveTax + advanceTotal;
+
     // 立替金明細を分類（区分付きで集計・交通費は【その他実費】交通費に合算）
     const advMap = {};
     cases.forEach(c => {
@@ -2052,7 +2062,7 @@ const Invoice = {
       ${isLastPage ? `
       <tr style="font-weight:bold; background:#f8fafc; color:#000;">
         <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">合　　計</td>
-        <td class="col-num" style="font-size:11.5px; font-weight:bold; color:#000;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-size:11.5px; font-weight:bold; color:#000;">${effectiveFeeSubtotal.toLocaleString()}</td>
         <td class="col-num" style="font-size:11.5px; font-weight:bold; color:#000;">${advanceTotal.toLocaleString()}</td>
       </tr>` : ''}
     </tbody>
@@ -2332,15 +2342,15 @@ const Invoice = {
       <tr style="background:#fdfdfd;">
         <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
         <td class="col-center" style="font-weight:600; color:#000;">${cases.length}件</td>
-        <td class="col-num" style="font-weight:bold;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-weight:bold;">${effectiveFeeSubtotal.toLocaleString()}</td>
       </tr>
       <tr>
         <td colspan="3" class="col-center">消費税 (${taxRate || 10}%)</td>
-        <td class="col-num">${tax.toLocaleString()}</td>
+        <td class="col-num">${effectiveTax.toLocaleString()}</td>
       </tr>
       <tr style="font-weight:bold; background:#f8fafc;">
         <td colspan="3" class="col-center">合　　計</td>
-        <td class="col-num">${(feeSubtotal + tax).toLocaleString()}</td>
+        <td class="col-num">${(effectiveFeeSubtotal + effectiveTax).toLocaleString()}</td>
       </tr>
 
       <!-- 立替金パート -->
@@ -2366,7 +2376,7 @@ const Invoice = {
       <!-- 総合計 -->
       <tr class="grand-total-row">
         <td colspan="3" class="col-center">総　合　計</td>
-        <td class="col-num" style="font-size:18px;">¥${total.toLocaleString()}</td>
+        <td class="col-num" style="font-size:18px;">¥${effectiveTotal.toLocaleString()}</td>
       </tr>
     </tbody>
   </table>
@@ -2451,6 +2461,10 @@ ${detailPagesHTML}
         otherFee += f;
       }
     });
+
+    const effectiveFeeSubtotal = (garageFee + otherFee + sealFee);
+    const effectiveTax = Math.floor(effectiveFeeSubtotal * (taxRate || 10) / 100);
+    const effectiveTotal = effectiveFeeSubtotal + effectiveTax + advanceTotal;
 
     // 立替金明細を分類（表紙用合算集計・交通費は【その他実費】交通費に合算）
     const advMap = {};
@@ -2986,15 +3000,15 @@ ${detailPagesHTML}
       <tr style="background:#fdfdfd;">
         <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
         <td class="col-center" style="font-weight:600; color:#000;">${cases.length}件</td>
-        <td class="col-num" style="font-weight:bold;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-weight:bold;">${effectiveFeeSubtotal.toLocaleString()}</td>
       </tr>
       <tr>
         <td colspan="3" class="col-center">消費税 (${taxRate || 10}%)</td>
-        <td class="col-num">${tax.toLocaleString()}</td>
+        <td class="col-num">${effectiveTax.toLocaleString()}</td>
       </tr>
       <tr style="font-weight:bold; background:#f8fafc;">
         <td colspan="3" class="col-center">合　　計</td>
-        <td class="col-num">${(feeSubtotal + tax).toLocaleString()}</td>
+        <td class="col-num">${(effectiveFeeSubtotal + effectiveTax).toLocaleString()}</td>
       </tr>
 
       <!-- 立替金パート -->
@@ -3020,7 +3034,7 @@ ${detailPagesHTML}
       <!-- 総合計 -->
       <tr class="grand-total-row">
         <td colspan="3" class="col-center">総　合　計</td>
-        <td class="col-num" style="font-size:18px;">¥${total.toLocaleString()}</td>
+        <td class="col-num" style="font-size:18px;">¥${effectiveTotal.toLocaleString()}</td>
       </tr>
     </tbody>
   </table>
@@ -3084,6 +3098,10 @@ ${detailPagesHTML}
         otherFee += f;
       }
     });
+
+    const effectiveFeeSubtotal = (garageFee + otherFee + sealFee);
+    const effectiveTax = Math.floor(effectiveFeeSubtotal * (taxRate || 10) / 100);
+    const effectiveTotal = effectiveFeeSubtotal + effectiveTax + advanceTotal;
 
     const advMap = {};
     cases.forEach(c => {
@@ -3325,7 +3343,7 @@ ${detailPagesHTML}
       ${isLastPage ? `
       <tr style="font-weight:bold; background:#f8fafc; color:#000; height:34px;">
         <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">合　　計</td>
-        <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${effectiveFeeSubtotal.toLocaleString()}</td>
         <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${advanceTotal.toLocaleString()}</td>
       </tr>` : ''}
     </tbody>
@@ -3585,15 +3603,15 @@ ${detailPagesHTML}
       <tr style="background:#fdfdfd;">
         <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
         <td class="col-center" style="font-weight:600; color:#000;">${cases.length}件</td>
-        <td class="col-num" style="font-weight:bold;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-weight:bold;">${effectiveFeeSubtotal.toLocaleString()}</td>
       </tr>
       <tr>
         <td colspan="3" class="col-center">消費税 (${taxRate || 10}%)</td>
-        <td class="col-num">${tax.toLocaleString()}</td>
+        <td class="col-num">${effectiveTax.toLocaleString()}</td>
       </tr>
       <tr style="font-weight:bold; background:#f8fafc;">
         <td colspan="3" class="col-center">合　　計</td>
-        <td class="col-num">${(feeSubtotal + tax).toLocaleString()}</td>
+        <td class="col-num">${(effectiveFeeSubtotal + effectiveTax).toLocaleString()}</td>
       </tr>
 
       <!-- 立替金パート -->
@@ -3619,7 +3637,7 @@ ${detailPagesHTML}
       <!-- 総合計 -->
       <tr class="grand-total-row">
         <td colspan="3" class="col-center">総　合　計</td>
-        <td class="col-num" style="font-size:18px;">¥${total.toLocaleString()}</td>
+        <td class="col-num" style="font-size:18px;">¥${effectiveTotal.toLocaleString()}</td>
       </tr>
     </tbody>
   </table>
@@ -3692,7 +3710,7 @@ ${detailPagesHTML}
       if (cat.includes('garage') || title.includes('車庫')) {
         garageCount++;
         garageFee += f;
-      } else if (cat.includes('seal') || title.includes('封印')) {
+      } else if (cat.includes('seal') || title.includes('封印') || (c.subCategory && c.subCategory.includes('封印'))) {
         sealCount++;
         sealFee += f;
       } else {
@@ -3700,6 +3718,10 @@ ${detailPagesHTML}
         otherFee += f;
       }
     });
+
+    const effectiveFeeSubtotal = (garageFee + otherFee + sealFee);
+    const effectiveTax = Math.floor(effectiveFeeSubtotal * (taxRate || 10) / 100);
+    const effectiveTotal = effectiveFeeSubtotal + effectiveTax + advanceTotal;
 
     const advMap = {};
     cases.forEach(c => {
@@ -3909,7 +3931,7 @@ ${detailPagesHTML}
         const grandTotalHTML = isDocLast ? `
         <tr style="font-weight:bold; background:#e2e8f0; color:#000; height:34px; border-top:2px solid #000;">
           <td colspan="5" class="col-center" style="font-weight:bold; color:#000;">当月総合計（新車・U-Car合算）</td>
-          <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${feeSubtotal.toLocaleString()}</td>
+          <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${effectiveFeeSubtotal.toLocaleString()}</td>
           <td class="col-num" style="font-size:12px; font-weight:bold; color:#000;">${advanceTotal.toLocaleString()}</td>
         </tr>` : '';
 
@@ -4232,15 +4254,15 @@ ${detailPagesHTML}
       <tr style="background:#fdfdfd;">
         <td colspan="2" class="col-center" style="font-weight:bold;">計</td>
         <td class="col-center" style="font-weight:600; color:#000;">${cases.length}件</td>
-        <td class="col-num" style="font-weight:bold;">${feeSubtotal.toLocaleString()}</td>
+        <td class="col-num" style="font-weight:bold;">${effectiveFeeSubtotal.toLocaleString()}</td>
       </tr>
       <tr>
         <td colspan="3" class="col-center">消費税 (${taxRate || 10}%)</td>
-        <td class="col-num">${tax.toLocaleString()}</td>
+        <td class="col-num">${effectiveTax.toLocaleString()}</td>
       </tr>
       <tr style="font-weight:bold; background:#f8fafc;">
         <td colspan="3" class="col-center">合　　計</td>
-        <td class="col-num">${(feeSubtotal + tax).toLocaleString()}</td>
+        <td class="col-num">${(effectiveFeeSubtotal + effectiveTax).toLocaleString()}</td>
       </tr>
 
       <!-- 立替金パート -->
@@ -4266,7 +4288,7 @@ ${detailPagesHTML}
       <!-- 総合計 -->
       <tr class="grand-total-row">
         <td colspan="3" class="col-center">総　合　計</td>
-        <td class="col-num" style="font-size:18px;">¥${total.toLocaleString()}</td>
+        <td class="col-num" style="font-size:18px;">¥${effectiveTotal.toLocaleString()}</td>
       </tr>
     </tbody>
   </table>
@@ -5949,6 +5971,10 @@ window.NissanPrint = {
       }
     });
 
+    const effectiveFeeSubtotal = (garageFee + otherFee + sealFee);
+    const effectiveTax = Math.floor(effectiveFeeSubtotal * 0.1);
+    const effectiveTotal = effectiveFeeSubtotal + effectiveTax + advanceTotal;
+
     // 立替金集計（表紙用・交通費は【その他実費】交通費に合算）
     const advMap = {};
     cases.forEach(c => {
@@ -6017,7 +6043,7 @@ window.NissanPrint = {
 
     ws1.mergeCells('A7:E8');
     const claimVal = ws1.getCell('A7');
-    claimVal.value = { formula: `D${grandTotalRow}`, result: total };
+    claimVal.value = { formula: `D${grandTotalRow}`, result: effectiveTotal };
     claimVal.font = { name: 'Yu Mincho', size: 22, bold: true, color: { argb: 'FF1E3A8A' } };
     claimVal.alignment = { horizontal: 'center', vertical: 'middle' };
     claimVal.fill = S.fillTotal;
@@ -6066,7 +6092,7 @@ window.NissanPrint = {
     ws1.getCell(`C${subtotalRow}`).value = { formula: 'SUM(C11:C13)', result: cases.length };
     ws1.getCell(`C${subtotalRow}`).alignment = { horizontal: 'center' };
     ws1.getCell(`C${subtotalRow}`).font = S.fontBold;
-    ws1.getCell(`D${subtotalRow}`).value = { formula: 'SUM(D11:D13)', result: feeSubtotal };
+    ws1.getCell(`D${subtotalRow}`).value = { formula: 'SUM(D11:D13)', result: effectiveFeeSubtotal };
     ws1.getCell(`D${subtotalRow}`).numFmt = '#,##0';
     ws1.getCell(`D${subtotalRow}`).font = S.fontBold;
     ws1.getCell(`D${subtotalRow}`).alignment = { horizontal: 'right' };
@@ -6079,7 +6105,7 @@ window.NissanPrint = {
     ws1.getCell(`B${taxRow}`).value = '消費税等（10%）';
     ws1.getCell(`C${taxRow}`).value = '-';
     ws1.getCell(`C${taxRow}`).alignment = { horizontal: 'center' };
-    ws1.getCell(`D${taxRow}`).value = { formula: `INT(D${subtotalRow}*0.1)`, result: tax };
+    ws1.getCell(`D${taxRow}`).value = { formula: `INT(D${subtotalRow}*0.1)`, result: effectiveTax };
     ws1.getCell(`D${taxRow}`).numFmt = '#,##0';
     ws1.getCell(`D${taxRow}`).alignment = { horizontal: 'right' };
     ['A','B','C','D','E'].forEach(col => {
@@ -6092,7 +6118,7 @@ window.NissanPrint = {
     ws1.getCell(`B${feeTotalRow}`).font = S.fontBold;
     ws1.getCell(`C${feeTotalRow}`).value = '-';
     ws1.getCell(`C${feeTotalRow}`).alignment = { horizontal: 'center' };
-    ws1.getCell(`D${feeTotalRow}`).value = { formula: `D${subtotalRow}+D${taxRow}`, result: feeSubtotal + tax };
+    ws1.getCell(`D${feeTotalRow}`).value = { formula: `D${subtotalRow}+D${taxRow}`, result: effectiveFeeSubtotal + effectiveTax };
     ws1.getCell(`D${feeTotalRow}`).numFmt = '#,##0';
     ws1.getCell(`D${feeTotalRow}`).font = S.fontBold;
     ws1.getCell(`D${feeTotalRow}`).alignment = { horizontal: 'right' };
@@ -6156,7 +6182,7 @@ window.NissanPrint = {
     gtLabel.font = { name: 'Yu Mincho', size: 12, bold: true };
     gtLabel.alignment = { horizontal: 'center', vertical: 'middle' };
     const gtVal = ws1.getCell(`D${grandTotalRow}`);
-    gtVal.value = { formula: `D${feeTotalRow}+D${advTotalRow}`, result: total };
+    gtVal.value = { formula: `D${feeTotalRow}+D${advTotalRow}`, result: effectiveTotal };
     gtVal.font = { name: 'Yu Mincho', size: 12, bold: true, color: { argb: 'FF1E3A8A' } };
     gtVal.alignment = { horizontal: 'right', vertical: 'middle' };
     gtVal.numFmt = '¥#,##0';
@@ -6399,7 +6425,7 @@ window.NissanPrint = {
       if (usedList.length > 0) createDetailSheet('明細票(U-Car)', '（U-Car分）', usedList, uFee, uAdv);
       if (normalList.length === 0 && usedList.length === 0) createDetailSheet('明細票', '', [], 0, 0);
     } else {
-      createDetailSheet('明細票', '', cases, feeSubtotal, advanceTotal);
+      createDetailSheet('明細票', '', cases, effectiveFeeSubtotal, advanceTotal);
     }
   },
 
@@ -7545,7 +7571,7 @@ window.NissanPrint = {
     const office = this.getOfficeInfo();
     const cases = this.getBilledCases(clientId, invoiceNo);
     
-    const feeSubtotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
+    const feeSubtotal = cases.reduce((sum, c) => sum + (this._getCaseFee ? this._getCaseFee(c, client) : Number(c.fee || 0)), 0);
     const taxRate = p.taxRate !== undefined ? p.taxRate : 10;
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) => sum + (c.advances || []).reduce((s,a) => s + Number(a.amount || 0), 0), 0);
