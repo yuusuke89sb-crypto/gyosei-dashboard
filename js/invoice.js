@@ -655,12 +655,17 @@ const Invoice = {
 
   // 未請求の案件を取得（デフォルトは完了案件のみ、includeAll=trueで全ステータス）
   getUnbilledCases(clientId, includeAll = false) {
+    if (typeof InvoiceSync !== 'undefined' && typeof InvoiceSync.reconcileCases === 'function') {
+      try { InvoiceSync.reconcileCases(); } catch(e) {}
+    }
+    const client = Store.getClient(clientId);
     const cases = Store.getCasesByClient(clientId);
     return cases.filter(c => {
       if (!includeAll && c.status !== 'done') return false;
-      if (c.invoiceNo) return false;
-      const hasAdvances = Array.isArray(c.advances) && c.advances.length > 0;
-      if (!c.fee && !hasAdvances) return false;
+      if (c.invoiceNo && c.invoiceLocked) return false;
+      const effectiveFee = this._getCaseFee(c, client);
+      const hasAdvances = Array.isArray(c.advances) && c.advances.some(a => Number(a.amount || 0) > 0);
+      if (!effectiveFee && !hasAdvances) return false;
       return true;
     });
   },
@@ -1263,12 +1268,35 @@ const Invoice = {
     try {
       await InvoiceSync.cancel(invoiceNo, reason);
     } catch (err) {
-      if (cancelBtn) {
-        cancelBtn.disabled = false;
-        cancelBtn.textContent = origText;
+      const errMsg = (err && (err.message || err.error || '')) + '';
+      if (!errMsg.includes('取消済み') && !errMsg.includes('ALREADY_CANCELED')) {
+        if (cancelBtn) {
+          cancelBtn.disabled = false;
+          cancelBtn.textContent = origText;
+        }
+        alert('請求書を取り消せませんでした。\n\n' + InvoiceSync.describeError(err));
+        return;
       }
-      alert('請求書を取り消せませんでした。\n\n' + InvoiceSync.describeError(err));
-      return;
+    }
+
+    // 万が一 InvoiceSync 側で取りこぼしがあっても、Store 内の案件ロックを確実に解除
+    if (typeof Store !== 'undefined' && Store.getCases) {
+      const allCases = Store.getCases();
+      let changed = false;
+      allCases.forEach(c => {
+        if (c.invoiceNo === invoiceNo) {
+          c.invoiceNo = '';
+          c.invoiceLocked = false;
+          c.invoiceLockedAt = '';
+          c.invoiceLockedFee = '';
+          c.invoiceLockedAdvances = [];
+          changed = true;
+          try { Store.updateCase(c.id, { invoiceNo: null, invoiceLocked: false }); } catch(e) {}
+        }
+      });
+      if (changed) {
+        Store._set(Store.KEYS.CASES, allCases);
+      }
     }
 
     const modal = document.getElementById('invoiceSelectModal');
