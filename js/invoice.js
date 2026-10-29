@@ -433,6 +433,72 @@ const Invoice = {
     return '';
   },
 
+  // 登録「その他」選択時の備考・メモ文言抽出
+  _getCustomOtherNote(c) {
+    if (!c) return '';
+    const memo = this._cleanCaseMemoForInvoice(c.memo || c.remarks || c.note || '');
+    if (!memo) return '';
+
+    // 1. カッコで囲まれた注記があれば最優先で採用（例:（指定書取付））
+    const bracketMatch = memo.match(/[（(]([^）)]+)[）)]/);
+    if (bracketMatch && bracketMatch[1]) {
+      const bContent = bracketMatch[1].trim();
+      const isDate = /\d{1,4}[-/年]\d{1,2}/.test(bContent) || /\d{1,2}\/\d{1,2}/.test(bContent);
+      if (bContent && !isDate && bContent !== '無題' && bContent.length <= 25) {
+        return bContent;
+      }
+    }
+
+    // 2. メモの各行から適切な文言を取得
+    const memoLines = memo.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    for (const line of memoLines) {
+      let clean = line.replace(/^[・\-\*]\s*/, '').replace(/^[（(]|[）)]$/g, '').trim();
+      clean = clean.replace(/^(?:備考|特記事項|メモ|内容)[:：\s]*/, '').trim();
+      const isDate = /\d{1,4}[-/年]\d{1,2}/.test(clean) || /\d{1,2}\/\d{1,2}/.test(clean);
+      if (clean && !clean.startsWith('【') && !clean.includes('http') && !isDate && clean.length <= 25) {
+        return clean;
+      }
+    }
+    return '';
+  },
+
+  // 業務区分と特記事項（メモ）の合成
+  // ★自動車登録等で「その他」が選択され、備考欄にメモがある場合、備考欄の内容のみを反映（「その他」は表記しない）
+  _combineCategoryAndSpecialNote(categoryShort, specialNote, c) {
+    if (!categoryShort && !specialNote) return '';
+
+    const isOther = (c && c.subCategory === 'その他') || 
+                    (c && c.category === 'other') ||
+                    categoryShort === 'その他' || 
+                    categoryShort.endsWith('・その他') || 
+                    categoryShort.endsWith('その他');
+
+    if (isOther) {
+      const customNote = this._getCustomOtherNote(c) || (specialNote ? specialNote.replace(/[（()）)]/g, '').trim() : '');
+      if (customNote) {
+        if (categoryShort === 'その他') {
+          return customNote;
+        } else if (categoryShort.includes('・その他')) {
+          return categoryShort.replace(/・その他$/, `・${customNote}`);
+        } else if (categoryShort.endsWith('その他')) {
+          return categoryShort.replace(/その他$/, customNote);
+        } else {
+          return customNote;
+        }
+      }
+    }
+
+    if (!specialNote) return categoryShort || '';
+    if (!categoryShort) return specialNote;
+
+    const cleanSp = specialNote.replace(/[（()）)]/g, '');
+    if (categoryShort.includes(specialNote) || (cleanSp && categoryShort.includes(cleanSp))) {
+      return categoryShort;
+    }
+
+    return categoryShort ? `${categoryShort}${specialNote}` : specialNote;
+  },
+
   // 三菱（ふそう）案件判定ヘルパー
   _isFusoClient(client = {}, note = '', cases = []) {
     const clientFullName = [
@@ -655,8 +721,12 @@ const Invoice = {
         else if (c.category === 'garage_paper') catName = '車庫一般';
         else if (c.category === 'seal') catName = '封印';
         else if (c.category === 'car_reg_standard') catName = '普通車登録';
-        else if (c.category === 'car_reg_light') catName = '軽登録';
-        const subCat = c.subCategory ? ` (${c.subCategory})` : '';
+        let subCatName = c.subCategory || '';
+        if (subCatName === 'その他') {
+          const custom = this._getCustomOtherNote(c);
+          if (custom) subCatName = custom;
+        }
+        const subCat = subCatName ? ` (${subCatName})` : '';
 
         return `
           <div class="invoice-case-row ${inPeriod ? 'selected' : ''}" id="caseRow_${c.id}" onclick="Invoice.toggleCaseRow('${c.id}', '${clientId}', event)" data-is-used="${isUsed ? '1' : '0'}" data-case-date="${cDate}">
@@ -1914,9 +1984,7 @@ const Invoice = {
         }
 
         const specialNote = this._getCaseSpecialNote(c);
-        if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
-          categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
-        }
+        categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
         const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
@@ -2566,9 +2634,7 @@ ${detailPagesHTML}
             categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
           }
           const specialNote = this._getCaseSpecialNote(c);
-          if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
-            categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
-          }
+          categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
           if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
           const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
@@ -3191,9 +3257,7 @@ ${detailPagesHTML}
         }
 
         const specialNote = this._getCaseSpecialNote(c);
-        if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
-          categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
-        }
+        categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
         const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
@@ -3816,9 +3880,7 @@ ${detailPagesHTML}
             categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
           }
           const specialNote = this._getCaseSpecialNote(c);
-          if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
-            categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
-          }
+          categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
           if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
           const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
@@ -4445,9 +4507,7 @@ ${detailPagesHTML}
           categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         }
         const specialNote = this._getCaseSpecialNote(c);
-        if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
-          categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
-        }
+        categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
         const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, true, false);
@@ -5716,7 +5776,7 @@ window.NissanPrint = {
         <td>${i + 1}</td>
         <td><strong>${c.title}</strong>${c.isUsedCar ? ' <span style="font-size:11px; background:#fef3c7; color:#b45309; padding:1px 5px; border-radius:3px; font-weight:bold;">(中古)</span>' : ''}</td>
         <td>${CATS[c.category] || c.category || '業務'}</td>
-        <td class="num">¥${Number(c.fee||0).toLocaleString()}</td>
+        <td class="num">¥${this._getCaseFee(c, client).toLocaleString()}</td>
       </tr>
       `).join('')}
     </tbody>
@@ -6257,9 +6317,7 @@ window.NissanPrint = {
         if (isLight && categoryShort && !categoryShort.includes('軽')) categoryShort = `軽・${categoryShort}`;
         if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
         const specialNote = this._getCaseSpecialNote(c);
-        if (specialNote && !categoryShort.includes(specialNote) && !categoryShort.includes(specialNote.replace(/[（()）)]/g, ''))) {
-          categoryShort = categoryShort ? (categoryShort + specialNote) : specialNote;
-        }
+        categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
         const fee = this._getCaseFee(c, client);
