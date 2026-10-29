@@ -686,7 +686,7 @@ const CaseTemplates = {
           // トヨタ以外のディーラー（日産・三菱など）や手動設定された単価は一切上書きせず完全保護
           const isToyota = (typeof Store.isToyotaCase === 'function') ? Store.isToyotaCase(c) : (title + memo).includes('トヨタ');
           if (isToyota) {
-            if (c.invoiceLocked) return;
+            if (c.invoiceLocked && Number(c.fee) > 0) return;
             const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
             // トヨタOSSで未設定（0円）の場合のみ標準単価3,500円を補完（手動変更済みの単価は保護）
             if (currentFee === 0) {
@@ -705,7 +705,7 @@ const CaseTemplates = {
         if (isSeal) {
           const isToyota = (typeof Store.isToyotaCase === 'function') ? Store.isToyotaCase(c) : (title + memo).includes('トヨタ');
           if (isToyota) {
-            if (c.invoiceLocked && c.invoiceNo) return;
+            if (c.invoiceLocked && c.invoiceNo && Number(c.fee) > 0) return;
             const currentFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
             if (currentFee === 0) {
               Store.updateCase(c.id, { fee: 5000 });
