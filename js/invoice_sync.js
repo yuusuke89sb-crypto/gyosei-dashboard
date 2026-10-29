@@ -154,7 +154,15 @@ const InvoiceSync = {
   },
   activeItemByCase() {
     const m = {};
-    this.getState().items.forEach(it => { if (it && it.status === '有効') m[it.caseId] = it; });
+    const s = this.getState();
+    const canceledInvoices = new Set(
+      (s.invoices || []).filter(v => v && (v.status === '取消' || v.status === 'キャンセル')).map(v => v.invoiceNo)
+    );
+    (s.items || []).forEach(it => { 
+      if (it && it.status === '有効' && !canceledInvoices.has(it.invoiceNo)) {
+        m[it.caseId] = it; 
+      }
+    });
     return m;
   },
 
@@ -212,7 +220,9 @@ const InvoiceSync = {
       if (!c) return;
       const it = active[c.id];
       let want;
-      if (it) {
+      const inv = invMap[it ? it.invoiceNo : c.invoiceNo];
+      const isCanceled = inv && (inv.status === '取消' || inv.status === 'キャンセル');
+      if (it && !isCanceled) {
         let adv = it.lockedAdvancesJson;
         if (typeof adv === 'string') { try { adv = JSON.parse(adv || '[]'); } catch (e) { adv = []; } }
         want = {
@@ -220,7 +230,7 @@ const InvoiceSync = {
           invoiceLockedAt: (invMap[it.invoiceNo] && invMap[it.invoiceNo].issuedAt) || '',
           invoiceLockedFee: Number(it.lockedFee || 0), invoiceLockedAdvances: Array.isArray(adv) ? adv : [],
         };
-      } else if (c.invoiceNo || c.invoiceLocked) {
+      } else if (c.invoiceNo || c.invoiceLocked || isCanceled) {
         want = { invoiceNo: '', invoiceLocked: false, invoiceLockedAt: '', invoiceLockedFee: '', invoiceLockedAdvances: [] };
       } else {
         return;
@@ -416,8 +426,18 @@ const InvoiceSync = {
 
   async cancel(invoiceNo, reason) {
     const device = this.ensureDeviceName() || '未設定';
-    const res = await this.call('cancelInvoice', { invoiceNo, canceledBy: this.operatorName(), canceledDevice: device, reason: reason || '' });
-    // ローカル状態に即時反映（重い refresh() による画面ブロッキングを回避）
+    let res = null;
+    try {
+      res = await this.call('cancelInvoice', { invoiceNo, canceledBy: this.operatorName(), canceledDevice: device, reason: reason || '' });
+    } catch (err) {
+      const errMsg = (err && (err.message || err.error || '')) + '';
+      // スプレッドシート側で既に取消済みの場合はエラーとせず、端末側の未請求戻し処理を正常に進める
+      if (!errMsg.includes('取消済み') && !errMsg.includes('ALREADY_CANCELED')) {
+        throw err;
+      }
+      console.log('[InvoiceSync.cancel] サーバー側はすでに取消済みのため、端末側の未請求戻し処理を続行します:', invoiceNo);
+    }
+    // ローカル状態に即時反映
     const s = this.getState();
     const inv = (s.invoices || []).find(v => v.invoiceNo === invoiceNo);
     if (inv) {
@@ -433,12 +453,37 @@ const InvoiceSync = {
     (s.payments || []).forEach(p => {
       if (p.invoiceNo === invoiceNo) p.status = '取消';
     });
+    // 未送信キューにあれば削除
+    const queue = this.getQueue().filter(q => q.invoiceNo !== invoiceNo);
+    this.saveQueue(queue);
+
     this.saveState(s);
     this.reconcileCases();
     this.rebuildPayments();
-    // バックグラウンドで静かに再同期（画面を待たせない）
+
+    // Store の案件データからも確実に invoiceNo / invoiceLocked を直接クリア
+    if (typeof Store !== 'undefined' && Store.getCases) {
+      const allCases = Store.getCases();
+      let changed = false;
+      allCases.forEach(c => {
+        if (c.invoiceNo === invoiceNo) {
+          c.invoiceNo = '';
+          c.invoiceLocked = false;
+          c.invoiceLockedAt = '';
+          c.invoiceLockedFee = '';
+          c.invoiceLockedAdvances = [];
+          changed = true;
+          try { Store.updateCase(c.id, { invoiceNo: null, invoiceLocked: false }); } catch(e) {}
+        }
+      });
+      if (changed) {
+        Store._set(Store.KEYS.CASES, allCases);
+      }
+    }
+
+    // バックグラウンドで静かに再同期
     this.refresh().catch(() => {});
-    return res;
+    return res || { success: true, invoiceNo };
   },
 
   async cancelCase(invoiceNo, caseId, reason) {
