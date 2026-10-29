@@ -6,7 +6,6 @@ const Cases = {
   filterStatus: sessionStorage.getItem('gyosei_cases_status') || 'all',
   filterMapStatus: sessionStorage.getItem('gyosei_cases_map') || 'all', // 'all' | 'uncreated' (車庫証明の図面未作成)
   searchQuery: sessionStorage.getItem('gyosei_cases_search') || '',        // 検索クエリ (申請者名・車台番号・ナンバー・注文書No等)
-  filterBillingMonth: sessionStorage.getItem('gyosei_cases_bm') || 'all', // 'all' | 'YYYY-MM'（請求月。2026-10-28 追加）
   editingId: null,
   returnPage: null,
   returnTab: null,
@@ -149,16 +148,8 @@ const Cases = {
       filtered = filtered.filter(c => c.status === 'done');
     }
 
-    // 請求月で絞り込み（請求済み＝請求書の対象月、未請求＝基準日と取引先の締め日）
-    const monthMode = this.filterBillingMonth && this.filterBillingMonth !== 'all';
-    if (monthMode) {
-      const ctx = Store.buildBillingContext();
-      const ym = this.filterBillingMonth;
-      filtered = filtered.filter(c => Store.getCaseBillingMonth(c, ctx) === ym);
-    }
-
-    // 検索語句がない場合のみ、直近7日以前の完了案件を自動非表示（検索時・請求月指定時は過去の案件もすべて表示）
-    if (this.filterStatus === 'all' && !this.searchQuery && !monthMode) {
+    // 検索語句がない場合のみ、直近7日以前の完了案件を自動非表示（検索時は過去の案件もすべてヒットさせる）
+    if (this.filterStatus === 'all' && !this.searchQuery) {
       const now = Date.now();
       const HIDE_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7日
       filtered = filtered.filter(c => {
@@ -178,16 +169,11 @@ const Cases = {
       const rawWords = this.searchQuery.trim().split(/\s+/).filter(Boolean);
       const normalizedWords = rawWords.map(w => this.normalizeText(w));
 
-      // 取引先・担当者は最初に1回だけ読み込む（案件ごとに読み直すと件数が増えたとき重くなる）
-      const clientMap = new Map(Store.getClients().map(cl => [String(cl.id), cl]));
-      const staffNameCache = {};
-
       filtered = filtered.filter(c => {
-        const client = c.clientId != null ? clientMap.get(String(c.clientId)) : null;
+        const client = Store.getClient(c.clientId);
         const clientName = client ? (client.name || '') : '';
         const clientCompany = client ? (client.companyName || '') : '';
-        if (c.staffId && staffNameCache[c.staffId] === undefined) staffNameCache[c.staffId] = Store.getStaffName(c.staffId) || '';
-        const staffName = c.staffId ? staffNameCache[c.staffId] : '';
+        const staffName = c.staffId ? Store.getStaffName(c.staffId) : '';
         const memoStr = typeof c.memo === 'string' ? c.memo : '';
 
         // 案件の全テキストを結合（生テキスト ＆ 正規化テキスト）
@@ -279,13 +265,6 @@ const Cases = {
               ${this.STATUSES.map(s => `<option value="${s.key}" ${this.filterStatus === s.key ? 'selected' : ''}>${s.icon} ${s.label}</option>`).join('')}
             </select>
           </div>
-          <div class="filter-group">
-            <label>請求月:</label>
-            <select id="filterBillingMonth" onchange="Cases.onFilterChange()" class="filter-select" title="請求済み＝請求書の対象月、未請求＝完了日等と取引先の締め日（トヨタ・三菱25日／他は月末）で判定">
-              <option value="all" ${this.filterBillingMonth === 'all' ? 'selected' : ''}>すべて</option>
-              ${(() => { const ms = Store.listBillingMonths(); if (this.filterBillingMonth !== 'all' && !ms.includes(this.filterBillingMonth)) ms.push(this.filterBillingMonth); return ms.map(ym => `<option value="${ym}" ${this.filterBillingMonth === ym ? 'selected' : ''}>${Store.billingMonthLabel(ym)}</option>`).join(''); })()}
-            </select>
-          </div>
           <div class="filter-group" style="margin-left:auto;">
             <button type="button" class="btn btn-small" onclick="Cases.toggleMapFilter()"
               title="車庫証明の所在図・配置図が未作成の案件のみを絞り込み表示"
@@ -312,7 +291,7 @@ const Cases = {
         ${this.STATUSES.map(status => {
           let statusCases = cases.filter(c => c.status === status.key);
           let extraFooterHtml = '';
-          if (status.key === 'done' && this.filterStatus === 'all' && !this.searchQuery && this.filterBillingMonth === 'all' && statusCases.length > 5) {
+          if (status.key === 'done' && this.filterStatus === 'all' && !this.searchQuery && statusCases.length > 5) {
             const totalDoneCount = statusCases.length;
             statusCases = [...statusCases].sort((a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)).slice(0, 5);
             extraFooterHtml = `
@@ -865,19 +844,6 @@ const Cases = {
                   <div class="form-group">
                     <label>完了日 <span style="font-size:0.72rem;color:var(--accent-blue, #3b82f6);font-weight:bold;">(請求書明細の日付)</span></label>
                     <input type="date" name="completedAt" id="csf_completedAt" title="請求書の別紙明細に印字される完了日です。未入力時は完了にした日付が自動採用されます">
-                  </div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>請求方法</label>
-                    <select name="billingMode" id="csf_billingMode" onchange="const d=document.getElementById('csf_individualBilledAt'); if(this.value==='individual' && d && !d.value){ d.value=Store.getLocalDateStr(); }">
-                      <option value="">締めでまとめて請求</option>
-                      <option value="individual">都度請求（個別に請求済み）</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label>都度請求日 <span style="font-size:0.72rem;color:var(--text-muted);">(都度請求のとき)</span></label>
-                    <input type="date" name="individualBilledAt" id="csf_individualBilledAt" title="Excel等で都度請求した日。締め請求書の対象から外れ、消込の自動当てはめで使います">
                   </div>
                 </div>
 
@@ -2078,12 +2044,9 @@ const Cases = {
   onFilterChange() {
     this.filterCategory = document.getElementById('filterCategory').value;
     this.filterStatus = document.getElementById('filterStatus').value;
-    const bmEl = document.getElementById('filterBillingMonth');
-    if (bmEl) this.filterBillingMonth = bmEl.value || 'all';
     try {
       sessionStorage.setItem('gyosei_cases_cat', this.filterCategory);
       sessionStorage.setItem('gyosei_cases_status', this.filterStatus);
-      sessionStorage.setItem('gyosei_cases_bm', this.filterBillingMonth);
     } catch(e) {}
     App.refreshView();
   },
@@ -2156,10 +2119,6 @@ const Cases = {
     // 注文書№ 初期値（依頼書・注文書実物を見て手入力するため、自動PO連番は廃止し空欄をデフォルト化）
     const compEl = document.getElementById('csf_completedAt');
     if (compEl) compEl.value = '';
-    const bmEl = document.getElementById('csf_billingMode');
-    if (bmEl) bmEl.value = (prefills && prefills.billingMode) || '';
-    const ibEl = document.getElementById('csf_individualBilledAt');
-    if (ibEl) ibEl.value = (prefills && prefills.individualBilledAt) || '';
     const orderNoEl = document.getElementById('csf_orderNo');
     if (orderNoEl) {
       const rawOrderNo = (prefills && prefills.orderNo) ? String(prefills.orderNo).trim() : '';
@@ -2426,6 +2385,10 @@ const Cases = {
         if (!curFee || Number(curFee) === 0) {
           curFee = 3500;
         }
+      } else if (c.category === 'seal' || (c.subCategory && c.subCategory.includes('封印')) || (c.title && c.title.includes('封印'))) {
+        if (!curFee || Number(curFee) === 0) {
+          curFee = 5000;
+        }
       }
       document.getElementById('csf_fee').value = curFee || '';
       Cases.updateFeeHint(resolvedPolId);
@@ -2474,10 +2437,6 @@ const Cases = {
       if (storeDeliveryTimeEl) storeDeliveryTimeEl.value = c.storeDeliveryTime || '';
       const completedAtEl = document.getElementById('csf_completedAt');
       if (completedAtEl) completedAtEl.value = c.completedAt ? c.completedAt.slice(0, 10) : '';
-      const billingModeEl = document.getElementById('csf_billingMode');
-      if (billingModeEl) billingModeEl.value = c.billingMode === 'individual' ? 'individual' : '';
-      const indBilledEl = document.getElementById('csf_individualBilledAt');
-      if (indBilledEl) indBilledEl.value = c.individualBilledAt ? String(c.individualBilledAt).slice(0, 10) : '';
 
       // マイルストーン表示制御
       Cases.renderMilestoneStepper(id);
@@ -2627,8 +2586,6 @@ const Cases = {
       vin: form.vin ? form.vin.value.trim() : '',
       carPolice: form.carPolice ? ((typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(form.carPolice.value) : form.carPolice.value.trim()) : '',
       isUsedCar: !!(form.isUsedCar && form.isUsedCar.checked),
-      billingMode: (form.billingMode && form.billingMode.value === 'individual') ? 'individual' : '',
-      individualBilledAt: (form.billingMode && form.billingMode.value === 'individual' && form.individualBilledAt) ? (form.individualBilledAt.value || Store.getLocalDateStr()) : '',
       faxId: document.getElementById('csf_faxId') ? document.getElementById('csf_faxId').value : '',
       inboxId: document.getElementById('csf_inboxId') ? document.getElementById('csf_inboxId').value : '',
       memo: (form.memo && form.memo.value) ? form.memo.value.trim() : '',
@@ -3708,6 +3665,13 @@ const Cases = {
       const feeEl = document.getElementById('csf_fee');
       if (feeEl && (!this.editingId || !feeEl.value || Number(feeEl.value) === 0)) {
         feeEl.value = 3500;
+      }
+      this.updateFeeHint();
+    } else if (category === 'seal') {
+      // 封印 新規時または未設定時のみ初期値5,000円をセット（手動設定単価は保護）
+      const feeEl = document.getElementById('csf_fee');
+      if (feeEl && (!this.editingId || !feeEl.value || Number(feeEl.value) === 0)) {
+        feeEl.value = 5000;
       }
       this.updateFeeHint();
     } else if (category === 'car_reg_light') {
