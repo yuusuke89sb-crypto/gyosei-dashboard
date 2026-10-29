@@ -513,25 +513,44 @@ const Invoice = {
       (cases || []).some(c => /三菱|ふそう|FUSO/i.test(c.dealer || c.clientName || c.title || ''));
   },
 
-  // 案件の請求用報酬額取得ヘルパー（愛知トヨタ等の封印案件で未入力0円の場合は標準単価5,000円を自動補完）
+  // 案件の請求用報酬額取得ヘルパー（愛知トヨタ等の封印・車庫OSS等で未入力0円の場合は標準単価を自動補完し案件データに永続化）
   _getCaseFee(c, client = null) {
     if (!c) return 0;
     const rawFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
     if (rawFee > 0) return rawFee;
     
-    // 封印案件の判定
+    // 0円・未設定の案件に対する標準単価自動補完＆案件データ（Store）への自動保存
+    let defaultFee = 0;
     const isSeal = c.category === 'seal' || 
                    (c.title || '').includes('封印') || 
                    (c.subCategory || '').includes('封印') ||
                    (c.memo || '').includes('封印');
     if (isSeal) {
+      defaultFee = 5000;
+    } else if (c.category === 'garage_oss' || (c.title || '').includes('OSS') || (c.subCategory || '').includes('OSS')) {
+      defaultFee = 3500;
+    } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+      if (c.policeLocationId && typeof Store !== 'undefined' && Store.getLocation) {
+        const loc = Store.getLocation(c.policeLocationId);
+        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+          defaultFee = Number(loc.syakoFee);
+        }
+      }
+      if (!defaultFee) defaultFee = 3500;
+    } else if (c.category === 'car_reg_light' || (c.subCategory || '').includes('軽')) {
+      defaultFee = 3000;
+    } else if (c.category === 'car_reg_standard') {
+      defaultFee = 5500;
+    }
+
+    if (defaultFee > 0) {
       if (c.id && (!c.fee || Number(c.fee) === 0) && typeof Store !== 'undefined' && typeof Store.updateCase === 'function') {
         try {
-          c.fee = 5000;
-          Store.updateCase(c.id, { fee: 5000 });
+          c.fee = defaultFee;
+          Store.updateCase(c.id, { fee: defaultFee });
         } catch(e) {}
       }
-      return 5000;
+      return defaultFee;
     }
     return 0;
   },
