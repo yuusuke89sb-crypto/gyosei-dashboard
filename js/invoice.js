@@ -447,6 +447,23 @@ const Invoice = {
       (cases || []).some(c => /三菱|ふそう|FUSO/i.test(c.dealer || c.clientName || c.title || ''));
   },
 
+  // 案件の請求用報酬額取得ヘルパー（愛知トヨタ等の封印案件で未入力0円の場合は標準単価5,000円を自動補完）
+  _getCaseFee(c, client = null) {
+    if (!c) return 0;
+    const rawFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
+    if (rawFee > 0) return rawFee;
+    
+    // 封印案件の判定
+    const isSeal = c.category === 'seal' || 
+                   (c.title || '').includes('封印') || 
+                   (c.subCategory || '').includes('封印') ||
+                   (c.memo || '').includes('封印');
+    if (isSeal) {
+      return 5000;
+    }
+    return 0;
+  },
+
   // 請求書明細の備考表示決定ヘルパー（トヨタは「一般」、三菱は車庫証明（一般）を「-」にして個別メモを優先）
   _getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, isGothic = false) {
     if (!isFusoClient) {
@@ -562,61 +579,9 @@ const Invoice = {
   },
 
   // 再印刷用に特定の請求書番号に紐づく案件を取得
-  // 2026-10-29: 請求明細（共有シート）を正とし、得意先IDが変わった案件や
-  // 案件側の invoiceNo がずれている案件も拾う。金額は発行時のロック値で復元する
-  // （発行後に消込済みになっても、再印刷では当時の請求内容をそのまま出す）
   getBilledCases(clientId, invoiceNo) {
-    const allCases = Store.getCases();
-    const byId = {};
-    allCases.forEach(c => { if (c && c.id != null) byId[String(c.id)] = c; });
-
-    const items = (typeof InvoiceSync !== 'undefined' && InvoiceSync.getState)
-      ? InvoiceSync.getState().items.filter(it => it.invoiceNo === invoiceNo && it.status === '有効')
-      : [];
-
-    const result = [];
-    const seen = new Set();
-    items.forEach(it => {
-      const c = byId[String(it.caseId)];
-      if (!c || seen.has(String(c.id))) return;
-      seen.add(String(c.id));
-      const copy = Object.assign({}, c);
-      const lockedFee = Number(it.lockedFee || 0);
-      let lockedAdv = it.lockedAdvancesJson;
-      if (typeof lockedAdv === 'string') { try { lockedAdv = JSON.parse(lockedAdv || '[]'); } catch (e) { lockedAdv = []; } }
-      if (!Array.isArray(lockedAdv)) lockedAdv = [];
-      // 報酬：ロック値>0ならそれを採用。0なら「発行時点で消込済みだった」扱い
-      if (lockedFee > 0) { copy.fee = lockedFee; copy.isPaid = false; }
-      else { copy.isPaid = Number(c.fee || 0) > 0; }
-      // 立替金：ロック値があればそれを採用。空なら発行時点で立替消込済み扱い
-      if (lockedAdv.length > 0) { copy.advances = lockedAdv; copy.isAdvancePaid = false; }
-      else { copy.isAdvancePaid = Array.isArray(c.advances) && c.advances.length > 0; }
-      result.push(copy);
-    });
-
-    // 明細データが無い古い請求書などは従来どおり案件側の請求書番号で拾う
-    allCases.forEach(c => {
-      if (!c || c.invoiceNo !== invoiceNo || seen.has(String(c.id))) return;
-      if (items.length > 0 && String(c.clientId) !== String(clientId)) return;
-      seen.add(String(c.id));
-      result.push(c);
-    });
-    return result;
-  },
-
-  // 再印刷の合計が発行時の請求額と一致するか確認（不一致なら警告文を返す）
-  _checkReprintTotal(invoiceNo, total) {
-    if (typeof InvoiceSync === 'undefined' || !InvoiceSync.getInvoice) return '';
-    const inv = InvoiceSync.getInvoice(invoiceNo);
-    if (!inv || inv.grandTotal === '' || inv.grandTotal == null) return '';
-    const expected = Number(inv.grandTotal || 0);
-    if (!expected || expected === total) return '';
-    const ids = new Set(Store.getCases().filter(Boolean).map(c => String(c.id)));
-    const missing = InvoiceSync.getState().items
-      .filter(it => it.invoiceNo === invoiceNo && it.status === '有効' && !ids.has(String(it.caseId)))
-      .length;
-    return `⚠️ 再印刷の合計 ¥${total.toLocaleString()} が発行時の請求額 ¥${expected.toLocaleString()} と一致しません` +
-      (missing ? `（この端末に無い案件 ${missing}件）` : '') + '。「🔄 同期」後に再度お試しください。';
+    const cases = Store.getCasesByClient(clientId);
+    return cases.filter(c => c.invoiceNo === invoiceNo);
   },
 
   // 発行・取消・再印刷の後、顧客一覧に戻らず同じ得意先の画面を開き直す
@@ -635,41 +600,18 @@ const Invoice = {
     }, 0);
   },
 
-  // 2026-10-28: 発行画面を開いている取引先の締め日（25日／月末）で期間を決める
-  _periodClient: null,
-
   getBillingPeriod(year, month) {
-    return Store.getBillingPeriod(year, month, this._periodClient || undefined);
+    return Store.getBillingPeriod(year, month);
   },
 
   getCurrentBillingPeriod(refDate) {
-    return Store.getCurrentBillingPeriod(refDate, this._periodClient || undefined);
-  },
-
-  _periodOptionsHtml(currentPeriod) {
-    const now = new Date();
-    const months = [];
-    let y = 2026, m = 9;
-    let endY = now.getFullYear();
-    let endM = now.getMonth() + 2;
-    if (endM > 12) { endM -= 12; endY++; }
-    while (y < endY || (y === endY && m <= endM)) {
-      months.push([y, m]);
-      m++; if (m === 13) { m = 1; y++; }
-      if (months.length > 36) break;
-    }
-    return months.map(([yy, mm]) => {
-      const p = this.getBillingPeriod(yy, mm);
-      const sel = currentPeriod && currentPeriod.year === yy && currentPeriod.month === mm ? 'selected' : '';
-      return `<option value="${yy}-${String(mm).padStart(2, '0')}" ${sel}>${p.label}</option>`;
-    }).join('') + '<option value="all">全未請求案件（期間指定なし）</option>';
+    return Store.getCurrentBillingPeriod(refDate);
   },
 
   // 請求書・見積書選択モーダルを表示
   showSelectModal(clientId, docType = 'invoice', includeAll = false) {
     const client = Store.getClient(clientId);
     if (!client) return;
-    this._periodClient = client;
     if (docType === 'invoice' && typeof InvoiceSync !== 'undefined') InvoiceSync.ensureDeviceName();
 
     const now = new Date();
@@ -690,7 +632,7 @@ const Invoice = {
     } else {
       unbilledHtml = unbilledCases.map(c => {
         const isUsed = !!c.isUsedCar;
-        const effectiveFee = c.isPaid ? 0 : Number(c.fee||0);
+        const effectiveFee = c.isPaid ? 0 : this._getCaseFee(c, client);
         const effectiveAdv = c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0);
         let partialBadge = '';
         if (c.status !== 'done') {
@@ -699,11 +641,10 @@ const Invoice = {
         if (c.isAdvancePaid && !c.isPaid) partialBadge += '<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;">立替済</span>';
         if (c.isPaid && !c.isAdvancePaid) partialBadge += '<span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;">報酬済</span>';
 
-        const cDate = Store.getCaseBaseDate(c);
-        const isIndividual = c.billingMode === 'individual';
-        const inPeriod = !isIndividual && (currentPeriod ? (cDate >= currentPeriod.startDate && cDate <= currentPeriod.endDate) : true);
-        if (isIndividual) partialBadge += `<span style="background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.35);padding:1px 5px;border-radius:3px;font-size:0.7rem;font-weight:600;white-space:nowrap;" title="都度請求済みのため締め請求からは外しています（必要なら手でチェック）">📄 都度請求済${c.individualBilledAt ? ' ' + String(c.individualBilledAt).slice(5, 10) : ''}</span>`;
-        const dateBadge = cDate ? `<span style="background:${inPeriod ? 'rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);' : 'rgba(100,116,139,0.1);color:var(--text-muted);border:1px solid var(--border-color);'}padding:1px 5px;border-radius:3px;font-size:0.7rem;white-space:nowrap;">${inPeriod || isIndividual ? '📅 ' + cDate.slice(5) : '⚠️ 期間外 ' + cDate.slice(5)}</span>` : '';
+        const rawDate = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || (c.createdAt ? c.createdAt.slice(0, 10) : '') || '';
+        const cDate = rawDate.slice(0, 10);
+        const inPeriod = currentPeriod ? (cDate >= currentPeriod.startDate && cDate <= currentPeriod.endDate) : true;
+        const dateBadge = cDate ? `<span style="background:${inPeriod ? 'rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);' : 'rgba(100,116,139,0.1);color:var(--text-muted);border:1px solid var(--border-color);'}padding:1px 5px;border-radius:3px;font-size:0.7rem;white-space:nowrap;">${inPeriod ? '📅 ' + cDate.slice(5) : '⚠️ 期間外 ' + cDate.slice(5)}</span>` : '';
 
         const carTypeBadge = isUsed
           ? `<span style="font-size:0.72rem;background:#fef3c7;color:#b45309;border:1px solid #fde68a;padding:1px 6px;border-radius:4px;font-weight:bold;white-space:nowrap;">🚙 中古</span>`
@@ -720,7 +661,7 @@ const Invoice = {
         return `
           <div class="invoice-case-row ${inPeriod ? 'selected' : ''}" id="caseRow_${c.id}" onclick="Invoice.toggleCaseRow('${c.id}', '${clientId}', event)" data-is-used="${isUsed ? '1' : '0'}" data-case-date="${cDate}">
             <div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">
-              <input type="checkbox" name="targetCases" value="${c.id}" id="cb_${c.id}" data-case-date="${cDate}" data-is-used="${isUsed ? '1' : '0'}" data-individual="${isIndividual ? '1' : '0'}" ${inPeriod ? 'checked' : ''} class="case-checkbox" onclick="event.stopPropagation()" onchange="Invoice.onCheckboxChange('${clientId}', '${c.id}')">
+              <input type="checkbox" name="targetCases" value="${c.id}" id="cb_${c.id}" data-case-date="${cDate}" data-is-used="${isUsed ? '1' : '0'}" ${inPeriod ? 'checked' : ''} class="case-checkbox" onclick="event.stopPropagation()" onchange="Invoice.onCheckboxChange('${clientId}', '${c.id}')">
               
               <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                 ${carTypeBadge}
@@ -790,9 +731,13 @@ const Invoice = {
           <div id="areaNew">
             <div class="form-row" style="margin-bottom:12px; gap:12px;">
               <div class="form-group" style="flex:1;">
-                <label>🗓️ 請求対象月（${Store.getClientClosing(client) === 'end' ? '月末締め・翌月末払' : '25日締め・翌月25日払'}）</label>
+                <label>🗓️ 請求対象月（25日締め・翌月25日払）</label>
                 <select id="invoiceBillingPeriod" class="form-select" style="font-weight:600;" onchange="Invoice.onPeriodChange('${clientId}', '${docType}', this.value)">
-                  ${this._periodOptionsHtml(currentPeriod)}
+                  <option value="2026-09" ${currentPeriod.year === 2026 && currentPeriod.month === 9 ? 'selected' : ''}>令和8年 9月分 (2026/08/26 〜 09/25 締 / 10/25 払)</option>
+                  <option value="2026-10" ${currentPeriod.year === 2026 && currentPeriod.month === 10 ? 'selected' : ''}>令和8年 10月分 (2026/09/26 〜 10/25 締 / 11/25 払)</option>
+                  <option value="2026-11" ${currentPeriod.year === 2026 && currentPeriod.month === 11 ? 'selected' : ''}>令和8年 11月分 (2026/10/26 〜 11/25 締 / 12/25 払)</option>
+                  <option value="2026-12" ${currentPeriod.year === 2026 && currentPeriod.month === 12 ? 'selected' : ''}>令和8年 12月分 (2026/11/26 〜 12/25 締 / 2027/01/25 払)</option>
+                  <option value="all">全未請求案件（期間指定なし）</option>
                 </select>
               </div>
               <div class="form-group" style="flex:1;">
@@ -854,7 +799,7 @@ const Invoice = {
                 <input type="date" id="invoiceDate" value="${defaultIssueDate}">
               </div>
               <div class="form-group" style="${docType === 'estimate' ? 'display:none' : ''}">
-                <label>支払期限（${Store.getClientClosing(client) === 'end' ? '翌月末' : '翌月25日'}）</label>
+                <label>支払期限（翌月25日）</label>
                 <input type="date" id="invoiceDueDate" value="${defaultDueDate}">
               </div>
             </div>
@@ -981,7 +926,7 @@ const Invoice = {
 
       if (visible) {
         if (cb) {
-          cb.checked = inPeriod && cb.getAttribute('data-individual') !== '1';
+          cb.checked = inPeriod;
           row.classList.toggle('selected', cb.checked);
         }
       } else {
@@ -1027,9 +972,7 @@ const Invoice = {
         cb.checked = false;
       } else if (mode === 'period') {
         const caseDate = cb.getAttribute('data-case-date') || '';
-        if (cb.getAttribute('data-individual') === '1') {
-          cb.checked = false; // 都度請求済みは期間選択では含めない
-        } else if (!period || periodKey === 'all') {
+        if (!period || periodKey === 'all') {
           cb.checked = true;
         } else if (caseDate) {
           cb.checked = (caseDate >= period.startDate && caseDate <= period.endDate);
@@ -1112,8 +1055,9 @@ const Invoice = {
     const allCases = Store.getCasesByClient(clientId);
     const cases = allCases.filter(c => selectedIds.includes(c.id));
     
-    const feeTotal = cases.reduce((sum, c) => sum + Number(c.fee || 0), 0);
-    const advTotal = cases.reduce((sum, c) => sum + (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0), 0);
+    const client = Store.getClient(clientId);
+    const feeTotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
+    const advTotal = cases.reduce((sum, c) => sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0)), 0);
 
     const usedCount = cases.filter(c => !!c.isUsedCar).length;
     const newCount = cases.length - usedCount;
@@ -1131,7 +1075,8 @@ const Invoice = {
       const advs = (c.advances||[]).filter(a=>a.label||Number(a.amount)>0);
       const advSum = advs.reduce((s,a)=>s+Number(a.amount||0),0);
       const usedTag = c.isUsedCar ? '【中古】' : '';
-      return `・${usedTag}${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
+      const cFee = this._getCaseFee(c, client);
+      return `・${usedTag}${c.title}：報酬 ¥${cFee.toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
     }).join('<br>');
     html += `<br><strong style="color:var(--accent-green)">報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
     info.innerHTML = html;
@@ -1161,25 +1106,18 @@ const Invoice = {
       return;
     }
 
-    const feeTotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
+    const client = Store.getClient(clientId);
+    const feeTotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
     const advTotal = cases.reduce((sum, c) => sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0)), 0);
     
     let html = `<strong>対象案件 (${cases.length}件)</strong><br>`;
     html += cases.map(c => {
       const advs = (c.advances||[]).filter(a=>a.label||Number(a.amount)>0);
       const advSum = advs.reduce((s,a)=>s+Number(a.amount||0),0);
-      return `・${c.title}：報酬 ¥${Number(c.fee||0).toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
+      const cFee = this._getCaseFee(c, client);
+      return `・${c.title}：報酬 ¥${cFee.toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
     }).join('<br>');
     html += `<br><strong>報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
-    {
-      let tr = 10;
-      if (typeof Payments !== 'undefined') {
-        const p = Payments.getByClient(clientId).find(x => x.invoiceNo === invoiceNo);
-        if (p && p.taxRate !== undefined) tr = p.taxRate;
-      }
-      const warn = this._checkReprintTotal(invoiceNo, feeTotal + Math.floor(feeTotal * tr / 100) + advTotal);
-      if (warn) html += `<br><span style="color:#dc2626;font-weight:600;">${warn}</span>`;
-    }
     if (info) info.innerHTML = html;
   },
 
@@ -1262,7 +1200,7 @@ const Invoice = {
     }
 
     // 消し込み済みの項目は請求書から自動除外
-    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
+    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) =>
       sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
@@ -1422,7 +1360,7 @@ const Invoice = {
       invoiceNo = invoiceNo.replace('INV-', 'EST-');
     }
 
-    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
+    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) =>
       sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
@@ -1531,18 +1469,16 @@ const Invoice = {
     const year = match ? parseInt(match[1]) : new Date().getFullYear();
     const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month, client);
+      const bp = Store.getBillingPeriod(year, month);
       if (bp && bp.endDate) issueDate = bp.endDate;
     }
 
     // 消し込み済みの項目は請求書から自動除外（再印刷時も同様）
-    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
+    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) =>
       sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
     const total = feeSubtotal + tax + advanceTotal;
-    const mismatchWarn = this._checkReprintTotal(invoiceNo, total);
-    if (mismatchWarn && !confirm(mismatchWarn + '\n\nこのまま印刷しますか？')) return;
 
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
@@ -1634,17 +1570,15 @@ const Invoice = {
     const year = match ? parseInt(match[1]) : new Date().getFullYear();
     const month = match ? parseInt(match[2]) : new Date().getMonth() + 1;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month, client);
+      const bp = Store.getBillingPeriod(year, month);
       if (bp && bp.endDate) issueDate = bp.endDate;
     }
 
-    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : Number(c.fee || 0)), 0);
+    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) =>
       sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
     const total = feeSubtotal + tax + advanceTotal;
-    const mismatchWarn = this._checkReprintTotal(invoiceNo, total);
-    if (mismatchWarn && !confirm(mismatchWarn + '\n\nこのまま出力しますか？')) return;
 
     const CATS = { 
       garage_oss: '車庫証明(OSS)', 
@@ -1784,15 +1718,16 @@ const Invoice = {
     cases.forEach(c => {
       const cat = c.category || '';
       const title = c.title || '';
+      const f = this._getCaseFee(c, client);
       if (cat.includes('garage') || title.includes('車庫')) {
         garageCount++;
-        garageFee += Number(c.fee || 0);
-      } else if (cat.includes('seal') || title.includes('封印')) {
+        garageFee += f;
+      } else if (cat.includes('seal') || title.includes('封印') || (c.subCategory && c.subCategory.includes('封印'))) {
         sealCount++;
-        sealFee += Number(c.fee || 0);
+        sealFee += f;
       } else {
         otherCount++;
-        otherFee += Number(c.fee || 0);
+        otherFee += f;
       }
     });
 
@@ -1812,7 +1747,7 @@ const Invoice = {
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month, client);
+      const bp = Store.getBillingPeriod(year, month);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -1986,7 +1921,7 @@ const Invoice = {
 
         const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
 
-        const fee = Number(c.fee || 0);
+        const fee = this._getCaseFee(c, client);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
 
         return `
@@ -2423,9 +2358,9 @@ ${detailPagesHTML}
     const usedCases = cases.filter(c => isCaseUsed(c));
 
     // 各区分ごとの小計計算
-    const normalFee = normalCases.reduce((s, c) => s + Number(c.fee || 0), 0);
+    const normalFee = normalCases.reduce((s, c) => s + this._getCaseFee(c, client), 0);
     const normalAdv = normalCases.reduce((s, c) => s + (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0), 0);
-    const usedFee = usedCases.reduce((s, c) => s + Number(c.fee || 0), 0);
+    const usedFee = usedCases.reduce((s, c) => s + this._getCaseFee(c, client), 0);
     const usedAdv = usedCases.reduce((s, c) => s + (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0), 0);
 
     // 業務集計（表紙サマリー用）
@@ -2436,15 +2371,16 @@ ${detailPagesHTML}
     cases.forEach(c => {
       const cat = c.category || '';
       const title = c.title || '';
+      const f = this._getCaseFee(c, client);
       if (cat.includes('garage') || title.includes('車庫')) {
         garageCount++;
-        garageFee += Number(c.fee || 0);
-      } else if (cat.includes('seal') || title.includes('封印')) {
+        garageFee += f;
+      } else if (cat.includes('seal') || title.includes('封印') || (c.subCategory && c.subCategory.includes('封印'))) {
         sealCount++;
-        sealFee += Number(c.fee || 0);
+        sealFee += f;
       } else {
         otherCount++;
-        otherFee += Number(c.fee || 0);
+        otherFee += f;
       }
     });
 
@@ -2465,7 +2401,7 @@ ${detailPagesHTML}
     const isFusoClient = this._isFusoClient(client, note, cases);
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month, client);
+      const bp = Store.getBillingPeriod(year, month);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -2636,7 +2572,7 @@ ${detailPagesHTML}
           if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
           const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
-          const fee = Number(c.fee || 0);
+          const fee = this._getCaseFee(c, client);
           const advSum = (c.advances || []).reduce((s, a) => s + Number(a.amount || 0), 0);
 
           return `
@@ -3070,15 +3006,16 @@ ${detailPagesHTML}
     cases.forEach(c => {
       const cat = c.category || '';
       const title = c.title || '';
+      const f = this._getCaseFee(c, client);
       if (cat.includes('garage') || title.includes('車庫')) {
         garageCount++;
-        garageFee += Number(c.fee || 0);
-      } else if (cat.includes('seal') || title.includes('封印')) {
+        garageFee += f;
+      } else if (cat.includes('seal') || title.includes('封印') || (c.subCategory && c.subCategory.includes('封印'))) {
         sealCount++;
-        sealFee += Number(c.fee || 0);
+        sealFee += f;
       } else {
         otherCount++;
-        otherFee += Number(c.fee || 0);
+        otherFee += f;
       }
     });
 
@@ -3097,7 +3034,7 @@ ${detailPagesHTML}
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month, client);
+      const bp = Store.getBillingPeriod(year, month);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -3261,7 +3198,7 @@ ${detailPagesHTML}
 
         const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
 
-        const fee = Number(c.fee || 0);
+        const fee = this._getCaseFee(c, client);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
 
         return `
@@ -3675,9 +3612,9 @@ ${detailPagesHTML}
     const normalCases = cases.filter(c => !isCaseUsed(c));
     const usedCases = cases.filter(c => isCaseUsed(c));
 
-    const normalFee = normalCases.reduce((s, c) => s + Number(c.fee || 0), 0);
+    const normalFee = normalCases.reduce((s, c) => s + this._getCaseFee(c, client), 0);
     const normalAdv = normalCases.reduce((s, c) => s + (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0), 0);
-    const usedFee = usedCases.reduce((s, c) => s + Number(c.fee || 0), 0);
+    const usedFee = usedCases.reduce((s, c) => s + this._getCaseFee(c, client), 0);
     const usedAdv = usedCases.reduce((s, c) => s + (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0), 0);
 
     let garageCount = 0, garageFee = 0;
@@ -3687,15 +3624,16 @@ ${detailPagesHTML}
     cases.forEach(c => {
       const cat = c.category || '';
       const title = c.title || '';
+      const f = this._getCaseFee(c, client);
       if (cat.includes('garage') || title.includes('車庫')) {
         garageCount++;
-        garageFee += Number(c.fee || 0);
+        garageFee += f;
       } else if (cat.includes('seal') || title.includes('封印')) {
         sealCount++;
-        sealFee += Number(c.fee || 0);
+        sealFee += f;
       } else {
         otherCount++;
-        otherFee += Number(c.fee || 0);
+        otherFee += f;
       }
     });
 
@@ -3715,7 +3653,7 @@ ${detailPagesHTML}
     const isFusoClient = this._isFusoClient(client, note, cases);
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month, client);
+      const bp = Store.getBillingPeriod(year, month);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -3884,7 +3822,7 @@ ${detailPagesHTML}
           if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
           const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
-          const fee = Number(c.fee || 0);
+          const fee = this._getCaseFee(c, client);
           const advSum = (c.advances || []).reduce((s, a) => s + Number(a.amount || 0), 0);
 
           return `
@@ -4313,7 +4251,7 @@ ${detailPagesHTML}
     const clientName = (rawClientName.includes('御中') || rawClientName.includes('様')) ? rawClientName : `${rawClientName}　御中`;
     let effectiveIssueDate = issueDate;
     if (year && month && typeof Store !== 'undefined' && Store.getBillingPeriod) {
-      const bp = Store.getBillingPeriod(year, month, client);
+      const bp = Store.getBillingPeriod(year, month);
       if (bp && bp.endDate) effectiveIssueDate = bp.endDate;
     }
     if (!effectiveIssueDate) effectiveIssueDate = (typeof Store !== 'undefined' ? Store.getLocalDateStr() : '2026-09-25');
@@ -5941,12 +5879,13 @@ window.NissanPrint = {
     cases.forEach(c => {
       const cat = c.category || '';
       const title = c.title || '';
+      const f = this._getCaseFee(c, client);
       if (cat.includes('garage') || title.includes('車庫')) {
-        garageCount++; garageFee += Number(c.fee || 0);
-      } else if (cat.includes('seal') || title.includes('封印')) {
-        sealCount++; sealFee += Number(c.fee || 0);
+        garageCount++; garageFee += f;
+      } else if (cat.includes('seal') || title.includes('封印') || (c.subCategory && c.subCategory.includes('封印'))) {
+        sealCount++; sealFee += f;
       } else {
-        otherCount++; otherFee += Number(c.fee || 0);
+        otherCount++; otherFee += f;
       }
     });
 
@@ -6323,7 +6262,7 @@ window.NissanPrint = {
         }
         if (c.regType === 'jyuminhyo') categoryShort = '住民票';
 
-        const fee = Number(c.fee || 0);
+        const fee = this._getCaseFee(c, client);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
         const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => {
           const displayLabel = a.label || a.category || (a.label && a.label.includes('証紙') ? '証紙' : (a.label && a.label.includes('印紙') ? '印紙' : (a.label && (a.label.includes('送') || a.label.includes('レターパック')) ? '送料' : (a.label && (a.label.includes('プレート') || a.label.includes('ナンバー')) ? 'プレート' : '実費'))));
@@ -6393,9 +6332,9 @@ window.NissanPrint = {
       const isCaseUsed = (c) => (c.isUsedCar === true || c.isUsedCar === 'true' || c.isUsedCar === 1 || (c.title||'').includes('U-Car') || (c.memo||'').includes('U-Car'));
       const normalList = cases.filter(c => !isCaseUsed(c));
       const usedList = cases.filter(c => isCaseUsed(c));
-      const nFee = normalList.reduce((s,c) => s + Number(c.fee||0), 0);
+      const nFee = normalList.reduce((s,c) => s + this._getCaseFee(c, client), 0);
       const nAdv = normalList.reduce((s,c) => s + (c.advances||[]).reduce((as,a)=>as+Number(a.amount||0), 0), 0);
-      const uFee = usedList.reduce((s,c) => s + Number(c.fee||0), 0);
+      const uFee = usedList.reduce((s,c) => s + this._getCaseFee(c, client), 0);
       const uAdv = usedList.reduce((s,c) => s + (c.advances||[]).reduce((as,a)=>as+Number(a.amount||0), 0), 0);
 
       if (normalList.length > 0) createDetailSheet('明細票(普通車)', '', normalList, nFee, nAdv);
