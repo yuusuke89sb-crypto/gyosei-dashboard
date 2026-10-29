@@ -81,8 +81,29 @@ const Accounting = {
       const client = c.clientId != null ? clientMap.get(String(c.clientId)) : null;
       const orderStr = c.orderNo ? ` [注:${c.orderNo}]` : '';
       const desc = `[${this.SALES_CATS[c.category] || c.category || '業務'}] ${c.title || ''}${client ? ' / ' + client.name : ''}${orderStr}`;
-      const date = Store.toLocalDateStr(c.completedAt) || Store.toLocalDateStr(c.registrationDate) ||
-        Store.toLocalDateStr(c.policeDeliveryDate) || Store.toLocalDateStr(c.updatedAt) || Store.toLocalDateStr(c.createdAt);
+      const toDate = (val) => {
+        if (!val) return '';
+        if (typeof val === 'string') {
+          if (val.length >= 10 && val.includes('-')) return val.slice(0, 10);
+          const d = new Date(val);
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+          }
+          return val.slice(0, 10);
+        }
+        if (val instanceof Date) {
+          const y = val.getFullYear();
+          const m = String(val.getMonth() + 1).padStart(2, '0');
+          const day = String(val.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        }
+        return '';
+      };
+      const date = toDate(c.completedAt) || toDate(c.registrationDate) ||
+        toDate(c.policeDeliveryDate) || toDate(c.updatedAt) || toDate(c.createdAt);
       if (!date) return;
       list.push({
         id: `j_case_${c.id}_${c.category || 'sales'}`,
@@ -315,9 +336,10 @@ const Accounting = {
   },
 
   render() {
-    const journals = this.getJournals();
-    const ym = `${this.filterYear}-${String(this.filterMonth).padStart(2, '0')}`;
-    const bp = typeof Store !== 'undefined' && Store.getBillingPeriod ? Store.getBillingPeriod(this.filterYear, this.filterMonth) : null;
+    try {
+      const journals = this.getJournals();
+      const ym = `${this.filterYear}-${String(this.filterMonth).padStart(2, '0')}`;
+      const bp = typeof Store !== 'undefined' && Store.getBillingPeriod ? Store.getBillingPeriod(this.filterYear, this.filterMonth) : null;
 
     // 期間モードに応じたフィルタリング（billing: 25日締め・9月度は8/26〜9/25、calendar: 1日〜末日）
     let filtered = journals.filter(j => {
@@ -449,7 +471,7 @@ const Accounting = {
                         <td>${j.date}</td>
                         <td>${j.debit}</td>
                         <td>${j.credit}</td>
-                        <td class="amount-cell">¥${j.amount.toLocaleString()}</td>
+                        <td class="amount-cell">¥${Number(j.amount || 0).toLocaleString()}</td>
                         <td>
                           ${j.auto ? '<span class="auto-badge">自動</span> ' : ''}
                           ${j.isReimbursement ? '<span class="badge" style="background:#3b82f6;color:#fff;font-size:0.7rem;margin-right:4px;">立替金</span>' : ''}
@@ -466,6 +488,22 @@ const Accounting = {
       </div>
       ${this.renderModal(debitOptions, creditOptions, today)}
     `;
+    } catch (err) {
+      console.error('[Accounting.render] error:', err);
+      return `
+        <div class="page-header">
+          <h1>💹 帳簿</h1>
+        </div>
+        <div class="card" style="padding:24px; border-left:4px solid #ef4444; background:rgba(239,68,68,0.05); margin-top:16px;">
+          <h3 style="color:#ef4444; margin-top:0;">⚠️ 帳簿画面の読み込み中にエラーが発生しました</h3>
+          <p style="margin:8px 0; color:var(--text-muted); font-size:0.9rem;">${err && err.message ? err.message : String(err)}</p>
+          <div style="margin-top:16px;">
+            <button class="btn btn-primary" onclick="App.navigate('dashboard')">📊 ダッシュボードへ戻る</button>
+            <button class="btn btn-secondary" onclick="location.reload()" style="margin-left:8px;">🔄 画面を再読み込み</button>
+          </div>
+        </div>
+      `;
+    }
   },
 
   renderModal(debitOptions, creditOptions, today) {
@@ -986,7 +1024,7 @@ const Accounting = {
         <td>${j.date}</td>
         <td>${j.debit}</td>
         <td>${j.credit}</td>
-        <td style="text-align:right;">¥${j.amount.toLocaleString()}</td>
+        <td style="text-align:right;">¥${Number(j.amount || 0).toLocaleString()}</td>
         <td>${j.description || '—'}</td>
       </tr>
     `).join('');
