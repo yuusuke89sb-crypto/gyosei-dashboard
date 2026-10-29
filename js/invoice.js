@@ -6310,7 +6310,6 @@ window.NissanPrint = {
 
         const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
-        const remarkDisplay = this._getRemarkDisplayForExcel(c, categoryShort, specialNote, isFuso);
 
         const fee = this._getCaseFee(c, client);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
@@ -7557,5 +7556,7 @@ window.NissanPrint = {
     App.showToast(`領収書 ${invoiceNo} を印刷プレビューしました`);
   }
 };
+
+window.Invoice = Invoice;
 
 
