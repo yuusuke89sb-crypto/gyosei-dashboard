@@ -746,8 +746,66 @@ const Invoice = {
 
   // 再印刷用に特定の請求書番号に紐づく案件を取得
   getBilledCases(clientId, invoiceNo) {
+    if (typeof InvoiceSync !== 'undefined' && InvoiceSync.getState) {
+      const s = InvoiceSync.getState();
+      const items = (s.items || []).filter(it => it.invoiceNo === invoiceNo && it.status !== '取消');
+      if (items.length > 0) {
+        const caseMap = {};
+        Store.getCases().forEach(c => { if (c) caseMap[c.id] = c; });
+        const result = [];
+        const seen = new Set();
+        const client = Store.getClient(clientId);
+        items.forEach(it => {
+          const c = caseMap[it.caseId];
+          if (!c) return;
+          seen.add(String(c.id));
+          const copy = Object.assign({}, c);
+          const lockedFee = Number(it.lockedFee || 0);
+          let lockedAdv = it.lockedAdvancesJson;
+          if (typeof lockedAdv === 'string') { try { lockedAdv = JSON.parse(lockedAdv || '[]'); } catch (e) { lockedAdv = []; } }
+          if (!Array.isArray(lockedAdv)) lockedAdv = [];
+          
+          // 報酬：ロック値>0ならそれを採用。なければ案件のfeeまたは標準単価。再印刷時は当時の請求内容を出すため消込除外しない
+          if (lockedFee > 0) {
+            copy.fee = lockedFee;
+          } else if (Number(c.fee || 0) > 0) {
+            copy.fee = Number(c.fee);
+          } else if (typeof this._getCaseFee === 'function') {
+            copy.fee = this._getCaseFee(c, client);
+          }
+          copy.isPaid = false;
+          
+          // 立替金：ロック値があればそれを採用、なければ案件本来の立替金
+          if (lockedAdv.length > 0) {
+            copy.advances = lockedAdv;
+          }
+          copy.isAdvancePaid = false;
+          result.push(copy);
+        });
+
+        // 念のため items に含まれなかったが案件側に invoiceNo が残っているものも補完
+        Store.getCases().forEach(c => {
+          if (!c || c.invoiceNo !== invoiceNo || seen.has(String(c.id))) return;
+          if (items.length > 0 && String(c.clientId) !== String(clientId)) return;
+          seen.add(String(c.id));
+          const copy = Object.assign({}, c, { isPaid: false, isAdvancePaid: false });
+          if ((!copy.fee || Number(copy.fee) === 0) && typeof this._getCaseFee === 'function') {
+            copy.fee = this._getCaseFee(copy, client);
+          }
+          result.push(copy);
+        });
+        return result;
+      }
+    }
+    const client = Store.getClient(clientId);
     const cases = Store.getCasesByClient(clientId);
-    return cases.filter(c => c.invoiceNo === invoiceNo);
+    return cases.filter(c => c.invoiceNo === invoiceNo).map(c => {
+      const copy = Object.assign({}, c, { isPaid: false, isAdvancePaid: false });
+      if ((!copy.fee || Number(copy.fee) === 0) && typeof this._getCaseFee === 'function') {
+        copy.fee = this._getCaseFee(copy, client);
+      }
+      return copy;
+    });
   },
 
   // 発行・取消・再印刷の後、顧客一覧に戻らず同じ得意先の画面を開き直す
@@ -876,8 +934,8 @@ const Invoice = {
           let amt = Number(p.amount || 0);
           if (billedCases.length > 0) {
             const taxRate = p.taxRate !== undefined ? Number(p.taxRate) : 10;
-            const feeSub = billedCases.reduce((s, c) => s + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
-            const advSub = billedCases.reduce((s, c) => s + (c.isAdvancePaid ? 0 : (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0)), 0);
+            const feeSub = billedCases.reduce((s, c) => s + (this._getCaseFee ? this._getCaseFee(c, client) : Number(c.fee || 0)), 0);
+            const advSub = billedCases.reduce((s, c) => s + (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0), 0);
             const calcTotal = feeSub + Math.floor(feeSub * taxRate / 100) + advSub;
             if (calcTotal > 0) {
               amt = calcTotal;
@@ -1301,14 +1359,14 @@ const Invoice = {
     }
 
     const client = Store.getClient(clientId);
-    const feeTotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
-    const advTotal = cases.reduce((sum, c) => sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0)), 0);
+    const feeTotal = cases.reduce((sum, c) => sum + (this._getCaseFee ? this._getCaseFee(c, client) : Number(c.fee || 0)), 0);
+    const advTotal = cases.reduce((sum, c) => sum + (c.advances||[]).reduce((s,a)=>s+Number(a.amount||0),0), 0);
     
     let html = `<strong>対象案件 (${cases.length}件)</strong><br>`;
     html += cases.map(c => {
       const advs = (c.advances||[]).filter(a=>a.label||Number(a.amount)>0);
       const advSum = advs.reduce((s,a)=>s+Number(a.amount||0),0);
-      const cFee = this._getCaseFee(c, client);
+      const cFee = this._getCaseFee ? this._getCaseFee(c, client) : Number(c.fee || 0);
       return `・${c.title}：報酬 ¥${cFee.toLocaleString()}${advSum>0?` + 立替 ¥${advSum.toLocaleString()}`:''}`;
     }).join('<br>');
     html += `<br><strong>報酬小計：¥${feeTotal.toLocaleString()} ／ 立替金合計：¥${advTotal.toLocaleString()}</strong>`;
@@ -1690,11 +1748,11 @@ const Invoice = {
       if (bp && bp.endDate) issueDate = bp.endDate;
     }
 
-    // 消し込み済みの項目は請求書から自動除外（再印刷時も同様）
-    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
+    // 再印刷時は発行当時の請求金額を忠実に再現する（消込済みであっても除外しない）
+    const feeSubtotal = cases.reduce((sum, c) => sum + (this._getCaseFee ? this._getCaseFee(c, client) : Number(c.fee || 0)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) =>
-      sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
+      sum + (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0), 0);
     const total = feeSubtotal + tax + advanceTotal;
 
     const CATS = { 
@@ -1791,10 +1849,11 @@ const Invoice = {
       if (bp && bp.endDate) issueDate = bp.endDate;
     }
 
-    const feeSubtotal = cases.reduce((sum, c) => sum + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
+    // 再印刷時は発行当時の請求金額を忠実に再現する（消込済みであっても除外しない）
+    const feeSubtotal = cases.reduce((sum, c) => sum + (this._getCaseFee ? this._getCaseFee(c, client) : Number(c.fee || 0)), 0);
     const tax = Math.floor(feeSubtotal * taxRate / 100);
     const advanceTotal = cases.reduce((sum, c) =>
-      sum + (c.isAdvancePaid ? 0 : (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0)), 0);
+      sum + (c.advances||[]).reduce((s,a) => s+Number(a.amount||0), 0), 0);
     const total = feeSubtotal + tax + advanceTotal;
 
     const CATS = { 
