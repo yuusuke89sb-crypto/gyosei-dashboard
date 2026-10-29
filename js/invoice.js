@@ -230,8 +230,8 @@ const Invoice = {
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; font-feature-settings:'tnum';">${str}</span>`;
   },
 
-  // 新様式 備考欄の1行フォーマッター（セル幅14.5% / 約27mm）
-  // 従来の5.8pxなどの極小表示を排除し、8.5px〜11.5pxでくっきり表示
+  // 新様式 備考欄の1行フォーマッター（セル幅14.5% / 実寸約96px）
+  // 長文（例: U-car・軽・希望ナンバー申込）でも枠内からはみ出さず美しく収まるよう文字サイズを自動スケーリング
   _formatRemarkGothicHTML(text) {
     if (!text || text === '-') return '-';
     const str = String(text).trim();
@@ -239,22 +239,32 @@ const Invoice = {
 
     let fontSize = '11.5px';
     let letterSpacing = 'normal';
-    if (visualLen > 14.0) {
-      fontSize = '8.5px';
-      letterSpacing = '-0.45px';
-    } else if (visualLen > 11.5) {
-      fontSize = '9.0px';
-      letterSpacing = '-0.38px';
-    } else if (visualLen > 9.5) {
-      fontSize = '9.6px';
+
+    if (visualLen > 16.0) {
+      fontSize = '6.0px';
+      letterSpacing = '-0.40px';
+    } else if (visualLen > 13.0) {
+      // 例: U-car・軽・希望ナンバー申込 (visualLen ~14.1)
+      fontSize = '6.8px';
+      letterSpacing = '-0.35px';
+    } else if (visualLen > 11.0) {
+      // 例: U-car・軽・新規登録 (visualLen ~12.5)
+      fontSize = '7.8px';
       letterSpacing = '-0.30px';
-    } else if (visualLen > 7.5) {
-      fontSize = '10.2px';
+    } else if (visualLen > 9.0) {
+      // 例: 軽・希望ナンバー申込 (visualLen 10.0)
+      fontSize = '8.8px';
+      letterSpacing = '-0.25px';
+    } else if (visualLen > 7.0) {
+      // 例: 希望ナンバー申込 (visualLen 8.0)
+      fontSize = '9.8px';
       letterSpacing = '-0.20px';
     } else if (visualLen > 5.0) {
-      fontSize = '11.0px';
+      // 例: 一般・軽 (visualLen 6.0)
+      fontSize = '10.5px';
       letterSpacing = '-0.10px';
     } else {
+      // 5文字以下 (例: 一般, 封印, OSS)
       fontSize = '11.5px';
       letterSpacing = 'normal';
     }
@@ -497,6 +507,64 @@ const Invoice = {
     }
 
     return categoryShort ? `${categoryShort}${specialNote}` : specialNote;
+  },
+
+  // 案件の備考欄用カテゴリ略称を取得（軽・希望ナンバー申込、U-car対応など全テンプレート共通）
+  _getCaseCategoryShort(c) {
+    if (!c) return '';
+    const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
+    const isLight = c.category === 'car_reg_light' || 
+                    (c.subCategory || '').includes('軽') || 
+                    (c.title || '').includes('軽') || 
+                    c.carType === 'light' || 
+                    (c.remarks || '').includes('軽') || 
+                    (c.memo || '').includes('軽') || 
+                    advLabels.includes('軽');
+
+    const isKibo = (c.subCategory || '').includes('希望ナンバー') || 
+                   (c.title || '').includes('希望ナンバー') || 
+                   (c.remarks || '').includes('希望ナンバー') ||
+                   (c.memo || '').includes('希望ナンバー');
+
+    let categoryShort = '';
+    if (isKibo && isLight) {
+      categoryShort = '軽・希望ナンバー申込';
+    } else if (isKibo) {
+      categoryShort = '希望ナンバー申込';
+    } else if (c.category === 'garage_oss') {
+      categoryShort = 'OSS';
+    } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
+      categoryShort = isLight ? '一般・軽' : '一般';
+    } else if (c.subCategory) {
+      categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
+    } else if (c.category === 'car_reg_standard') {
+      categoryShort = '新規登録';
+    } else if (c.category === 'car_reg_light') {
+      categoryShort = '軽登録';
+    } else if (c.category === 'seal') {
+      categoryShort = '封印';
+    }
+
+    // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
+    if (isLight && categoryShort && !categoryShort.includes('軽')) {
+      categoryShort = `軽・${categoryShort}`;
+    }
+
+    // U-car / 中古車判定
+    const isUsed = c.isUsedCar === true || c.isUsedCar === 'true' || c.isUsedCar === 1 || 
+                   (c.title || '').includes('U-Car') || (c.title || '').includes('U-car') || (c.title || '').includes('中古') ||
+                   (c.memo || '').includes('U-Car') || (c.memo || '').includes('U-car') || (c.memo || '').includes('中古') ||
+                   (c.subCategory || '').includes('U-Car') || (c.subCategory || '').includes('U-car');
+
+    if (isUsed && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
+      categoryShort = categoryShort ? `U-car・${categoryShort}` : 'U-car';
+    }
+
+    const specialNote = this._getCaseSpecialNote(c);
+    categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
+    if (c.regType === 'jyuminhyo') categoryShort = '住民票';
+
+    return categoryShort;
   },
 
   // 三菱（ふそう）案件判定ヘルパー
@@ -2034,40 +2102,8 @@ const Invoice = {
           if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
         }
 
-        let categoryShort = '';
-        const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-        const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
-        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
-
-        if (isKibo && isLight) {
-          categoryShort = '軽・希望ナンバー';
-        } else if (isKibo) {
-          categoryShort = '希望ナンバー申込';
-        } else if (c.category === 'garage_oss') {
-          categoryShort = 'OSS';
-        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-          categoryShort = isLight ? '一般・軽' : '一般';
-        } else if (c.subCategory) {
-          categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
-        } else if (c.category === 'car_reg_standard') {
-          categoryShort = '新規登録';
-        } else if (c.category === 'car_reg_light') {
-          categoryShort = '軽登録';
-        } else if (c.category === 'seal') {
-          categoryShort = '封印';
-        }
-        // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
-        if (isLight && categoryShort && !categoryShort.includes('軽')) {
-          categoryShort = `軽・${categoryShort}`;
-        }
-        if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
-          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
-        }
-
+        const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
-        categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
-        if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-
         const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
 
         const fee = this._getCaseFee(c, client);
@@ -2689,39 +2725,8 @@ ${detailPagesHTML}
             if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
           }
 
-          let categoryShort = '';
-          const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-          const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
-          const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
-
-          if (isKibo && isLight) {
-            categoryShort = '軽・希望ナンバー';
-          } else if (isKibo) {
-            categoryShort = '希望ナンバー申込';
-          } else if (c.category === 'garage_oss') {
-            categoryShort = 'OSS';
-          } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-            categoryShort = isLight ? '一般・軽' : '一般';
-          } else if (c.subCategory) {
-            categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
-          } else if (c.category === 'car_reg_standard') {
-            categoryShort = '新規登録';
-          } else if (c.category === 'car_reg_light') {
-            categoryShort = '軽登録';
-          } else if (c.category === 'seal') {
-            categoryShort = '封印';
-          }
-          // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
-          if (isLight && categoryShort && !categoryShort.includes('軽')) {
-            categoryShort = `軽・${categoryShort}`;
-          }
-          if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
-            categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
-          }
+          const categoryShort = this._getCaseCategoryShort(c);
           const specialNote = this._getCaseSpecialNote(c);
-          categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
-          if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-
           const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
           const fee = this._getCaseFee(c, client);
           const advSum = (c.advances || []).reduce((s, a) => s + Number(a.amount || 0), 0);
@@ -3315,40 +3320,8 @@ ${detailPagesHTML}
           if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
         }
 
-        let categoryShort = '';
-        const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-        const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
-        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
-
-        if (isKibo && isLight) {
-          categoryShort = '軽・希望ナンバー';
-        } else if (isKibo) {
-          categoryShort = '希望ナンバー申込';
-        } else if (c.category === 'garage_oss') {
-          categoryShort = 'OSS';
-        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-          categoryShort = isLight ? '一般・軽' : '一般';
-        } else if (c.subCategory) {
-          categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
-        } else if (c.category === 'car_reg_standard') {
-          categoryShort = '新規登録';
-        } else if (c.category === 'car_reg_light') {
-          categoryShort = '軽登録';
-        } else if (c.category === 'seal') {
-          categoryShort = '封印';
-        }
-        // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
-        if (isLight && categoryShort && !categoryShort.includes('軽')) {
-          categoryShort = `軽・${categoryShort}`;
-        }
-        if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
-          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
-        }
-
+        const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
-        categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
-        if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-
         const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
 
         const fee = this._getCaseFee(c, client);
@@ -3943,39 +3916,8 @@ ${detailPagesHTML}
             if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
           }
 
-          let categoryShort = '';
-          const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-          const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
-          const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
-
-          if (isKibo && isLight) {
-            categoryShort = '軽・希望ナンバー';
-          } else if (isKibo) {
-            categoryShort = '希望ナンバー申込';
-          } else if (c.category === 'garage_oss') {
-            categoryShort = 'OSS';
-          } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-            categoryShort = isLight ? '一般・軽' : '一般';
-          } else if (c.subCategory) {
-            categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
-          } else if (c.category === 'car_reg_standard') {
-            categoryShort = '新規登録';
-          } else if (c.category === 'car_reg_light') {
-            categoryShort = '軽登録';
-          } else if (c.category === 'seal') {
-            categoryShort = '封印';
-          }
-          // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
-          if (isLight && categoryShort && !categoryShort.includes('軽')) {
-            categoryShort = `軽・${categoryShort}`;
-          }
-          if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) {
-            categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
-          }
+          const categoryShort = this._getCaseCategoryShort(c);
           const specialNote = this._getCaseSpecialNote(c);
-          categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
-          if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-
           const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, isFusoClient, true);
           const fee = this._getCaseFee(c, client);
           const advSum = (c.advances || []).reduce((s, a) => s + Number(a.amount || 0), 0);
@@ -4570,39 +4512,8 @@ ${detailPagesHTML}
         }
         if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
 
-        let categoryShort = '';
-        const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-        const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
-        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
-
-        if (isKibo && isLight) {
-          categoryShort = '軽・希望ナンバー';
-        } else if (isKibo) {
-          categoryShort = '希望ナンバー申込';
-        } else if (c.category === 'garage_oss') {
-          categoryShort = 'OSS';
-        } else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) {
-          categoryShort = isLight ? '一般・軽' : '一般';
-        } else if (c.subCategory) {
-          categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
-        } else if (c.category === 'car_reg_standard') {
-          categoryShort = '新規登録';
-        } else if (c.category === 'car_reg_light') {
-          categoryShort = '軽登録';
-        } else if (c.category === 'seal') {
-          categoryShort = '封印';
-        }
-        // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
-        if (isLight && categoryShort && !categoryShort.includes('軽')) {
-          categoryShort = `軽・${categoryShort}`;
-        }
-        if (c.isUsedCar) {
-          categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
-        }
+        const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
-        categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
-        if (c.regType === 'jyuminhyo') categoryShort = '住民票';
-
         const remarkDisplay = this._getRemarkDisplayForCase(c, categoryShort, specialNote, true, false);
         const fee = Number(c.fee || 0);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
@@ -6397,25 +6308,9 @@ window.NissanPrint = {
           }
         }
 
-        let categoryShort = '';
-        const isKibo = (c.subCategory || '').includes('希望ナンバー') || (c.title || '').includes('希望ナンバー') || (c.remarks || '').includes('希望ナンバー');
-        const advLabels = (c.advances || []).map(a => a.label || '').join(' ');
-        const isLight = c.category === 'car_reg_light' || (c.subCategory || '').includes('軽') || (c.title || '').includes('軽') || c.carType === 'light' || (c.remarks || '').includes('軽') || (c.memo || '').includes('軽') || advLabels.includes('軽');
-
-        if (isKibo && isLight) categoryShort = '軽・希望ナンバー';
-        else if (isKibo) categoryShort = '希望ナンバー申込';
-        else if (c.category === 'garage_oss') categoryShort = 'OSS';
-        else if (c.category === 'garage_paper' || (c.category && c.category.includes('garage'))) categoryShort = isLight ? '一般・軽' : '一般';
-        else if (c.subCategory) categoryShort = c.subCategory.replace(/[（(].*?[）)]/g, '').trim() || c.subCategory;
-        else if (c.category === 'car_reg_standard') categoryShort = '新規登録';
-        else if (c.category === 'car_reg_light') categoryShort = '軽登録';
-        else if (c.category === 'seal') categoryShort = '封印';
-        // 軽判定なのにラベルに「軽」が含まれていなければ先頭に付与（軽の新規登録・封印等）
-        if (isLight && categoryShort && !categoryShort.includes('軽')) categoryShort = `軽・${categoryShort}`;
-        if (c.isUsedCar && !categoryShort.includes('U-Car') && !categoryShort.includes('U-car')) categoryShort = categoryShort ? `U-Car・${categoryShort}` : 'U-Car';
+        const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
-        categoryShort = this._combineCategoryAndSpecialNote(categoryShort, specialNote, c);
-        if (c.regType === 'jyuminhyo') categoryShort = '住民票';
+        const remarkDisplay = this._getRemarkDisplayForExcel(c, categoryShort, specialNote, isFuso);
 
         const fee = this._getCaseFee(c, client);
         const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
