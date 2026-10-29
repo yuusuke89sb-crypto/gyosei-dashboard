@@ -305,14 +305,14 @@ const InvoiceSync = {
     const client = Store.getClient(clientId) || {};
     const items = cases.map(c => ({
       caseId: c.id,
-      fee: c.isPaid ? 0 : Number(c.fee || 0),
+      fee: c.isPaid ? 0 : (typeof Invoice !== 'undefined' && typeof Invoice._getCaseFee === 'function' ? Invoice._getCaseFee(c, client) : Number(c.fee || 0)),
       advances: c.isAdvancePaid ? [] : (c.advances || []).map(a => Object.assign({}, a, { amount: Number(a.amount || 0) })),
     }));
     const feeExTax = items.reduce((s, it) => s + it.fee, 0);
     const advanceTotal = items.reduce((s, it) => s + it.advances.reduce((t, a) => t + a.amount, 0), 0);
     const tax = Math.floor(feeExTax * (taxRate || 10) / 100);
     const grandTotal = feeExTax + tax + advanceTotal;
-    const p = period || (typeof Store.getBillingPeriod === 'function' ? Store.getBillingPeriod(year, month, clientId) : {});
+    const p = period || (typeof Store.getBillingPeriod === 'function' ? Store.getBillingPeriod(year, month) : {});
     const yyyymm = `${year}${String(month).padStart(2, '0')}`;
 
     // 最新の連番を即時採番（INV-YYYYMM-XXXX）
