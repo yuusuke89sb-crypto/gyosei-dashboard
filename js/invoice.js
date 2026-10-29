@@ -271,27 +271,29 @@ const Invoice = {
     return `<span style="display:inline-block; white-space:nowrap; max-width:100%; font-size:${fontSize}; letter-spacing:${letterSpacing}; font-weight:600; line-height:1.2;">${str}</span>`;
   },
 
-  // 表紙用 立替金項目ラベルの正規化（交通費は「10/12 交通費」等も含め「【その他実費】交通費」に合算）
+  // 表紙用 立替金項目ラベルの正規化（交通費は日付付き「10/12 交通費」等も含め「【交通費】交通費」に合算）
   _getCoverAdvanceLabel(a) {
-    if (!a) return '【その他実費】';
+    if (!a) return '【その他】';
     const rawLabel = String(a.label || '').trim();
     const rawCat = String(a.category || '').trim();
 
-    // 交通費判定：カテゴリが「交通費」またはラベルに「交通費」を含む場合、表紙ではすべて【その他実費】交通費に合算
+    // 交通費判定：カテゴリが「交通費」またはラベルに「交通費」を含む場合、表紙では交通費として1行に合算
     if (rawCat === '交通費' || rawLabel.includes('交通費')) {
-      return '【その他実費】交通費';
+      return '【交通費】交通費';
     }
 
-    const cat = (rawCat && rawCat !== 'その他' && rawCat !== 'その他実費') ? rawCat : (
+    const cat = (rawCat && rawCat !== 'その他実費') ? rawCat : (
       rawLabel.includes('証紙') ? '証紙代' :
       rawLabel.includes('印紙') ? '印紙代' :
       (rawLabel.includes('送') || rawLabel.includes('レターパック')) ? '送料' :
       (rawLabel.includes('プレート') || rawLabel.includes('ナンバー')) ? 'プレート代' :
-      (rawLabel.includes('税') || rawLabel.includes('法定')) ? '法定費用' : 'その他実費'
+      (rawLabel.includes('税') || rawLabel.includes('法定')) ? '法定費用' : 'その他'
     );
 
     if (rawLabel) {
-      return rawLabel.startsWith('【') ? rawLabel : `【${cat}】${rawLabel}`;
+      if (rawLabel.startsWith('【')) return rawLabel;
+      if (rawLabel === cat) return `【${cat}】`;
+      return `【${cat}】${rawLabel}`;
     }
     return `【${cat}】`;
   },
@@ -2461,7 +2463,7 @@ const Invoice = {
       </tr>
 
       <!-- 立替金パート -->
-      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'その他実費':6}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
+      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'交通費':6,'その他':7,'その他実費':8}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td style="font-size:11px;">${lbl}</td>
@@ -3088,7 +3090,7 @@ ${detailPagesHTML}
       </tr>
 
       <!-- 立替金パート -->
-      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'送料':4,'その他実費':5}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
+      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'交通費':6,'その他':7,'その他実費':8}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td style="font-size:11px;">${lbl}</td>
@@ -3659,7 +3661,7 @@ ${detailPagesHTML}
       </tr>
 
       <!-- 立替金パート -->
-      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'その他実費':6}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
+      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'交通費':6,'その他':7,'その他実費':8}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td style="font-size:11.5px;">${lbl}</td>
@@ -4279,7 +4281,7 @@ ${detailPagesHTML}
       </tr>
 
       <!-- 立替金パート -->
-      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'その他実費':6}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
+      ${Object.keys(advMap).length > 0 ? Object.entries(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'交通費':6,'その他':7,'その他実費':8}; const cA = (a[0].match(/【(.+?)】/) || [])[1] || ''; const cB = (b[0].match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a[0]) - sp(b[0]) || a[0].localeCompare(b[0]); }).map(([lbl, data], idx) => `
       <tr>
         ${idx === 0 ? `<td rowspan="${Object.keys(advMap).length}" class="section-label col-center">立替金</td>` : ''}
         <td style="font-size:11.5px;">${lbl}</td>
@@ -6013,7 +6015,7 @@ window.NissanPrint = {
     ws1.getRow(6).height = 20;
 
     // 後述の総合計セル(D23以降)を参照
-    const advKeys = Object.keys(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'その他実費':6}; const cA = (a.match(/【(.+?)】/) || [])[1] || ''; const cB = (b.match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a) - sp(b) || a.localeCompare(b); });
+    const advKeys = Object.keys(advMap).sort((a, b) => { const P = {'証紙代':1,'プレート代':2,'印紙代':3,'法定費用':4,'送料':5,'交通費':6,'その他':7,'その他実費':8}; const cA = (a.match(/【(.+?)】/) || [])[1] || ''; const cB = (b.match(/【(.+?)】/) || [])[1] || ''; const sp = (l) => { if (l.includes('希望') && !l.includes('軽')) return 1; if (l.includes('軽')) return 2; if (l.includes('ナンバープレート')) return 3; return 4; }; return (P[cA]||9) - (P[cB]||9) || sp(a) - sp(b) || a.localeCompare(b); });
     const advRowCount = advKeys.length > 0 ? advKeys.length : 1;
     const subtotalRow = 14;
     const taxRow = 15;
