@@ -775,9 +775,33 @@ const Invoice = {
       const invoices = payments.filter(p => p.invoiceNo).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
       if (invoices.length > 0) {
         hasPastInvoices = true;
+        let paymentsNeedSave = false;
+        const allPayments = Payments.getAll();
         pastInvoicesHtml += invoices.map(p => {
-          return `<option value="${p.invoiceNo}">${p.invoiceNo} (¥${Number(p.amount||0).toLocaleString()})</option>`;
+          const billedCases = this.getBilledCases(clientId, p.invoiceNo);
+          let amt = Number(p.amount || 0);
+          if (billedCases.length > 0) {
+            const taxRate = p.taxRate !== undefined ? Number(p.taxRate) : 10;
+            const feeSub = billedCases.reduce((s, c) => s + (c.isPaid ? 0 : this._getCaseFee(c, client)), 0);
+            const advSub = billedCases.reduce((s, c) => s + (c.isAdvancePaid ? 0 : (c.advances || []).reduce((as, a) => as + Number(a.amount || 0), 0)), 0);
+            const calcTotal = feeSub + Math.floor(feeSub * taxRate / 100) + advSub;
+            if (calcTotal > 0) {
+              amt = calcTotal;
+              if (p.amount !== calcTotal && !p.paidAt) {
+                p.amount = calcTotal;
+                const targetP = allPayments.find(x => x.invoiceNo === p.invoiceNo);
+                if (targetP) {
+                  targetP.amount = calcTotal;
+                  paymentsNeedSave = true;
+                }
+              }
+            }
+          }
+          return `<option value="${p.invoiceNo}">${p.invoiceNo} (¥${amt.toLocaleString()})</option>`;
         }).join('');
+        if (paymentsNeedSave) {
+          try { Payments.save(allPayments); } catch(e) {}
+        }
       }
     }
 
