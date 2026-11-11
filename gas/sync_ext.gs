@@ -177,7 +177,7 @@ function menuWithResync_fixVehiclePlateAndChassisNumbers() {
 //  シート「共有設定」: キー | 値(JSON) | 更新日時 | 端末
 // ------------------------------------------------------------
 const SHARED_SETTINGS_SHEET = '共有設定';
-const SHARED_SETTING_KEYS = ['goals', 'officeInfo'];
+const SHARED_SETTING_KEYS = ['goals', 'officeInfo', 'payroll'];
 
 function sharedSettingsSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();

@@ -7565,6 +7565,7 @@ window.NissanPrint = {
     e.preventDefault();
     const form = e.target;
     const info = {
+      ...this.getOfficeInfo(),
       name: form.officeName.value.trim(),
       assocName: form.assocName.value.trim(),
       representative: form.representative.value.trim(),

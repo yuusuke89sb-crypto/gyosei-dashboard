@@ -279,6 +279,7 @@ const App = {
           <button class="btn btn-ghost" onclick="AnnualReport.show()" title="年間収支">📊 年間収支</button>
           <button class="btn btn-ghost" onclick="TaxHelper.show()" title="確定申告集計">📊 確定申告集計</button>
           <button class="btn btn-ghost" onclick="SalarySimulator.show()" title="役員報酬シミュレーション">⚖️ 役員報酬シミュレーター</button>
+          <a class="btn btn-ghost" href="給与明細作成ツール.html" target="_blank" title="給与明細・賃金台帳ツール（クラウド自動同期）" style="text-decoration:none;display:block;text-align:left;color:#60a5fa;font-weight:600">💴 給与明細・賃金台帳</a>
           <button class="btn btn-ghost" onclick="MonthlyReport.show()" title="月次レポート">📄 月次レポート</button>
           <button class="btn btn-ghost" onclick="RecurringExpenses.show()" title="定型仕訳">🔄 定型仕訳</button>
           <button class="btn btn-ghost" onclick="ReferralAnalysis.show()" title="紹介元分析">🤝 紹介元分析</button>

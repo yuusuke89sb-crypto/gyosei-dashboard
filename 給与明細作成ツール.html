@@ -1,0 +1,2504 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>給与明細作成ツール｜行政書士法人フェリス</title>
+<meta name="description" content="役員報酬・正社員・パート・賞与の給与明細を統一フォームで作成し、賃金台帳をCSV出力する社内ツール">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --navy-900:#0f1f33; --navy-800:#16304d; --navy-700:#1e3a5f; --navy-600:#2d5a87; --navy-500:#3a7ab5;
+  --accent:#2563eb; --accent-soft:#e0ebff;
+  --gold:#c8a24a;
+  --bg:#eef2f7; --card:#ffffff; --line:#dbe3ec; --line-soft:#edf1f6;
+  --text:#1a2433; --muted:#64748b; --muted-2:#94a3b8;
+  --red:#b42318; --red-soft:#fef2f2; --green:#0f7b5f; --green-soft:#e7f7f1; --amber:#b45309; --amber-soft:#fff7e6;
+  --radius:14px;
+  --num:'Inter','Noto Sans JP',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);font-size:14px;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:13px;color:var(--text)}
+
+/* ───────── App shell ───────── */
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+.sidebar{background:linear-gradient(180deg,var(--navy-900) 0%,var(--navy-800) 55%,#1b3d62 100%);color:#dbe6f3;padding:22px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh}
+.brand{padding:4px 10px 20px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:12px}
+.brand .b-sub{font-size:10.5px;letter-spacing:2px;color:var(--gold);font-weight:600}
+.brand .b-title{font-size:17px;font-weight:700;color:#fff;letter-spacing:1px;margin-top:4px}
+.brand .b-org{font-size:11.5px;color:#9fb3c8;margin-top:2px}
+.nav-btn{display:flex;align-items:center;gap:10px;background:transparent;border:none;color:#c3d2e3;padding:11px 12px;border-radius:10px;font-size:13.5px;font-weight:500;text-align:left;transition:all .18s}
+.nav-btn svg{width:18px;height:18px;flex:none;opacity:.85}
+.nav-btn:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-btn.active{background:linear-gradient(135deg,rgba(58,122,181,.45),rgba(37,99,235,.35));color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.side-foot{margin-top:auto;font-size:11px;color:#8aa0b8;line-height:1.6;padding:12px 10px;border-top:1px solid rgba(255,255,255,.08)}
+.side-foot b{color:#dbe6f3;font-weight:500}
+.sync-box{background:rgba(15,31,51,.55);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 11px;margin-bottom:8px}
+.sync-row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.sync-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:#e2e8f0}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#94a3b8;flex:none}
+.sync-dot.ok{background:#10b981;box-shadow:0 0 8px rgba(16,185,129,.6)}
+.sync-dot.syncing{background:#38bdf8;box-shadow:0 0 8px rgba(56,189,248,.6);animation:pulse 1s infinite}
+.sync-dot.pending{background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,.6)}
+.sync-dot.err{background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.6)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.sync-meta{font-size:10.5px;color:#9fb3c8;margin-top:4px;font-family:var(--num)}
+.sync-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:11px;padding:4px 8px;border-radius:6px;transition:all .15s}
+.sync-btn:hover{background:rgba(255,255,255,.16)}
+
+main{padding:26px 30px 40px;min-width:0}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.page-head h1{font-size:22px;font-weight:700;letter-spacing:1px;color:var(--navy-800)}
+.page-head p{font-size:12.5px;color:var(--muted);margin-top:4px}
+.tab{display:none;animation:fade .25s ease}
+.tab.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 1px 2px rgba(15,31,51,.04),0 8px 24px rgba(15,31,51,.05)}
+.card-pad{padding:18px 20px}
+.card-title{font-size:13px;font-weight:700;color:var(--navy-700);letter-spacing:1px;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.card-title::before{content:"";width:4px;height:14px;border-radius:2px;background:linear-gradient(var(--navy-500),var(--accent))}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--navy-700);padding:8px 14px;border-radius:9px;font-size:13px;font-weight:500;transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:var(--navy-500);background:#f6f9fd;transform:translateY(-1px)}
+.btn-primary{background:linear-gradient(135deg,var(--navy-700),var(--accent));color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(37,99,235,.25)}
+.btn-primary:hover{background:linear-gradient(135deg,var(--navy-800),#1d4ed8);color:#fff;box-shadow:0 6px 18px rgba(37,99,235,.33)}
+.btn-danger{color:var(--red);border-color:#f3c6c2}
+.btn-danger:hover{background:var(--red-soft);border-color:var(--red)}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:7px}
+
+/* form controls */
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:11.5px;color:var(--muted);font-weight:500}
+.inp{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fbfcfe;transition:border .15s,box-shadow .15s;width:100%}
+.inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:#fff}
+.inp.num{text-align:right;font-family:var(--num);font-variant-numeric:tabular-nums}
+.toolbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.seg{display:inline-flex;background:#e6ecf3;border-radius:10px;padding:3px}
+.seg button{border:none;background:transparent;padding:7px 16px;border-radius:8px;font-size:13px;color:var(--muted);font-weight:500}
+.seg button.on{background:#fff;color:var(--navy-700);box-shadow:0 1px 4px rgba(15,31,51,.12)}
+
+/* badges */
+.badge{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;letter-spacing:.5px}
+.b-officer{background:#efe7d4;color:#7a5b12}
+.b-regular{background:#e0ebff;color:#1e40af}
+.b-part{background:#e3f6ef;color:#0f6b52}
+.b-off{background:#eceff3;color:#64748b}
+
+/* ───────── Slip tab ───────── */
+.month-bar{display:flex;gap:14px;align-items:stretch;margin-bottom:16px;flex-wrap:wrap}
+.month-bar .card{display:flex;align-items:center;gap:14px;padding:12px 16px}
+.stat{display:flex;flex-direction:column;min-width:110px}
+.stat .s-l{font-size:11px;color:var(--muted)}
+.stat .s-v{font-size:18px;font-weight:700;font-family:var(--num);color:var(--navy-800)}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.chip{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:168px;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:#fff;transition:all .16s;text-align:left}
+.chip:hover{border-color:var(--navy-500);transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,31,51,.08)}
+.chip.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chip .c-name{font-weight:700;font-size:14px;color:var(--navy-800)}
+.chip .c-st{font-size:11.5px;color:var(--muted);font-family:var(--num)}
+.chip .c-st.done{color:var(--green);font-weight:600}
+.chip-row{display:flex;gap:6px;align-items:center}
+
+.slip-layout{display:grid;grid-template-columns:minmax(430px,1fr) minmax(540px,1.15fr);gap:20px;align-items:start}
+.editor .sec{padding:16px 20px;border-bottom:1px solid var(--line-soft)}
+.editor .sec:last-child{border-bottom:none}
+.ed-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line-soft);background:linear-gradient(180deg,#f8fafd,#fff);border-radius:var(--radius) var(--radius) 0 0}
+.ed-head .nm{font-size:17px;font-weight:700;color:var(--navy-800);display:flex;align-items:center;gap:8px}
+.save-st{font-size:11.5px;color:var(--muted)}
+.save-st.ok{color:var(--green)}
+.save-st.draft{color:var(--amber)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.rows{display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:1fr 150px 30px;gap:8px;align-items:center}
+.row .lbl{font-size:13px;color:#334155;display:flex;align-items:center;gap:6px}
+.row .lbl .inp{padding:5px 8px}
+.auto-tag{font-size:9.5px;padding:1px 6px;border-radius:5px;background:var(--accent-soft);color:var(--accent);font-weight:600;letter-spacing:.5px}
+.auto-tag.manual{background:var(--amber-soft);color:var(--amber)}
+.reset{border:none;background:transparent;color:var(--muted-2);font-size:15px;width:28px;height:28px;border-radius:6px;visibility:hidden}
+.reset.show{visibility:visible}
+.reset:hover{background:#eef2f7;color:var(--accent)}
+.sum-line{display:flex;justify-content:space-between;padding:9px 12px;margin-top:8px;border-radius:9px;background:#f4f7fb;font-weight:700;font-size:13px}
+.sum-line .v{font-family:var(--num)}
+.hint{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--amber-soft);border:1px solid #f6dfb0;font-size:12px;line-height:1.7;color:#7a4a0a}
+.hint a{color:var(--accent);font-weight:600}
+.hint.info{background:#f1f6ff;border-color:#d6e4ff;color:#1e3a8a}
+.warn{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--red-soft);border:1px solid #f3c6c2;font-size:12px;line-height:1.7;color:var(--red)}
+textarea.inp{min-height:70px;resize:vertical;line-height:1.6}
+.preview-wrap{position:sticky;top:18px}
+.preview-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.preview-head span{font-size:12px;color:var(--muted)}
+.empty-state{padding:60px 20px;text-align:center;color:var(--muted)}
+.empty-state .big{font-size:40px;margin-bottom:8px}
+
+/* ───────── Payslip (screen & print) ───────── */
+.slip{background:#fff;border:1px solid #d5dde7;border-radius:10px;overflow:hidden;color:#1a1a2e;font-family:'Noto Sans JP',sans-serif;box-shadow:0 10px 30px rgba(15,31,51,.08)}
+.slip .sh{background:linear-gradient(135deg,#1e3a5f 0%,#2d5a87 60%,#3a7ab5 100%);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.slip.officer .sh{background:linear-gradient(135deg,#0f2027 0%,#203a43 50%,#2c5364 100%)}
+.slip .sh h2{font-size:19px;font-weight:700;letter-spacing:4px;margin-bottom:2px}
+.slip .sh .pd{font-size:12px;font-weight:300;opacity:.92}
+.slip .sh .co{text-align:right;font-size:11px;line-height:1.6}
+.slip .sh .co b{font-size:14px;letter-spacing:1px;display:block}
+.slip .sb{padding:16px 24px 18px}
+.slip .who{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:10px;border-bottom:2px solid #e8ecf1;margin-bottom:12px;gap:10px}
+.slip .who .n{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.slip .who .n .k{font-size:11px;color:#556980}
+.slip .who .n .nm{font-size:18px;font-weight:700;letter-spacing:1.5px}
+.slip .who .n .hn{font-size:14px}
+.slip .who .meta{text-align:right;font-size:11px;color:#4a5568;line-height:1.6}
+.slip .st{font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:1.5px;margin-bottom:5px;padding-left:7px;border-left:3px solid #3a7ab5}
+.slip table{width:100%;border-collapse:collapse;font-size:11.5px}
+.slip th{background:#f1f5f9;color:#334155;font-weight:600;font-size:10.5px;text-align:center;padding:5px 6px;border:1px solid #cbd5e1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.slip td{padding:5px 7px;border:1px solid #cbd5e1;text-align:center;height:25px}
+.slip td.l{background:#f8fafc;text-align:left;padding-left:9px;font-weight:500;color:#334155;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.slip td.a{text-align:right;font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:500;padding-right:9px}
+.slip td.c{font-size:10px;color:#475569}
+.slip td.z{color:#a0aec0}
+.slip tr.tt td{background:#f1f5f9;font-weight:700;border-top:1.5px solid #94a3b8;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.slip .att{margin-bottom:12px}
+.slip .att td{font-family:var(--num)}
+.slip .pg{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px}
+.slip .tb{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:10px;margin-bottom:10px}
+.slip .bx{border-radius:8px;padding:9px 12px;text-align:center;border:1px solid transparent;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.slip .bx .bl{font-size:10px;font-weight:600;letter-spacing:1px;margin-bottom:2px}
+.slip .bx .bv{font-size:17px;font-weight:700;font-family:var(--num)}
+.slip .bx.e{background:#eff6ff;color:#1e3a5f;border-color:#bfdbfe}
+.slip .bx.d{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+.slip .bx.n{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff}
+.slip.officer .bx.n{background:linear-gradient(135deg,#0f2027,#203a43)}
+.slip .bx.n .bl{color:#e0e7ff}
+.slip .sub{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;color:#475569;background:#fafbfc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;margin-bottom:12px;font-family:var(--num)}
+.slip .sub b{color:#1e293b;font-weight:600}
+.slip .nt{background:#fafbfc;border:1px dashed #cbd5e1;border-radius:6px;padding:7px 11px;font-size:10.5px;color:#475569;line-height:1.65;min-height:36px;white-space:pre-wrap;margin-bottom:10px}
+.slip .ft{text-align:center;font-size:9.5px;color:#94a3b8;padding-top:8px;border-top:1px solid #e2e8f0}
+
+/* ───────── Tables (employees, ledger) ───────── */
+.tbl-wrap{overflow:auto;border-radius:12px;border:1px solid var(--line)}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}
+.tbl th{background:#f3f6fa;color:#475569;font-weight:600;font-size:11.5px;padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+.tbl td.r,.tbl th.r{text-align:right;font-family:var(--num);font-variant-numeric:tabular-nums}
+.tbl tr:hover td{background:#f8fbff}
+.tbl tr.total td{background:#eef3fa;font-weight:700;border-top:2px solid var(--line)}
+.emp-layout{display:grid;grid-template-columns:1fr 420px;gap:20px;align-items:start}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+.chk{display:flex;align-items:center;gap:7px;font-size:13px;padding:6px 0}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+.divider{grid-column:1/-1;font-size:11.5px;font-weight:700;color:var(--navy-600);letter-spacing:1px;padding-top:8px;border-top:1px dashed var(--line);margin-top:4px}
+.set-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:20px}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--navy-800);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(10px);transition:all .25s;pointer-events:none;z-index:99}
+.toast.show{opacity:1;transform:none}
+
+#printArea{display:none}
+
+/* ───────── Print ───────── */
+@media print{
+  html,body{background:#fff !important;height:auto}
+  .app,.toast{display:none !important}
+  #printArea{display:block !important}
+  .print-page{page-break-after:always;break-after:page}
+  .print-page:last-child{page-break-after:auto;break-after:auto}
+  .slip{box-shadow:none !important;border-radius:0;border:1px solid #cbd5e1}
+  /* ───────── 賃金台帳（月別一覧）印刷 ───────── */
+  .ledger-print{width:100%}
+  .ledger-print h2{font-size:15px;margin-bottom:4px;font-weight:700;color:#0f172a}
+  .ledger-print .lp-meta{font-size:9.5px;color:#475569;margin-bottom:8px}
+  .ledger-print table{width:100%;border-collapse:collapse;font-size:8.5px;table-layout:auto}
+  .ledger-print th,.ledger-print td{border:1px solid #94a3b8;padding:4px 3px}
+  .ledger-print th{background:#e2e8f0;font-weight:700;white-space:normal;line-height:1.2;text-align:center;vertical-align:middle;word-break:break-all;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ledger-print td{white-space:nowrap}
+  .ledger-print td.r{text-align:right;font-family:var(--num)}
+  .ledger-print tr.total td{font-weight:700;background:#e2e8f0;border-top:1.5px solid #334155;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ledger-print th.th-net, .ledger-print td.td-net{background:#dbeafe !important;color:#1e3a5f !important;font-weight:700 !important;border-left:1.5px solid #2563eb !important;border-right:1.5px solid #2563eb !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ledger-print .c-strong{font-weight:700;background:#f8fafc;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+  /* ───────── 賃金台帳（個人別）印刷 ───────── */
+  .personal-ledger{width:100%;padding:10px 0}
+  .pl-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;border-bottom:2px solid #1e3a5f;padding-bottom:6px}
+  .pl-title{font-size:20px;font-weight:700;letter-spacing:4px;color:#1e3a5f}
+  .pl-company{font-size:13px;font-weight:600;color:#334155}
+  .pl-meta-box{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 16px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:9px 14px;margin-bottom:12px;font-size:11px}
+  .pl-meta-item b{color:#475569}
+  .pl-name{font-size:15px;font-weight:700;color:#0f172a}
+  .pl-table{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:10px}
+  .pl-table th,.pl-table td{border:1px solid #94a3b8;padding:5px 6px}
+  .pl-table th{background:#e2e8f0;font-weight:700;text-align:center;line-height:1.2;white-space:normal;word-break:break-all;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pl-table td{white-space:nowrap}
+  .pl-table td.r{text-align:right;font-family:var(--num)}
+  .pl-table tr.total td{font-weight:700;background:#e2e8f0;border-top:2px solid #1e3a5f;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pl-table .th-net, .pl-table .td-net{background:#dbeafe !important;color:#1e3a5f !important;font-weight:700 !important;border-left:1.5px solid #2563eb !important;border-right:1.5px solid #2563eb !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pl-foot{font-size:9px;color:#64748b;text-align:right;margin-top:4px}
+}
+.tbl th.th-net{background:#dbeafe;color:#1e40af;border-left:1.5px solid #2563eb;border-right:1.5px solid #2563eb}
+.tbl td.td-net{background:#eff6ff;color:#1e3a5f;font-weight:700;border-left:1.5px solid #2563eb;border-right:1.5px solid #2563eb}
+/* ───────── Representative PIN Lock ───────── */
+body:not(.unlocked) .app{display:none !important}
+.pin-overlay{position:fixed;inset:0;background:radial-gradient(circle at 20% 20%,#1e3a5f 0%,#0f1e36 70%);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
+body.unlocked .pin-overlay{display:none !important}
+.pin-card{background:#fff;width:100%;max-width:410px;border-radius:18px;padding:32px 28px;box-shadow:0 25px 60px rgba(0,0,0,.45);text-align:center}
+.pin-icon{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,var(--navy-700),var(--accent));color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:14px;box-shadow:0 8px 20px rgba(37,99,235,.28)}
+.pin-title{font-size:19px;font-weight:700;color:var(--navy-900);margin-bottom:6px}
+.pin-sub{font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:20px}
+.pin-inp{width:100%;font-size:26px;font-family:var(--num);letter-spacing:10px;text-align:center;padding:12px 16px;border:2px solid var(--line);border-radius:12px;outline:none;transition:all .15s;margin-bottom:12px}
+.pin-inp:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(37,99,235,.15)}
+.pin-err{color:var(--red);font-size:12.5px;font-weight:600;min-height:20px;margin-bottom:10px}
+.lock-btn{width:100%;margin-top:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#e2e8f0;padding:7px 10px;border-radius:8px;font-size:11.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s}
+.lock-btn:hover{background:rgba(220,38,38,.25);border-color:rgba(248,113,113,.5);color:#fff}
+/* ───────── MF Journal Tab ───────── */
+.mf-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.mf-stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.mf-stat .k{font-size:11.5px;color:var(--muted);margin-bottom:4px}
+.mf-stat .v{font-size:18px;font-weight:700;font-family:var(--num);color:var(--navy-800)}
+.mf-stat .s{font-size:11px;color:var(--muted);margin-top:3px}
+.mf-tx-group{border-top:2px solid #cbd5e1 !important}
+.mf-dr{color:#1e3a5f;font-weight:600}
+.mf-cr{color:#0f766e;font-weight:600}
+.mf-sub-badge{display:inline-block;font-size:10.5px;padding:1px 6px;border-radius:4px;background:#f1f5f9;color:#475569;margin-left:5px;font-weight:500}
+@media (max-width:1280px){.slip-layout{grid-template-columns:1fr}.preview-wrap{position:static}.emp-layout{grid-template-columns:1fr}}
+</style>
+<style id="pageStyle">@page{size:A4 portrait;margin:10mm 12mm}</style>
+</head>
+<body>
+
+<!-- 🔐 代表者専用PINロック画面 -->
+<div class="pin-overlay" id="pinLockOverlay">
+  <form class="pin-card" id="pinUnlockForm" autocomplete="off">
+    <div class="pin-icon">🔐</div>
+    <div class="pin-title">代表者専用ロック</div>
+    <div class="pin-sub">給与明細・賃金台帳は代表者専用データです。<br>管理者PINコードを入力してロックを解除してください。</div>
+    <input type="password" inputmode="numeric" class="pin-inp" id="pinInput" placeholder="••••" maxlength="12" autofocus>
+    <div class="pin-err" id="pinError"></div>
+    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:14px">ロック解除して開く</button>
+    <div style="margin-top:16px;font-size:11px;color:#94a3b8">※ タブを閉じるか15分間操作がないと自動で再ロックされます</div>
+  </form>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="b-sub">PAYROLL</div>
+      <div class="b-title">給与明細作成ツール</div>
+      <div class="b-org" id="sideCompany">行政書士法人フェリス</div>
+    </div>
+    <button class="nav-btn active" data-tab="slip" id="navSlip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+      明細作成
+    </button>
+    <button class="nav-btn" data-tab="ledger" id="navLedger">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>
+      賃金台帳
+    </button>
+    <button class="nav-btn" data-tab="mf" id="navMf">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg>
+      MF仕訳・会計連携
+    </button>
+    <button class="nav-btn" data-tab="emp" id="navEmp">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M17 11a3 3 0 1 0 0-6M22 21c0-3-2-5-5-5.5"/></svg>
+      社員マスタ
+    </button>
+    <button class="nav-btn" data-tab="settings" id="navSettings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      設定・バックアップ
+    </button>
+    <div class="side-foot">
+      <div class="sync-box">
+        <div class="sync-row">
+          <span class="sync-badge"><span class="sync-dot syncing" id="syncDot"></span><span id="syncLabel">クラウド確認中...</span></span>
+          <button type="button" class="sync-btn" id="btnSideSync" title="今すぐクラウドと同期">🔄 同期</button>
+        </div>
+        <div class="sync-meta" id="syncMeta">Googleスプレッドシート自動同期</div>
+        <button type="button" class="lock-btn" id="btnLockApp" title="離席時などにすぐ画面をロックします">🔒 画面をロック（代表者専用）</button>
+      </div>
+      事務所PC・自宅PCでデータが自動同期されます。念のため月1回は <b>設定 → バックアップ</b> も推奨します。
+    </div>
+  </aside>
+
+  <main>
+    <!-- ═════════ 明細作成 ═════════ -->
+    <section class="tab active" id="tab-slip">
+      <div class="page-head">
+        <div>
+          <h1>給与明細の作成</h1>
+          <p>月と区分を選んで、社員をクリックすると明細を入力できます。入力内容は自動で保存されます。</p>
+        </div>
+        <div class="toolbar">
+          <div class="field"><label for="ymInput">支給対象月</label><input type="month" class="inp" id="ymInput" style="width:160px"></div>
+          <div class="field"><label>区分</label>
+            <div class="seg" id="kindSeg"><button data-kind="salary" class="on" id="kindSalary">給与・役員報酬</button><button data-kind="bonus" id="kindBonus">賞与</button></div>
+          </div>
+          <button class="btn btn-primary" id="btnPrintAll">🖨 この月の明細をまとめて印刷</button>
+        </div>
+      </div>
+
+      <div class="month-bar">
+        <div class="card">
+          <div class="stat"><span class="s-l">作成済み</span><span class="s-v" id="stCount">0 / 0</span></div>
+          <div class="stat"><span class="s-l">総支給額 合計</span><span class="s-v" id="stGross">¥0</span></div>
+          <div class="stat"><span class="s-l">控除額 合計</span><span class="s-v" id="stDed">¥0</span></div>
+          <div class="stat"><span class="s-l">差引支給額 合計</span><span class="s-v" id="stNet">¥0</span></div>
+        </div>
+      </div>
+
+      <div class="chips" id="empChips"></div>
+
+      <div class="slip-layout">
+        <div class="card editor" id="editor">
+          <div class="empty-state"><div class="big">👆</div>上の一覧から社員を選んでください</div>
+        </div>
+        <div class="preview-wrap">
+          <div class="preview-head"><b style="color:var(--navy-700);font-size:13px">印刷プレビュー（A4縦）</b><span>入力すると即時に反映されます</span></div>
+          <div id="preview"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════ 賃金台帳 ═════════ -->
+    <section class="tab" id="tab-ledger">
+      <div class="page-head">
+        <div>
+          <h1>賃金台帳（月別一覧）</h1>
+          <p>労働基準法108条の記載事項（氏名・性別・計算期間・労働日数・労働時間・各手当・控除）を網羅しています。税理士さんへの提出用にCSVで書き出せます。</p>
+        </div>
+      </div>
+      <div class="card card-pad" style="margin-bottom:16px">
+        <div class="toolbar">
+          <div class="field"><label for="lgFrom">開始月</label><input type="month" class="inp" id="lgFrom" style="width:160px"></div>
+          <div class="field"><label for="lgTo">終了月</label><input type="month" class="inp" id="lgTo" style="width:160px"></div>
+          <div class="field"><label for="lgEmp">社員</label><select class="inp" id="lgEmp" style="width:180px"></select></div>
+          <div class="field"><label for="lgKind">区分</label><select class="inp" id="lgKind" style="width:150px"><option value="">すべて</option><option value="salary">給与・役員報酬</option><option value="bonus">賞与</option></select></div>
+          <button class="btn" id="btnFY">今期（10月〜9月）</button>
+          <label class="chk" style="margin-left:8px;font-size:12px;cursor:pointer" title="全行で0円の項目列を隠して1枚に大きく綺麗に印刷します"><input type="checkbox" id="chkHideZero" checked> 0円の項目列を隠す（A4横フィット）</label>
+          <div style="flex:1"></div>
+          <button class="btn" id="btnLedgerPrint">🖨 一覧を印刷（A4横）</button>
+          <button class="btn" id="btnPersonalLedgerPrint">🖨 個人別台帳を印刷（1人1枚）</button>
+          <button class="btn btn-primary" id="btnCsv">⬇ CSVで書き出し</button>
+        </div>
+      </div>
+      <div class="tbl-wrap" id="ledgerWrap"></div>
+    </section>
+
+    <!-- ═════════ MF仕訳・会計連携 ═════════ -->
+    <section class="tab" id="tab-mf">
+      <div class="page-head">
+        <div>
+          <h1>マネーフォワード クラウド会計 仕訳プレビュー・CSV出力</h1>
+          <p>保存済みの給与・役員報酬・賞与明細から複合仕訳を自動作成し、マネーフォワード「仕訳帳インポート」形式のCSVを1クリックで出力できます。</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-primary" id="btnMfExportCsv" style="font-size:13.5px;padding:10px 18px">⬇ MF仕訳帳CSVを出力（給与・賞与）</button>
+        </div>
+      </div>
+
+      <!-- フィルタ・仕訳設定バー -->
+      <div class="card card-pad" style="margin-bottom:16px">
+        <div class="toolbar">
+          <div class="field"><label for="mfFrom">開始月</label><input type="month" class="inp" id="mfFrom" style="width:150px"></div>
+          <div class="field"><label for="mfTo">終了月</label><input type="month" class="inp" id="mfTo" style="width:150px"></div>
+          <div style="display:flex;gap:6px;padding-bottom:2px">
+            <button type="button" class="btn btn-sm" id="btnMf202609">2026年9月分</button>
+            <button type="button" class="btn btn-sm" id="btnMf202610">2026年10月分</button>
+            <button type="button" class="btn btn-sm" id="btnMfFY">今期（10月〜9月）</button>
+          </div>
+          <div class="field"><label for="mfKind">区分</label>
+            <select class="inp" id="mfKind" style="width:145px">
+              <option value="">すべて（給与＋賞与）</option>
+              <option value="salary">給与・役員報酬のみ</option>
+              <option value="bonus">賞与のみ</option>
+            </select>
+          </div>
+          <div class="field"><label for="mfMode">仕訳のまとめ方</label>
+            <select class="inp" id="mfMode" style="width:230px">
+              <option value="individual">1人ずつ複合仕訳（銀行振込と1対1連動）</option>
+              <option value="summary">支給日・区分ごとに全員分を合算（1本に集約）</option>
+            </select>
+          </div>
+          <div class="field"><label for="mfPayAcct">差引支給額（貸方）科目</label>
+            <select class="inp" id="mfPayAcct" style="width:140px">
+              <option value="普通預金">普通預金</option>
+              <option value="未払費用">未払費用</option>
+              <option value="現金">現金</option>
+            </select>
+          </div>
+          <div class="field"><label for="mfPaySub">貸方補助科目（任意）</label>
+            <input class="inp" id="mfPaySub" placeholder="例：三井住友銀行" style="width:145px">
+          </div>
+          <div class="field"><label for="mfBonusAcct">賞与の借方科目</label>
+            <select class="inp" id="mfBonusAcct" style="width:165px">
+              <option value="賞与">賞与（支給時費用）</option>
+              <option value="未払費用">未払費用（決算未払取崩）</option>
+              <option value="賞与引当金">賞与引当金</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 集計サマリーカード -->
+      <div class="mf-summary-grid" id="mfSummaryGrid"></div>
+
+      <!-- 年金事務所（社会保険料）口座引落・法定福利費 自動仕訳カード -->
+      <div class="card card-pad" style="margin-bottom:18px;border-color:#93c5fd;background:linear-gradient(180deg,#f0f7ff 0%,#ffffff 100%)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <div class="card-title" style="margin-bottom:4px;color:#1e3a8a">🏛️ 年金事務所（社会保険料）口座引落・法定福利費 自動計算シミュレーター</div>
+            <p style="font-size:12px;color:var(--muted);line-height:1.6">
+              給与・賞与から天引きした「預り金（社会保険料）」と、年金事務所から実際に口座引落された総額との差額を「法定福利費（会社負担分）」として自動仕訳します。
+            </p>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="btnMfExportSocCsv">⬇ この社保引落仕訳をMF CSV出力</button>
+        </div>
+        <div class="toolbar" style="margin-bottom:12px">
+          <div class="field">
+            <label for="socTargetYm">天引きした給与月</label>
+            <input type="month" class="inp" id="socTargetYm" value="2026-10" style="width:150px">
+          </div>
+          <label class="chk" style="padding-bottom:6px;cursor:pointer;font-size:12.5px">
+            <input type="checkbox" id="socIncludeBonus"> 同月の賞与の社会保険料も同じ引落に含める
+          </label>
+          <div class="field">
+            <label for="socDebitDate">年金事務所の口座引落日</label>
+            <input type="date" class="inp" id="socDebitDate" value="2026-11-02" style="width:155px">
+          </div>
+          <div class="field">
+            <label for="socTotalWithdrawal">口座引落された総額（円）</label>
+            <input type="number" class="inp num" id="socTotalWithdrawal" value="223020" placeholder="例: 223020" style="width:160px">
+          </div>
+          <label class="chk" style="padding-bottom:6px;cursor:pointer;font-size:12.5px;font-weight:600;color:#1e40af">
+            <input type="checkbox" id="socIncludeInMainCsv" checked> 上部の「MF仕訳帳CSVを出力」にもこの仕訳を含める
+          </label>
+        </div>
+        <div id="socCalcResult"></div>
+      </div>
+
+      <!-- 仕訳プレビュー一覧表 -->
+      <div class="card card-pad" style="padding:14px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div class="card-title" style="margin-bottom:0">📋 生成された複合仕訳プレビュー（マネーフォワード クラウド会計準拠）</div>
+          <span style="font-size:11.5px;color:var(--muted)" id="mfCountLabel"></span>
+        </div>
+        <div class="tbl-wrap" id="mfTableWrap"></div>
+      </div>
+    </section>
+
+    <!-- ═════════ 社員マスタ ═════════ -->
+    <section class="tab" id="tab-emp">
+      <div class="page-head">
+        <div>
+          <h1>社員マスタ</h1>
+          <p>ここで登録した基本給・手当・保険の加入状況が、明細作成時の初期値と自動計算に使われます。</p>
+        </div>
+        <button class="btn btn-primary" id="btnNewEmp">＋ 社員を追加</button>
+      </div>
+      <div class="emp-layout">
+        <div class="tbl-wrap" id="empTable"></div>
+        <div class="card card-pad" id="empForm"></div>
+      </div>
+    </section>
+
+    <!-- ═════════ 設定 ═════════ -->
+    <section class="tab" id="tab-settings">
+      <div class="page-head">
+        <div>
+          <h1>設定・バックアップ</h1>
+          <p>保険料率は毎年（健康保険は3月分、雇用保険は4月分から）改定されます。改定時にここを更新してください。</p>
+        </div>
+        <button class="btn btn-primary" id="btnSaveSettings">設定を保存</button>
+      </div>
+      <div class="set-grid">
+        <div class="card card-pad">
+          <div class="card-title">事業所情報</div>
+          <div class="form-grid">
+            <div class="field full"><label for="s_company">法人名</label><input class="inp" id="s_company" data-set="company"></div>
+            <div class="field full"><label for="s_address">所在地（明細に表示）</label><input class="inp" id="s_address" data-set="address"></div>
+            <div class="field full"><label for="s_footer">明細フッター文言</label><input class="inp" id="s_footer" data-set="footer"></div>
+          </div>
+        </div>
+        <div class="card card-pad">
+          <div class="card-title">締日・支給日・割増率</div>
+          <div class="form-grid">
+            <div class="field"><label for="s_closingDay">締日（0＝末日）</label><input type="number" class="inp num" id="s_closingDay" data-set="closingDay" min="0" max="28"></div>
+            <div class="field"><label for="s_payMonthOffset">支給月</label><select class="inp" id="s_payMonthOffset" data-set="payMonthOffset"><option value="0">当月払い</option><option value="1">翌月払い</option></select></div>
+            <div class="field"><label for="s_payDay">支給日（0＝末日）</label><input type="number" class="inp num" id="s_payDay" data-set="payDay" min="0" max="31"></div>
+            <div class="field"><label for="s_stdHours">月平均所定労働時間（h）</label><input type="number" class="inp num" id="s_stdHours" data-set="stdHours" step="0.1"></div>
+            <div class="field"><label for="s_otRate">時間外 割増率</label><input type="number" class="inp num" id="s_otRate" data-set="otRate" step="0.01"></div>
+            <div class="field"><label for="s_holRate">休日 割増率</label><input type="number" class="inp num" id="s_holRate" data-set="holRate" step="0.01"></div>
+            <div class="field"><label for="s_nightRate">深夜 割増率（加算分）</label><input type="number" class="inp num" id="s_nightRate" data-set="nightRate" step="0.01"></div>
+          </div>
+        </div>
+        <div class="card card-pad">
+          <div class="card-title">保険料率（本人負担分・％）</div>
+          <div class="form-grid">
+            <div class="field"><label for="s_healthRate">健康保険（協会けんぽ愛知）</label><input type="number" class="inp num" id="s_healthRate" data-set="healthRate" step="0.001"></div>
+            <div class="field"><label for="s_careRate">介護保険（40〜64歳）</label><input type="number" class="inp num" id="s_careRate" data-set="careRate" step="0.001"></div>
+            <div class="field"><label for="s_childRate">子ども・子育て支援金</label><input type="number" class="inp num" id="s_childRate" data-set="childRate" step="0.001"></div>
+            <div class="field"><label for="s_pensionRate">厚生年金保険</label><input type="number" class="inp num" id="s_pensionRate" data-set="pensionRate" step="0.001"></div>
+            <div class="field"><label for="s_empInsRate">雇用保険（一般の事業）</label><input type="number" class="inp num" id="s_empInsRate" data-set="empInsRate" step="0.001"></div>
+          </div>
+          <div class="hint info">初期値は令和8年度の料率です：健保 9.93%・介護 1.62%・支援金 0.23%・厚年 18.3%（いずれも折半）、雇用保険 本人 5/1000。<br>税理士さんの確認時に、料率と「当月徴収／翌月徴収」のどちらで運用しているかも確認しておくと安心です。</div>
+        </div>
+        <div class="card card-pad" style="border-color:#bfdbfe;background:linear-gradient(180deg,#f8fbff 0%,#fff 100%)">
+          <div class="card-title">☁️ クラウド自動同期（事務所PC・自宅PC共有）</div>
+          <p style="font-size:12.5px;color:var(--muted);line-height:1.75;margin-bottom:10px">
+            Googleスプレッドシート（GAS）経由で、事務所PCと自宅PCのデータを自動で同期します。<br>
+            明細の入力・社員マスタの変更・設定変更を行うと、数秒以内にクラウドへ自動保存されます。
+          </p>
+          <div id="cloudStatusDetail" style="font-size:12px;background:#f1f5f9;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-family:var(--num);color:var(--navy-800)">
+            状態を確認中...
+          </div>
+          <div class="toolbar" style="margin-bottom:10px">
+            <button type="button" class="btn btn-primary" id="btnCloudSyncNow">🔄 今すぐ同期（最新状態に統合）</button>
+            <button type="button" class="btn" id="btnCloudForcePush" title="このPCの現在のデータでクラウド側を丸ごと上書きします">📤 このPCのデータをクラウドへ強制送信</button>
+            <button type="button" class="btn" id="btnCloudForcePull" title="クラウド上のデータでこのPCを丸ごと上書きします">📥 クラウドからこのPCへ強制取得</button>
+            <button type="button" class="btn" id="btnRestorePreSync" style="display:none" title="初回クラウド同期前のこのPCのデータを復元します">🔙 初回同期前のデータに戻す</button>
+          </div>
+          <details style="font-size:12px;color:var(--muted)">
+            <summary style="cursor:pointer;user-select:none">接続先GAS URL設定（通常は変更不要）</summary>
+            <div class="field" style="margin-top:8px">
+              <input class="inp" id="s_gasUrl" placeholder="https://script.google.com/macros/s/.../exec">
+            </div>
+          </details>
+        </div>
+        <div class="card card-pad">
+          <div class="card-title">🔐 代表者専用PINロック設定</div>
+          <p style="font-size:12.5px;color:var(--muted);line-height:1.75;margin-bottom:10px">
+            他のスタッフや第三者がこのツール（またはダッシュボードからのリンク）を開いても、PINコードを知らない限り中身を閲覧できません。<br>
+            タブを閉じるか、15分間操作がないと自動で再ロックされます。
+          </p>
+          <div class="form-grid">
+            <div class="field">
+              <label for="s_adminPin">代表者PINコード（4桁以上・ダッシュボードと共通）</label>
+              <input type="password" inputmode="numeric" class="inp num" id="s_adminPin" placeholder="初期値: 0813" maxlength="12">
+            </div>
+            <div class="field" style="justify-content:flex-end">
+              <button type="button" class="btn" id="btnTestLockNow">🔒 今すぐ画面をロックする</button>
+            </div>
+          </div>
+          <div class="hint info">※ PINを変更して「設定を保存」を押すと、クラウド経由で事務所PC・自宅PCの両方に反映されます。</div>
+        </div>
+        <div class="card card-pad">
+          <div class="card-title">バックアップ・復元（ファイル保存）</div>
+          <p style="font-size:12.5px;color:var(--muted);line-height:1.8;margin-bottom:12px">クラウド同期に加えて、念のため月1回など定期的にバックアップファイル（JSON）をPCへ保存しておくとより安心です。</p>
+          <div class="toolbar">
+            <button class="btn btn-primary" id="btnBackup">⬇ バックアップを保存</button>
+            <label class="btn" for="restoreFile" style="cursor:pointer">⬆ バックアップから復元</label>
+            <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="printArea"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════════
+   定数・ユーティリティ
+════════════════════════════════════════════════ */
+const LS = {
+  emp:'felisPay.employees',
+  rec:'felisPay.records',
+  set:'felisPay.settings',
+  seeded:'felisPay.seeded.v1',
+  delRec:'felisPay.deletedRecs',
+  delEmp:'felisPay.deletedEmps',
+  cloudSynced:'felisPay.cloudSyncedAt',
+  preSyncBackup:'felisPay.preSyncBackup',
+  officeCache:'felisPay.officeInfoCache',
+  gasUrl:'felisPay.gasUrl'
+};
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzCXTuW3RirKhn29PiAZe_VtmGXj22LrBAmO_ztCpmiKuQ_YU8pE2JqoZDoSWEbgm0g/exec';
+const DEFAULT_SETTINGS = {
+  company:'行政書士法人フェリス', address:'愛知県一宮市木曽川町黒田字往還南80番地',
+  footer:'本明細書の内容についてご不明な点がございましたら、速やかに担当までお申し出ください。',
+  closingDay:20, payMonthOffset:0, payDay:25, stdHours:160,
+  otRate:1.25, holRate:1.35, nightRate:0.25,
+  healthRate:4.965, careRate:0.81, childRate:0.115, pensionRate:9.15, empInsRate:0.5,
+  adminPin:'0813'
+};
+const TYPE_LABEL = { officer:'役員', regular:'正社員', part:'パート・アルバイト' };
+const TYPE_BADGE = { officer:'b-officer', regular:'b-regular', part:'b-part' };
+
+const ATT = [
+  {k:'workDays', label:'出勤日数', unit:'日', step:'0.5'},
+  {k:'paidLeave', label:'有給休暇', unit:'日', step:'0.5'},
+  {k:'absenceDays', label:'欠勤日数', unit:'日', step:'0.5'},
+  {k:'regularHours', label:'所定内労働', unit:'h', step:'0.25'},
+  {k:'overtimeHours', label:'時間外労働', unit:'h', step:'0.25'},
+  {k:'holidayHours', label:'休日労働', unit:'h', step:'0.25'},
+  {k:'nightHours', label:'深夜労働', unit:'h', step:'0.25'},
+];
+const EARN = [
+  {k:'base', auto:'salary', lg:'基本給・役員報酬・賞与', label:(r,e)=> r.kind==='bonus' ? (r.bonusName||'賞与') : e.type==='officer' ? '役員報酬' : e.type==='part' ? '基本給（時給）' : '基本給'},
+  {k:'position', lg:'役職手当', label:()=> '役職手当'},
+  {k:'qualification', lg:'資格手当', label:()=> '資格手当'},
+  {k:'overtime', auto:'salary', salaryOnly:true, lg:'時間外手当', label:()=> '時間外手当'},
+  {k:'holiday', auto:'salary', salaryOnly:true, lg:'休日出勤手当', label:()=> '休日出勤手当'},
+  {k:'night', auto:'salary', salaryOnly:true, lg:'深夜手当', label:()=> '深夜手当'},
+  {k:'other', nameKey:'otherName', lg:'その他手当', label:(r)=> r.otherName || 'その他手当'},
+  {k:'absence', neg:true, salaryOnly:true, lg:'欠勤・遅早控除', label:()=> '欠勤・遅早控除'},
+  {k:'commute', nontax:true, lg:'通勤手当（非課税）', label:()=> '通勤手当（非課税）'},
+];
+const SOCIAL = ['health','care','child','pension','empIns'];
+const DED = [
+  {k:'health', auto:'all', lg:'健康保険料', label:'健康保険料'},
+  {k:'care', auto:'all', lg:'介護保険料', label:'介護保険料'},
+  {k:'child', auto:'all', lg:'子ども・子育て支援金', label:'子ども・子育て支援金'},
+  {k:'pension', auto:'all', lg:'厚生年金保険料', label:'厚生年金保険料'},
+  {k:'empIns', auto:'all', lg:'雇用保険料', label:'雇用保険料'},
+  {k:'incomeTax', auto:'kou', lg:'源泉所得税', label:'源泉所得税'},
+  {k:'residentTax', lg:'住民税', label:'住民税（特別徴収）'},
+  {k:'otherDed', nameKey:'otherDedName', lg:'その他控除', label:'その他控除'},
+];
+
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const num = v => { const n = parseFloat(String(v ?? '').replace(/,/g,'')); return isFinite(n) ? n : 0; };
+const fmt = n => Math.round(num(n)).toLocaleString('ja-JP');
+const yen = n => '¥' + fmt(n);
+const hrs = n => { const v = num(n); return (Math.round(v*100)/100).toString(); };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const clone = o => JSON.parse(JSON.stringify(o));
+/* 社会保険・雇用保険の端数処理（被保険者負担分を給与から控除する場合：50銭以下切捨て、50銭超切上げ） */
+function insRound(x){ x = Math.round(x*100)/100; const f = Math.floor(x); return (x - f) > 0.5 ? f + 1 : f; }
+
+/* ────────────────────────────────────────────────
+   源泉所得税（月額・甲欄）令和8年分
+   「電子計算機等を使用して源泉徴収税額を計算する方法」（財務省告示）による
+   ・給与所得控除：最低保障65万円/年（月54,167円）へ引上げ後の別表第一
+   ・基礎控除：58万円/年（月48,334円）
+   ・扶養親族等1人につき月31,667円
+   ・税額は10円未満四捨五入。税額表と数十円ずれる場合があるが法令上認められた方法
+   ・社保控除後105,000円未満は税額表に合わせて0円
+──────────────────────────────────────────────── */
+function calcIncomeTaxKou(x, deps){
+  x = Math.floor(num(x));
+  if(x < 105000) return 0;
+  let kyuyo;
+  if(x <= 158333) kyuyo = 54167;
+  else if(x <= 299999) kyuyo = Math.ceil(x * 0.3 + 6667);
+  else if(x <= 549999) kyuyo = Math.ceil(x * 0.2 + 36667);
+  else if(x <= 708330) kyuyo = Math.ceil(x * 0.1 + 91667);
+  else kyuyo = 162500;
+  const kiso = x <= 2162499 ? 48334 : x <= 2204166 ? 26667 : x <= 2245833 ? 13334 : 0;
+  const A = Math.max(0, x - kyuyo - kiso - 31667 * num(deps));
+  let tax;
+  if(A <= 162500) tax = A * 0.05105;
+  else if(A <= 275000) tax = A * 0.1021 - 8296;
+  else if(A <= 579166) tax = A * 0.2042 - 36374;
+  else if(A <= 750000) tax = A * 0.23483 - 54113;
+  else if(A <= 1500000) tax = A * 0.33693 - 130688;
+  else if(A <= 3333333) tax = A * 0.4084 - 237893;
+  else tax = A * 0.45945 - 408061;
+  return Math.max(0, Math.round(tax / 10) * 10);
+}
+
+/* ────────────────────────────────────────────────
+   賞与に対する源泉徴収税額の算出率の表（令和8年分）
+   国税庁告示第122号別表第三
+──────────────────────────────────────────────── */
+const BONUS_TAX_TABLE_2026 = [
+  // [税率(%), [扶養0人, 1人, 2人, 3人, 4人, 5人, 6人, 7人以上]] (単位:千円未満)
+  [0,      [ 82, 107, 143, 181, 218, 251, 284, 317]],
+  [2.042,  [ 94, 250, 276, 300, 300, 304, 343, 383]],
+  [4.084,  [260, 289, 321, 354, 387, 412, 438, 463]],
+  [6.126,  [309, 346, 377, 405, 431, 457, 483, 508]],
+  [8.168,  [342, 373, 400, 424, 452, 479, 505, 529]],
+  [10.210, [372, 401, 426, 452, 477, 503, 527, 552]],
+  [12.252, [402, 430, 457, 484, 509, 531, 553, 578]],
+  [14.294, [433, 463, 492, 517, 540, 564, 589, 614]],
+  [16.336, [520, 520, 525, 550, 577, 604, 630, 657]],
+  [18.378, [605, 621, 636, 651, 666, 681, 697, 708]],
+  [20.420, [684, 705, 728, 751, 774, 798, 821, 845]],
+  [22.462, [715, 739, 764, 788, 813, 838, 862, 887]],
+  [24.504, [752, 778, 804, 830, 856, 881, 907, 933]],
+  [26.546, [795, 821, 848, 876, 903, 930, 957, 985]],
+  [28.588, [854, 882, 910, 938, 966, 994, 1022, 1051]],
+  [30.630, [922, 952, 983, 1013, 1044, 1074, 1104, 1135]],
+  [32.672, [1318, 1342, 1367, 1391, 1416, 1440, 1464, 1489]],
+  [35.735, [1521, 1526, 1526, 1538, 1555, 1555, 1555, 1583]],
+  [38.798, [2621, 2645, 2669, 2693, 2716, 2740, 2764, 2788]],
+  [41.861, [3495, 3527, 3559, 3590, 3622, 3654, 3685, 3717]],
+  [45.945, [Infinity, Infinity, Infinity, Infinity, Infinity, Infinity, Infinity, Infinity]]
+];
+const BONUS_TAX_OTSU_2026 = [
+  { max: 224000, rate: 3.063 },
+  { max: 295000, rate: 10.210 },
+  { max: 527000, rate: 20.420 },
+  { max: 1118000, rate: 30.630 },
+  { max: Infinity, rate: 40.840 }
+];
+
+function getPrevSalaryAfterSocial(r, emp){
+  emp = emp || empOf(r);
+  // 1. 前月の給与明細
+  const prevRec = RECS[recKey(ymAdd(r.ym, -1), 'salary', r.empId)];
+  if(prevRec && prevRec.saved) return totals(prevRec).afterSocial;
+  // 2. 当月の給与明細
+  const curRec = RECS[recKey(r.ym, 'salary', r.empId)];
+  if(curRec && curRec.saved) return totals(curRec).afterSocial;
+  // 3. 社員マスタから推定（基本給 - 推定社保）
+  const base = num(emp.baseSalary);
+  const std = num(emp.stdMonthly) || base;
+  let soc = 0;
+  if(emp.hasHealth) soc += insRound(std * num(S.healthRate) / 100) + insRound(std * num(S.childRate) / 100);
+  if(emp.hasHealth && emp.hasCare) soc += insRound(std * num(S.careRate) / 100);
+  if(emp.hasPension) soc += insRound(std * num(S.pensionRate) / 100);
+  if(emp.hasEmpIns && emp.type !== 'officer') soc += insRound(base * num(S.empInsRate) / 100);
+  return Math.max(0, base - soc);
+}
+
+function getBonusTaxRate(r, emp){
+  emp = emp || empOf(r);
+  const prevA = getPrevSalaryAfterSocial(r, emp);
+  if(emp.taxColumn === '乙'){
+    const item = BONUS_TAX_OTSU_2026.find(x => prevA < x.max) || BONUS_TAX_OTSU_2026[BONUS_TAX_OTSU_2026.length - 1];
+    return item.rate;
+  }
+  const th = Math.floor(prevA / 1000);
+  const depIdx = Math.min(7, Math.max(0, Math.floor(num(emp.dependents))));
+  for(let i = 0; i < BONUS_TAX_TABLE_2026.length; i++){
+    if(th < BONUS_TAX_TABLE_2026[i][1][depIdx]){
+      return BONUS_TAX_TABLE_2026[i][0];
+    }
+  }
+  return 45.945;
+}
+
+function calcBonusIncomeTax(r, emp){
+  emp = emp || empOf(r);
+  const t = totals(r);
+  if(t.afterSocial <= 0) return 0;
+  const rate = getBonusTaxRate(r, emp);
+  return Math.floor(t.afterSocial * (rate / 100));
+}
+
+function ymAdd(ym, n){ let [y,m] = ym.split('-').map(Number); m += n; while(m>12){m-=12;y++} while(m<1){m+=12;y--} return `${y}-${String(m).padStart(2,'0')}`; }
+function lastDay(y,m){ return new Date(y, m, 0).getDate(); }
+function ymd(y,m,d){ return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function jpDate(s){ if(!s) return '―'; const [y,m,d] = s.split('-').map(Number); return `${y}年${m}月${d}日`; }
+function jpShort(s){ if(!s) return ''; const [,m,d] = s.split('-').map(Number); return `${m}/${d}`; }
+function thisYm(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2200); }
+
+/* ════════════════════════════════════════════════
+   データ（localStorage ＋ クラウド同期）
+════════════════════════════════════════════════ */
+let S, EMPS, RECS, DEL_RECS, DEL_EMPS;
+const ui = { tab:'slip', ym:'', kind:'salary', empId:null, rec:null, editEmpId:null };
+
+function load(){
+  S = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem(LS.set) || '{}'));
+  EMPS = JSON.parse(localStorage.getItem(LS.emp) || '[]');
+  RECS = JSON.parse(localStorage.getItem(LS.rec) || '{}');
+  DEL_RECS = JSON.parse(localStorage.getItem(LS.delRec) || '{}');
+  DEL_EMPS = JSON.parse(localStorage.getItem(LS.delEmp) || '{}');
+  if(!localStorage.getItem(LS.seeded) && EMPS.length === 0) seed();
+  // v2移行：自動計算導入前に保存された明細は、実際に源泉した税額を守るため「手入力」扱いにする
+  let mig = false;
+  Object.values(RECS).forEach(r => { if(!r.v){ r.manual = r.manual || {}; r.manual.incomeTax = true; r.v = 2; mig = true; } });
+  if(mig) saveRecs(false);
+}
+function saveEmps(sync = true){
+  localStorage.setItem(LS.emp, JSON.stringify(EMPS));
+  localStorage.setItem(LS.delEmp, JSON.stringify(DEL_EMPS));
+  if(sync && typeof CloudSync !== 'undefined') CloudSync.schedulePush();
+}
+function saveRecs(sync = true){
+  localStorage.setItem(LS.rec, JSON.stringify(RECS));
+  localStorage.setItem(LS.delRec, JSON.stringify(DEL_RECS));
+  if(sync && typeof CloudSync !== 'undefined') CloudSync.schedulePush();
+}
+function saveSettings(sync = true){
+  localStorage.setItem(LS.set, JSON.stringify(S));
+  if(sync && typeof CloudSync !== 'undefined') CloudSync.schedulePush();
+}
+const recKey = (ym, kind, empId) => `${ym}|${kind}|${empId}`;
+const empById = id => EMPS.find(e => e.id === id);
+
+function blankEmp(){
+  return { id:uid(), code:'', name:'', kana:'', gender:'', type:'regular', title:'', joinDate:'',
+    baseSalary:0, hourlyRate:0, positionAllowance:0, qualificationAllowance:0, commute:0,
+    stdMonthly:0, hasHealth:true, hasCare:false, hasPension:true, hasEmpIns:true,
+    taxColumn:'甲', dependents:0, residentTax:0, active:true, memo:'' };
+}
+function empOf(r){
+  return empById(r.empId) || Object.assign(blankEmp(), { id:r.empId, name:r.empName || '(削除済み)', type:r.empType || 'regular', gender:r.empGender || '' , hasHealth:false, hasPension:false, hasEmpIns:false });
+}
+
+function seed(){
+  EMPS = [{"id": "e_hiei", "code": "001", "name": "日栄 政敏", "kana": "", "gender": "", "type": "officer", "title": "社員（役員）", "joinDate": "", "baseSalary": 200000, "hourlyRate": 0, "positionAllowance": 0, "qualificationAllowance": 0, "commute": 0, "stdMonthly": 0, "hasHealth": false, "hasCare": false, "hasPension": false, "hasEmpIns": false, "taxColumn": "甲", "dependents": 0, "residentTax": 0, "active": true, "memo": "75歳以上（後期高齢者医療）のため健保・厚年の天引きなし。役員のため雇用保険対象外。", "updatedAt": "2026-11-11T09:43:04.170Z"}, {"id": "e_tanaka_t", "code": "002", "name": "田中 稔人", "kana": "", "gender": "男", "type": "regular", "title": "", "joinDate": "2026-09-01", "baseSalary": 260000, "hourlyRate": 0, "positionAllowance": 0, "qualificationAllowance": 0, "commute": 0, "stdMonthly": 266500, "hasHealth": true, "hasCare": true, "hasPension": true, "hasEmpIns": true, "taxColumn": "甲", "dependents": 1, "residentTax": 0, "active": true, "memo": "二以上事業所勤務（合算41万区分・按分後266,500円）", "updatedAt": "2026-11-11T09:43:04.170Z"}, {"id": "e_tanaka_i", "code": "003", "name": "田中 郁恵", "kana": "", "gender": "女", "type": "regular", "title": "", "joinDate": "2026-09-01", "baseSalary": 220000, "hourlyRate": 0, "positionAllowance": 0, "qualificationAllowance": 0, "commute": 0, "stdMonthly": 220000, "hasHealth": true, "hasCare": true, "hasPension": true, "hasEmpIns": true, "taxColumn": "甲", "dependents": 0, "residentTax": 0, "active": true, "memo": "", "updatedAt": "2026-11-11T09:43:04.170Z"}, {"id": "e_part1", "code": "004", "name": "岩田　富子", "kana": "", "gender": "女", "type": "part", "title": "", "joinDate": "2026-09-01", "baseSalary": 0, "hourlyRate": 1200, "positionAllowance": 0, "qualificationAllowance": 0, "commute": 0, "stdMonthly": 0, "hasHealth": false, "hasCare": false, "hasPension": false, "hasEmpIns": false, "taxColumn": "甲", "dependents": 0, "residentTax": 0, "active": true, "memo": "週20時間未満のため社会保険・雇用保険の対象外（扶養控除等申告書 提出済）", "updatedAt": "2026-11-11T09:43:04.170Z"}, {"id": "emvnr6ebd48p5", "code": "", "name": "吉村　悠佑", "kana": "", "gender": "男", "type": "officer", "title": "代表社員", "joinDate": "2026-09-01", "baseSalary": 260000, "hourlyRate": 0, "positionAllowance": 0, "qualificationAllowance": 0, "commute": 0, "stdMonthly": 260000, "hasHealth": true, "hasCare": false, "hasPension": true, "hasEmpIns": true, "taxColumn": "甲", "dependents": 1, "residentTax": 0, "active": true, "memo": "", "updatedAt": "2026-11-11T09:43:04.170Z"}, {"id": "emvnr99euwagx", "code": "", "name": "大野　恭子", "kana": "", "gender": "女", "type": "part", "title": "", "joinDate": "2026-09-01", "baseSalary": 0, "hourlyRate": 1200, "positionAllowance": 0, "qualificationAllowance": 0, "commute": 0, "stdMonthly": 0, "hasHealth": false, "hasCare": false, "hasPension": false, "hasEmpIns": false, "taxColumn": "甲", "dependents": 0, "residentTax": 0, "active": true, "memo": "", "updatedAt": "2026-11-11T09:43:04.170Z"}, {"id": "emvnr9ygq0fcj", "code": "", "name": "吉村　絵理香", "kana": "", "gender": "女", "type": "part", "title": "", "joinDate": "2026-09-01", "baseSalary": 87000, "hourlyRate": 0, "positionAllowance": 0, "qualificationAllowance": 0, "commute": 0, "stdMonthly": 0, "hasHealth": false, "hasCare": false, "hasPension": false, "hasEmpIns": false, "taxColumn": "甲", "dependents": 0, "residentTax": 0, "active": true, "memo": "", "updatedAt": "2026-11-11T09:43:04.170Z"}];
+  RECS = {
+    "2026-09|salary|e_hiei": {"ym": "2026-09", "kind": "salary", "empId": "e_hiei", "payDate": "2026-09-25", "periodFrom": "2026-09-01", "periodTo": "2026-09-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 0, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 200000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 4770, "residentTax": 0, "otherDed": 0}, "manual": {"incomeTax": true}, "notes": "・法人税法第34条に定める「定期同額給与」としての役員報酬です。\n・75歳以上のため、健康保険（後期高齢者医療制度適用）・厚生年金保険は給与天引き対象外です。\n・源泉所得税：月額表・甲欄（扶養親族等の数0人）を適用。", "saved": true, "v": 2, "empName": "日栄 政敏", "empType": "officer", "empGender": "", "empCode": "001", "updatedAt": "2026-10-25T11:44:36.818Z"},
+    "2026-09|salary|e_part1": {"ym": "2026-09", "kind": "salary", "empId": "e_part1", "payDate": "2026-09-30", "periodFrom": "2026-09-01", "periodTo": "2026-09-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 0, "paidLeave": 0, "absenceDays": 0, "regularHours": 27.5, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 33000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 0, "residentTax": 0, "otherDed": 0}, "manual": {}, "notes": "※ 扶養控除等申告書提出済（甲欄適用）", "saved": true, "v": 2, "empName": "岩田　富子", "empType": "part", "empGender": "女", "empCode": "004", "updatedAt": "2026-10-25T11:44:51.025Z"},
+    "2026-10|bonus|e_tanaka_t": {"ym": "2026-10", "kind": "bonus", "empId": "e_tanaka_t", "payDate": "2026-10-26", "periodFrom": "2026-10-01", "periodTo": "2026-10-31", "bonusName": "決算賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 0, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 500000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 24825, "care": 4050, "child": 575, "pension": 45750, "empIns": 2500, "incomeTax": 17246, "residentTax": 0, "otherDed": 0}, "manual": {"base": true}, "notes": "2026年9月期 決算賞与\n※ 社会保険料・源泉所得税（賞与に対する源泉徴収税額の算出率の表）を確認のうえ入力してください。", "saved": true, "v": 2, "empName": "田中 稔人", "empType": "regular", "empGender": "男", "empCode": "002", "updatedAt": "2026-10-25T12:34:44.351Z"},
+    "2026-10|bonus|e_tanaka_i": {"ym": "2026-10", "kind": "bonus", "empId": "e_tanaka_i", "payDate": "2026-10-26", "periodFrom": "2026-10-01", "periodTo": "2026-10-31", "bonusName": "決算賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 0, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 500000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 24825, "care": 4050, "child": 575, "pension": 45750, "empIns": 2500, "incomeTax": 17246, "residentTax": 0, "otherDed": 0}, "manual": {"base": true}, "notes": "2026年9月期 決算賞与\n※ 社会保険料・源泉所得税（賞与に対する源泉徴収税額の算出率の表）を確認のうえ入力してください。", "saved": true, "v": 2, "empName": "田中 郁恵", "empType": "regular", "empGender": "女", "empCode": "003", "updatedAt": "2026-10-25T12:34:34.917Z"},
+    "2026-09|salary|e_tanaka_t": {"ym": "2026-09", "kind": "salary", "empId": "e_tanaka_t", "payDate": "2026-09-25", "periodFrom": "2026-09-01", "periodTo": "2026-09-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 14, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 45, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 173000, "position": 0, "qualification": 0, "overtime": 91400, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 5020, "residentTax": 0, "otherDed": 0}, "manual": {"base": true, "overtime": true, "health": true, "care": true, "child": true, "pension": true, "empIns": true}, "notes": "", "saved": true, "v": 2, "empName": "田中 稔人", "empType": "regular", "empGender": "男", "empCode": "002", "updatedAt": "2026-10-25T11:42:32.355Z"},
+    "2026-09|salary|e_tanaka_i": {"ym": "2026-09", "kind": "salary", "empId": "e_tanaka_i", "payDate": "2026-09-25", "periodFrom": "2026-08-21", "periodTo": "2026-09-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 14, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 45, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 146667, "position": 0, "qualification": 0, "overtime": 77343, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 5250, "residentTax": 0, "otherDed": 0}, "manual": {"base": true, "overtime": true, "health": true, "care": true, "child": true, "pension": true, "empIns": true, "incomeTax": true}, "notes": "", "saved": true, "v": 2, "empName": "田中 郁恵", "empType": "regular", "empGender": "女", "empCode": "003", "updatedAt": "2026-10-25T11:43:57.475Z"},
+    "2026-09|salary|emvnr6ebd48p5": {"ym": "2026-09", "kind": "salary", "empId": "emvnr6ebd48p5", "payDate": "2026-09-25", "periodFrom": "2026-09-01", "periodTo": "2026-09-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 0, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 260000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 4920, "residentTax": 0, "otherDed": 0}, "manual": {"health": true, "child": true, "pension": true, "incomeTax": true}, "notes": "", "saved": true, "v": 2, "empName": "吉村　悠佑", "empType": "officer", "empGender": "男", "empCode": "", "updatedAt": "2026-10-25T11:45:11.125Z"},
+    "2026-09|salary|emvnr99euwagx": {"ym": "2026-09", "kind": "salary", "empId": "emvnr99euwagx", "payDate": "2026-09-25", "periodFrom": "2026-09-01", "periodTo": "2026-09-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 14, "paidLeave": 0, "absenceDays": 0, "regularHours": 71.6, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 86000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 0, "residentTax": 0, "otherDed": 0}, "manual": {"base": true, "empIns": true}, "notes": "", "saved": true, "v": 2, "empName": "大野　恭子", "empType": "part", "empGender": "女", "empCode": "", "updatedAt": "2026-10-25T11:47:13.691Z"},
+    "2026-09|salary|emvnr9ygq0fcj": {"ym": "2026-09", "kind": "salary", "empId": "emvnr9ygq0fcj", "payDate": "2026-09-25", "periodFrom": "2026-09-01", "periodTo": "2026-09-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 14, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 87000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 0, "residentTax": 0, "otherDed": 0}, "manual": {"base": true, "empIns": true}, "notes": "", "saved": true, "v": 2, "empName": "吉村　絵理香", "empType": "part", "empGender": "女", "empCode": "", "updatedAt": "2026-10-25T11:47:47.739Z"},
+    "2026-10|salary|emvnr6ebd48p5": {"ym": "2026-10", "kind": "salary", "empId": "emvnr6ebd48p5", "payDate": "2026-10-25", "periodFrom": "2026-09-21", "periodTo": "2026-10-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 0, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 260000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 12909, "care": 0, "child": 299, "pension": 23790, "empIns": 0, "incomeTax": 3540, "residentTax": 0, "otherDed": 0}, "manual": {}, "notes": "", "saved": true, "v": 2, "empName": "吉村　悠佑", "empType": "officer", "empGender": "男", "empCode": "", "updatedAt": "2026-10-25T11:51:26.553Z"},
+    "2026-10|salary|e_tanaka_t": {"ym": "2026-10", "kind": "salary", "empId": "e_tanaka_t", "payDate": "2026-10-25", "periodFrom": "2026-09-21", "periodTo": "2026-10-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 18, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 30, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 260000, "position": 0, "qualification": 0, "overtime": 60938, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 13232, "care": 2159, "child": 306, "pension": 24385, "empIns": 1605, "incomeTax": 5550, "residentTax": 0, "otherDed": 0}, "manual": {}, "notes": "", "saved": true, "v": 2, "empName": "田中 稔人", "empType": "regular", "empGender": "男", "empCode": "002", "updatedAt": "2026-10-25T11:55:07.643Z"},
+    "2026-10|salary|e_hiei": {"ym": "2026-10", "kind": "salary", "empId": "e_hiei", "payDate": "2026-10-25", "periodFrom": "2026-09-21", "periodTo": "2026-10-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 0, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 200000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 4340, "residentTax": 0, "otherDed": 0}, "manual": {}, "notes": "・法人税法第34条に定める「定期同額給与」としての役員報酬です。\n・75歳以上のため、健康保険（後期高齢者医療制度適用）・厚生年金保険は給与天引き対象外です。\n・源泉所得税：月額表・甲欄（扶養親族等の数0人）を適用。", "saved": true, "v": 2, "empName": "日栄 政敏", "empType": "officer", "empGender": "", "empCode": "001", "updatedAt": "2026-10-25T11:55:30.389Z"},
+    "2026-10|salary|e_tanaka_i": {"ym": "2026-10", "kind": "salary", "empId": "e_tanaka_i", "payDate": "2026-10-25", "periodFrom": "2026-09-21", "periodTo": "2026-10-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 18, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 30, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 220000, "position": 0, "qualification": 0, "overtime": 51563, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 10923, "care": 1782, "child": 253, "pension": 20130, "empIns": 1358, "incomeTax": 5670, "residentTax": 0, "otherDed": 0}, "manual": {}, "notes": "", "saved": true, "v": 2, "empName": "田中 郁恵", "empType": "regular", "empGender": "女", "empCode": "003", "updatedAt": "2026-10-25T11:56:01.132Z"},
+    "2026-10|salary|e_part1": {"ym": "2026-10", "kind": "salary", "empId": "e_part1", "payDate": "2026-10-31", "periodFrom": "2026-09-21", "periodTo": "2026-10-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 13, "paidLeave": 0, "absenceDays": 0, "regularHours": 41.5, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 49800, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 0, "residentTax": 0, "otherDed": 0}, "manual": {}, "notes": "※ 扶養控除等申告書提出済（甲欄適用）", "saved": true, "v": 2, "empName": "岩田　富子", "empType": "part", "empGender": "女", "empCode": "004", "updatedAt": "2026-10-25T12:02:28.372Z"},
+    "2026-10|salary|emvnr99euwagx": {"ym": "2026-10", "kind": "salary", "empId": "emvnr99euwagx", "payDate": "2026-10-25", "periodFrom": "2026-09-21", "periodTo": "2026-10-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 18, "paidLeave": 0, "absenceDays": 0, "regularHours": 45.833, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 55000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 0, "residentTax": 0, "otherDed": 0}, "manual": {}, "notes": "", "saved": true, "v": 2, "empName": "大野　恭子", "empType": "part", "empGender": "女", "empCode": "", "updatedAt": "2026-10-25T12:04:04.425Z"},
+    "2026-10|salary|emvnr9ygq0fcj": {"ym": "2026-10", "kind": "salary", "empId": "emvnr9ygq0fcj", "payDate": "2026-10-25", "periodFrom": "2026-09-21", "periodTo": "2026-10-20", "bonusName": "賞与", "otherName": "その他手当", "otherDedName": "その他控除", "att": {"workDays": 14, "paidLeave": 0, "absenceDays": 0, "regularHours": 0, "overtimeHours": 0, "holidayHours": 0, "nightHours": 0}, "earn": {"base": 87000, "position": 0, "qualification": 0, "overtime": 0, "holiday": 0, "night": 0, "other": 0, "absence": 0, "commute": 0}, "ded": {"health": 0, "care": 0, "child": 0, "pension": 0, "empIns": 0, "incomeTax": 0, "residentTax": 0, "otherDed": 0}, "manual": {"empIns": true, "base": true}, "notes": "", "saved": true, "v": 2, "empName": "吉村　絵理香", "empType": "part", "empGender": "女", "empCode": "", "updatedAt": "2026-10-25T12:04:23.548Z"}
+  };
+  saveEmps(false); saveRecs(false);
+  localStorage.setItem(LS.seeded, '1');
+}
+
+/* ════════════════════════════════════════════════
+   レコード生成・計算
+════════════════════════════════════════════════ */
+function defaultPeriod(ym){
+  const [y,m] = ym.split('-').map(Number);
+  const cd = num(S.closingDay);
+  if(!cd) return [ymd(y,m,1), ymd(y,m,lastDay(y,m))];
+  const [py,pm] = ymAdd(ym,-1).split('-').map(Number);
+  return [ymd(py,pm,Math.min(cd+1,lastDay(py,pm))), ymd(y,m,Math.min(cd,lastDay(y,m)))];
+}
+function defaultPayDate(ym, day){
+  const [y,m] = ymAdd(ym, num(S.payMonthOffset)).split('-').map(Number);
+  const d = num(day ?? S.payDay); const ld = lastDay(y,m);
+  return ymd(y, m, d === 0 ? ld : Math.min(d, ld));
+}
+function newRecord(ym, kind, emp){
+  const [pf, pt] = defaultPeriod(ym);
+  const r = { ym, kind, empId:emp.id, payDate:defaultPayDate(ym), periodFrom:pf, periodTo:pt,
+    bonusName:'賞与', otherName:'その他手当', otherDedName:'その他控除',
+    att:{}, earn:{}, ded:{}, manual:{}, notes:'', saved:false, v:2 };
+  ATT.forEach(f => r.att[f.k] = 0);
+  EARN.forEach(f => r.earn[f.k] = 0);
+  DED.forEach(f => r.ded[f.k] = 0);
+  if(kind === 'salary'){
+    r.earn.position = num(emp.positionAllowance);
+    r.earn.qualification = num(emp.qualificationAllowance);
+    r.earn.commute = num(emp.commute);
+    r.ded.residentTax = num(emp.residentTax);
+    const prev = RECS[recKey(ymAdd(ym,-1), kind, emp.id)];
+    if(prev){
+      // 前月から固定的な項目を引き継ぐ（勤怠と勤怠連動の手当は引き継がない）
+      ['position','qualification','other','commute'].forEach(k => r.earn[k] = num(prev.earn[k]));
+      ['residentTax','otherDed'].forEach(k => r.ded[k] = num(prev.ded[k]));
+      r.otherName = prev.otherName; r.otherDedName = prev.otherDedName;
+      if(prev.manual && prev.manual.base && emp.type !== 'part'){ r.earn.base = num(prev.earn.base); r.manual.base = true; }
+      SOCIAL.forEach(k => { if(prev.manual && prev.manual[k]){ r.ded[k] = num(prev.ded[k]); r.manual[k] = true; } });
+      const pd = Number((prev.payDate||'').split('-')[2]);
+      if(pd) r.payDate = defaultPayDate(ym, pd === lastDay(...prev.payDate.split('-').slice(0,2).map(Number)) ? 0 : pd);
+      r.notes = prev.notes || '';
+    }
+  } else {
+    r.manual.base = true;
+  }
+  compute(r, emp);
+  return r;
+}
+function compute(r, emp){
+  emp = emp || empOf(r);
+  const e = r.earn, d = r.ded, a = r.att, m = r.manual || (r.manual = {});
+  const set = (obj, k, v) => { if(!m[k]) obj[k] = v; };
+  const isBonus = r.kind === 'bonus';
+  if(!isBonus){
+    if(emp.type === 'part') set(e, 'base', Math.round(num(emp.hourlyRate) * num(a.regularHours)));
+    else set(e, 'base', num(emp.baseSalary));
+    const unit = emp.type === 'part' ? num(emp.hourlyRate)
+               : emp.type === 'officer' ? 0
+               : (num(e.base) + num(e.position) + num(e.qualification)) / (num(S.stdHours) || 160);
+    set(e, 'overtime', Math.round(unit * num(S.otRate) * num(a.overtimeHours)));
+    set(e, 'holiday', Math.round(unit * num(S.holRate) * num(a.holidayHours)));
+    set(e, 'night', Math.round(unit * num(S.nightRate) * num(a.nightHours)));
+  }
+  const t = totals(r);
+  const basis = isBonus ? Math.floor(t.gross / 1000) * 1000 : num(emp.stdMonthly);
+  set(d, 'health',  emp.hasHealth ? insRound(basis * num(S.healthRate) / 100) : 0);
+  set(d, 'care',    emp.hasHealth && emp.hasCare ? insRound(basis * num(S.careRate) / 100) : 0);
+  set(d, 'child',   emp.hasHealth ? insRound(basis * num(S.childRate) / 100) : 0);
+  set(d, 'pension', emp.hasPension ? insRound(basis * num(S.pensionRate) / 100) : 0);
+  set(d, 'empIns',  emp.hasEmpIns && emp.type !== 'officer' ? insRound(t.gross * num(S.empInsRate) / 100) : 0);
+  if(isBonus){
+    set(d, 'incomeTax', calcBonusIncomeTax(r, emp));
+  } else if(emp.taxColumn === '甲'){
+    set(d, 'incomeTax', calcIncomeTaxKou(totals(r).afterSocial, emp.dependents));
+  }
+}
+const dedIsAuto = (f, r, emp) => f.auto === 'all' || (f.auto === 'kou' && (r.kind === 'bonus' ? (emp.taxColumn === '甲' || emp.taxColumn === '乙') : emp.taxColumn === '甲'));
+function totals(r){
+  const e = r.earn, d = r.ded, a = r.att || {};
+  let gross = 0; EARN.forEach(f => gross += f.neg ? -num(e[f.k]) : num(e[f.k]));
+  const nontax = num(e.commute);
+  const social = SOCIAL.reduce((s,k) => s + num(d[k]), 0);
+  const ded = DED.reduce((s,f) => s + num(d[f.k]), 0);
+  const totalH = num(a.regularHours) + num(a.overtimeHours) + num(a.holidayHours);
+  return { gross, nontax, taxable:gross - nontax, social, afterSocial:gross - nontax - social, ded, net:gross - ded, totalH };
+}
+function stamp(r){
+  const emp = empOf(r);
+  r.saved = true; r.empName = emp.name; r.empType = emp.type; r.empGender = emp.gender; r.empCode = emp.code;
+  r.updatedAt = new Date().toISOString();
+}
+
+/* ════════════════════════════════════════════════
+   明細書 HTML
+════════════════════════════════════════════════ */
+function slipHTML(r){
+  const emp = empOf(r), t = totals(r);
+  const isBonus = r.kind === 'bonus', type = emp.type;
+  const title = isBonus ? (type === 'officer' ? '役 員 賞 与 明 細 書' : '賞 与 明 細 書')
+                        : (type === 'officer' ? '役 員 報 酬 明 細 書' : '給 与 明 細 書');
+  const [y, m] = r.ym.split('-').map(Number);
+  const period = `${y}年（令和${y-2018}年）${m}月分` + (isBonus ? `　${esc(r.bonusName || '賞与')}` : '');
+  const a = r.att;
+
+  let att = '';
+  if(!isBonus && type !== 'officer'){
+    att = `<div class="att"><div class="st">勤 怠</div><table><thead><tr>
+      <th>出勤日数</th><th>有給休暇</th><th>欠勤日数</th><th>所定内時間</th><th>時間外</th><th>休日労働</th><th>深夜</th><th>総労働時間</th></tr></thead>
+      <tbody><tr>
+      <td>${hrs(a.workDays)} 日</td><td>${hrs(a.paidLeave)} 日</td><td>${hrs(a.absenceDays)} 日</td>
+      <td>${hrs(a.regularHours)} h</td><td>${hrs(a.overtimeHours)} h</td><td>${hrs(a.holidayHours)} h</td><td>${hrs(a.nightHours)} h</td>
+      <td style="font-weight:700;color:#1e3a5f">${hrs(t.totalH)} h</td></tr></tbody></table></div>`;
+  }
+
+  const calcText = (k) => {
+    if(k === 'base'){
+      if(isBonus) return type === 'officer' ? '事前確定届出' : '';
+      if(type === 'part') return `@${fmt(emp.hourlyRate)}×${hrs(a.regularHours)}h`;
+      if(type === 'officer') return '定期同額';
+      return '月給';
+    }
+    if(k === 'overtime' && num(a.overtimeHours)) return `${hrs(a.overtimeHours)}h×${S.otRate}`;
+    if(k === 'holiday' && num(a.holidayHours)) return `${hrs(a.holidayHours)}h×${S.holRate}`;
+    if(k === 'night' && num(a.nightHours)) return `${hrs(a.nightHours)}h×${S.nightRate}`;
+    if(k === 'absence' && num(a.absenceDays)) return `${hrs(a.absenceDays)}日`;
+    if(k === 'commute') return '非課税';
+    return '';
+  };
+  const earnRows = EARN.filter(f => {
+    if(isBonus && f.salaryOnly) return false;
+    if(f.k === 'base') return true;
+    if(f.k === 'commute') return !isBonus;
+    return num(r.earn[f.k]) !== 0;
+  }).map(f => {
+    const v = num(r.earn[f.k]);
+    return `<tr><td class="l">${esc(f.label(r, emp))}</td><td class="c">${esc(calcText(f.k))}</td>
+      <td class="a ${v ? '' : 'z'}">${f.neg && v ? '−' : ''}${fmt(v)}</td></tr>`;
+  });
+
+  const dedNote = (k) => {
+    const v = num(r.ded[k]);
+    if(k === 'health' || k === 'child') return emp.hasHealth ? '' : (type === 'officer' && !emp.hasHealth ? '対象外' : '対象外');
+    if(k === 'care') return emp.hasHealth && emp.hasCare ? '' : '対象外';
+    if(k === 'pension') return emp.hasPension ? '' : '対象外';
+    if(k === 'empIns') return type === 'officer' ? '役員対象外' : emp.hasEmpIns ? '' : '対象外';
+    if(k === 'incomeTax') return isBonus ? '賞与算出率表' : emp.taxColumn === '乙' ? '乙欄' : `甲欄（${num(emp.dependents)}人）`;
+    if(k === 'residentTax') return v ? '特別徴収' : '';
+    return '';
+  };
+  const dedRows = DED.filter(f => f.k !== 'otherDed' || num(r.ded.otherDed) !== 0).map(f => {
+    const v = num(r.ded[f.k]);
+    const lbl = f.nameKey ? (r[f.nameKey] || f.label) : f.label;
+    return `<tr><td class="l">${esc(lbl)}</td><td class="c">${esc(dedNote(f.k))}</td><td class="a ${v ? '' : 'z'}">${fmt(v)}</td></tr>`;
+  });
+  const pad = (rows, n) => { while(rows.length < n) rows.push('<tr><td class="l">&nbsp;</td><td></td><td></td></tr>'); return rows.join(''); };
+  const nRows = Math.max(earnRows.length, dedRows.length);
+
+  return `<div class="slip ${type === 'officer' ? 'officer' : ''}">
+    <div class="sh"><div><h2>${title}</h2><div class="pd">${period}</div></div>
+      <div class="co"><b>${esc(S.company)}</b>${esc(S.address)}</div></div>
+    <div class="sb">
+      <div class="who">
+        <div class="n"><span class="k">${type === 'officer' ? esc(emp.title || '役員') : TYPE_LABEL[type] + (emp.title ? '・' + esc(emp.title) : '')}</span>
+          <span class="nm">${esc(emp.name) || '　　　　　　'}</span><span class="hn">殿</span></div>
+        <div class="meta">${emp.code ? '社員番号：' + esc(emp.code) + '<br>' : ''}${isBonus ? '' : `計算期間：${jpShort(r.periodFrom)}〜${jpShort(r.periodTo)}<br>`}<b>支給日：${jpDate(r.payDate)}</b></div>
+      </div>
+      ${att}
+      <div class="pg">
+        <div><div class="st">支 給 の 部</div><table><thead><tr><th style="width:44%">項目</th><th style="width:26%">計算内容</th><th style="width:30%">金額</th></tr></thead>
+          <tbody>${pad(earnRows, nRows)}<tr class="tt"><td class="l">総支給額</td><td></td><td class="a" style="color:#1e3a5f">${yen(t.gross)}</td></tr></tbody></table></div>
+        <div><div class="st">控 除 の 部</div><table><thead><tr><th style="width:44%">項目</th><th style="width:26%">備考</th><th style="width:30%">金額</th></tr></thead>
+          <tbody>${pad(dedRows, nRows)}<tr class="tt"><td class="l">控除合計</td><td></td><td class="a" style="color:#991b1b">${yen(t.ded)}</td></tr></tbody></table></div>
+      </div>
+      <div class="tb">
+        <div class="bx e"><div class="bl">総支給額（A）</div><div class="bv">${yen(t.gross)}</div></div>
+        <div class="bx d"><div class="bl">控除合計額（B）</div><div class="bv">${yen(t.ded)}</div></div>
+        <div class="bx n"><div class="bl">差引支給額（A − B）</div><div class="bv">${yen(t.net)}</div></div>
+      </div>
+      <div class="sub"><span>課税支給額 <b>${yen(t.taxable)}</b></span><span>非課税支給額 <b>${yen(t.nontax)}</b></span><span>社会保険料等 計 <b>${yen(t.social)}</b></span><span>社保控除後 課税対象額 <b>${yen(t.afterSocial)}</b></span></div>
+      <div class="st">備 考</div>
+      <div class="nt">${esc(r.notes)}</div>
+      <div class="ft">${esc(S.footer)}</div>
+    </div></div>`;
+}
+
+/* ════════════════════════════════════════════════
+   明細作成タブ
+════════════════════════════════════════════════ */
+function monthEmps(){
+  // 在籍中の社員 ＋ その月に明細がある社員（退職者含む）
+  const ids = new Set(EMPS.filter(e => e.active).map(e => e.id));
+  Object.values(RECS).forEach(r => { if(r.ym === ui.ym && r.kind === ui.kind) ids.add(r.empId); });
+  const order = id => { const i = EMPS.findIndex(e => e.id === id); return i < 0 ? 999 : i; };
+  return [...ids].sort((a,b) => order(a) - order(b));
+}
+function renderChips(){
+  const ids = monthEmps();
+  let cnt = 0, g = 0, d = 0, n = 0;
+  $('#empChips').innerHTML = ids.map(id => {
+    const r = RECS[recKey(ui.ym, ui.kind, id)];
+    const e = r ? empOf(r) : empById(id);
+    let st = '<span class="c-st">未作成</span>';
+    if(r){ const t = totals(r); cnt++; g += t.gross; d += t.ded; n += t.net; st = `<span class="c-st done">✓ 差引 ${yen(t.net)}</span>`; }
+    return `<button class="chip ${ui.empId === id ? 'sel' : ''}" data-emp="${id}" id="chip_${id}">
+      <span class="chip-row"><span class="badge ${TYPE_BADGE[e.type]}">${TYPE_LABEL[e.type]}</span></span>
+      <span class="c-name">${esc(e.name) || '（氏名未入力）'}</span>${st}</button>`;
+  }).join('') || '<div style="color:var(--muted);font-size:13px">在籍中の社員がいません。社員マスタから登録してください。</div>';
+  $('#stCount').textContent = `${cnt} / ${ids.length}`;
+  $('#stGross').textContent = yen(g); $('#stDed').textContent = yen(d); $('#stNet').textContent = yen(n);
+}
+function selectEmp(id){
+  ui.empId = id;
+  const key = recKey(ui.ym, ui.kind, id);
+  if(RECS[key]){
+    ui.rec = RECS[key];
+    const before = JSON.stringify({ earn: ui.rec.earn, ded: ui.rec.ded });
+    compute(ui.rec);
+    const after = JSON.stringify({ earn: ui.rec.earn, ded: ui.rec.ded });
+    if(before !== after) persist();
+  } else {
+    const emp = empById(id);
+    ui.rec = emp ? newRecord(ui.ym, ui.kind, emp) : null;
+  }
+  renderChips(); renderEditor(); renderPreview();
+}
+function inputNum(sec, k, v, opt = {}){
+  return `<input type="number" class="inp num" data-sec="${sec}" data-k="${k}" id="f_${sec}_${k}" value="${v === '' ? '' : num(v)}" step="${opt.step || '1'}" ${opt.auto ? 'data-auto="1"' : ''}>`;
+}
+function renderEditor(){
+  const ed = $('#editor');
+  const r = ui.rec;
+  if(!r){ ed.innerHTML = '<div class="empty-state"><div class="big">👆</div>上の一覧から社員を選んでください</div>'; return; }
+  const emp = empOf(r), isBonus = r.kind === 'bonus';
+  const showAtt = !isBonus && emp.type !== 'officer';
+
+  const earnRows = EARN.filter(f => !(isBonus && f.salaryOnly) && !(emp.type === 'officer' && f.salaryOnly)).map(f => {
+    const isAuto = f.auto === 'salary' && !isBonus;
+    const lbl = f.nameKey ? `<input class="inp" data-sec="root" data-k="${f.nameKey}" id="f_root_${f.nameKey}" value="${esc(r[f.nameKey])}" style="max-width:180px">`
+              : f.k === 'base' && isBonus ? `<input class="inp" data-sec="root" data-k="bonusName" id="f_root_bonusName" value="${esc(r.bonusName)}" style="max-width:180px">`
+              : esc(f.label(r, emp)) + (f.neg ? '<span style="color:var(--muted);font-size:11px">（マイナス）</span>' : '');
+    return `<div class="row"><div class="lbl">${lbl}${isAuto ? `<span class="auto-tag" data-tag="${f.k}">自動</span>` : ''}</div>
+      ${inputNum('earn', f.k, r.earn[f.k], {auto:isAuto})}
+      <button class="reset" data-reset="${f.k}" title="自動計算に戻す">↺</button></div>`;
+  }).join('');
+
+  const dedRows = DED.map(f => {
+    const lbl = f.nameKey ? `<input class="inp" data-sec="root" data-k="${f.nameKey}" id="f_root_${f.nameKey}" value="${esc(r[f.nameKey])}" style="max-width:180px">` : esc(f.label);
+    const au = dedIsAuto(f, r, emp);
+    return `<div class="row"><div class="lbl">${lbl}${au ? `<span class="auto-tag" data-tag="${f.k}">自動</span>` : ''}</div>
+      ${inputNum('ded', f.k, r.ded[f.k], {auto:au})}
+      <button class="reset" data-reset="${f.k}" title="自動計算に戻す">↺</button></div>`;
+  }).join('');
+
+  ed.innerHTML = `
+    <div class="ed-head">
+      <div><div class="nm">${esc(emp.name) || '（氏名未入力）'} <span class="badge ${TYPE_BADGE[emp.type]}">${TYPE_LABEL[emp.type]}</span></div>
+        <div class="save-st" id="saveSt"></div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" id="btnPrintOne">🖨 印刷</button>
+        <button class="btn btn-sm btn-danger" id="btnDelRec">削除</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="${isBonus ? 'grid-2' : 'grid-3'}">
+        <div class="field"><label for="f_root_payDate">支給日</label><input type="date" class="inp" data-sec="root" data-k="payDate" id="f_root_payDate" value="${r.payDate}"></div>
+        ${isBonus ? '' : `<div class="field"><label for="f_root_periodFrom">計算期間（開始）</label><input type="date" class="inp" data-sec="root" data-k="periodFrom" id="f_root_periodFrom" value="${r.periodFrom}"></div>
+        <div class="field"><label for="f_root_periodTo">計算期間（終了）</label><input type="date" class="inp" data-sec="root" data-k="periodTo" id="f_root_periodTo" value="${r.periodTo}"></div>`}
+      </div>
+      ${emp.type === 'officer' && isBonus ? '<div class="warn">⚠ 役員賞与は「事前確定届出給与」として税務署へ届出た金額・支給日どおりでなければ損金不算入となります。届出の有無を税理士さんに確認してください。</div>' : ''}
+      ${emp.memo ? `<div class="hint info">📝 ${esc(emp.memo)}</div>` : ''}
+    </div>
+    ${showAtt ? `<div class="sec"><div class="card-title">勤怠</div><div class="grid-4">
+      ${ATT.map(f => `<div class="field"><label for="f_att_${f.k}">${f.label}（${f.unit}）</label>${inputNum('att', f.k, r.att[f.k], {step:f.step})}</div>`).join('')}
+      <div class="field"><label>総労働時間</label><div class="inp num" id="totalH" style="background:#f1f5f9;font-weight:700">0</div></div>
+      </div>${emp.type === 'part' ? `<div class="hint info">時給 ${yen(emp.hourlyRate)} × 所定内労働時間 で基本給を自動計算します。</div>` : ''}</div>` : ''}
+    <div class="sec"><div class="card-title">支給の部</div><div class="rows">${earnRows}</div>
+      <div class="sum-line"><span>総支給額</span><span class="v" id="sumGross"></span></div></div>
+    <div class="sec"><div class="card-title">控除の部</div><div class="rows">${dedRows}</div>
+      <div class="sum-line" style="background:var(--red-soft);color:var(--red)"><span>控除合計</span><span class="v" id="sumDed"></span></div>
+      <div class="hint" id="taxHint"></div></div>
+    <div class="sec"><div class="sum-line" style="background:linear-gradient(135deg,var(--navy-700),var(--accent));color:#fff;font-size:15px;padding:12px 14px"><span>差引支給額</span><span class="v" id="sumNet"></span></div></div>
+    <div class="sec"><div class="field"><label for="f_root_notes">備考（明細に印字）</label><textarea class="inp" data-sec="root" data-k="notes" id="f_root_notes">${esc(r.notes)}</textarea></div></div>`;
+  refreshEditor(null);
+}
+function refreshEditor(except){
+  const r = ui.rec; if(!r) return;
+  const emp = empOf(r), t = totals(r);
+  $$('#editor [data-sec]').forEach(el => {
+    if(el === except) return;
+    const sec = el.dataset.sec, k = el.dataset.k;
+    if(sec === 'root') { if(el.value !== (r[k] ?? '')) el.value = r[k] ?? ''; }
+    else el.value = r[sec][k] === '' ? '' : num(r[sec][k]);
+  });
+  $$('#editor [data-tag]').forEach(el => {
+    const man = !!r.manual[el.dataset.tag];
+    el.classList.toggle('manual', man); el.textContent = man ? '手入力' : '自動';
+  });
+  $$('#editor [data-reset]').forEach(el => el.classList.toggle('show', !!r.manual[el.dataset.reset] && !(el.dataset.reset === 'base' && r.kind === 'bonus')));
+  if($('#totalH')) $('#totalH').textContent = hrs(t.totalH);
+  $('#sumGross').textContent = yen(t.gross);
+  $('#sumDed').textContent = yen(t.ded);
+  $('#sumNet').textContent = yen(t.net);
+  const isBonus = r.kind === 'bonus';
+  const bRate = isBonus ? getBonusTaxRate(r, emp) : 0;
+  const prevA = isBonus ? getPrevSalaryAfterSocial(r, emp) : 0;
+  $('#taxHint').innerHTML = isBonus
+    ? `💡 <b>源泉所得税（賞与）</b>：前月給与の社保控除後額 ${yen(prevA)}・扶養${num(emp.dependents)}人より、算出率の表から <b>${bRate}%</b> を適用して自動計算しています（社保控除後賞与額 ${yen(t.afterSocial)} × ${bRate}% ＝ <b>${yen(Math.floor(t.afterSocial * bRate / 100))}</b>）。${r.manual.incomeTax ? '<br>⚠ 現在は<b>手入力の金額</b>になっています（↺ で自動計算に戻せます）。' : ''} <a href="https://www.nta.go.jp/publication/pamph/gensen/zeigakuhyo2026/01.htm" target="_blank" rel="noopener">国税庁 税額表 ↗</a>`
+    : emp.taxColumn === '乙'
+    ? `💡 <b>源泉所得税（乙欄）</b>：自動計算の対象外です。月額表の乙欄で <b>社保控除後の金額 ${yen(t.afterSocial)}</b> の行を確認して入力してください。<a href="https://www.nta.go.jp/publication/pamph/gensen/zeigakuhyo2026/01.htm" target="_blank" rel="noopener">令和8年分 税額表 ↗</a>`
+    : `💡 <b>源泉所得税</b>：甲欄・扶養${num(emp.dependents)}人、社保控除後 ${yen(t.afterSocial)} → 令和8年分の「電算機計算の特例」で計算すると <b>${yen(calcIncomeTaxKou(t.afterSocial, emp.dependents))}</b>。${r.manual.incomeTax ? '<br>⚠ 現在は<b>手入力の金額</b>になっています（↺ で自動計算に戻せます）。' : ''}<br><span style="font-size:11px">※ 税額表（月額表）の金額と数十円ずれることがありますが、どちらの方法も法令で認められています。</span> <a href="https://www.nta.go.jp/publication/pamph/gensen/zeigakuhyo2026/01.htm" target="_blank" rel="noopener">税額表 ↗</a>`;
+  const st = $('#saveSt');
+  if(r.saved){ st.className = 'save-st ok'; st.textContent = '✓ 保存済み（' + new Date(r.updatedAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) + '）'; }
+  else { st.className = 'save-st draft'; st.textContent = '● 未保存（入力すると自動保存されます）'; }
+  $('#btnDelRec').style.display = r.saved ? '' : 'none';
+}
+function persist(){
+  const r = ui.rec; stamp(r);
+  const k = recKey(r.ym, r.kind, r.empId);
+  RECS[k] = r;
+  if(DEL_RECS && DEL_RECS[k]) delete DEL_RECS[k];
+  saveRecs();
+}
+function renderPreview(){
+  $('#preview').innerHTML = ui.rec ? slipHTML(ui.rec) : '<div class="card empty-state"><div class="big">📄</div>ここに明細書のプレビューが表示されます</div>';
+}
+function onEditorInput(ev){
+  const el = ev.target; if(!el.dataset || !el.dataset.sec) return;
+  const r = ui.rec, sec = el.dataset.sec, k = el.dataset.k;
+  if(sec === 'root') r[k] = el.value;
+  else {
+    r[sec][k] = el.value === '' ? '' : num(el.value);
+    if(el.dataset.auto) r.manual[k] = true;
+  }
+  compute(r); persist(); refreshEditor(el); renderPreview(); renderChips();
+}
+
+/* ════════════════════════════════════════════════
+   印刷
+════════════════════════════════════════════════ */
+function setPage(css){ $('#pageStyle').textContent = `@page{${css}}`; }
+function printSlips(list){
+  if(!list.length){ toast('印刷する明細がありません'); return; }
+  setPage('size:A4 portrait;margin:10mm 12mm');
+  $('#printArea').innerHTML = list.map(r => `<div class="print-page">${slipHTML(r)}</div>`).join('');
+  setTimeout(() => window.print(), 50);
+}
+
+/* ════════════════════════════════════════════════
+   賃金台帳
+════════════════════════════════════════════════ */
+const LG_COLS = [
+  {h:'支給年月', v:r => r.ym.replace('-','/')},
+  {h:'区分', v:r => r.kind === 'bonus' ? (r.bonusName || '賞与') : (empOf(r).type === 'officer' ? '役員報酬' : '給与')},
+  {h:'社員番号', v:r => empOf(r).code || ''},
+  {h:'氏名', v:r => empOf(r).name},
+  {h:'性別', v:r => empOf(r).gender || ''},
+  {h:'雇用区分', v:r => TYPE_LABEL[empOf(r).type]},
+  {h:'計算期間', v:r => r.kind === 'bonus' ? '' : `${jpShort(r.periodFrom)}〜${jpShort(r.periodTo)}`},
+  {h:'支給日', v:r => r.payDate.replace(/-/g,'/')},
+  {h:'出勤日数', n:true, f:'h', v:r => num(r.att.workDays)},
+  {h:'有給日数', n:true, f:'h', v:r => num(r.att.paidLeave)},
+  {h:'欠勤日数', n:true, f:'h', v:r => num(r.att.absenceDays)},
+  {h:'総労働時間', n:true, f:'h', v:r => totals(r).totalH},
+  {h:'時間外h', n:true, f:'h', v:r => num(r.att.overtimeHours)},
+  {h:'休日h', n:true, f:'h', v:r => num(r.att.holidayHours)},
+  {h:'深夜h', n:true, f:'h', v:r => num(r.att.nightHours)},
+  ...EARN.map(f => ({h:f.lg, n:true, sum:true, v:r => (f.neg ? -1 : 1) * num(r.earn[f.k])})),
+  {h:'総支給額', n:true, sum:true, strong:true, v:r => totals(r).gross},
+  {h:'課税支給額', n:true, sum:true, v:r => totals(r).taxable},
+  ...DED.map(f => ({h:f.lg, n:true, sum:true, v:r => num(r.ded[f.k])})),
+  {h:'社会保険料等計', n:true, sum:true, v:r => totals(r).social},
+  {h:'控除合計', n:true, sum:true, strong:true, v:r => totals(r).ded},
+  {h:'差引支給額', n:true, sum:true, strong:true, highlight:true, v:r => totals(r).net},
+];
+function ledgerRows(){
+  const from = $('#lgFrom').value, to = $('#lgTo').value, emp = $('#lgEmp').value, kind = $('#lgKind').value;
+  const order = id => { const i = EMPS.findIndex(e => e.id === id); return i < 0 ? 999 : i; };
+  return Object.values(RECS).filter(r => (!from || r.ym >= from) && (!to || r.ym <= to) && (!emp || r.empId === emp) && (!kind || r.kind === kind))
+    .sort((a,b) => a.ym.localeCompare(b.ym) || order(a.empId) - order(b.empId) || a.kind.localeCompare(b.kind));
+}
+function getActiveCols(rows, hideZero = true){
+  if(!hideZero) return LG_COLS;
+  return LG_COLS.filter((c, idx) => {
+    if(idx <= 7) return true;
+    if(c.strong) return true;
+    return rows.some(r => {
+      const v = c.v(r);
+      return typeof v === 'number' ? Math.abs(v) > 0.001 : Boolean(v && v !== '0');
+    });
+  });
+}
+function ledgerTable(rows, cls = 'tbl', hideZero = true){
+  const cols = getActiveCols(rows, hideZero);
+  const cell = (c, r) => { const v = c.v(r); return c.n ? (c.f === 'h' ? hrs(v) : fmt(v)) : esc(v); };
+  const sums = cols.map(c => c.sum ? rows.reduce((s,r) => s + c.v(r), 0) : null);
+  return `<table class="${cls}"><thead><tr>${cols.map(c => `<th class="${c.n ? 'r' : ''} ${c.highlight ? 'th-net' : ''} ${c.strong ? 'c-strong' : ''}">${c.h}</th>`).join('')}</tr></thead><tbody>
+    ${rows.map(r => `<tr>${cols.map(c => `<td class="${c.n ? 'r' : ''} ${c.highlight ? 'td-net' : ''} ${c.strong ? 'c-strong' : ''}">${cell(c, r)}</td>`).join('')}</tr>`).join('')}
+    ${rows.length ? `<tr class="total">${cols.map((c,i) => `<td class="${c.n ? 'r' : ''} ${c.highlight ? 'td-net' : ''} ${c.strong ? 'c-strong' : ''}">${i === 0 ? '合計' : sums[i] !== null ? fmt(sums[i]) : ''}</td>`).join('')}</tr>` : ''}
+  </tbody></table>`;
+}
+function renderLedger(){
+  const sel = $('#lgEmp'), cur = sel.value;
+  const ids = new Set(EMPS.map(e => e.id)); Object.values(RECS).forEach(r => ids.add(r.empId));
+  sel.innerHTML = '<option value="">全員</option>' + [...ids].map(id => { const e = empById(id) || {name: (Object.values(RECS).find(r => r.empId === id) || {}).empName}; return `<option value="${id}">${esc(e.name)}</option>`; }).join('');
+  sel.value = cur;
+  const rows = ledgerRows();
+  const hideZero = $('#chkHideZero') ? $('#chkHideZero').checked : true;
+  $('#ledgerWrap').innerHTML = rows.length ? ledgerTable(rows, 'tbl', hideZero) : '<div class="empty-state"><div class="big">🗂</div>該当する明細がありません</div>';
+}
+function exportCsv(){
+  const rows = ledgerRows();
+  if(!rows.length){ toast('書き出す明細がありません'); return; }
+  const q = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
+  const head = [...LG_COLS.map(c => c.h), 'その他手当の名称', 'その他控除の名称', '備考'];
+  const lines = [head.map(q).join(',')];
+  rows.forEach(r => lines.push([...LG_COLS.map(c => { const v = c.v(r); return c.n ? (c.f === 'h' ? hrs(v) : Math.round(v)) : v; }),
+    num(r.earn.other) ? r.otherName : '', num(r.ded.otherDed) ? r.otherDedName : '', (r.notes || '').replace(/\n/g,' ')].map(q).join(',')));
+  const sums = LG_COLS.map((c,i) => i === 0 ? '合計' : c.sum ? Math.round(rows.reduce((s,r) => s + c.v(r), 0)) : '');
+  lines.push(sums.map(q).join(','));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `賃金台帳_${($('#lgFrom').value || '全期間').replace('-','')}-${($('#lgTo').value || '').replace('-','')}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('CSVを書き出しました');
+}
+function printLedger(){
+  const rows = ledgerRows();
+  if(!rows.length){ toast('印刷する明細がありません'); return; }
+  setPage('size:A4 landscape;margin:6mm 8mm');
+  const from = $('#lgFrom').value, to = $('#lgTo').value;
+  const hideZero = $('#chkHideZero') ? $('#chkHideZero').checked : true;
+  $('#printArea').innerHTML = `<div class="ledger-print"><h2>賃 金 台 帳　${esc(S.company)}</h2>
+    <div class="lp-meta">対象期間：${from ? from.replace('-','年') + '月' : '―'} 〜 ${to ? to.replace('-','年') + '月' : '―'}分　／　出力日：${new Date().toLocaleDateString('ja-JP')}${hideZero ? '　※実績ゼロ項目は自動省略済（1枚フィット）' : ''}</div>
+    ${ledgerTable(rows, '', hideZero)}</div>`;
+  setTimeout(() => window.print(), 50);
+}
+function printPersonalLedger(){
+  const rows = ledgerRows();
+  if(!rows.length){ toast('印刷する明細がありません'); return; }
+  setPage('size:A4 landscape;margin:8mm 10mm');
+  const from = $('#lgFrom').value, to = $('#lgTo').value;
+  
+  const byEmp = new Map();
+  rows.forEach(r => {
+    if(!byEmp.has(r.empId)) byEmp.set(r.empId, []);
+    byEmp.get(r.empId).push(r);
+  });
+  
+  const pages = [];
+  byEmp.forEach((empRows, empId) => {
+    const e = empById(empId) || {name: empRows[0].empName, type: 'regular'};
+    const pCols = [
+      {h:'支給年月', v:r => r.ym.replace('-','年') + '月'},
+      {h:'種別', v:r => r.kind === 'bonus' ? (r.bonusName || '賞与') : (e.type === 'officer' ? '役員報酬' : '給与')},
+      {h:'支給日', v:r => r.payDate.replace(/-/g,'/')},
+      {h:'出勤日数', n:true, v:r => num(r.att.workDays)},
+      {h:'総労働h', n:true, f:'h', v:r => totals(r).totalH},
+      {h:'残業h', n:true, f:'h', v:r => num(r.att.overtimeHours)},
+      ...EARN.map(f => ({h:f.lg, n:true, sum:true, v:r => (f.neg ? -1 : 1) * num(r.earn[f.k])})),
+      {h:'総支給額', n:true, sum:true, strong:true, v:r => totals(r).gross},
+      ...DED.map(f => ({h:f.lg, n:true, sum:true, v:r => num(r.ded[f.k])})),
+      {h:'社会保険計', n:true, sum:true, v:r => totals(r).social},
+      {h:'控除合計', n:true, sum:true, strong:true, v:r => totals(r).ded},
+      {h:'差引支給額 (支払計)', n:true, sum:true, highlight:true, strong:true, v:r => totals(r).net}
+    ].filter((c, idx) => {
+      if(idx <= 2) return true;
+      if(c.strong) return true;
+      return empRows.some(r => {
+        const v = c.v(r);
+        return typeof v === 'number' ? Math.abs(v) > 0.001 : Boolean(v);
+      });
+    });
+
+    const sums = pCols.map(c => c.sum ? empRows.reduce((s,r) => s + c.v(r), 0) : null);
+    const cell = (c, r) => { const v = c.v(r); return c.n ? (c.f === 'h' ? hrs(v) : fmt(v)) : esc(v); };
+
+    pages.push(`
+      <div class="print-page personal-ledger">
+        <div class="pl-header">
+          <div class="pl-title">賃　金　台　帳（個人別）</div>
+          <div class="pl-company">${esc(S.company)}</div>
+        </div>
+        <div class="pl-meta-box">
+          <div class="pl-meta-item"><b>氏名：</b><span class="pl-name">${esc(e.name)}</span> 様</div>
+          <div class="pl-meta-item"><b>社員番号：</b>${esc(e.code || '―')}</div>
+          <div class="pl-meta-item"><b>雇用区分：</b>${TYPE_LABEL[e.type] || '―'}</div>
+          <div class="pl-meta-item"><b>性別：</b>${esc(e.gender || '―')}</div>
+          <div class="pl-meta-item"><b>基本給/時給：</b>${e.type === 'part' ? '@' + fmt(e.hourlyRate) : yen(e.baseSalary)}</div>
+          <div class="pl-meta-item"><b>対象期間：</b>${from ? from.replace('-','年') + '月' : '―'} 〜 ${to ? to.replace('-','年') + '月' : '―'}</div>
+        </div>
+        <table class="pl-table">
+          <thead>
+            <tr>${pCols.map(c => `<th class="${c.n ? 'r' : ''} ${c.highlight ? 'th-net' : ''}">${c.h}</th>`).join('')}</tr>
+          </thead>
+          <tbody>
+            ${empRows.map(r => `<tr>${pCols.map(c => `<td class="${c.n ? 'r' : ''} ${c.highlight ? 'td-net' : ''} ${c.strong ? 'c-strong' : ''}">${cell(c, r)}</td>`).join('')}</tr>`).join('')}
+            <tr class="total">
+              ${pCols.map((c, i) => `<td class="${c.n ? 'r' : ''} ${c.highlight ? 'td-net' : ''}">${i === 0 ? '合計' : sums[i] !== null ? fmt(sums[i]) : ''}</td>`).join('')}
+            </tr>
+          </tbody>
+        </table>
+        <div class="pl-foot">※労働基準法第108条に基づく調書　出力日：${new Date().toLocaleDateString('ja-JP')}</div>
+      </div>
+    `);
+  });
+
+  $('#printArea').innerHTML = pages.join('');
+  setTimeout(() => window.print(), 50);
+}
+
+/* ════════════════════════════════════════════════
+   社員マスタ
+════════════════════════════════════════════════ */
+function renderEmpTable(){
+  $('#empTable').innerHTML = `<table class="tbl"><thead><tr><th>No.</th><th>氏名</th><th>区分</th><th class="r">基本給／時給</th><th class="r">通勤手当</th><th class="r">標準報酬</th><th>保険</th><th>税</th><th>状態</th><th></th></tr></thead><tbody>
+    ${EMPS.map(e => `<tr>
+      <td>${esc(e.code)}</td><td style="font-weight:600">${esc(e.name) || '（未入力）'}</td>
+      <td><span class="badge ${TYPE_BADGE[e.type]}">${TYPE_LABEL[e.type]}</span></td>
+      <td class="r">${e.type === 'part' ? '@' + fmt(e.hourlyRate) : fmt(e.baseSalary)}</td>
+      <td class="r">${fmt(e.commute)}</td><td class="r">${num(e.stdMonthly) ? fmt(e.stdMonthly) : '―'}</td>
+      <td style="font-size:11.5px">${[e.hasHealth && '健', e.hasHealth && e.hasCare && '介', e.hasPension && '厚', e.hasEmpIns && e.type !== 'officer' && '雇'].filter(Boolean).join('・') || '―'}</td>
+      <td style="font-size:11.5px">${e.taxColumn}${e.taxColumn === '甲' ? '・' + num(e.dependents) + '人' : ''}</td>
+      <td>${e.active ? '<span class="badge b-part">在籍</span>' : '<span class="badge b-off">退職</span>'}</td>
+      <td><button class="btn btn-sm" data-edit="${e.id}" id="edit_${e.id}">編集</button></td></tr>`).join('')}
+  </tbody></table>`;
+}
+function renderEmpForm(){
+  const e = ui.editEmpId === '__new' ? blankEmp() : empById(ui.editEmpId);
+  if(!e){ $('#empForm').innerHTML = '<div class="empty-state"><div class="big">👤</div>一覧の「編集」または「社員を追加」を押してください</div>'; return; }
+  const v = k => esc(e[k] ?? '');
+  const ck = k => e[k] ? 'checked' : '';
+  $('#empForm').innerHTML = `<div class="card-title">${ui.editEmpId === '__new' ? '社員を追加' : '社員情報の編集'}</div>
+    <form id="empEdit" class="form-grid" data-id="${e.id}">
+      <div class="field"><label for="m_code">社員番号</label><input class="inp" name="code" id="m_code" value="${v('code')}"></div>
+      <div class="field"><label for="m_type">区分</label><select class="inp" name="type" id="m_type">
+        ${Object.entries(TYPE_LABEL).map(([k,l]) => `<option value="${k}" ${e.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field full"><label for="m_name">氏名</label><input class="inp" name="name" id="m_name" value="${v('name')}" required></div>
+      <div class="field"><label for="m_gender">性別（賃金台帳の必須項目）</label><select class="inp" name="gender" id="m_gender">
+        ${['','男','女'].map(g => `<option ${e.gender === g ? 'selected' : ''} value="${g}">${g || '―'}</option>`).join('')}</select></div>
+      <div class="field"><label for="m_title">役職</label><input class="inp" name="title" id="m_title" value="${v('title')}"></div>
+      <div class="field"><label for="m_joinDate">入社日</label><input type="date" class="inp" name="joinDate" id="m_joinDate" value="${v('joinDate')}"></div>
+      <div class="field"><label class="chk" style="margin-top:16px"><input type="checkbox" name="active" id="m_active" ${ck('active')}> 在籍中</label></div>
+
+      <div class="divider">給与（明細作成時の初期値）</div>
+      <div class="field"><label for="m_baseSalary">基本給／役員報酬（月額）</label><input type="number" class="inp num" name="baseSalary" id="m_baseSalary" value="${num(e.baseSalary)}"></div>
+      <div class="field"><label for="m_hourlyRate">時給（パートのみ）</label><input type="number" class="inp num" name="hourlyRate" id="m_hourlyRate" value="${num(e.hourlyRate)}"></div>
+      <div class="field"><label for="m_positionAllowance">役職手当</label><input type="number" class="inp num" name="positionAllowance" id="m_positionAllowance" value="${num(e.positionAllowance)}"></div>
+      <div class="field"><label for="m_qualificationAllowance">資格手当</label><input type="number" class="inp num" name="qualificationAllowance" id="m_qualificationAllowance" value="${num(e.qualificationAllowance)}"></div>
+      <div class="field"><label for="m_commute">通勤手当（非課税・月額）</label><input type="number" class="inp num" name="commute" id="m_commute" value="${num(e.commute)}"></div>
+      <div class="field"><label for="m_residentTax">住民税（特別徴収・月額）</label><input type="number" class="inp num" name="residentTax" id="m_residentTax" value="${num(e.residentTax)}"></div>
+
+      <div class="divider">社会保険・雇用保険</div>
+      <div class="field full"><label for="m_stdMonthly">標準報酬月額（決定通知書の金額）</label><input type="number" class="inp num" name="stdMonthly" id="m_stdMonthly" value="${num(e.stdMonthly)}"></div>
+      <label class="chk"><input type="checkbox" name="hasHealth" id="m_hasHealth" ${ck('hasHealth')}> 健康保険に加入（75歳未満）</label>
+      <label class="chk"><input type="checkbox" name="hasCare" id="m_hasCare" ${ck('hasCare')}> 介護保険対象（40〜64歳）</label>
+      <label class="chk"><input type="checkbox" name="hasPension" id="m_hasPension" ${ck('hasPension')}> 厚生年金に加入（70歳未満）</label>
+      <label class="chk"><input type="checkbox" name="hasEmpIns" id="m_hasEmpIns" ${ck('hasEmpIns')}> 雇用保険に加入（役員は対象外）</label>
+
+      <div class="divider">源泉所得税</div>
+      <div class="field"><label for="m_taxColumn">税額表の欄</label><select class="inp" name="taxColumn" id="m_taxColumn">
+        <option value="甲" ${e.taxColumn === '甲' ? 'selected' : ''}>甲欄（扶養控除等申告書あり）</option>
+        <option value="乙" ${e.taxColumn === '乙' ? 'selected' : ''}>乙欄（申告書なし）</option></select></div>
+      <div class="field"><label for="m_dependents">扶養親族等の数</label><input type="number" class="inp num" name="dependents" id="m_dependents" min="0" value="${num(e.dependents)}"></div>
+      <div class="field full"><label for="m_memo">メモ（明細入力画面に表示・印字はされません）</label><textarea class="inp" name="memo" id="m_memo">${v('memo')}</textarea></div>
+      <div class="full" style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+        ${ui.editEmpId !== '__new' ? '<button type="button" class="btn btn-danger" id="btnDelEmp">削除</button>' : ''}
+        <button type="button" class="btn" id="btnCancelEmp">キャンセル</button>
+        <button type="submit" class="btn btn-primary" id="btnSaveEmp">保存</button>
+      </div>
+    </form>`;
+}
+function saveEmpForm(ev){
+  ev.preventDefault();
+  const f = ev.target, fd = new FormData(f);
+  const isNew = ui.editEmpId === '__new';
+  const e = isNew ? Object.assign(blankEmp(), {id:f.dataset.id}) : empById(ui.editEmpId);
+  ['code','name','type','gender','title','joinDate','taxColumn','memo'].forEach(k => e[k] = (fd.get(k) || '').trim());
+  ['baseSalary','hourlyRate','positionAllowance','qualificationAllowance','commute','residentTax','stdMonthly','dependents'].forEach(k => e[k] = num(fd.get(k)));
+  ['active','hasHealth','hasCare','hasPension','hasEmpIns'].forEach(k => e[k] = fd.get(k) === 'on');
+  if(!e.name){ toast('氏名を入力してください'); return; }
+  e.updatedAt = new Date().toISOString();
+  if(DEL_EMPS && DEL_EMPS[e.id]) delete DEL_EMPS[e.id];
+  if(isNew) EMPS.push(e);
+  saveEmps(); ui.editEmpId = e.id;
+  Object.values(RECS).forEach(r => {
+    if(r.empId === e.id) {
+      const before = JSON.stringify({ earn: r.earn, ded: r.ded });
+      compute(r, e);
+      if(JSON.stringify({ earn: r.earn, ded: r.ded }) !== before) r.updatedAt = new Date().toISOString();
+    }
+  });
+  saveRecs();
+  if(ui.rec && ui.rec.empId === e.id) { compute(ui.rec, e); }
+  renderEmpTable(); renderEmpForm(); renderChips();
+  toast('社員情報を保存しました');
+}
+
+/* ════════════════════════════════════════════════
+   設定・バックアップ
+════════════════════════════════════════════════ */
+function renderSettings(){
+  $$('[data-set]').forEach(el => el.value = S[el.dataset.set]);
+  const pinInp = $('#s_adminPin');
+  if(pinInp) pinInp.value = PinLock.getPin();
+  const gasInp = $('#s_gasUrl');
+  if(gasInp) gasInp.value = CloudSync.getGasUrl();
+  CloudSync.updateStatusUI();
+}
+function readSettings(){
+  $$('[data-set]').forEach(el => { const k = el.dataset.set; S[k] = typeof DEFAULT_SETTINGS[k] === 'number' ? num(el.value) : el.value; });
+  const pinInp = $('#s_adminPin');
+  if(pinInp && pinInp.value.trim()){
+    const newPin = pinInp.value.trim();
+    if(newPin.length < 4){ alert('代表者PINコードは4桁以上で設定してください。'); return; }
+    S.adminPin = newPin;
+    localStorage.setItem('gyosei_admin_pin', newPin);
+  }
+  S._updatedAt = new Date().toISOString();
+  const gasInp = $('#s_gasUrl');
+  if(gasInp && gasInp.value.trim()) localStorage.setItem(LS.gasUrl, gasInp.value.trim());
+  saveSettings(); $('#sideCompany').textContent = S.company;
+  if(ui.rec){ renderPreview(); }
+  toast('設定を保存しました');
+}
+function backup(){
+  const data = { app:'felis-payroll', version:2, exportedAt:new Date().toISOString(), settings:S, employees:EMPS, records:RECS, deletedRecs:DEL_RECS, deletedEmps:DEL_EMPS };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  const d = new Date(); a.download = `給与明細バックアップ_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.json`;
+  a.click(); URL.revokeObjectURL(a.href); toast('バックアップを保存しました');
+}
+function restore(file){
+  const fr = new FileReader();
+  fr.onload = () => {
+    try{
+      const d = JSON.parse(fr.result);
+      if(d.app !== 'felis-payroll') throw new Error('形式が違います');
+      if(!confirm('現在のデータをバックアップの内容で置き換えます（クラウドにも反映されます）。よろしいですか？')) return;
+      const now = new Date().toISOString();
+      S = Object.assign({}, DEFAULT_SETTINGS, d.settings, {_updatedAt: now});
+      EMPS = (d.employees || []).map(e => Object.assign({}, e, {updatedAt: now}));
+      RECS = d.records || {};
+      Object.values(RECS).forEach(r => r.updatedAt = now);
+      DEL_RECS = d.deletedRecs || {};
+      DEL_EMPS = d.deletedEmps || {};
+      saveSettings(false); saveEmps(false); saveRecs(false); localStorage.setItem(LS.seeded, '1');
+      ui.rec = null; ui.empId = null; refreshAll(); toast('復元しました（クラウドへ同期します）');
+      CloudSync.sync({ forcePush: true });
+    }catch(err){ alert('復元できませんでした：' + err.message); }
+  };
+  fr.readAsText(file);
+}
+
+/* ════════════════════════════════════════════════
+   ☁️ クラウド自動同期エンジン（Googleスプレッドシート / GAS連携）
+════════════════════════════════════════════════ */
+const CloudSync = {
+  _timer: null,
+  _syncing: false,
+  _dirty: false,
+  _state: 'syncing', // 'ok' | 'syncing' | 'pending' | 'err'
+  _msg: 'クラウド確認中...',
+
+  getGasUrl(){
+    return (localStorage.getItem(LS.gasUrl) || '').trim() || DEFAULT_GAS_URL;
+  },
+
+  getOfficeBase(){
+    const def = {
+      name: '行政書士法人フェリス',
+      assocName: '愛知県行政書士会会員',
+      representative: '代表社員　𠮷村　悠佑',
+      registrationNumber: 'T7180005021645',
+      zip: '493-0001',
+      tel: '0586-50-2896',
+      fax: '0586-87-6687',
+      address: '愛知県一宮市木曽川町黒田字往還南80',
+      bankName: '三井住友銀行',
+      bankBranch: 'トランクNORTH支店',
+      accountType: '普通',
+      accountNumber: '0871332',
+      accountHolder: '行政書士法人フェリス'
+    };
+    try {
+      const c1 = JSON.parse(localStorage.getItem(LS.officeCache) || 'null');
+      const c2 = JSON.parse(localStorage.getItem('gyosei_office_info') || 'null');
+      const merged = Object.assign({}, def, c2 || {}, c1 || {});
+      delete merged._payroll;
+      return merged;
+    } catch(e) { return def; }
+  },
+
+  setStatus(state, msg){
+    this._state = state;
+    this._msg = msg;
+    this.updateStatusUI();
+  },
+
+  updateStatusUI(){
+    const dot = $('#syncDot'), lbl = $('#syncLabel'), meta = $('#syncMeta'), det = $('#cloudStatusDetail'), preBtn = $('#btnRestorePreSync');
+    if(dot) dot.className = 'sync-dot ' + this._state;
+    if(lbl) lbl.textContent = this._msg;
+    const last = localStorage.getItem(LS.cloudSynced);
+    const lastStr = last ? new Date(last).toLocaleString('ja-JP', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '未同期';
+    if(meta) meta.textContent = `最終同期: ${lastStr}`;
+    if(det){
+      const recCnt = Object.keys(RECS || {}).length;
+      const empCnt = (EMPS || []).length;
+      det.innerHTML = `ステータス：<b>${esc(this._msg)}</b>　／　最終同期：<b>${esc(lastStr)}</b>　／　保持データ：<b>社員 ${empCnt}名・明細 ${recCnt}件</b>`;
+    }
+    if(preBtn){
+      preBtn.style.display = localStorage.getItem(LS.preSyncBackup) ? '' : 'none';
+    }
+  },
+
+  schedulePush(){
+    this._dirty = true;
+    this.setStatus('pending', '変更あり（自動保存待）');
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => {
+      this.sync({ silent: true });
+    }, 1200);
+  },
+
+  b64EncodeUtf8(str){
+    return btoa(unescape(encodeURIComponent(str)));
+  },
+  b64DecodeUtf8(b64){
+    return decodeURIComponent(escape(atob(b64)));
+  },
+
+  async pullRemote(){
+    const url = this.getGasUrl();
+    const sep = url.includes('?') ? '&' : '?';
+    const res = await fetch(`${url}${sep}type=settings&t=${Date.now()}`);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if(json && json.error) throw new Error(json.error);
+    const settings = (json && json.settings) || {};
+    if(settings.officeInfo && settings.officeInfo.value){
+      const copy = Object.assign({}, settings.officeInfo.value);
+      delete copy._payroll;
+      localStorage.setItem(LS.officeCache, JSON.stringify(copy));
+    }
+    let raw = (settings.payroll && settings.payroll.value) || (settings.officeInfo && settings.officeInfo.value && settings.officeInfo.value._payroll) || null;
+    if(!raw) return null;
+    if(raw.driveFileId){
+      const fRes = await fetch(`${url}${sep}type=getFileBase64&fileId=${encodeURIComponent(raw.driveFileId)}&t=${Date.now()}`);
+      const fJson = await fRes.json();
+      if(!fJson || !fJson.base64) throw new Error(fJson && fJson.error ? fJson.error : 'Driveデータの取得に失敗');
+      raw = JSON.parse(this.b64DecodeUtf8(fJson.base64));
+    }
+    return raw;
+  },
+
+  async pushRemote(){
+    const url = this.getGasUrl();
+    const now = new Date().toISOString();
+    const payload = {
+      app: 'felis-payroll',
+      version: 2,
+      updatedAt: now,
+      settings: S,
+      employees: EMPS,
+      records: RECS,
+      deletedRecs: DEL_RECS || {},
+      deletedEmps: DEL_EMPS || {}
+    };
+    const serialized = JSON.stringify(payload);
+    let toStore = payload;
+
+    // 万一データ量が35,000文字を超えた場合はGoogleドライブファイルへ自動退避（容量無制限）
+    if(serialized.length > 35000){
+      const prevDriveMeta = JSON.parse(localStorage.getItem('felisPay.driveMeta') || '{}');
+      const docRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'saveCaseDocument',
+          data: {
+            clientName: '社内管理_給与明細',
+            contactName: '賃金台帳クラウドデータ',
+            title: '給与明細同期データ',
+            fileName: 'felis_payroll_cloud.json',
+            mimeType: 'application/json',
+            base64Data: this.b64EncodeUtf8(serialized),
+            folderUrl: prevDriveMeta.folderUrl || ''
+          }
+        })
+      }).then(r => r.json());
+      if(!docRes || !docRes.fileId) throw new Error((docRes && docRes.error) || 'Drive保存エラー');
+      localStorage.setItem('felisPay.driveMeta', JSON.stringify({ fileId: docRes.fileId, folderUrl: docRes.folderUrl || '' }));
+      toStore = { driveFileId: docRes.fileId, driveFolderUrl: docRes.folderUrl || '', updatedAt: now };
+    }
+
+    const officeValue = Object.assign({}, this.getOfficeBase(), { _payroll: toStore });
+    const postRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'saveSetting',
+        data: { key: 'officeInfo', value: officeValue, device: 'payroll-tool' }
+      })
+    }).then(r => r.json());
+
+    if(!postRes || postRes.error) throw new Error((postRes && postRes.error) || 'クラウド保存エラー');
+
+    // GAS側で payroll 専用キーが有効な場合にも並行保存（エラーは無視）
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'saveSetting',
+        data: { key: 'payroll', value: toStore, device: 'payroll-tool' }
+      })
+    }).catch(() => {});
+
+    this._dirty = false;
+    localStorage.setItem(LS.cloudSynced, now);
+    return now;
+  },
+
+  ts(iso){
+    if(!iso) return 0;
+    const t = Date.parse(iso);
+    return isNaN(t) ? 0 : t;
+  },
+
+  mergeWithRemote(remote){
+    let needPush = this._dirty;
+    let localChanged = false;
+
+    // 1. 削除ログのマージ
+    const rDelRecs = remote.deletedRecs || {};
+    Object.entries(rDelRecs).forEach(([k, dt]) => {
+      if(!DEL_RECS[k] || this.ts(dt) > this.ts(DEL_RECS[k])) DEL_RECS[k] = dt;
+    });
+    Object.entries(DEL_RECS).forEach(([k, dt]) => {
+      if(!rDelRecs[k] || this.ts(dt) > this.ts(rDelRecs[k])) needPush = true;
+    });
+
+    const rDelEmps = remote.deletedEmps || {};
+    Object.entries(rDelEmps).forEach(([id, dt]) => {
+      if(!DEL_EMPS[id] || this.ts(dt) > this.ts(DEL_EMPS[id])) DEL_EMPS[id] = dt;
+    });
+    Object.entries(DEL_EMPS).forEach(([id, dt]) => {
+      if(!rDelEmps[id] || this.ts(dt) > this.ts(rDelEmps[id])) needPush = true;
+    });
+
+    // 2. 明細レコード（RECS）の項目別タイムスタンプ統合
+    const rRecs = remote.records || {};
+    const allRecKeys = new Set([...Object.keys(RECS), ...Object.keys(rRecs)]);
+    const mergedRecs = {};
+    allRecKeys.forEach(k => {
+      const loc = RECS[k], rem = rRecs[k];
+      const delT = this.ts(DEL_RECS[k]);
+      const locT = loc ? this.ts(loc.updatedAt) : -1;
+      const remT = rem ? this.ts(rem.updatedAt) : -1;
+      const maxT = Math.max(locT, remT);
+      if(delT > 0 && delT >= maxT){
+        if(loc) localChanged = true;
+        return;
+      }
+      if(loc && rem){
+        if(remT > locT){
+          mergedRecs[k] = rem;
+          if(JSON.stringify(loc) !== JSON.stringify(rem)) localChanged = true;
+        } else if(locT > remT){
+          mergedRecs[k] = loc;
+          needPush = true;
+        } else {
+          mergedRecs[k] = rem;
+        }
+      } else if(rem && !loc){
+        mergedRecs[k] = rem;
+        localChanged = true;
+      } else if(loc && !rem){
+        mergedRecs[k] = loc;
+        needPush = true;
+      }
+    });
+    RECS = mergedRecs;
+
+    // 3. 社員マスタ（EMPS）のタイムスタンプ統合
+    const rEmps = Array.isArray(remote.employees) ? remote.employees : [];
+    const locEmpMap = new Map(EMPS.map(e => [e.id, e]));
+    const remEmpMap = new Map(rEmps.map(e => [e.id, e]));
+    const allEmpIds = [...new Set([...rEmps.map(e => e.id), ...EMPS.map(e => e.id)])];
+    const mergedEmps = [];
+    allEmpIds.forEach(id => {
+      const loc = locEmpMap.get(id), rem = remEmpMap.get(id);
+      const delT = this.ts(DEL_EMPS[id]);
+      const locT = loc ? this.ts(loc.updatedAt) : -1;
+      const remT = rem ? this.ts(rem.updatedAt) : -1;
+      if(delT > 0 && delT >= Math.max(locT, remT)){
+        if(loc) localChanged = true;
+        return;
+      }
+      if(loc && rem){
+        if(locT > remT){
+          mergedEmps.push(loc);
+          needPush = true;
+        } else {
+          if(JSON.stringify(loc) !== JSON.stringify(rem)) localChanged = true;
+          mergedEmps.push(rem);
+        }
+      } else if(rem && !loc){
+        mergedEmps.push(rem);
+        localChanged = true;
+      } else if(loc && !rem){
+        mergedEmps.push(loc);
+        needPush = true;
+      }
+    });
+    if(mergedEmps.length > 0) EMPS = mergedEmps;
+
+    // 4. 設定（S）の統合
+    if(remote.settings){
+      const locST = this.ts(S._updatedAt);
+      const remST = this.ts(remote.settings._updatedAt);
+      if(remST > locST || (!locST && JSON.stringify(S) !== JSON.stringify(Object.assign({}, DEFAULT_SETTINGS, remote.settings)))){
+        S = Object.assign({}, DEFAULT_SETTINGS, remote.settings);
+        localChanged = true;
+      } else if(locST > remST){
+        needPush = true;
+      }
+    }
+
+    return { needPush, localChanged };
+  },
+
+  async sync(opts = {}){
+    if(this._syncing) return;
+    this._syncing = true;
+    clearTimeout(this._timer);
+    this.setStatus('syncing', 'クラウド同期中...');
+
+    try {
+      if(opts.forcePush){
+        const now = new Date().toISOString();
+        S._updatedAt = S._updatedAt || now;
+        EMPS.forEach(e => { e.updatedAt = now; });
+        Object.values(RECS).forEach(r => { r.updatedAt = r.updatedAt || now; });
+        saveSettings(false); saveEmps(false); saveRecs(false);
+        await this.pushRemote();
+        this.setStatus('ok', 'クラウド同期済');
+        if(!opts.silent) toast('☁️ このPCのデータをクラウドへ保存しました');
+        return;
+      }
+
+      const remote = await this.pullRemote();
+
+      // ケース1: クラウド側にまだ給与データが1件も存在しない（初回アップロード）
+      if(!remote || (!remote.employees && !remote.records)){
+        const now = new Date().toISOString();
+        S._updatedAt = now;
+        EMPS.forEach(e => { e.updatedAt = e.updatedAt || now; });
+        Object.values(RECS).forEach(r => { r.updatedAt = r.updatedAt || now; });
+        saveSettings(false); saveEmps(false); saveRecs(false);
+        await this.pushRemote();
+        this.setStatus('ok', 'クラウド同期済');
+        toast('☁️ このPCの最新データをクラウドに登録しました');
+        return;
+      }
+
+      const hasEverSynced = !!localStorage.getItem(LS.cloudSynced);
+
+      // ケース2: 強制取得、またはこのPCがまだ一度もクラウド同期したことがない場合（別PCで開いた初回）
+      if(opts.forcePull || (!hasEverSynced && !this._dirty)){
+        if(!hasEverSynced && !localStorage.getItem(LS.preSyncBackup)){
+          localStorage.setItem(LS.preSyncBackup, JSON.stringify({
+            backedUpAt: new Date().toISOString(),
+            settings: S,
+            employees: EMPS,
+            records: RECS
+          }));
+        }
+        S = Object.assign({}, DEFAULT_SETTINGS, remote.settings || {});
+        EMPS = Array.isArray(remote.employees) && remote.employees.length ? remote.employees : EMPS;
+        RECS = remote.records || {};
+        DEL_RECS = remote.deletedRecs || {};
+        DEL_EMPS = remote.deletedEmps || {};
+        this._dirty = false;
+        saveSettings(false); saveEmps(false); saveRecs(false);
+        localStorage.setItem(LS.seeded, '1');
+        localStorage.setItem(LS.cloudSynced, remote.updatedAt || new Date().toISOString());
+        this.applyUIRefresh();
+        this.setStatus('ok', 'クラウド同期済');
+        if(!opts.silent) toast('☁️ クラウドから最新データを読み込みました');
+        return;
+      }
+
+      // ケース3: 双方向スマートマージ（項目ごとの更新日時を比較）
+      const { needPush, localChanged } = this.mergeWithRemote(remote);
+      saveSettings(false); saveEmps(false); saveRecs(false);
+      localStorage.setItem(LS.seeded, '1');
+
+      if(needPush){
+        await this.pushRemote();
+      } else {
+        localStorage.setItem(LS.cloudSynced, remote.updatedAt || new Date().toISOString());
+      }
+
+      if(localChanged){
+        this.applyUIRefresh();
+        if(!opts.silent) toast('☁️ クラウドの最新データを反映しました');
+      } else if(!opts.silent){
+        toast('☁️ クラウドと同期完了（最新です）');
+      }
+      this.setStatus('ok', 'クラウド同期済');
+    } catch(err){
+      console.warn('[CloudSync] error:', err);
+      this.setStatus('err', 'オフライン(端末保存済)');
+      if(!opts.silent) toast('⚠️ クラウド通信失敗（このPCには保存されています）');
+    } finally {
+      this._syncing = false;
+      this.updateStatusUI();
+    }
+  },
+
+  applyUIRefresh(){
+    // 入力中のフォーカスを邪魔しないように再描画
+    const activeInEditor = document.activeElement && document.activeElement.closest('#editor');
+    if(ui.empId){
+      const k = recKey(ui.ym, ui.kind, ui.empId);
+      if(RECS[k]) ui.rec = RECS[k];
+    } else {
+      const salYms = Object.values(RECS).filter(r => r.kind === 'salary').map(r => r.ym).sort();
+      if(salYms.length && !Object.values(RECS).some(r => r.ym === ui.ym)){
+        ui.ym = salYms[salYms.length - 1];
+        if($('#ymInput')) $('#ymInput').value = ui.ym;
+      }
+    }
+    $('#sideCompany').textContent = S.company;
+    renderChips();
+    if(!activeInEditor){
+      renderEditor();
+      renderPreview();
+    }
+    if(ui.tab === 'ledger') renderLedger();
+    if(ui.tab === 'mf') renderMf();
+    if(ui.tab === 'emp'){ renderEmpTable(); renderEmpForm(); }
+    if(ui.tab === 'settings') renderSettings();
+  },
+
+  restorePreSyncBackup(){
+    const raw = localStorage.getItem(LS.preSyncBackup);
+    if(!raw){ toast('初回同期前のバックアップがありません'); return; }
+    if(!confirm('初回クラウド同期を行う前にこのPCに入っていたデータを復元し、クラウドへ反映しますか？')) return;
+    try {
+      const d = JSON.parse(raw);
+      const now = new Date().toISOString();
+      S = Object.assign({}, DEFAULT_SETTINGS, d.settings || {}, {_updatedAt: now});
+      EMPS = (d.employees || []).map(e => Object.assign({}, e, {updatedAt: now}));
+      RECS = d.records || {};
+      Object.values(RECS).forEach(r => r.updatedAt = now);
+      saveSettings(false); saveEmps(false); saveRecs(false);
+      ui.rec = null; ui.empId = null; refreshAll();
+      this.sync({ forcePush: true });
+    } catch(e){
+      alert('復元に失敗しました: ' + e.message);
+    }
+  },
+
+  init(){
+    this.updateStatusUI();
+    // 起動時に自動同期
+    this.sync({ silent: true });
+    // 別タブ・別ウィンドウから戻ってきた時に自動同期（20秒以上経過時）
+    document.addEventListener('visibilitychange', () => {
+      if(!document.hidden && !this._syncing){
+        if(this._dirty){
+          this.sync({ silent: true });
+        } else {
+          const last = this.ts(localStorage.getItem(LS.cloudSynced));
+          if(Date.now() - last > 20000) this.sync({ silent: true });
+        }
+      }
+    });
+    // 3分ごとに定期同期
+    setInterval(() => {
+      if(!document.hidden && !this._syncing) this.sync({ silent: true });
+    }, 3 * 60 * 1000);
+  }
+};
+
+/* ════════════════════════════════════════════════
+   🔐 代表者専用PINロック機能
+════════════════════════════════════════════════ */
+const PinLock = {
+  SESSION_KEY: 'felisPay.pinUnlocked',
+  IDLE_LIMIT_MS: 15 * 60 * 1000, // 15分無操作で自動ロック
+  _idleTimer: null,
+  _cloudStarted: false,
+
+  getPin(){
+    return String((S && S.adminPin) || localStorage.getItem('gyosei_admin_pin') || '0813').trim();
+  },
+
+  isUnlocked(){
+    return sessionStorage.getItem(this.SESSION_KEY) === '1';
+  },
+
+  unlock(){
+    sessionStorage.setItem(this.SESSION_KEY, '1');
+    document.body.classList.add('unlocked');
+    const inp = $('#pinInput'), err = $('#pinError');
+    if(inp) inp.value = '';
+    if(err) err.textContent = '';
+    this.resetIdleTimer();
+    if(!this._cloudStarted){
+      this._cloudStarted = true;
+      CloudSync.init();
+    }
+  },
+
+  lock(msg){
+    sessionStorage.removeItem(this.SESSION_KEY);
+    document.body.classList.remove('unlocked');
+    clearTimeout(this._idleTimer);
+    const inp = $('#pinInput'), err = $('#pinError');
+    if(err) err.textContent = msg || '';
+    if(inp){ inp.value = ''; setTimeout(() => inp.focus(), 50); }
+  },
+
+  resetIdleTimer(){
+    if(!this.isUnlocked()) return;
+    clearTimeout(this._idleTimer);
+    this._idleTimer = setTimeout(() => {
+      this.lock('15分間操作がなかったため自動ロックしました');
+    }, this.IDLE_LIMIT_MS);
+  },
+
+  init(){
+    const form = $('#pinUnlockForm');
+    if(form){
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        const val = ($('#pinInput').value || '').trim();
+        if(val === this.getPin()){
+          this.unlock();
+          toast('🔓 ロックを解除しました');
+        } else {
+          $('#pinError').textContent = 'PINコードが正しくありません';
+          $('#pinInput').select();
+        }
+      });
+    }
+    ['mousemove','keydown','mousedown','touchstart'].forEach(ev => {
+      window.addEventListener(ev, () => this.resetIdleTimer(), { passive: true });
+    });
+    if(this.isUnlocked()){
+      this.unlock();
+    } else {
+      setTimeout(() => { if($('#pinInput')) $('#pinInput').focus(); }, 60);
+    }
+  }
+};
+
+/* ════════════════════════════════════════════════
+   📒 マネーフォワード クラウド会計（MF仕訳・CSV連携）
+════════════════════════════════════════════════ */
+function mfFilteredRecords(){
+  const from = ($('#mfFrom') && $('#mfFrom').value) || '';
+  const to = ($('#mfTo') && $('#mfTo').value) || '';
+  const kind = ($('#mfKind') && $('#mfKind').value) || '';
+  const order = id => { const i = EMPS.findIndex(e => e.id === id); return i < 0 ? 999 : i; };
+  return Object.values(RECS)
+    .filter(r => r && r.saved !== false && (!from || r.ym >= from) && (!to || r.ym <= to) && (!kind || r.kind === kind))
+    .sort((a,b) => (a.payDate || '').localeCompare(b.payDate || '') || a.ym.localeCompare(b.ym) || a.kind.localeCompare(b.kind) || order(a.empId) - order(b.empId));
+}
+
+function buildMfTransactions(rows){
+  const mode = ($('#mfMode') && $('#mfMode').value) || 'individual';
+  const payAcct = ($('#mfPayAcct') && $('#mfPayAcct').value) || '普通預金';
+  const paySub = (($('#mfPaySub') && $('#mfPaySub').value) || '').trim();
+  const bonusAcct = ($('#mfBonusAcct') && $('#mfBonusAcct').value) || '賞与';
+  const txs = [];
+
+  const packLines = (date, summary, tag, drList, crList) => {
+    const drs = drList.filter(x => Math.round(num(x.amount)) > 0);
+    const crs = crList.filter(x => Math.round(num(x.amount)) > 0);
+    const n = Math.max(drs.length, crs.length);
+    if(n === 0) return;
+    const lines = [];
+    for(let i = 0; i < n; i++){
+      lines.push({
+        dr: drs[i] || null,
+        cr: crs[i] || null
+      });
+    }
+    txs.push({ date: date.replace(/-/g, '/'), summary, tag, lines });
+  };
+
+  if(mode === 'individual'){
+    rows.forEach(r => {
+      const emp = empOf(r), t = totals(r);
+      const isOfficer = emp.type === 'officer';
+      const isBonus = r.kind === 'bonus';
+      const commute = isBonus ? 0 : num(r.earn.commute);
+      const mainPay = t.gross - commute;
+      const soc = num(r.ded.health) + num(r.ded.care) + num(r.ded.child) + num(r.ded.pension);
+      const empIns = num(r.ded.empIns);
+      const incTax = num(r.ded.incomeTax);
+      const resTax = num(r.ded.residentTax);
+      const othDed = num(r.ded.otherDed);
+
+      const drs = [];
+      const mainAcct = isBonus ? (isOfficer ? '役員賞与' : bonusAcct) : (isOfficer ? '役員報酬' : '給料手当');
+      if(mainPay > 0) drs.push({ acct: mainAcct, sub: '', tax: '対象外', invoice: '', amount: mainPay });
+      if(commute > 0) drs.push({ acct: '旅費交通費', sub: '通勤手当', tax: '課対仕入10%', invoice: '適格', amount: commute });
+
+      const crs = [];
+      if(soc > 0) crs.push({ acct: '預り金', sub: '社会保険料', tax: '対象外', invoice: '', amount: soc });
+      if(empIns > 0) crs.push({ acct: '預り金', sub: '雇用保険料', tax: '対象外', invoice: '', amount: empIns });
+      if(incTax > 0) crs.push({ acct: '預り金', sub: '源泉所得税', tax: '対象外', invoice: '', amount: incTax });
+      if(resTax > 0) crs.push({ acct: '預り金', sub: '住民税', tax: '対象外', invoice: '', amount: resTax });
+      if(othDed > 0) crs.push({ acct: '預り金', sub: r.otherDedName || 'その他控除', tax: '対象外', invoice: '', amount: othDed });
+      if(t.net > 0) crs.push({ acct: payAcct, sub: paySub, tax: '対象外', invoice: '', amount: t.net });
+
+      const [y, m] = r.ym.split('-').map(Number);
+      const kindLbl = isBonus ? (r.bonusName || '賞与') : (isOfficer ? '役員報酬' : '給与');
+      const summary = `${y}年${m}月分 ${kindLbl}（${emp.name}）`;
+      packLines(r.payDate, summary, kindLbl, drs, crs);
+    });
+  } else {
+    // 支給日・月・区分ごとに合算
+    const groups = new Map();
+    rows.forEach(r => {
+      const gKey = `${r.payDate}|${r.ym}|${r.kind}`;
+      if(!groups.has(gKey)) groups.set(gKey, []);
+      groups.get(gKey).push(r);
+    });
+    groups.forEach(list => {
+      const r0 = list[0];
+      const isBonus = r0.kind === 'bonus';
+      let officerGross = 0, staffGross = 0, commuteTotal = 0;
+      let socTotal = 0, empInsTotal = 0, incTaxTotal = 0, resTaxTotal = 0, othDedTotal = 0, netTotal = 0;
+      list.forEach(r => {
+        const emp = empOf(r), t = totals(r);
+        const commute = isBonus ? 0 : num(r.earn.commute);
+        const mainPay = t.gross - commute;
+        if(emp.type === 'officer') officerGross += mainPay;
+        else staffGross += mainPay;
+        commuteTotal += commute;
+        socTotal += num(r.ded.health) + num(r.ded.care) + num(r.ded.child) + num(r.ded.pension);
+        empInsTotal += num(r.ded.empIns);
+        incTaxTotal += num(r.ded.incomeTax);
+        resTaxTotal += num(r.ded.residentTax);
+        othDedTotal += num(r.ded.otherDed);
+        netTotal += t.net;
+      });
+      const drs = [];
+      if(officerGross > 0) drs.push({ acct: isBonus ? '役員賞与' : '役員報酬', sub: '', tax: '対象外', invoice: '', amount: officerGross });
+      if(staffGross > 0) drs.push({ acct: isBonus ? bonusAcct : '給料手当', sub: '', tax: '対象外', invoice: '', amount: staffGross });
+      if(commuteTotal > 0) drs.push({ acct: '旅費交通費', sub: '通勤手当', tax: '課対仕入10%', invoice: '適格', amount: commuteTotal });
+
+      const crs = [];
+      if(socTotal > 0) crs.push({ acct: '預り金', sub: '社会保険料', tax: '対象外', invoice: '', amount: socTotal });
+      if(empInsTotal > 0) crs.push({ acct: '預り金', sub: '雇用保険料', tax: '対象外', invoice: '', amount: empInsTotal });
+      if(incTaxTotal > 0) crs.push({ acct: '預り金', sub: '源泉所得税', tax: '対象外', invoice: '', amount: incTaxTotal });
+      if(resTaxTotal > 0) crs.push({ acct: '預り金', sub: '住民税', tax: '対象外', invoice: '', amount: resTaxTotal });
+      if(othDedTotal > 0) crs.push({ acct: '預り金', sub: 'その他控除', tax: '対象外', invoice: '', amount: othDedTotal });
+      if(netTotal > 0) crs.push({ acct: payAcct, sub: paySub, tax: '対象外', invoice: '', amount: netTotal });
+
+      const [y, m] = r0.ym.split('-').map(Number);
+      const kindLbl = isBonus ? (r0.bonusName || '賞与') : '給与・役員報酬';
+      const summary = `${y}年${m}月分 ${kindLbl}（${list.length}名合算）`;
+      packLines(r0.payDate, summary, kindLbl, drs, crs);
+    });
+  }
+  return txs;
+}
+
+function buildSocDebitInfo(){
+  const ym = ($('#socTargetYm') && $('#socTargetYm').value) || '2026-10';
+  const incBonus = $('#socIncludeBonus') ? $('#socIncludeBonus').checked : false;
+  const debitDate = ($('#socDebitDate') && $('#socDebitDate').value) || '2026-11-02';
+  const totalInput = num($('#socTotalWithdrawal') && $('#socTotalWithdrawal').value);
+  const paySub = (($('#mfPaySub') && $('#mfPaySub').value) || '').trim();
+
+  const matching = Object.values(RECS).filter(r => r && r.saved !== false && r.ym === ym && (incBonus ? true : r.kind === 'salary'));
+  let empHealth = 0, empCare = 0, empChild = 0, empPension = 0;
+  const breakdown = [];
+  matching.forEach(r => {
+    const s = num(r.ded.health) + num(r.ded.care) + num(r.ded.child) + num(r.ded.pension);
+    if(s > 0){
+      empHealth += num(r.ded.health);
+      empCare += num(r.ded.care);
+      empChild += num(r.ded.child);
+      empPension += num(r.ded.pension);
+      breakdown.push(`${empOf(r).name}${r.kind === 'bonus' ? '(賞与)' : ''}: ${yen(s)}`);
+    }
+  });
+  const empSocTotal = empHealth + empCare + empChild + empPension;
+  const totalWithdrawal = totalInput > 0 ? totalInput : empSocTotal * 2;
+  const companyShare = totalWithdrawal - empSocTotal;
+  const [y, m] = ym.split('-').map(Number);
+  const summary = `社会保険料（${y}年${m}月給与${incBonus ? '・賞与' : ''}天引き分）年金事務所口座引落`;
+
+  let tx = null;
+  if(totalWithdrawal > 0){
+    const drs = [];
+    if(empSocTotal > 0) drs.push({ acct: '預り金', sub: '社会保険料', tax: '対象外', invoice: '', amount: empSocTotal });
+    if(companyShare > 0) drs.push({ acct: '法定福利費', sub: '社会保険料', tax: '対象外', invoice: '', amount: companyShare });
+    const crs = [{ acct: '普通預金', sub: paySub, tax: '対象外', invoice: '', amount: totalWithdrawal }];
+    const n = Math.max(drs.length, crs.length);
+    const lines = [];
+    for(let i = 0; i < n; i++) lines.push({ dr: drs[i] || null, cr: crs[i] || null });
+    tx = { date: debitDate.replace(/-/g, '/'), summary, tag: '社会保険料引落', lines };
+  }
+  return { ym, incBonus, debitDate, empSocTotal, totalWithdrawal, companyShare, breakdown, summary, tx };
+}
+
+function renderMf(){
+  const rows = mfFilteredRecords();
+  // 1. サマリー集計
+  let officerSum = 0, salarySum = 0, bonusSum = 0, socSum = 0, empInsSum = 0, taxSum = 0, netSum = 0;
+  rows.forEach(r => {
+    const emp = empOf(r), t = totals(r);
+    const commute = r.kind === 'bonus' ? 0 : num(r.earn.commute);
+    const main = t.gross - commute;
+    if(r.kind === 'bonus') bonusSum += main;
+    else if(emp.type === 'officer') officerSum += main;
+    else salarySum += main;
+    socSum += num(r.ded.health) + num(r.ded.care) + num(r.ded.child) + num(r.ded.pension);
+    empInsSum += num(r.ded.empIns);
+    taxSum += num(r.ded.incomeTax);
+    netSum += t.net;
+  });
+
+  const grid = $('#mfSummaryGrid');
+  if(grid){
+    grid.innerHTML = `
+      <div class="mf-stat"><div class="k">借方：役員報酬 合計</div><div class="v">${yen(officerSum)}</div><div class="s">税区分：対象外</div></div>
+      <div class="mf-stat"><div class="k">借方：給料手当 合計</div><div class="v">${yen(salarySum)}</div><div class="s">正社員・パート合計</div></div>
+      ${bonusSum > 0 ? `<div class="mf-stat"><div class="k">借方：賞与 合計</div><div class="v">${yen(bonusSum)}</div><div class="s">決算賞与・賞与</div></div>` : ''}
+      <div class="mf-stat"><div class="k">貸方：預り金［社会保険料］</div><div class="v" style="color:#0f766e">${yen(socSum)}</div><div class="s">健保＋介護＋支援金＋厚年</div></div>
+      <div class="mf-stat"><div class="k">貸方：預り金［雇用保険料］</div><div class="v" style="color:#0f766e">${yen(empInsSum)}</div><div class="s">労働保険対象</div></div>
+      <div class="mf-stat"><div class="k">貸方：預り金［源泉所得税］</div><div class="v" style="color:#0f766e">${yen(taxSum)}</div><div class="s">納期の特例（1/20・7/10）</div></div>
+      <div class="mf-stat" style="border-color:#93c5fd;background:#eff6ff"><div class="k" style="color:#1e40af;font-weight:700">貸方：差引支給額（振込合計）</div><div class="v" style="color:#1e3a8a">${yen(netSum)}</div><div class="s">対象明細 ${rows.length} 件</div></div>
+    `;
+  }
+
+  // 2. 年金事務所口座引落カードの描画
+  const socInfo = buildSocDebitInfo();
+  const socBox = $('#socCalcResult');
+  if(socBox){
+    socBox.innerHTML = `
+      <div style="background:#fff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px;font-size:12.5px">
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:8px">
+          <div>📌 <b>天引き預り金（本人負担合計）</b>：<span style="font-family:var(--num);font-weight:700;font-size:15px;color:#0f766e">${yen(socInfo.empSocTotal)}</span>
+            <span style="color:var(--muted);font-size:11.5px">（${socInfo.breakdown.length ? esc(socInfo.breakdown.join(' ／ ')) : '該当月の社会保険料天引き明細なし'}）</span>
+          </div>
+        </div>
+        <table class="tbl" style="border:1px solid var(--line)">
+          <thead>
+            <tr>
+              <th>取引日</th>
+              <th>借方勘定科目</th>
+              <th>借方補助科目</th>
+              <th class="r">借方金額(円)</th>
+              <th>貸方勘定科目</th>
+              <th>貸方補助科目</th>
+              <th class="r">貸方金額(円)</th>
+              <th>摘要</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${esc(socInfo.debitDate.replace(/-/g,'/'))}</td>
+              <td class="mf-dr">預り金</td>
+              <td><span class="mf-sub-badge">社会保険料</span></td>
+              <td class="r" style="font-weight:700">${fmt(socInfo.empSocTotal)}</td>
+              <td class="mf-cr">普通預金</td>
+              <td>${socInfo.tx && socInfo.tx.lines[0].cr.sub ? `<span class="mf-sub-badge">${esc(socInfo.tx.lines[0].cr.sub)}</span>` : ''}</td>
+              <td class="r" style="font-weight:700">${fmt(socInfo.totalWithdrawal)}</td>
+              <td>${esc(socInfo.summary)}</td>
+            </tr>
+            <tr>
+              <td>${esc(socInfo.debitDate.replace(/-/g,'/'))}</td>
+              <td class="mf-dr">法定福利費</td>
+              <td><span class="mf-sub-badge">社会保険料（会社負担分）</span></td>
+              <td class="r" style="font-weight:700;color:#b45309">${fmt(socInfo.companyShare)}</td>
+              <td></td>
+              <td></td>
+              <td class="r"></td>
+              <td style="color:var(--muted);font-size:11.5px">※ 引落総額 ${yen(socInfo.totalWithdrawal)} − 預り金 ${yen(socInfo.empSocTotal)} ＝ 会社負担分 ${yen(socInfo.companyShare)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // 3. 複合仕訳プレビュー一覧表
+  const txs = buildMfTransactions(rows);
+  const incSoc = $('#socIncludeInMainCsv') && $('#socIncludeInMainCsv').checked && socInfo.tx;
+  const allTxs = incSoc ? [...txs, socInfo.tx] : txs;
+  if($('#mfCountLabel')) $('#mfCountLabel').textContent = `仕訳数：${allTxs.length} 件（計 ${allTxs.reduce((s,t)=>s+t.lines.length,0)} 行）`;
+
+  const wrap = $('#mfTableWrap');
+  if(!wrap) return;
+  if(!allTxs.length){
+    wrap.innerHTML = '<div class="empty-state"><div class="big">📒</div>対象期間に明細がありません</div>';
+    return;
+  }
+
+  let html = `<table class="tbl"><thead><tr>
+    <th>取引No</th><th>取引日</th>
+    <th>借方勘定科目</th><th>借方補助科目</th><th>借方税区分</th><th class="r">借方金額(円)</th>
+    <th>貸方勘定科目</th><th>貸方補助科目</th><th>貸方税区分</th><th class="r">貸方金額(円)</th>
+    <th>摘要</th>
+  </tr></thead><tbody>`;
+
+  allTxs.forEach((tx, idx) => {
+    const txNo = idx + 1;
+    tx.lines.forEach((ln, lineIdx) => {
+      const dr = ln.dr, cr = ln.cr;
+      html += `<tr class="${lineIdx === 0 ? 'mf-tx-group' : ''}">
+        <td style="font-family:var(--num);color:${lineIdx===0?'var(--navy-800)':'#94a3b8'};font-weight:${lineIdx===0?'700':'400'}">${txNo}</td>
+        <td style="color:${lineIdx===0?'var(--ink)':'#94a3b8'}">${esc(tx.date)}</td>
+        <td class="mf-dr">${dr ? esc(dr.acct) : ''}</td>
+        <td>${dr && dr.sub ? `<span class="mf-sub-badge">${esc(dr.sub)}</span>` : ''}</td>
+        <td style="font-size:11px;color:var(--muted)">${dr ? esc(dr.tax) : ''}</td>
+        <td class="r" style="font-weight:600">${dr ? fmt(dr.amount) : ''}</td>
+        <td class="mf-cr">${cr ? esc(cr.acct) : ''}</td>
+        <td>${cr && cr.sub ? `<span class="mf-sub-badge">${esc(cr.sub)}</span>` : ''}</td>
+        <td style="font-size:11px;color:var(--muted)">${cr ? esc(cr.tax) : ''}</td>
+        <td class="r" style="font-weight:600">${cr ? fmt(cr.amount) : ''}</td>
+        <td>${lineIdx === 0 ? `<b>${esc(tx.summary)}</b>` : `<span style="color:#94a3b8;font-size:11px">${esc(tx.summary)}</span>`}</td>
+      </tr>`;
+    });
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function downloadMfCsv(txs, filename){
+  if(!txs || !txs.length){ toast('出力する仕訳がありません'); return; }
+  const q = v => { const s = String(v ?? ''); return /[",\r\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
+  // マネーフォワード クラウド会計「仕訳帳インポート」公式ヘッダー（27列）
+  const header = [
+    '取引No','取引日',
+    '借方勘定科目','借方補助科目','借方部門','借方取引先','借方税区分','借方インボイス','借方金額(円)','借方税額',
+    '貸方勘定科目','貸方補助科目','貸方部門','貸方取引先','貸方税区分','貸方インボイス','貸方金額(円)','貸方税額',
+    '摘要','仕訳メモ','タグ','MF仕訳タイプ','決算整理仕訳','作成日時','作成者','最終更新日時','最終更新者'
+  ];
+  const lines = [header.map(q).join(',')];
+  txs.forEach((tx, idx) => {
+    const txNo = idx + 1;
+    tx.lines.forEach(ln => {
+      const dr = ln.dr, cr = ln.cr;
+      const row = [
+        txNo,
+        tx.date,
+        dr ? dr.acct : '',
+        dr ? (dr.sub || '') : '',
+        '',
+        '',
+        dr ? (dr.tax || '対象外') : '',
+        dr ? (dr.invoice || '') : '',
+        dr ? Math.round(num(dr.amount)) : '',
+        dr ? 0 : '',
+        cr ? cr.acct : '',
+        cr ? (cr.sub || '') : '',
+        '',
+        '',
+        cr ? (cr.tax || '対象外') : '',
+        cr ? (cr.invoice || '') : '',
+        cr ? Math.round(num(cr.amount)) : '',
+        cr ? 0 : '',
+        tx.summary || '',
+        '',
+        tx.tag || '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        ''
+      ];
+      lines.push(row.map(q).join(','));
+    });
+  });
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('📒 MF仕訳帳CSVを出力しました');
+}
+
+function exportMfCsv(){
+  const rows = mfFilteredRecords();
+  const txs = buildMfTransactions(rows);
+  const socInfo = buildSocDebitInfo();
+  const incSoc = $('#socIncludeInMainCsv') && $('#socIncludeInMainCsv').checked && socInfo.tx;
+  const allTxs = incSoc ? [...txs, socInfo.tx] : txs;
+  const from = ($('#mfFrom').value || '全期間').replace('-','');
+  const to = ($('#mfTo').value || '').replace('-','');
+  downloadMfCsv(allTxs, `MF仕訳帳_給与賞与_${from}-${to}.csv`);
+}
+
+function exportSocCsvOnly(){
+  const socInfo = buildSocDebitInfo();
+  if(!socInfo.tx){ toast('社会保険料引落の金額を入力してください'); return; }
+  downloadMfCsv([socInfo.tx], `MF仕訳帳_社会保険料引落_${socInfo.debitDate.replace(/-/g,'')}.csv`);
+}
+
+/* ════════════════════════════════════════════════
+   イベント
+════════════════════════════════════════════════ */
+function switchTab(tab){
+  ui.tab = tab;
+  $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  $$('.tab').forEach(s => s.classList.toggle('active', s.id === 'tab-' + tab));
+  if(tab === 'ledger') renderLedger();
+  if(tab === 'mf') renderMf();
+  if(tab === 'emp'){ renderEmpTable(); renderEmpForm(); }
+  if(tab === 'settings') renderSettings();
+  if(tab === 'slip'){ renderChips(); if(ui.empId) selectEmp(ui.empId); }
+}
+function refreshAll(){
+  $('#sideCompany').textContent = S.company;
+  renderChips(); renderEditor(); renderPreview();
+  if(ui.tab !== 'slip') switchTab(ui.tab);
+}
+function fiscalYear(){
+  // 9月決算：10月〜翌9月
+  const [y,m] = ui.ym.split('-').map(Number);
+  const start = m >= 10 ? y : y - 1;
+  $('#lgFrom').value = `${start}-10`; $('#lgTo').value = `${start+1}-09`;
+  renderLedger();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  load();
+  // 初期表示月：最新の明細がある月 or 今月
+  const salYms = Object.values(RECS).filter(r => r.kind === 'salary').map(r => r.ym).sort();
+  ui.ym = salYms.length ? salYms[salYms.length - 1] : thisYm();
+  $('#ymInput').value = ui.ym;
+  $('#lgFrom').value = ymAdd(ui.ym, -2); $('#lgTo').value = ui.ym;
+  if($('#mfFrom')) $('#mfFrom').value = salYms.length ? salYms[0] : ymAdd(ui.ym, -1);
+  if($('#mfTo')) $('#mfTo').value = ui.ym;
+
+  $$('.nav-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  $('#ymInput').addEventListener('change', e => { if(!e.target.value) return; ui.ym = e.target.value; ui.rec = null; if(ui.empId) selectEmp(ui.empId); else { renderChips(); renderEditor(); renderPreview(); } });
+  $$('#kindSeg button').forEach(b => b.addEventListener('click', () => {
+    ui.kind = b.dataset.kind; $$('#kindSeg button').forEach(x => x.classList.toggle('on', x === b));
+    ui.rec = null; if(ui.empId) selectEmp(ui.empId); else { renderChips(); renderEditor(); renderPreview(); }
+  }));
+  $('#empChips').addEventListener('click', e => { const c = e.target.closest('[data-emp]'); if(c) selectEmp(c.dataset.emp); });
+  const ed = $('#editor');
+  ed.addEventListener('input', onEditorInput);
+  ed.addEventListener('click', e => {
+    const rs = e.target.closest('[data-reset]');
+    if(rs){ delete ui.rec.manual[rs.dataset.reset]; compute(ui.rec); persist(); refreshEditor(null); renderPreview(); renderChips(); return; }
+    if(e.target.id === 'btnPrintOne') printSlips([ui.rec]);
+    if(e.target.id === 'btnDelRec'){
+      if(!confirm('この明細を削除します。よろしいですか？')) return;
+      const k = recKey(ui.rec.ym, ui.rec.kind, ui.rec.empId);
+      delete RECS[k];
+      DEL_RECS[k] = new Date().toISOString();
+      saveRecs();
+      toast('削除しました'); selectEmp(ui.empId);
+    }
+  });
+  $('#btnPrintAll').addEventListener('click', () => {
+    printSlips(monthEmps().map(id => RECS[recKey(ui.ym, ui.kind, id)]).filter(Boolean));
+  });
+
+  ['lgFrom','lgTo','lgEmp','lgKind'].forEach(id => $('#' + id).addEventListener('change', renderLedger));
+  $('#chkHideZero').addEventListener('change', renderLedger);
+  $('#btnFY').addEventListener('click', fiscalYear);
+  $('#btnCsv').addEventListener('click', exportCsv);
+  $('#btnLedgerPrint').addEventListener('click', printLedger);
+  $('#btnPersonalLedgerPrint').addEventListener('click', printPersonalLedger);
+
+  // MF仕訳・会計連携タブ イベント
+  ['mfFrom','mfTo','mfKind','mfMode','mfPayAcct','mfPaySub','mfBonusAcct','socTargetYm','socIncludeBonus','socDebitDate','socTotalWithdrawal','socIncludeInMainCsv'].forEach(id => {
+    const el = $('#' + id);
+    if(el){
+      el.addEventListener('change', renderMf);
+      if(el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'number')) el.addEventListener('input', renderMf);
+    }
+  });
+  if($('#btnMf202609')) $('#btnMf202609').addEventListener('click', () => { $('#mfFrom').value = '2026-09'; $('#mfTo').value = '2026-09'; renderMf(); });
+  if($('#btnMf202610')) $('#btnMf202610').addEventListener('click', () => { $('#mfFrom').value = '2026-10'; $('#mfTo').value = '2026-10'; renderMf(); });
+  if($('#btnMfFY')) $('#btnMfFY').addEventListener('click', () => {
+    const [y,m] = ui.ym.split('-').map(Number);
+    const start = m >= 10 ? y : y - 1;
+    $('#mfFrom').value = `${start}-10`; $('#mfTo').value = `${start+1}-09`;
+    renderMf();
+  });
+  if($('#btnMfExportCsv')) $('#btnMfExportCsv').addEventListener('click', exportMfCsv);
+  if($('#btnMfExportSocCsv')) $('#btnMfExportSocCsv').addEventListener('click', exportSocCsvOnly);
+
+  $('#btnNewEmp').addEventListener('click', () => { ui.editEmpId = '__new'; renderEmpForm(); });
+  $('#empTable').addEventListener('click', e => { const b = e.target.closest('[data-edit]'); if(b){ ui.editEmpId = b.dataset.edit; renderEmpForm(); } });
+  $('#empForm').addEventListener('submit', saveEmpForm);
+  $('#empForm').addEventListener('click', e => {
+    if(e.target.id === 'btnCancelEmp'){ ui.editEmpId = null; renderEmpForm(); }
+    if(e.target.id === 'btnDelEmp'){
+      const id = ui.editEmpId;
+      const has = Object.values(RECS).some(r => r.empId === id);
+      if(has){ alert('この社員の明細が保存されているため削除できません。\n退職された場合は「在籍中」のチェックを外してください。'); return; }
+      if(!confirm('この社員を削除します。よろしいですか？')) return;
+      EMPS = EMPS.filter(x => x.id !== id);
+      DEL_EMPS[id] = new Date().toISOString();
+      saveEmps(); ui.editEmpId = null;
+      if(ui.empId === id){ ui.empId = null; ui.rec = null; }
+      renderEmpTable(); renderEmpForm(); renderChips(); toast('削除しました');
+    }
+  });
+
+  $('#btnSaveSettings').addEventListener('click', readSettings);
+  $('#btnBackup').addEventListener('click', backup);
+  $('#restoreFile').addEventListener('change', e => { if(e.target.files[0]) restore(e.target.files[0]); e.target.value = ''; });
+  $('#btnSideSync').addEventListener('click', () => CloudSync.sync({ silent: false }));
+  $('#btnCloudSyncNow').addEventListener('click', () => CloudSync.sync({ silent: false }));
+  $('#btnCloudForcePush').addEventListener('click', () => {
+    if(confirm('このPCの現在のデータでクラウド上のデータを上書きします。よろしいですか？')){
+      CloudSync.sync({ forcePush: true, silent: false });
+    }
+  });
+  $('#btnCloudForcePull').addEventListener('click', () => {
+    if(confirm('クラウド上の最新データでこのPCのデータを置き換えます。よろしいですか？')){
+      CloudSync.sync({ forcePull: true, silent: false });
+    }
+  });
+  $('#btnRestorePreSync').addEventListener('click', () => CloudSync.restorePreSyncBackup());
+  if($('#btnLockApp')) $('#btnLockApp').addEventListener('click', () => PinLock.lock('画面をロックしました'));
+  if($('#btnTestLockNow')) $('#btnTestLockNow').addEventListener('click', () => PinLock.lock('画面をロックしました'));
+  window.addEventListener('afterprint', () => { $('#printArea').innerHTML = ''; });
+
+  refreshAll();
+  PinLock.init();
+});
+</script>
+</body>
+</html>
