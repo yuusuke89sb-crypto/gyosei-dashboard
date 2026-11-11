@@ -269,6 +269,14 @@ function loadLocal(){
     BOOKS = JSON.parse(JSON.stringify(SEED_BOOKS));
     saveLocal(false);
   }
+  // SEED_BOOKS側の方が新しいブック（スプレッドシート最新反映分など）があれば自動更新
+  SEED_BOOKS.forEach(sb => {
+    const lb = BOOKS.find(b => b.id === sb.id);
+    if(lb && sb.updatedAt && (!lb.updatedAt || Date.parse(sb.updatedAt) > Date.parse(lb.updatedAt))){
+      Object.assign(lb, JSON.parse(JSON.stringify(sb)));
+      saveLocal(false);
+    }
+  });
   // 小口現金ブックにGoogleスプレッドシートURLが未設定なら自動付与
   const pc = BOOKS.find(b => b.id === 'petty_cash');
   if(pc && !pc.gsheetUrl){
