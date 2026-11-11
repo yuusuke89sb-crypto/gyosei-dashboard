@@ -2281,7 +2281,8 @@ const Cases = {
     }
     const wrap = document.getElementById('csf_milestone_stepper_wrap');
     if (wrap) wrap.style.display = 'none';
-    const catVal = catEl ? catEl.value : 'garage_oss';
+    const catSelectEl = document.getElementById('csf_category');
+    const catVal = catSelectEl ? catSelectEl.value : 'garage_oss';
     Cases.toggleCategoryFields(catVal);
     if (typeof CaseTemplates !== 'undefined' && CaseTemplates.applyTemplate) {
       CaseTemplates.applyTemplate(catVal);
@@ -2435,8 +2436,16 @@ const Cases = {
       if (surveyLocationIdEl) surveyLocationIdEl.value = c.surveyLocationId || '';
       const applyDateEl = document.getElementById('csf_applyDate');
       if (applyDateEl) {
-        applyDateEl.value = c.applyDate || '';
-        delete applyDateEl.dataset.autoSet;
+        if (c.applyDate) {
+          applyDateEl.value = c.applyDate;
+          delete applyDateEl.dataset.autoSet;
+        } else if (c.category === 'garage_paper' && c.status !== 'done') {
+          applyDateEl.value = this.getNextBusinessDayFromToday();
+          applyDateEl.dataset.autoSet = '1';
+        } else {
+          applyDateEl.value = '';
+          delete applyDateEl.dataset.autoSet;
+        }
       }
       const policeDeliveryDateEl = document.getElementById('csf_policeDeliveryDate');
       if (policeDeliveryDateEl) {
@@ -3772,19 +3781,18 @@ const Cases = {
     const subCatGroup = document.getElementById('csf_subCategory_group');
     if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
 
-    // 新規登録時: 車庫証明（一般）なら申請日に翌営業日を自動セット、他カテゴリへ切り替えたら自動セット分をクリア
-    if (!this.editingId) {
-      const applyEl = document.getElementById('csf_applyDate');
-      if (applyEl) {
-        if (category === 'garage_paper') {
-          if (!applyEl.value) {
-            applyEl.value = this.getNextBusinessDayFromToday();
-            applyEl.dataset.autoSet = '1';
-          }
-        } else if (applyEl.dataset.autoSet === '1') {
-          applyEl.value = '';
-          delete applyEl.dataset.autoSet;
+    // 車庫証明（一般）なら申請日が空欄のとき翌営業日を自動セット、他カテゴリへ切り替えたら自動セット分をクリア
+    const applyEl = document.getElementById('csf_applyDate');
+    const statusEl = document.getElementById('csf_status');
+    if (applyEl) {
+      if (category === 'garage_paper') {
+        if (!applyEl.value && (!statusEl || statusEl.value !== 'done')) {
+          applyEl.value = this.getNextBusinessDayFromToday();
+          applyEl.dataset.autoSet = '1';
         }
+      } else if (applyEl.dataset.autoSet === '1') {
+        applyEl.value = '';
+        delete applyEl.dataset.autoSet;
       }
     }
 

@@ -336,6 +336,15 @@ const Store = {
     };
     if (
       newCase.category === 'garage_paper' &&
+      !newCase.applyDate &&
+      newCase.status !== 'done' &&
+      typeof Cases !== 'undefined' &&
+      typeof Cases.getNextBusinessDayFromToday === 'function'
+    ) {
+      newCase.applyDate = Cases.getNextBusinessDayFromToday();
+    }
+    if (
+      newCase.category === 'garage_paper' &&
       newCase.completedAt &&
       !newCase.policeDeliveryDate &&
       typeof Cases !== 'undefined' &&
