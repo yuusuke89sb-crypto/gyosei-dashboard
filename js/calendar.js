@@ -71,7 +71,8 @@ const Calendar = {
         const items = [];
         // 案件（現調・申請・交付など）
         dayCaseEvents.slice(0, 2).forEach(ce => {
-          const statusClass = ce.status === 'done' ? 'done' : (isPast ? 'overdue' : '');
+          const isFutureDelivery = (ce.type === 'case-delivery' || ce.type === 'case-store' || ce.type === 'case-delivery-store') && !isPast;
+          const statusClass = (ce.status === 'done' && !isFutureDelivery) ? 'done' : (isPast && ce.status !== 'done' ? 'overdue' : '');
           items.push(`<div class="cal-event ${statusClass} category-${ce.category}" title="${ce.title}" onclick="event.stopPropagation(); Cases.showEditModal('${ce.caseId}', 'calendar')">${ce.title.substring(0, 8)}</div>`);
         });
         // 予定
@@ -107,7 +108,11 @@ const Calendar = {
     // 期限リスト（案件イベント + 予定 + 相続期限を統合）
     const upcomingItems = [];
     caseEvents.filter(ce => {
-      if (ce.status === 'done') return false;
+      if (ce.status === 'done') {
+        // ステータス完了でも、今日以降の「交付」「店届」予定はスケジュール一覧に表示する
+        const isFutureDelivery = (ce.type === 'case-delivery' || ce.type === 'case-store' || ce.type === 'case-delivery-store') && Store.getDiffDays(ce.date) >= 0;
+        if (!isFutureDelivery) return false;
+      }
       // 申請中 (applying) の場合、すでに完了している過去の工程 (申請日、現調日) は除外する
       if (ce.status === 'applying') {
         const isPastStep = (ce.type === 'case-apply' || ce.type === 'case-survey' || ce.type === 'case-apply-delivery');
@@ -186,7 +191,8 @@ const Calendar = {
             const client = Store.getClient(Store.getCase(ce.caseId)?.clientId);
             const staffName = Store.getStaffName(ce.staffId);
             const diff = Store.getDiffDays(ce.date);
-            const isApplyingOrDone = ce.status === 'done' || (ce.status === 'applying' && (ce.type === 'case-apply' || ce.type === 'case-survey' || ce.type === 'case-apply-delivery'));
+            const isFutureDeliveryOnDone = ce.status === 'done' && (ce.type === 'case-delivery' || ce.type === 'case-store' || ce.type === 'case-delivery-store') && diff >= 0;
+            const isApplyingOrDone = (!isFutureDeliveryOnDone && ce.status === 'done') || (ce.status === 'applying' && (ce.type === 'case-apply' || ce.type === 'case-survey' || ce.type === 'case-apply-delivery'));
             const urgencyClass = isApplyingOrDone ? (ce.status === 'done' ? 'done' : 'applying') : (diff < 0 ? 'overdue' : diff <= 3 ? 'urgent' : diff <= 7 ? 'soon' : '');
             const urgencyLabel = isApplyingOrDone ? (ce.status === 'done' ? '完了' : '申請中') : (diff < 0 ? `${Math.abs(diff)}日超過` : diff === 0 ? '本日' : `あと${diff}日`);
             return `
@@ -1234,5 +1240,25 @@ const Calendar = {
       dt.setDate(dt.getDate() + 1);
     }
     return dateStr;
+  },
+
+  // 指定日から N 営業日後の日付（YYYY-MM-DD）を返す（days >= 1）
+  addBusinessDays(dateStr, days) {
+    if (!dateStr) return '';
+    const clean = String(dateStr).slice(0, 10);
+    const parts = clean.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return '';
+    const [y, m, d] = parts;
+    const dt = new Date(y, m - 1, d);
+    let remaining = Math.max(1, Number(days) || 1);
+    for (let i = 0; i < 60 && remaining > 0; i++) {
+      dt.setDate(dt.getDate() + 1);
+      const s = this._toDateStr(dt);
+      if (this.isBusinessDay(s)) {
+        remaining--;
+        if (remaining === 0) return s;
+      }
+    }
+    return this._toDateStr(dt);
   },
 };

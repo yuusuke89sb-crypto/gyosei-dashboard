@@ -400,6 +400,7 @@ const Cases = {
     if (!this.advanceDraft) this.advanceDraft = [];
     if (!this.advanceDraft[i]) this.advanceDraft[i] = { category: '証紙代', label: '', amount: '' };
     this.advanceDraft[i][field] = field === 'amount' ? (el.value === '' ? '' : Number(el.value)) : el.value;
+    if (field === 'label') this.recheckLightGarageFee();
   },
 
   renderKanbanCard(c) {
@@ -710,7 +711,7 @@ const Cases = {
                   </div>
                   <div class="form-group">
                     <label>ステータス</label>
-                    <select name="status" id="csf_status" class="form-select">
+                    <select name="status" id="csf_status" class="form-select" onchange="Cases.onStatusSelectChange(this.value)">
                       ${this.STATUSES.map(s => `<option value="${s.key}">${s.icon} ${s.label}</option>`).join('')}
                     </select>
                   </div>
@@ -764,7 +765,7 @@ const Cases = {
                   </div>
                   <div class="form-group">
                     <label>申請日</label>
-                    <input type="date" name="applyDate" id="csf_applyDate">
+                    <input type="date" name="applyDate" id="csf_applyDate" oninput="delete this.dataset.autoSet">
                   </div>
                 </div>
 
@@ -772,7 +773,7 @@ const Cases = {
                 <div class="form-row" id="csf_garageDates_group_police_delivery">
                   <div class="form-group">
                     <label>交付予定日（受取日）</label>
-                    <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate">
+                    <input type="date" name="policeDeliveryDate" id="csf_policeDeliveryDate" oninput="delete this.dataset.autoSet; this.dataset.manualEdit='1';">
                   </div>
                 </div>
 
@@ -843,7 +844,7 @@ const Cases = {
                   </div>
                   <div class="form-group">
                     <label>完了日 <span style="font-size:0.72rem;color:var(--accent-blue, #3b82f6);font-weight:bold;">(請求書明細の日付)</span></label>
-                    <input type="date" name="completedAt" id="csf_completedAt" title="請求書の別紙明細に印字される完了日です。未入力時は完了にした日付が自動採用されます">
+                    <input type="date" name="completedAt" id="csf_completedAt" onchange="Cases.onCompletedAtChange(this.value)" title="請求書の別紙明細に印字される完了日です。未入力時は完了にした日付が自動採用されます">
                   </div>
                 </div>
 
@@ -2054,13 +2055,15 @@ const Cases = {
   onDrop(event, newStatus) {
     event.preventDefault();
     const caseId = event.dataTransfer.getData('text/plain');
-    Store.updateCase(caseId, { status: newStatus });
+    const updated = Store.updateCase(caseId, { status: newStatus });
+    if (updated && newStatus === 'done') this.syncCaseDatesToCalendar(updated);
     App.refreshView();
     App.showToast('ステータスを更新しました');
   },
 
   changeStatus(id, newStatus) {
-    Store.updateCase(id, { status: newStatus });
+    const updated = Store.updateCase(id, { status: newStatus });
+    if (updated && newStatus === 'done') this.syncCaseDatesToCalendar(updated);
     App.refreshView();
     App.showToast('ステータスを更新しました');
   },
@@ -2119,6 +2122,13 @@ const Cases = {
     // 注文書№ 初期値（依頼書・注文書実物を見て手入力するため、自動PO連番は廃止し空欄をデフォルト化）
     const compEl = document.getElementById('csf_completedAt');
     if (compEl) compEl.value = '';
+    const applyInitEl = document.getElementById('csf_applyDate');
+    if (applyInitEl) delete applyInitEl.dataset.autoSet;
+    const delivInitEl = document.getElementById('csf_policeDeliveryDate');
+    if (delivInitEl) {
+      delete delivInitEl.dataset.autoSet;
+      delete delivInitEl.dataset.manualEdit;
+    }
     const orderNoEl = document.getElementById('csf_orderNo');
     if (orderNoEl) {
       const rawOrderNo = (prefills && prefills.orderNo) ? String(prefills.orderNo).trim() : '';
@@ -2424,9 +2434,21 @@ const Cases = {
       const surveyLocationIdEl = document.getElementById('csf_surveyLocationId');
       if (surveyLocationIdEl) surveyLocationIdEl.value = c.surveyLocationId || '';
       const applyDateEl = document.getElementById('csf_applyDate');
-      if (applyDateEl) applyDateEl.value = c.applyDate || '';
+      if (applyDateEl) {
+        applyDateEl.value = c.applyDate || '';
+        delete applyDateEl.dataset.autoSet;
+      }
       const policeDeliveryDateEl = document.getElementById('csf_policeDeliveryDate');
-      if (policeDeliveryDateEl) policeDeliveryDateEl.value = c.policeDeliveryDate || '';
+      if (policeDeliveryDateEl) {
+        policeDeliveryDateEl.value = c.policeDeliveryDate || '';
+        delete policeDeliveryDateEl.dataset.manualEdit;
+        const compStr = c.completedAt ? String(c.completedAt).slice(0, 10) : '';
+        if (c.category === 'garage_paper' && compStr && c.policeDeliveryDate && c.policeDeliveryDate === this.calcGarageDeliveryDate(compStr, c)) {
+          policeDeliveryDateEl.dataset.autoSet = '1';
+        } else {
+          delete policeDeliveryDateEl.dataset.autoSet;
+        }
+      }
       const registrationDateEl = document.getElementById('csf_registrationDate');
       if (registrationDateEl) registrationDateEl.value = c.registrationDate || '';
       const landTransportLocationIdEl = document.getElementById('csf_landTransportLocationId');
@@ -2437,6 +2459,10 @@ const Cases = {
       if (storeDeliveryTimeEl) storeDeliveryTimeEl.value = c.storeDeliveryTime || '';
       const completedAtEl = document.getElementById('csf_completedAt');
       if (completedAtEl) completedAtEl.value = c.completedAt ? c.completedAt.slice(0, 10) : '';
+      // 完了日が入力済みで交付予定日が空欄の車庫証明（一般）案件は開いた時点で自動補完
+      if (c.category === 'garage_paper' && completedAtEl && completedAtEl.value && policeDeliveryDateEl && !policeDeliveryDateEl.value) {
+        this.autoUpdateGarageDeliveryDate(false);
+      }
 
       // マイルストーン表示制御
       Cases.renderMilestoneStepper(id);
@@ -2793,6 +2819,23 @@ const Cases = {
       // 立替金のリセット
       this.advanceDraft = [];
       this.renderAdvanceRows();
+
+      // 車庫証明（一般）の連続登録時は申請日を翌営業日にセットし、完了日・交付予定日はリセット
+      const nextCompEl = document.getElementById('csf_completedAt');
+      if (nextCompEl) nextCompEl.value = '';
+      const nextDelivEl = document.getElementById('csf_policeDeliveryDate');
+      if (nextDelivEl) {
+        nextDelivEl.value = '';
+        delete nextDelivEl.dataset.autoSet;
+        delete nextDelivEl.dataset.manualEdit;
+      }
+      if (data.category === 'garage_paper') {
+        const nextApplyEl = document.getElementById('csf_applyDate');
+        if (nextApplyEl && !nextApplyEl.value) {
+          nextApplyEl.value = this.getNextBusinessDayFromToday();
+          nextApplyEl.dataset.autoSet = '1';
+        }
+      }
 
       // 報酬額テンプレートの再適用
       if (typeof CaseTemplates !== 'undefined') {
@@ -3297,6 +3340,7 @@ const Cases = {
       }
       this._setCarPoliceSelect(matchedLoc.name);
     }
+    this.autoUpdateGarageDeliveryDate(false);
   },
 
   // 所轄警察署セレクトに正式名称で値をセット（選択肢に無ければ追加して保持＝保存時に消えないように）
@@ -3401,11 +3445,98 @@ const Cases = {
     });
   },
 
+  // 今日から見た翌営業日（YYYY-MM-DD）を取得
+  getNextBusinessDayFromToday() {
+    const todayStr = (typeof Store !== 'undefined' && typeof Store.getLocalDateStr === 'function')
+      ? Store.getLocalDateStr()
+      : new Date().toISOString().slice(0, 10);
+    if (typeof Calendar !== 'undefined' && typeof Calendar.addBusinessDays === 'function') {
+      return Calendar.addBusinessDays(todayStr, 1);
+    }
+    return todayStr;
+  },
+
+  // 車庫証明（一般）の完了日から交付予定日を算出（愛知県: 3営業日後、岐阜県: 4営業日後）
+  calcGarageDeliveryDate(completedDateStr, info) {
+    if (!completedDateStr || typeof Calendar === 'undefined' || typeof Calendar.addBusinessDays !== 'function') return '';
+    const baseStr = String(completedDateStr).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(baseStr)) return '';
+    const bizDays = (typeof LocationMaster !== 'undefined' && typeof LocationMaster.getGarageDeliveryBusinessDays === 'function')
+      ? LocationMaster.getGarageDeliveryBusinessDays(info)
+      : 0;
+    if (!bizDays) return '';
+    return Calendar.addBusinessDays(baseStr, bizDays);
+  },
+
+  // ステータスプルダウン変更時ハンドラ（完了にした場合は完了日＆交付予定日を自動補完）
+  onStatusSelectChange(newStatus) {
+    if (newStatus === 'done') {
+      const compEl = document.getElementById('csf_completedAt');
+      if (compEl && !compEl.value) {
+        compEl.value = (typeof Store !== 'undefined' && typeof Store.getLocalDateStr === 'function')
+          ? Store.getLocalDateStr()
+          : new Date().toISOString().slice(0, 10);
+      }
+      this.autoUpdateGarageDeliveryDate(true);
+    }
+  },
+
+  // 完了日（csf_completedAt）変更時ハンドラ
+  onCompletedAtChange(val) {
+    if (!val) return;
+    this.autoUpdateGarageDeliveryDate(true);
+  },
+
+  // 入力中フォームの状態から車庫証明（一般）の交付予定日を自動計算・反映（軽は対象外）
+  autoUpdateGarageDeliveryDate(forceWhenCompletedChanged = false) {
+    const catEl = document.getElementById('csf_category');
+    if (!catEl || catEl.value !== 'garage_paper') return;
+    const delivEl = document.getElementById('csf_policeDeliveryDate');
+    if (!delivEl) return;
+
+    // 軽自動車（申請のみ）は交付日不要：自動入力された日付があればクリアして終了
+    if (this._isLightGarageForm()) {
+      if (delivEl.dataset.autoSet === '1') {
+        delivEl.value = '';
+        delete delivEl.dataset.autoSet;
+      }
+      return;
+    }
+
+    const compEl = document.getElementById('csf_completedAt');
+    const compDateStr = compEl ? compEl.value : '';
+    if (!compDateStr) return;
+
+    const info = {
+      policeLocationId: document.getElementById('csf_policeLocationId')?.value || '',
+      carPolice: document.getElementById('csf_carPolice')?.value || '',
+      parkingAddress: document.getElementById('csf_parkingAddress')?.value || '',
+      carAddress: document.getElementById('csf_carAddress')?.value || '',
+    };
+
+    const targetDate = this.calcGarageDeliveryDate(compDateStr, info);
+    if (!targetDate) return;
+
+    const canOverwrite = !delivEl.value || delivEl.dataset.autoSet === '1' || (forceWhenCompletedChanged && delivEl.dataset.manualEdit !== '1');
+    if (canOverwrite && delivEl.value !== targetDate) {
+      delivEl.value = targetDate;
+      delivEl.dataset.autoSet = '1';
+      if (typeof App !== 'undefined' && App.showToast && typeof LocationMaster !== 'undefined') {
+        const pref = LocationMaster.detectPrefecture(info);
+        const days = LocationMaster.getGarageDeliveryBusinessDays(info);
+        if (pref && days) {
+          App.showToast(`📅 交付予定日を自動設定しました（${pref}: 完了日の${days}営業日後 → ${targetDate.slice(5).replace('-', '/')}）`);
+        }
+      }
+    }
+  },
+
   // メモ・件名・立替金の変更で「軽」判定が変わった場合に車庫証明（一般）の単価を再計算
   // 手入力の単価は保護し、「所轄単価」「半額+1,000円」「未入力」のいずれかの場合のみ更新
   recheckLightGarageFee() {
     const catEl = document.getElementById('csf_category');
     if (!catEl || catEl.value !== 'garage_paper') return;
+    this.autoUpdateGarageDeliveryDate(false);
     const polEl = document.getElementById('csf_policeLocationId');
     const locationId = polEl ? polEl.value : '';
     if (!locationId || typeof Store === 'undefined' || !this._isAichiToyotaSelected()) {
@@ -3447,6 +3578,7 @@ const Cases = {
         }
       }
     }
+    this.autoUpdateGarageDeliveryDate(false);
   },
 
   // 申請先警察署の変更時ハンドラ（所轄で単価が変わるのは「車庫証明（一般）」のみ）
@@ -3481,6 +3613,7 @@ const Cases = {
         }
       }
       this.updateFeeHint(locationId);
+      this.autoUpdateGarageDeliveryDate(false);
     } else if (cat === 'garage_oss') {
       // 車庫証明（OSS）は警察署に出頭しないため所轄単価を適用せず、一律3,500円
       const feeEl = document.getElementById('csf_fee');
@@ -3639,6 +3772,22 @@ const Cases = {
     const subCatGroup = document.getElementById('csf_subCategory_group');
     if (subCatGroup) subCatGroup.style.display = isCarRegOrSeal ? '' : 'none';
 
+    // 新規登録時: 車庫証明（一般）なら申請日に翌営業日を自動セット、他カテゴリへ切り替えたら自動セット分をクリア
+    if (!this.editingId) {
+      const applyEl = document.getElementById('csf_applyDate');
+      if (applyEl) {
+        if (category === 'garage_paper') {
+          if (!applyEl.value) {
+            applyEl.value = this.getNextBusinessDayFromToday();
+            applyEl.dataset.autoSet = '1';
+          }
+        } else if (applyEl.dataset.autoSet === '1') {
+          applyEl.value = '';
+          delete applyEl.dataset.autoSet;
+        }
+      }
+    }
+
     // 車庫証明（一般）に切り替えた場合、警察署が選択済みならその警察署の単価を反映
     if (category === 'garage_paper') {
       // 愛知トヨタの場合のみ警察署マスタ単価を自動反映
@@ -3660,6 +3809,7 @@ const Cases = {
           }
         }
       }
+      this.autoUpdateGarageDeliveryDate(false);
     } else if (category === 'garage_oss') {
       // 車庫証明（OSS）新規時または未設定時のみ初期値3,500円をセット（既存案件の手動設定単価は保護）
       const feeEl = document.getElementById('csf_fee');
@@ -3766,13 +3916,20 @@ const Cases = {
         updates.status = 'applying'; // Doneから戻した場合は申請中にする
       }
     }
-    Store.updateCase(caseId, updates);
+    const updated = Store.updateCase(caseId, updates);
     this.renderMilestoneStepper(caseId);
     
-    // フォームが開いていたらステータスプルダウンも同期
+    // フォームが開いていたらステータスプルダウン・完了日・交付予定日も同期
     const statusSel = document.getElementById('csf_status');
     if (statusSel && updates.status) {
       statusSel.value = updates.status;
+    }
+    if (updated) {
+      const compEl = document.getElementById('csf_completedAt');
+      if (compEl) compEl.value = updated.completedAt ? String(updated.completedAt).slice(0, 10) : '';
+      const delivEl = document.getElementById('csf_policeDeliveryDate');
+      if (delivEl && updated.policeDeliveryDate) delivEl.value = updated.policeDeliveryDate;
+      if (updates.status === 'done') this.syncCaseDatesToCalendar(updated);
     }
     
     App.showToast(`マイルストーンを更新しました: ${milestoneVal}/${totalSteps}`);

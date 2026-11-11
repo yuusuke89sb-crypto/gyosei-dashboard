@@ -305,7 +305,9 @@ const Store = {
       policeDeliveryDate: data.policeDeliveryDate || '',
       storeDeliveryDate: data.storeDeliveryDate || '',
       storeDeliveryTime: data.storeDeliveryTime || '',
-      completedAt: data.completedAt || '',
+      completedAt: data.completedAt
+        ? (String(data.completedAt).includes('T') ? data.completedAt : `${data.completedAt}T12:00:00.000Z`)
+        : (data.status === 'done' ? `${this.getLocalDateStr()}T12:00:00.000Z` : ''),
       locationId: data.locationId || '',
       clientContactId: data.clientContactId || '',
       contactName: data.contactName || '',
@@ -332,6 +334,18 @@ const Store = {
       createdAt: data.createdAt || (data.registeredAt ? (data.registeredAt.includes('T') ? data.registeredAt : (data.registeredAt + 'T12:00:00.000Z')) : new Date().toISOString()),
       updatedAt: new Date().toISOString(),
     };
+    if (
+      newCase.category === 'garage_paper' &&
+      newCase.completedAt &&
+      !newCase.policeDeliveryDate &&
+      typeof Cases !== 'undefined' &&
+      typeof Cases._isLightCaseData === 'function' &&
+      !Cases._isLightCaseData(newCase) &&
+      typeof Cases.calcGarageDeliveryDate === 'function'
+    ) {
+      const autoDeliv = Cases.calcGarageDeliveryDate(String(newCase.completedAt).slice(0, 10), newCase);
+      if (autoDeliv) newCase.policeDeliveryDate = autoDeliv;
+    }
     if (typeof CaseSync !== 'undefined') CaseSync.markNew(newCase);
     cases.push(newCase);
     this._set(this.KEYS.CASES, cases);
@@ -368,18 +382,52 @@ const Store = {
         }
       });
     }
+    const oldCompletedDate = cases[idx].completedAt ? String(cases[idx].completedAt).slice(0, 10) : '';
+    const prevDeliveryDate = cases[idx].policeDeliveryDate || '';
     // 完了日記録（手動指定があれば最優先、無くて未完了→完了なら現在時刻、完了から他ステータスに戻したらクリア）
     if (data.status === 'done') {
       if (data.completedAt) {
         data.completedAt = String(data.completedAt).includes('T') ? data.completedAt : `${data.completedAt}T12:00:00.000Z`;
       } else if (oldStatus !== 'done' && !cases[idx].completedAt) {
-        data.completedAt = new Date().toISOString();
+        data.completedAt = `${this.getLocalDateStr()}T12:00:00.000Z`;
       }
     } else if (data.status && data.status !== 'done') {
-      data.completedAt = null;
+      if (data.completedAt) {
+        data.completedAt = String(data.completedAt).includes('T') ? data.completedAt : `${data.completedAt}T12:00:00.000Z`;
+      } else {
+        data.completedAt = null;
+      }
     } else if (data.completedAt !== undefined) {
       // status変更なしで完了日だけ編集・変更された場合
       data.completedAt = data.completedAt ? (String(data.completedAt).includes('T') ? data.completedAt : `${data.completedAt}T12:00:00.000Z`) : null;
+    }
+
+    // 車庫証明（一般）で完了日が設定・変更された場合、交付予定日を自動計算（愛知:3営業日後、岐阜:4営業日後、軽は除外）
+    const mergedForCheck = { ...cases[idx], ...data };
+    const newCompletedDate = mergedForCheck.completedAt ? String(mergedForCheck.completedAt).slice(0, 10) : '';
+    if (
+      mergedForCheck.category === 'garage_paper' &&
+      newCompletedDate &&
+      typeof Cases !== 'undefined' &&
+      typeof Cases._isLightCaseData === 'function' &&
+      typeof Cases.calcGarageDeliveryDate === 'function'
+    ) {
+      if (Cases._isLightCaseData(mergedForCheck)) {
+        // 軽自動車（申請のみ）と判明した場合、自動計算されていた交付予定日ならクリア
+        const prevAuto = Cases.calcGarageDeliveryDate(oldCompletedDate || newCompletedDate, cases[idx]);
+        if (prevDeliveryDate && prevDeliveryDate === prevAuto && (!data.policeDeliveryDate || data.policeDeliveryDate === prevDeliveryDate)) {
+          data.policeDeliveryDate = '';
+        }
+      } else {
+        const isCompletedChanged = newCompletedDate !== oldCompletedDate;
+        const isManualDeliveryPassed = data.policeDeliveryDate !== undefined && data.policeDeliveryDate !== prevDeliveryDate;
+        if (!mergedForCheck.policeDeliveryDate || (isCompletedChanged && !isManualDeliveryPassed)) {
+          const autoDeliv = Cases.calcGarageDeliveryDate(newCompletedDate, mergedForCheck);
+          if (autoDeliv) {
+            data.policeDeliveryDate = autoDeliv;
+          }
+        }
+      }
     }
     // Phase 2: フィールド別タイムスタンプの記録
     // 変更があったフィールドのみ _fieldTs を現在時刻に更新（同期マージ用）

@@ -129,6 +129,82 @@ const LocationMaster = {
     const name = this.policeNameFromAddress(address);
     return name ? this.findByName(name, locations) : null;
   },
+
+  // 愛知県警（45署）・岐阜県警（22署）の短縮名（shortLabel）セット
+  AICHI_POLICE_SET: new Set([
+    // 名古屋市内（16署）
+    '中', '東', '北', '西', '南', '中村', '中川', '千種', '熱田', '名東', '瑞穂', '昭和', '守山', '天白', '港', '緑',
+    '名古屋中', '名古屋東', '名古屋北', '名古屋西', '名古屋南',
+    // 尾張・知多（16署）
+    '一宮', '江南', '犬山', '稲沢', '小牧', '春日井', '瀬戸', '愛知', '西枇杷島', '津島', '蟹江',
+    '半田', '東海', '知多', '常滑', '中部空港',
+    // 三河（13署）
+    '刈谷', '碧南', '安城', '西尾', '岡崎', '豊田', '足助', '設楽', '新城', '豊川', '蒲郡', '豊橋', '田原',
+  ]),
+  GIFU_POLICE_SET: new Set([
+    // 岐阜県警（22署）
+    '岐阜中', '岐阜南', '岐阜北', '羽島', '岐阜羽島', '各務原', '山県', '北方',
+    '大垣', '海津', '養老', '垂井', '揖斐', '関', '郡上', '加茂', '可児',
+    '多治見', '中津川', '恵那', '高山', '飛騨', '下呂',
+  ]),
+
+  /**
+   * 警察署・場所マスタ・住所から都道府県（'愛知県' | '岐阜県' | ''）を判定する
+   * @param {Object} info - { policeLocationId, carPolice, parkingAddress, carAddress }
+   */
+  detectPrefecture(info) {
+    if (!info) return '';
+    const checkStationName = (rawName) => {
+      if (!rawName) return '';
+      const s = this.shortLabel(rawName);
+      if (this.GIFU_POLICE_SET.has(s)) return '岐阜県';
+      if (this.AICHI_POLICE_SET.has(s)) return '愛知県';
+      if (String(rawName).includes('岐阜')) return '岐阜県';
+      if (String(rawName).includes('愛知') || String(rawName).includes('名古屋')) return '愛知県';
+      return '';
+    };
+
+    // 1. 申請先警察署ID（policeLocationId）から場所マスタを参照
+    if (info.policeLocationId && typeof Store !== 'undefined' && typeof Store.getLocation === 'function') {
+      const loc = Store.getLocation(info.policeLocationId);
+      if (loc) {
+        const addrAndMemo = `${loc.address || ''} ${loc.memo || ''}`;
+        if (addrAndMemo.includes('岐阜県') || addrAndMemo.includes('岐阜県警')) return '岐阜県';
+        if (addrAndMemo.includes('愛知県') || addrAndMemo.includes('愛知県警')) return '愛知県';
+        const byLocName = checkStationName(loc.name);
+        if (byLocName) return byLocName;
+      }
+    }
+
+    // 2. 所轄警察署テキスト（carPolice）から判定
+    if (info.carPolice) {
+      const byCarPolice = checkStationName(info.carPolice);
+      if (byCarPolice) return byCarPolice;
+    }
+
+    // 3. 保管場所住所（parkingAddress）または自宅住所（carAddress）から判定
+    const checkAddr = (addr) => {
+      const norm = this._norm(addr);
+      if (!norm || norm === '同上' || norm === '別紙' || norm === '-') return '';
+      if (norm.startsWith('岐阜県') || norm.startsWith('岐阜市')) return '岐阜県';
+      if (norm.startsWith('愛知県') || norm.startsWith('名古屋市')) return '愛知県';
+      const polName = this.policeNameFromAddress(norm);
+      if (polName) return checkStationName(polName);
+      return '';
+    };
+
+    return checkAddr(info.parkingAddress) || checkAddr(info.carAddress) || '';
+  },
+
+  /**
+   * 車庫証明（一般）の完了日から交付予定日までの営業日数を返す（愛知県: 3, 岐阜県: 4, 不明: 0）
+   */
+  getGarageDeliveryBusinessDays(info) {
+    const pref = this.detectPrefecture(info);
+    if (pref === '愛知県') return 3;
+    if (pref === '岐阜県') return 4;
+    return 0;
+  },
 };
 
 if (typeof window !== 'undefined') window.LocationMaster = LocationMaster;
