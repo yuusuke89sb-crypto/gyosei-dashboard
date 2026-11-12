@@ -2287,15 +2287,11 @@ const Cases = {
     if (typeof CaseTemplates !== 'undefined' && CaseTemplates.applyTemplate) {
       CaseTemplates.applyTemplate(catVal);
     }
-    // 案件名: カスタムタイトルが指定されていれば尊重、それ以外（またはFAX/メール初期値）はテンプレートから自動生成
+    // 案件名: [店舗名] [案件名] [顧客名] の形式で自動生成し、店舗・カテゴリ・顧客名の入力に連動させる
     const tEl = document.getElementById('csf_title');
-    if (prefills && prefills.title && !prefills.title.startsWith('FAX依頼:') && !prefills.title.startsWith('メール依頼:')) {
-      if (tEl) tEl.value = prefills.title;
-      this.isTitleManuallyEdited = true;
-    } else {
-      this.isTitleManuallyEdited = false;
-      this.updateSuggestedTitle();
-    }
+    if (tEl) tEl.value = '';
+    this.isTitleManuallyEdited = false;
+    this.updateSuggestedTitle();
   },
 
   showEditModal(id, returnPage = null, returnTab = null, returnClientId = null) {
@@ -2815,8 +2811,8 @@ const Cases = {
 
       this.isTitleManuallyEdited = false;
       document.getElementById('csf_orderNo').value = '';
-      this.updateSuggestedTitle();
       document.getElementById('csf_carName').value = '';
+      this.updateSuggestedTitle();
       document.getElementById('csf_carAddress').value = '';
       document.getElementById('csf_parkingAddress').value = '';
       document.getElementById('csf_carNumber').value = '';

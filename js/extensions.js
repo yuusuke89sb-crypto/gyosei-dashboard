@@ -644,8 +644,14 @@ const CaseTemplates = {
             existing.syakoFee = info.fee;
             updated++;
           }
-          if (!existing.address && info.address) { existing.address = info.address; updated++; }
-          if (!existing.memo && info.memo) { existing.memo = info.memo; updated++; }
+          const expectedPref = (info.address || '').slice(0, 3);
+          const addrMismatch = expectedPref && existing.address && !existing.address.includes(expectedPref);
+          const memoMismatch = expectedPref && existing.memo && (
+            (expectedPref === '岐阜県' && existing.memo.includes('愛知県')) ||
+            (expectedPref === '愛知県' && existing.memo.includes('岐阜県'))
+          );
+          if ((!existing.address || addrMismatch) && info.address) { existing.address = info.address; updated++; }
+          if ((!existing.memo || memoMismatch) && info.memo) { existing.memo = info.memo; updated++; }
         }
         // ★2026-10-19: 端末ごとに場所を新規作成するのを廃止。
         //   以前は 'LOC-' + (端末内の件数+1) でIDを作っていたため、端末ごとに同じIDが別の警察署を指し、

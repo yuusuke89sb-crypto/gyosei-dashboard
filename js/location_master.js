@@ -168,11 +168,12 @@ const LocationMaster = {
     if (info.policeLocationId && typeof Store !== 'undefined' && typeof Store.getLocation === 'function') {
       const loc = Store.getLocation(info.policeLocationId);
       if (loc) {
+        // 警察署名から確定判定（旧データの住所・メモ混入に影響されないよう警察署名を最優先）
+        const byLocName = checkStationName(loc.name);
+        if (byLocName) return byLocName;
         const addrAndMemo = `${loc.address || ''} ${loc.memo || ''}`;
         if (addrAndMemo.includes('岐阜県') || addrAndMemo.includes('岐阜県警')) return '岐阜県';
         if (addrAndMemo.includes('愛知県') || addrAndMemo.includes('愛知県警')) return '愛知県';
-        const byLocName = checkStationName(loc.name);
-        if (byLocName) return byLocName;
       }
     }
 

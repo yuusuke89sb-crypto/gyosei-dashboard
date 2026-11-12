@@ -254,33 +254,35 @@ const SpreadsheetSync = {
             if (data.locations && Array.isArray(data.locations)) {
                 var localLocations = Store.getLocations() || [];
                 var policeFees = (typeof CaseTemplates !== 'undefined' && CaseTemplates.POLICE_FEES) ? CaseTemplates.POLICE_FEES : {};
+                var canonOf = function(n) { return (typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(n || '') : (n || '').replace(/\s+/g, ''); };
 
                 var mergedLocations = data.locations.map(function(remoteLoc) {
                     var cleanRemoteName = (remoteLoc.name || '').replace(/\s+/g, '');
+                    var remoteCanon = canonOf(remoteLoc.name);
+                    // 旧方式で同じIDに別警察署が割り当てられていたデータの混入を防ぐため、警察署名が一致するもののみローカル補完に使用
                     var localLoc = localLocations.find(function(l) {
-                        return l && (l.id === remoteLoc.id || (l.name && l.name.replace(/\s+/g, '') === cleanRemoteName));
+                        return l && l.name && canonOf(l.name) === remoteCanon;
                     });
+
+                    var defaultInfo = policeFees[remoteLoc.name];
+                    if (!defaultInfo) {
+                        for (var pName in policeFees) {
+                            if (canonOf(pName) === remoteCanon || pName.replace(/\s+/g, '') === cleanRemoteName) {
+                                defaultInfo = policeFees[pName];
+                                break;
+                            }
+                        }
+                    }
 
                     var fee = remoteLoc.syakoFee;
                     // 数値として不正、または未設定(null, undefined, '')、または0以下の場合
                     if (fee === undefined || fee === null || fee === '' || isNaN(Number(fee)) || Number(fee) <= 0) {
                         if (localLoc && localLoc.syakoFee && !isNaN(Number(localLoc.syakoFee)) && Number(localLoc.syakoFee) > 0) {
                             fee = Number(localLoc.syakoFee);
+                        } else if (defaultInfo && defaultInfo.fee) {
+                            fee = defaultInfo.fee;
                         } else {
-                            var defaultInfo = policeFees[remoteLoc.name];
-                            if (!defaultInfo) {
-                                for (var pName in policeFees) {
-                                    if (pName.replace(/\s+/g, '') === cleanRemoteName) {
-                                        defaultInfo = policeFees[pName];
-                                        break;
-                                    }
-                                }
-                            }
-                            if (defaultInfo && defaultInfo.fee) {
-                                fee = defaultInfo.fee;
-                            } else {
-                                fee = null;
-                            }
+                            fee = null;
                         }
                     } else {
                         fee = Number(fee);
@@ -288,15 +290,14 @@ const SpreadsheetSync = {
 
                     return Object.assign({}, remoteLoc, {
                         syakoFee: fee,
-                        address: remoteLoc.address || (localLoc && localLoc.address) || '',
-                        memo: remoteLoc.memo || (localLoc && localLoc.memo) || ''
+                        address: remoteLoc.address || (defaultInfo && defaultInfo.address) || (localLoc && localLoc.address) || '',
+                        memo: remoteLoc.memo || (defaultInfo && defaultInfo.memo) || (localLoc && localLoc.memo) || ''
                     });
                 });
 
                 // ローカルにしか存在しない場所の扱い（2026-10-19 変更）
                 // 以前は無条件に残していたため、端末ごとに作られた古い場所（LOC-0047 等）や削除済みの場所が
                 // 復活・増殖していた。スプレッドシートを正とし、作成直後（送信待ち）の場所だけを残して再送する。
-                var canonOf = function(n) { return (typeof LocationMaster !== 'undefined') ? LocationMaster.canonicalName(n || '') : (n || '').replace(/\s+/g, ''); };
                 var remoteNames = {};
                 mergedLocations.forEach(function(m) { remoteNames[canonOf(m.name)] = true; });
                 var RECENT_MS = 15 * 60 * 1000;
