@@ -68,7 +68,7 @@ const SpreadsheetSync = {
     // 一括受信(type=all)は約4.8MB・約100秒かかるため、スマホ（約60秒で通信が打ち切られる）では使わない。
     // 種類ごとの受信は同時に11本投げるとGASが処理しきれず404になるため、同時2本までに絞り、小さいものから順に取る。
     PULL_CHUNK_TYPES: ['settings', 'staff', 'locations', 'clientContacts', 'partners', 'customers', 'deletedCases', 'invoices', 'events', 'journals', 'inbox', 'cases'],
-    PULL_CONCURRENCY: 2,
+    PULL_CONCURRENCY: 3,
     PULL_RETRY_WAITS: [0, 3000, 8000],   // 初回・3秒後・8秒後
     PULL_ALL_TIMEOUT_MS: 180000,         // PCの一括受信
     PULL_CHUNK_TIMEOUT_MS: 120000,       // 種類ごとの受信
@@ -120,7 +120,17 @@ const SpreadsheetSync = {
         const extra = queryParams ? ('&' + queryParams) : '';
         if (!this.isMobile() || isDiff) {
             try {
-                const timeout = isDiff ? 35000 : this.PULL_ALL_TIMEOUT_MS;
+                const timeout = isDiff ? 45000 : this.PULL_ALL_TIMEOUT_MS;
+                if (isDiff) {
+                    const [mainRes, evRes] = await Promise.all([
+                        this._fetchJson(url + sep + 'type=all&skipEvents=1&t=' + Date.now() + extra, timeout),
+                        this._fetchJson(url + sep + 'type=events&t=' + Date.now(), 25000).catch(() => null)
+                    ]);
+                    if (mainRes && evRes && Array.isArray(evRes.events)) {
+                        mainRes.events = evRes.events;
+                    }
+                    return mainRes;
+                }
                 return await this._fetchJson(url + sep + 'type=all&t=' + Date.now() + extra, timeout);
             } catch (allErr) {
                 console.warn('[SpreadsheetSync.pull] 一括受信に失敗。種類ごとの受信に切り替えます...', allErr);
@@ -174,22 +184,16 @@ const SpreadsheetSync = {
         const url = this.getGasUrl();
         if (!url) throw new Error('GAS URL が設定されていません');
 
-        // 未送信の案件変更を先に送る（取得で上書きされないように）
-        if (typeof CaseSync !== 'undefined') {
-            try { await CaseSync.flush(); } catch (e) { console.warn('[SpreadsheetSync.pull] 案件の送信警告:', e); }
-        }
-
-        // 未送信キューがあれば事前に再送試行
-        try {
-            await this.flushPendingInboxQueue();
-        } catch (e) {
-            console.warn('[SpreadsheetSync.pull] キュー自動フラッシュ警告:', e);
-        }
-
-        // 未送信の請求書発行があれば事前に再送試行
-        if (typeof InvoiceSync !== 'undefined' && typeof InvoiceSync.flushQueue === 'function') {
-            try { await InvoiceSync.flushQueue(); } catch (e) { console.warn('[SpreadsheetSync.pull] 請求キュー送信警告:', e); }
-        }
+        // 未送信の変更（案件・インボックス・請求書）を並列で先に送る（取得で上書きされないように）
+        await Promise.all([
+            (typeof CaseSync !== 'undefined')
+                ? CaseSync.flush().catch(e => console.warn('[SpreadsheetSync.pull] 案件の送信警告:', e))
+                : Promise.resolve(),
+            this.flushPendingInboxQueue().catch(e => console.warn('[SpreadsheetSync.pull] キュー自動フラッシュ警告:', e)),
+            (typeof InvoiceSync !== 'undefined' && typeof InvoiceSync.flushQueue === 'function')
+                ? InvoiceSync.flushQueue().catch(e => console.warn('[SpreadsheetSync.pull] 請求キュー送信警告:', e))
+                : Promise.resolve()
+        ]);
 
         try {
             const sep = url.includes('?') ? '&' : '?';

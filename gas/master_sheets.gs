@@ -687,8 +687,8 @@ function doGet(e) {
     if (want('clientContacts')) result.clientContacts = getSheetDataAsJson_(SHEET_NAMES.CLIENT_CONTACT, CLIENT_CONTACT_HEADERS);
     if (want('partners')) result.partners = getSheetDataAsJson_(SHEET_NAMES.PARTNERS, PARTNER_HEADERS);
     
-    // カレンダーはシート外なので差分の対象外（毎回取得）
-    if (type === 'events' || type === 'all') {
+    // カレンダーはシート外なので差分の対象外（skipEvents=1 の場合は並列取得側で別途取得）
+    if (type === 'events' || (type === 'all' && p.skipEvents !== '1')) {
       const daysBack = parseInt(p.daysBack || '7');
       const daysForward = parseInt(p.daysForward || '90');
       result.events = getCalendarEvents_(daysBack, daysForward);
@@ -1106,6 +1106,16 @@ function performOcrAction_(body) {
 //  Web API ヘルパー関数
 // ============================================================
 
+function formatGasDateFast_(d, withTime, tz) {
+  if (tz === 'Asia/Tokyo') {
+    const p = function(n) { return n < 10 ? '0' + n : '' + n; };
+    const ymd = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    if (!withTime) return ymd;
+    return ymd + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+  return Utilities.formatDate(d, tz, withTime ? 'yyyy-MM-dd HH:mm:ss' : 'yyyy-MM-dd');
+}
+
 function getSheetDataAsJson_(sheetName, headers, opts) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(sheetName);
@@ -1123,30 +1133,36 @@ function getSheetDataAsJson_(sheetName, headers, opts) {
   }
   const jsonData = [];
   const keyMap = getKeyMap_(sheetName);
+  const tz = Session.getScriptTimeZone();
+  const isInboxOrLog = (sheetName === SHEET_NAMES.INBOX || sheetName === SHEET_NAMES.LOG);
+  const isCasesSheet = (sheetName === SHEET_NAMES.CASES);
+  const colMeta = actualHeaders.map((header) => {
+    if (!header) return null;
+    const key = keyMap[header] || header;
+    const withTime = isInboxOrLog || key === 'date' || key === 'createdAt' || key === 'updatedAt' || header.includes('日時') || header.includes('時間');
+    return { key: key, withTime: withTime };
+  });
+  const isPlate_ = function(s) {
+    return Boolean(s && typeof s === 'string' && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(s) || /^\d{1,4}$/.test(s.trim())));
+  };
 
-  data.forEach(row => {
+  for (let r = 0; r < data.length; r++) {
+    const row = data[r];
     const obj = {};
     let hasData = false;
-    actualHeaders.forEach((header, i) => {
-      if (!header) return;
-      const key = keyMap[header] || header;
+    for (let i = 0; i < colMeta.length; i++) {
+      const meta = colMeta[i];
+      if (!meta) continue;
       let value = row[i];
       if (value instanceof Date) {
-        if (sheetName === SHEET_NAMES.INBOX || sheetName === SHEET_NAMES.LOG || key === 'date' || key === 'createdAt' || key === 'updatedAt' || header.includes('日時') || header.includes('時間')) {
-          value = Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
-        } else {
-          value = Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-        }
+        value = formatGasDateFast_(value, meta.withTime, tz);
       }
-      obj[key] = (value !== undefined && value !== null) ? value : '';
+      obj[meta.key] = (value !== undefined && value !== null) ? value : '';
       if (value !== '' && value !== undefined && value !== null) hasData = true;
-    });
+    }
     if (hasData) {
-      if (sheetName === SHEET_NAMES.CASES) {
+      if (isCasesSheet) {
         // ナンバーと車台番号の混同・重複保護
-        const isPlate_ = function(s) {
-          return Boolean(s && typeof s === 'string' && (/[\u3040-\u30ff\u4e00-\u9fff]/.test(s) || /^\d{1,4}$/.test(s.trim())));
-        };
         const v_ = String(obj.vin || '').trim();
         const cn_ = String(obj.carNumber || '').trim();
         if (v_ && cn_ && v_ === cn_) {
@@ -1162,7 +1178,7 @@ function getSheetDataAsJson_(sheetName, headers, opts) {
       }
       jsonData.push(obj);
     }
-  });
+  }
   return jsonData;
 }
 
