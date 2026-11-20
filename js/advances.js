@@ -893,10 +893,11 @@ const Advances = {
     if (old) old.remove();
 
     const modal = document.createElement('div');
-    modal.className = 'modal-backdrop';
+    modal.className = 'modal';
     modal.id = 'bulkPaymentModal';
 
     modal.innerHTML = `
+      <div class="modal-overlay" onclick="document.getElementById('bulkPaymentModal').remove()"></div>
       <div class="modal-content" style="max-width:760px;">
         <div class="modal-header">
           <h2>💳 入金の消し込み（振込額から自動で当てはめ）</h2>
