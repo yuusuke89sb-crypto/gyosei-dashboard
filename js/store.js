@@ -1446,5 +1446,117 @@ const Store = {
     const text = ((c.clientName || '') + ' ' + (c.title || '') + ' ' + (c.memo || '')).toUpperCase();
     return text.includes('トヨタ') || text.includes('TOYOTA') || text.includes('WEST') || text.includes('キャラット') || text.includes('ATW');
   },
+
+  // 末日締めの月次期間（締め前チェック等で使用）
+  _monthEndPeriod(year, month) {
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const lastDay = new Date(y, m, 0).getDate();
+    const mm = String(m).padStart(2, '0');
+    return {
+      year: y,
+      month: m,
+      startDate: `${y}-${mm}-01`,
+      endDate: `${y}-${mm}-${String(lastDay).padStart(2, '0')}`,
+      cutoffDay: lastDay
+    };
+  },
+
+  // 日付文字列と締め日から請求月 ('YYYY-MM') を返す
+  billingMonthOfDate(dateStr, cutoffDay = 31) {
+    const dStr = this.toLocalDateStr ? this.toLocalDateStr(dateStr) : String(dateStr || '').slice(0, 10);
+    if (!dStr || dStr.length < 10) return '';
+    const y = parseInt(dStr.slice(0, 4), 10);
+    const m = parseInt(dStr.slice(5, 7), 10);
+    const d = parseInt(dStr.slice(8, 10), 10);
+    if (!y || !m || !d) return '';
+    if (cutoffDay < 28 && d > cutoffDay) {
+      const nextY = m === 12 ? y + 1 : y;
+      const nextM = m === 12 ? 1 : m + 1;
+      return `${nextY}-${String(nextM).padStart(2, '0')}`;
+    }
+    return `${y}-${String(m).padStart(2, '0')}`;
+  },
+
+  // 案件の基準日 ('YYYY-MM-DD') を返す
+  getCaseBaseDate(c) {
+    if (!c) return '';
+    const raw = c.completedAt || c.registrationDate || c.policeDeliveryDate || c.applyDate || c.registeredAt || c.createdAt || '';
+    return this.toLocalDateStr ? this.toLocalDateStr(raw) : String(raw).slice(0, 10);
+  },
+
+  // 請求月判定用のコンテキストを事前構築（高速化）
+  buildBillingContext() {
+    const invMonthByCase = {};
+    if (typeof InvoiceSync !== 'undefined' && InvoiceSync.getState) {
+      const st = InvoiceSync.getState() || {};
+      const invMonthByNo = {};
+      (st.invoices || []).forEach(inv => {
+        if (!inv || inv.status === '取消' || !inv.invoiceNo) return;
+        const dStr = this.toLocalDateStr ? this.toLocalDateStr(inv.periodTo || inv.issueDate) : String(inv.periodTo || inv.issueDate || '').slice(0, 10);
+        if (dStr && dStr.length >= 7) invMonthByNo[inv.invoiceNo] = dStr.slice(0, 7);
+      });
+      (st.items || []).forEach(it => {
+        if (!it || it.status !== '有効' || !it.caseId) return;
+        const ym = invMonthByNo[it.invoiceNo];
+        if (ym) invMonthByCase[String(it.caseId)] = ym;
+      });
+    }
+    const clientCutoffById = {};
+    (this.getClients() || []).forEach(cl => {
+      if (!cl) return;
+      const nm = ((cl.companyName || '') + ' ' + (cl.name || '')).toUpperCase();
+      const is25 = cl.closingDay === 25 || this.isToyotaClient(cl.id) || nm.includes('ふそう') || nm.includes('FUSO');
+      clientCutoffById[String(cl.id)] = is25 ? 25 : 31;
+    });
+    return { invMonthByCase, clientCutoffById };
+  },
+
+  // 案件が属する請求月 ('YYYY-MM') を返す
+  getCaseBillingMonth(c, ctx) {
+    if (!c) return '';
+    if (ctx && ctx.invMonthByCase && ctx.invMonthByCase[String(c.id)]) {
+      return ctx.invMonthByCase[String(c.id)];
+    }
+    if (c.billingMode === 'individual' && c.individualBilledAt) {
+      const indYm = this.billingMonthOfDate(c.individualBilledAt, 31);
+      if (indYm) return indYm;
+    }
+    const baseDate = this.getCaseBaseDate(c);
+    if (!baseDate) return '';
+    let cutoff = 31;
+    if (ctx && ctx.clientCutoffById && c.clientId && ctx.clientCutoffById[String(c.clientId)]) {
+      cutoff = ctx.clientCutoffById[String(c.clientId)];
+    } else if (this.isToyotaCase(c)) {
+      cutoff = 25;
+    }
+    return this.billingMonthOfDate(baseDate, cutoff);
+  },
+
+  // 'YYYY-MM' -> 'YYYY年M月分'
+  billingMonthLabel(ym) {
+    if (!ym || ym === 'all') return '全期間';
+    const parts = String(ym).split('-');
+    if (parts.length !== 2) return String(ym);
+    return `${parts[0]}年${parseInt(parts[1], 10)}月分`;
+  },
+
+  // デフォルトのレビュー対象請求月 ('YYYY-MM')
+  getDefaultReviewMonth() {
+    const cur = this.getCurrentBillingPeriod(new Date());
+    return `${cur.year}-${String(cur.month).padStart(2, '0')}`;
+  },
+
+  // 案件・請求書に存在する請求月一覧 ('YYYY-MM' 降順)
+  listBillingMonths() {
+    const set = new Set([this.getDefaultReviewMonth()]);
+    const ctx = this.buildBillingContext();
+    (this.getCases() || []).forEach(c => {
+      if (!c || c.status === 'deleted') return;
+      const ym = this.getCaseBillingMonth(c, ctx);
+      if (ym) set.add(ym);
+    });
+    return Array.from(set).sort().reverse();
+  },
 };
 
