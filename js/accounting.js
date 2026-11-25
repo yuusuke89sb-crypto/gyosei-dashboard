@@ -784,7 +784,7 @@ const Accounting = {
               </label>
               <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; font-weight:600; margin-bottom:12px; padding:8px 12px; border-radius:6px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.3); cursor:pointer;">
                 <input type="checkbox" id="mfAggregatePayrollChk" checked onchange="Accounting.reparseLastCSV()">
-                <span>給与・役員報酬・賞与を日付ごとに合算し、個人名を非表示にする</span>
+                <span>役員報酬・給与を合算（賞与も合算）し、個人名を非表示にする</span>
               </label>
               <div style="border:2px dashed var(--border-color); border-radius:8px; padding:20px; text-align:center; background:rgba(245,158,11,0.05); margin-bottom:16px;">
                 <input type="file" id="mfCsvFileInput" accept=".csv" onchange="Accounting.handleCSVFileSelect(event)" style="display:none">
@@ -1059,15 +1059,18 @@ const Accounting = {
       }
 
       if (aggregatePayroll && PAYROLL_ACCOUNTS.has(debit)) {
-        const bKey = `${rawDate}|${debit}`;
+        const mergedDebit = (debit === '役員報酬' || debit === '給料賃金') ? '給料賃金' : debit;
+        const bKey = `${rawDate}|${mergedDebit}`;
         if (!payrollBuckets[bKey]) {
           payrollBuckets[bKey] = {
             date: rawDate,
-            debit: debit,
+            debit: mergedDebit,
             credit: '普通預金・預り金',
-            amount: 0
+            amount: 0,
+            hasOfficerAndSalary: false
           };
         }
+        if (debit === '役員報酬') payrollBuckets[bKey].hasOfficerAndSalary = true;
         payrollBuckets[bKey].amount += amount;
         continue;
       }
@@ -1098,7 +1101,8 @@ const Accounting = {
       if (b.amount <= 0) return;
       const ymParts = b.date.split('-');
       const ymLabel = ymParts.length >= 2 ? `${ymParts[0]}年${Number(ymParts[1])}月分` : b.date;
-      const maskedDesc = `${ymLabel} ${b.debit}合計（個人名非公開）`;
+      const labelName = (b.debit === '給料賃金' && b.hasOfficerAndSalary) ? '給与・役員報酬合計' : `${b.debit}合計`;
+      const maskedDesc = `${ymLabel} ${labelName}（個人名非公開）`;
       const isDup = existingJournals.some(j =>
         j.date === b.date && j.debit === b.debit && j.amount === b.amount && (j.description || '') === maskedDesc
       );
