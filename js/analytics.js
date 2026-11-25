@@ -153,7 +153,9 @@ const Analytics = {
     // 勘定科目・帳簿データ取得
     const journals = (typeof Accounting !== 'undefined' && Accounting.getJournals) ? Accounting.getJournals() : JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
     const INCOME = ['売上高', '雑収入'];
-    const EXPENSE_ACCOUNTS = ['旅費交通費', '通信費', '消耗品費', '事務用品費', '家賃地代', '水道光熱費', '接待交際費', '広告宣伝費', '支払手数料', '租税公課', '研修費', '新聞図書費', '保険料', '減価償却費', '雑費'];
+    const EXPENSE_ACCOUNTS = (typeof Accounting !== 'undefined' && Accounting.ACCOUNTS && Accounting.ACCOUNTS.expense)
+      ? Accounting.ACCOUNTS.expense
+      : ['役員報酬', '給料賃金', '賞与', '法定福利費', '福利厚生費', '外注費', '支払報酬', '地代家賃', '家賃地代', '車両費', '旅費交通費', '通信費', '消耗品費', '備品・消耗品費', '事務用品費', '水道光熱費', '接待交際費', '会議費', '広告宣伝費', '支払手数料', '租税公課', '研修費', '研修採用費', '新聞図書費', '諸会費', '保険料', '修繕費', '減価償却費', '雑費'];
 
     // 月別集計
     const chartData = months.map(ym => {
@@ -319,7 +321,9 @@ const Analytics = {
 
     const year = new Date().getFullYear();
     const journals = (typeof Accounting !== 'undefined' && Accounting.getJournals) ? Accounting.getJournals() : JSON.parse(localStorage.getItem('gyosei_journals') || '[]');
-    const EXPENSE_ACCOUNTS = ['旅費交通費', '通信費', '消耗品費', '事務用品費', '家賃地代', '水道光熱費', '接待交際費', '広告宣伝費', '支払手数料', '租税公課', '研修費', '新聞図書費', '保険料', '減価償却費', '雑費'];
+    const EXPENSE_ACCOUNTS = (typeof Accounting !== 'undefined' && Accounting.ACCOUNTS && Accounting.ACCOUNTS.expense)
+      ? Accounting.ACCOUNTS.expense
+      : ['役員報酬', '給料賃金', '賞与', '法定福利費', '福利厚生費', '外注費', '支払報酬', '地代家賃', '家賃地代', '車両費', '旅費交通費', '通信費', '消耗品費', '備品・消耗品費', '事務用品費', '水道光熱費', '接待交際費', '会議費', '広告宣伝費', '支払手数料', '租税公課', '研修費', '研修採用費', '新聞図書費', '諸会費', '保険料', '修繕費', '減価償却費', '雑費'];
 
     // 勘定科目ごとに集計
     const expenses = {};
