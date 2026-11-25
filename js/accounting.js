@@ -767,9 +767,13 @@ const Accounting = {
               <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">
                 マネーフォワードの仕訳CSVまたは汎用形式CSVを選択してください。自動的にフォーマットを認識して取込対象を表示します。
               </p>
-              <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; font-weight:600; margin-bottom:12px; padding:8px 12px; border-radius:6px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); cursor:pointer;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; font-weight:600; margin-bottom:8px; padding:8px 12px; border-radius:6px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); cursor:pointer;">
                 <input type="checkbox" id="mfExpenseOnlyChk" checked onchange="Accounting.reparseLastCSV()">
                 <span>経費のみ安全取込（開始残高・売上・売掛金・立替金・預り金・口座振替を自動除外）</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; font-weight:600; margin-bottom:12px; padding:8px 12px; border-radius:6px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.3); cursor:pointer;">
+                <input type="checkbox" id="mfAggregatePayrollChk" checked onchange="Accounting.reparseLastCSV()">
+                <span>給与・役員報酬・賞与を日付ごとに合算し、個人名を非表示にする</span>
               </label>
               <div style="border:2px dashed var(--border-color); border-radius:8px; padding:20px; text-align:center; background:rgba(245,158,11,0.05); margin-bottom:16px;">
                 <input type="file" id="mfCsvFileInput" accept=".csv" onchange="Accounting.handleCSVFileSelect(event)" style="display:none">
@@ -813,6 +817,8 @@ const Accounting = {
     document.getElementById('mfCsvFileName').textContent = '';
     const chk = document.getElementById('mfExpenseOnlyChk');
     if (chk) chk.checked = true;
+    const pChk = document.getElementById('mfAggregatePayrollChk');
+    if (pChk) pChk.checked = true;
     document.getElementById('mfImportPreviewArea').style.display = 'none';
     document.getElementById('mfImportSubmitBtn').style.display = 'none';
     modal.style.display = 'flex';
@@ -924,6 +930,10 @@ const Accounting = {
 
     const chkEl = document.getElementById('mfExpenseOnlyChk');
     const expenseOnly = chkEl ? chkEl.checked : false;
+    const pChkEl = document.getElementById('mfAggregatePayrollChk');
+    const aggregatePayroll = pChkEl ? pChkEl.checked : false;
+    const PAYROLL_ACCOUNTS = new Set(['給料賃金', '役員報酬', '賞与']);
+    const payrollBuckets = {};
     const NON_EXPENSE_DEBITS = new Set([
       '普通預金', '現金', '売掛金', '立替金', '預り金', '仮受金', '未払金', '未払費用',
       '貯蔵品', '短期借入金', '長期借入金', '役員借入金', '資本金', '繰越利益剰余金',
@@ -982,6 +992,8 @@ const Accounting = {
 
       let debit = row[colDebit] || '';
       let credit = row[colCredit] || '';
+      const rawDebitCell = debit;
+      const rawDebitAmtCell = colDebitAmt !== -1 ? (row[colDebitAmt] || '') : '';
 
       // 経費明細CSVの場合は創立費/開業費判定 ＆ 貸方は役員借入金
       if (isExpenseDetailCSV) {
@@ -994,6 +1006,11 @@ const Accounting = {
       } else {
         // 通常仕訳CSVのマッピング
         if (txNo && txNo === lastTxNo) {
+          // 複合仕訳の「貸方のみ（例：預り金控除分）」の追加行は借方経費として二重計上しない
+          if (expenseOnly && !rawDebitCell && !rawDebitAmtCell) {
+            filteredCount++;
+            continue;
+          }
           if (!debit) debit = lastDebit;
           if (!credit) credit = lastCredit;
         } else {
@@ -1030,6 +1047,20 @@ const Accounting = {
         fullDesc = desc ? `${desc} (${memo})` : memo;
       }
 
+      if (aggregatePayroll && PAYROLL_ACCOUNTS.has(debit)) {
+        const bKey = `${rawDate}|${debit}`;
+        if (!payrollBuckets[bKey]) {
+          payrollBuckets[bKey] = {
+            date: rawDate,
+            debit: debit,
+            credit: '普通預金・預り金',
+            amount: 0
+          };
+        }
+        payrollBuckets[bKey].amount += amount;
+        continue;
+      }
+
       const isDup = existingJournals.some(j =>
         j.date === rawDate && j.debit === debit && j.credit === credit && j.amount === amount && (j.description || '') === fullDesc
       );
@@ -1050,6 +1081,31 @@ const Accounting = {
         createdAt: new Date().toISOString()
       });
     }
+
+    // 合算された給与・役員報酬・賞与を追加（個人名非表示）
+    Object.values(payrollBuckets).forEach((b, idx) => {
+      if (b.amount <= 0) return;
+      const ymParts = b.date.split('-');
+      const ymLabel = ymParts.length >= 2 ? `${ymParts[0]}年${Number(ymParts[1])}月分` : b.date;
+      const maskedDesc = `${ymLabel} ${b.debit}合計（個人名非公開）`;
+      const isDup = existingJournals.some(j =>
+        j.date === b.date && j.debit === b.debit && j.amount === b.amount && (j.description || '') === maskedDesc
+      );
+      if (isDup) {
+        skipCount++;
+        return;
+      }
+      newJournals.push({
+        id: 'j_' + Date.now() + '_pay_' + idx,
+        date: b.date,
+        debit: b.debit,
+        credit: b.credit,
+        amount: b.amount,
+        description: maskedDesc,
+        auto: false,
+        createdAt: new Date().toISOString()
+      });
+    });
 
     this.pendingImportJournals = newJournals;
 
