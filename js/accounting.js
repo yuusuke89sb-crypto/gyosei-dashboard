@@ -767,6 +767,10 @@ const Accounting = {
               <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">
                 マネーフォワードの仕訳CSVまたは汎用形式CSVを選択してください。自動的にフォーマットを認識して取込対象を表示します。
               </p>
+              <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; font-weight:600; margin-bottom:12px; padding:8px 12px; border-radius:6px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); cursor:pointer;">
+                <input type="checkbox" id="mfExpenseOnlyChk" checked onchange="Accounting.reparseLastCSV()">
+                <span>経費のみ安全取込（開始残高・売上・売掛金・立替金・預り金・口座振替を自動除外）</span>
+              </label>
               <div style="border:2px dashed var(--border-color); border-radius:8px; padding:20px; text-align:center; background:rgba(245,158,11,0.05); margin-bottom:16px;">
                 <input type="file" id="mfCsvFileInput" accept=".csv" onchange="Accounting.handleCSVFileSelect(event)" style="display:none">
                 <button class="btn btn-secondary" onclick="document.getElementById('mfCsvFileInput').click()">📁 CSVファイルを選択</button>
@@ -804,11 +808,20 @@ const Accounting = {
       modal = document.getElementById('mfImportModal');
     }
     this.pendingImportJournals = [];
+    this._lastCsvText = null;
     document.getElementById('mfCsvFileInput').value = '';
     document.getElementById('mfCsvFileName').textContent = '';
+    const chk = document.getElementById('mfExpenseOnlyChk');
+    if (chk) chk.checked = true;
     document.getElementById('mfImportPreviewArea').style.display = 'none';
     document.getElementById('mfImportSubmitBtn').style.display = 'none';
     modal.style.display = 'flex';
+  },
+
+  reparseLastCSV() {
+    if (this._lastCsvText) {
+      this.parseAndPreviewCSV(this._lastCsvText);
+    }
   },
 
   closeMFImportModal() {
@@ -902,11 +915,21 @@ const Accounting = {
   },
 
   parseAndPreviewCSV(csvText) {
+    this._lastCsvText = csvText;
     const rows = this.parseCSVLines(csvText);
     if (rows.length < 2) {
       App.showToast('CSVに有効なデータが含まれていません');
       return;
     }
+
+    const chkEl = document.getElementById('mfExpenseOnlyChk');
+    const expenseOnly = chkEl ? chkEl.checked : false;
+    const NON_EXPENSE_DEBITS = new Set([
+      '普通預金', '現金', '売掛金', '立替金', '預り金', '仮受金', '未払金', '未払費用',
+      '貯蔵品', '短期借入金', '長期借入金', '役員借入金', '資本金', '繰越利益剰余金',
+      '法人税等', '工具器具備品', '車両運搬具', '敷金', '保証金', '差入保証金',
+      '仮払金', '事業主貸', '事業主借', '未分類'
+    ]);
 
     const header = rows[0].map(h => h.replace(/^"+|"+$/g, '').trim());
 
@@ -931,6 +954,7 @@ const Accounting = {
     const existingJournals = this.getJournals();
     const newJournals = [];
     let skipCount = 0;
+    let filteredCount = 0;
 
     let lastTxNo = null;
     let lastDebit = '未分類';
@@ -981,6 +1005,17 @@ const Accounting = {
 
       if (!debit) debit = '未分類';
       if (!credit) credit = '未分類';
+
+      if (expenseOnly) {
+        if (txNo === '1' && rawDate.endsWith('-10-01')) {
+          filteredCount++;
+          continue;
+        }
+        if (NON_EXPENSE_DEBITS.has(debit)) {
+          filteredCount++;
+          continue;
+        }
+      }
 
       let amountStr = row[colDebitAmt] || (colCreditAmt !== -1 ? row[colCreditAmt] : '0');
       amountStr = amountStr.replace(/[^0-9.]/g, '');
@@ -1034,7 +1069,10 @@ const Accounting = {
     }
 
     document.getElementById('mfImportStats').textContent = `取込対象: ${newJournals.length} 件`;
-    document.getElementById('mfSkipStats').textContent = skipCount > 0 ? `(重複によりスキップ: ${skipCount}件)` : '';
+    const skipParts = [];
+    if (filteredCount > 0) skipParts.push(`経費外を除外: ${filteredCount}件`);
+    if (skipCount > 0) skipParts.push(`重複スキップ: ${skipCount}件`);
+    document.getElementById('mfSkipStats').textContent = skipParts.length ? `(${skipParts.join(' / ')})` : '';
     document.getElementById('mfImportPreviewArea').style.display = 'block';
     document.getElementById('mfImportSubmitBtn').style.display = newJournals.length > 0 ? 'inline-block' : 'none';
   },
