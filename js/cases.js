@@ -2367,9 +2367,10 @@ const Cases = {
       const isAichiToyota = (typeof Store !== 'undefined' && Store.isAichiToyotaClient)
         ? Store.isAichiToyotaClient(c.clientId)
         : !!(c.clientId && Store.getClient(c.clientId)?.name?.includes('愛知トヨタ'));
+      const isExplicitZeroFee = (curFee === 0 || curFee === '0');
       if (isGaragePaper && resolvedPolId && typeof Store !== 'undefined' && isAichiToyota) {
         const loc = Store.getLocation(resolvedPolId);
-        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && !isExplicitZeroFee) {
           // ★軽は半額(切上)+1,000円、申請のみ／受取のみは半額(切上)、それ以外は所轄単価
           const { fee: targetFee, mode } = Cases._calcGaragePaperFee(loc.syakoFee, c);
           if (mode !== 'full') {
@@ -2382,14 +2383,14 @@ const Cases = {
         }
       } else if (isCarRegLight && resolvedPolId && typeof Store !== 'undefined' && isAichiToyota) {
         const loc = Store.getLocation(resolvedPolId);
-        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0) {
+        if (loc && loc.syakoFee && Number(loc.syakoFee) > 0 && !isExplicitZeroFee) {
           const halfFee = Math.round(Number(loc.syakoFee) / 2) + 1000;
           if (!curFee || Number(curFee) === 0 || Number(curFee) === 5500 || Number(curFee) === 2000 || Number(curFee) === Number(loc.syakoFee)) {
             curFee = halfFee;
           }
         }
       } else if (isGarageOss) {
-        if (!curFee || Number(curFee) === 0) {
+        if (!isExplicitZeroFee && (!curFee || Number(curFee) === 0)) {
           curFee = 3500;
         }
       } else if (c.category === 'seal' || (c.subCategory && c.subCategory.includes('封印')) || (c.title && c.title.includes('封印'))) {

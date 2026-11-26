@@ -780,7 +780,8 @@ const CaseTemplates = {
             : isLightGarage ? (halfUp + 1000)
             : isApplyOnly ? halfUp
             : fullFee;
-          const feeNeedsUpdate = (currentFee !== targetFee);
+          const isExplicitZeroFee = (c.fee === 0 || c.fee === '0');
+          const feeNeedsUpdate = !isExplicitZeroFee && (currentFee !== targetFee);
           const locNeedsUpdate = (!c.policeLocationId && loc.id);
 
           if (feeNeedsUpdate || locNeedsUpdate) {

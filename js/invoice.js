@@ -586,6 +586,7 @@ const Invoice = {
   // 案件の請求用報酬額取得ヘルパー（愛知トヨタ等の封印・車庫OSS等で未入力0円の場合は標準単価を自動補完し案件データに永続化）
   _getCaseFee(c, client = null) {
     if (!c) return 0;
+    if (c.fee === 0 || c.fee === '0') return 0; // 明示的に0円が設定されている場合は自動補完しない
     const rawFee = (c.fee !== undefined && c.fee !== null && c.fee !== '') ? Number(c.fee) : 0;
     if (rawFee > 0) return rawFee;
     
