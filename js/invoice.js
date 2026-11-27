@@ -583,6 +583,33 @@ const Invoice = {
       (cases || []).some(c => /三菱|ふそう|FUSO/i.test(c.dealer || c.clientName || c.title || ''));
   },
 
+  // 請求書明細の「管轄」欄に表示する場所名を決定するヘルパー
+  // 登録・封印系（車庫証明以外）は「登録先(landTransportLocationId) → 申請先(policeLocationId) → 所轄(carPolice)」の順で優先し、
+  // 住所から自動入力された「小牧警察署」が「小牧陸事」を上書きして「小牧」だけになるのを防ぐ
+  _resolvePoliceDisplayName(c) {
+    if (!c || c.category === 'garage_oss') return '';
+    const formatLoc = (raw) => LocationMaster.canonicalName(raw || '').replace(/警察署?/, '').trim();
+    const resolveId = (id) => {
+      if (!id || typeof Store === 'undefined' || !Store.getLocation) return '';
+      const loc = Store.getLocation(id);
+      return loc ? formatLoc(loc.name || '') : '';
+    };
+    const isGarage = c.category === 'garage_paper';
+    if (!isGarage) {
+      const byLand = resolveId(c.landTransportLocationId);
+      if (byLand) return byLand;
+    }
+    const byPolId = resolveId(c.policeLocationId);
+    if (byPolId) return byPolId;
+    const byText = formatLoc(c.carPolice || c.policeStation || c.authority || '');
+    if (byText) return byText;
+    if (isGarage) {
+      const byLand = resolveId(c.landTransportLocationId);
+      if (byLand) return byLand;
+    }
+    return '';
+  },
+
   // 案件の請求用報酬額取得ヘルパー（愛知トヨタ等の封印・車庫OSS等で未入力0円の場合は標準単価を自動補完し案件データに永続化）
   _getCaseFee(c, client = null) {
     if (!c) return 0;
@@ -2154,15 +2181,7 @@ const Invoice = {
         const applicant = c.carName || c.applicantName || c.title || '-';
         
         // OSSの管轄は空欄
-        let policeName = '';
-        if (c.category !== 'garage_oss') {
-          policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
-          if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-            const loc = Store.getLocation(c.policeLocationId);
-            if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-          }
-          if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
-        }
+        const policeName = this._resolvePoliceDisplayName(c);
 
         const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
@@ -2777,15 +2796,7 @@ ${detailPagesHTML}
           const orderNo = c.orderNo || c.caseNo || '-';
           const applicant = c.carName || c.applicantName || c.title || '-';
 
-          let policeName = '';
-          if (c.category !== 'garage_oss') {
-            policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
-            if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-              const loc = Store.getLocation(c.policeLocationId);
-              if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-            }
-            if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
-          }
+          const policeName = this._resolvePoliceDisplayName(c);
 
           const categoryShort = this._getCaseCategoryShort(c);
           const specialNote = this._getCaseSpecialNote(c);
@@ -3372,15 +3383,7 @@ ${detailPagesHTML}
         const orderNo = c.orderNo || c.caseNo || '-';
         const applicant = c.carName || c.applicantName || c.title || '-';
         
-        let policeName = '';
-        if (c.category !== 'garage_oss') {
-          policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
-          if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-            const loc = Store.getLocation(c.policeLocationId);
-            if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-          }
-          if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
-        }
+        const policeName = this._resolvePoliceDisplayName(c);
 
         const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
@@ -3968,15 +3971,7 @@ ${detailPagesHTML}
           const orderNo = c.orderNo || c.caseNo || '-';
           const applicant = c.carName || c.applicantName || c.title || '-';
 
-          let policeName = '';
-          if (c.category !== 'garage_oss') {
-            policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
-            if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-              const loc = Store.getLocation(c.policeLocationId);
-              if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-            }
-            if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
-          }
+          const policeName = this._resolvePoliceDisplayName(c);
 
           const categoryShort = this._getCaseCategoryShort(c);
           const specialNote = this._getCaseSpecialNote(c);
@@ -4567,12 +4562,7 @@ ${detailPagesHTML}
         const orderNo = c.orderNo || c.caseNo || '-';
         const applicant = c.carName || c.applicantName || c.title || '-';
         
-        let policeName = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
-        if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-          const loc = Store.getLocation(c.policeLocationId);
-          if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-        }
-        if (!policeName) policeName = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+        const policeName = this._resolvePoliceDisplayName(c);
 
         const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
@@ -4900,13 +4890,7 @@ ${fusoDetailPagesHTML}
 
     const formatPoliceName = (c) => {
       if (c.policeName) return c.policeName;
-      let p = LocationMaster.canonicalName(c.carPolice || '').replace(/警察署?/, '').trim();
-      if (!p && c.policeLocationId && typeof Store !== 'undefined') {
-        const loc = Store.getLocation(c.policeLocationId);
-        if (loc) p = (loc.name || '').replace(/警察署?/, '').trim();
-      }
-      if (!p) p = (c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
-      return p;
+      return this._resolvePoliceDisplayName(c);
     };
 
     // OSS図面作成（立替金のないOSS案件）を分離し別紙集計、通常案件を個別計上
@@ -6361,14 +6345,7 @@ window.NissanPrint = {
         const orderNo = c.orderNo || c.caseNo || '-';
         const applicant = c.carName || c.applicantName || c.title || '-';
 
-        let policeName = '';
-        if (c.category !== 'garage_oss') {
-          policeName = LocationMaster.canonicalName(c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
-          if (!policeName && c.policeLocationId && typeof Store !== 'undefined') {
-            const loc = Store.getLocation(c.policeLocationId);
-            if (loc) policeName = (loc.name || '').replace(/警察署?/, '').trim();
-          }
-        }
+        const policeName = this._resolvePoliceDisplayName(c);
 
         const categoryShort = this._getCaseCategoryShort(c);
         const specialNote = this._getCaseSpecialNote(c);
@@ -7061,7 +7038,7 @@ window.NissanPrint = {
       }
       const orderNo = c.orderNo || c.caseNo || '-';
       const applicant = c.carName || c.applicantName || c.title || '-';
-      const police = LocationMaster.canonicalName(c.carPolice || c.policeStation || c.authority || '').replace(/警察署?/, '').trim();
+      const police = this._resolvePoliceDisplayName(c);
       const fee = Number(c.fee || 0);
       const advSum = (c.advances || []).reduce((s,a)=>s+Number(a.amount||0), 0);
       const advDetails = (c.advances || []).filter(a => Number(a.amount) > 0).map(a => `${a.label||a.category||'実費'}:${Number(a.amount).toLocaleString()}`).join(' ');
